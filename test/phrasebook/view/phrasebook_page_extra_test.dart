@@ -48,7 +48,10 @@ void main() {
       router: router,
     );
     await tester.pumpAndSettle();
-    expect(find.text('\u2068English\u2069 → \u2068German\u2069 · No phrases'), findsOneWidget);
+    expect(
+      find.text('\u2068English\u2069 → \u2068German\u2069 · No phrases'),
+      findsOneWidget,
+    );
     await tester.tap(find.text('Pharmacy'));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('phrasebook_translate')));
