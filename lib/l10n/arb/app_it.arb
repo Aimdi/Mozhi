@@ -2406,5 +2406,20 @@
   "pairingFailureNoSpace": "Questo telefono ha esaurito lo spazio di archiviazione.",
   "pairingFailureUnknown": "Si è verificato un problema. Riprova.",
   "conversationSharePrivacyNote": "Solo i dispositivi su questa rete possono aprirla ma, trattandosi di semplice http, altre persone sulla stessa rete Wi-Fi potrebbero leggerla: evita le reti Wi-Fi pubbliche per le conversazioni riservate. L’hotspot del tuo telefono è la scelta migliore.",
-  "onboardingRestoreBackup": "Ripristina da un backup"
+  "onboardingRestoreBackup": "Ripristina da un backup",
+  "practiceSettingsTileSubtitle": "Flashcard delle tue frasi, brevi sessioni di ripasso, esportazione in Anki",
+  "practiceSearchKeywords": "Flashcard, ripetizione dilazionata, ripetizione spaziata, FSRS, Anki, pronuncia",
+  "pairingAcceptAfterNumbers": "Controlla prima i numeri: potrai accettare dopo aver confermato che entrambi i telefoni mostrano lo stesso numero.",
+  "backupRestoreNewProviders": "Nuovi provider IA e servizi di traduzione: {providers}",
+  "backupRestoreNewInstances": "Nuove istanze Mozhi, usate solo con Sostituisci: {instances}",
+  "backupRestoreAddedProviders": "Provider IA e servizi di traduzione aggiunti: {providers}",
+  "backupRestoreAddedInstances": "Istanze Mozhi aggiunte: {instances}",
+  "backupRestoreSkippedInstances": "Non aggiunte, perché Unisci non aggiunge mai istanze Mozhi: {instances}",
+  "backupRestoreProviderHost": "{name} ({host})",
+  "backupRestoreSettingsModesBody": "Impostazioni: Unisci aggiunge i provider IA del backup (usati solo quando li scegli), ma non le sue istanze Mozhi, perché Mozhi può inviare da solo il tuo testo a qualsiasi istanza del tuo elenco. Sostituisci usa i provider e le istanze del backup.",
+  "conversationShareGuestLanguageLimit": "Al momento non si possono aggiungere altre lingue a questa conversazione. Scegline una che usa già: {languages}.",
+  "conversationShareLanguagePending": "{count, plural, =1{Ancora 1 messaggio da tradurre} other{Ancora {count} messaggi da tradurre}}",
+  "conversationShareLanguagesLimit": "{count, plural, =1{Gli ospiti possono leggere 1 altra lingua alla volta.} other{Gli ospiti possono leggere fino a {count} altre lingue alla volta.}}",
+  "backupRestoreAddedProvidersOff": "Aggiunti ma disattivati finché non li attivi nelle Impostazioni, perché riceverebbero il tuo testo senza chiedere prima: {providers}",
+  "settingsDeleteAllDataPractice": "{count, plural, =1{Progressi negli esercizi di 1 flashcard} other{Progressi negli esercizi di {count} flashcard}}"
 }

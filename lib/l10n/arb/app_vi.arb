@@ -2406,5 +2406,20 @@
   "pairingFailureNoSpace": "Điện thoại này đã hết dung lượng lưu trữ.",
   "pairingFailureUnknown": "Đã xảy ra lỗi. Hãy thử lại.",
   "conversationSharePrivacyNote": "Chỉ thiết bị trong mạng này mới mở được, và vì đây là http thường nên những người khác dùng cùng Wi-Fi có thể đọc được. Vì vậy, hãy tránh dùng Wi-Fi công cộng cho cuộc trò chuyện nhạy cảm: tốt nhất là dùng điểm phát sóng của điện thoại bạn.",
-  "onboardingRestoreBackup": "Khôi phục từ bản sao lưu"
+  "onboardingRestoreBackup": "Khôi phục từ bản sao lưu",
+  "practiceSettingsTileSubtitle": "Thẻ ghi nhớ từ các cụm từ của bạn, các phiên ôn ngắn, xuất sang Anki",
+  "practiceSearchKeywords": "Thẻ ghi nhớ, flashcard, lặp lại ngắt quãng, FSRS, Anki, phát âm",
+  "pairingAcceptAfterNumbers": "Hãy kiểm tra số trước: bạn có thể chấp nhận sau khi đã xác nhận cả hai điện thoại hiện cùng một số.",
+  "backupRestoreNewProviders": "Nhà cung cấp AI và dịch vụ dịch mới: {providers}",
+  "backupRestoreNewInstances": "Máy chủ Mozhi mới, chỉ được dùng khi chọn Thay thế: {instances}",
+  "backupRestoreAddedProviders": "Đã thêm nhà cung cấp AI và dịch vụ dịch: {providers}",
+  "backupRestoreAddedInstances": "Đã thêm máy chủ Mozhi: {instances}",
+  "backupRestoreSkippedInstances": "Không được thêm, vì Hợp nhất không bao giờ thêm máy chủ Mozhi: {instances}",
+  "backupRestoreProviderHost": "{name} ({host})",
+  "backupRestoreSettingsModesBody": "Cài đặt: Hợp nhất thêm các nhà cung cấp AI trong bản sao lưu (chỉ được dùng sau khi bạn chọn chúng) nhưng không thêm các máy chủ Mozhi trong đó, vì Mozhi có thể tự gửi văn bản của bạn đến bất kỳ máy chủ nào trong danh sách của bạn. Thay thế dùng các nhà cung cấp và máy chủ trong bản sao lưu.",
+  "conversationShareGuestLanguageLimit": "Hiện không thể thêm ngôn ngữ nào nữa vào cuộc hội thoại này. Hãy chọn một ngôn ngữ mà cuộc hội thoại đã dùng: {languages}.",
+  "conversationShareLanguagePending": "{count, plural, =1{Còn 1 tin nhắn cần dịch} other{Còn {count} tin nhắn cần dịch}}",
+  "conversationShareLanguagesLimit": "{count, plural, =1{Khách có thể đọc 1 ngôn ngữ khác cùng lúc.} other{Khách có thể đọc tối đa {count} ngôn ngữ khác cùng lúc.}}",
+  "backupRestoreAddedProvidersOff": "Đã thêm nhưng đang tắt cho đến khi bạn bật trong Cài đặt, vì chúng sẽ nhận văn bản của bạn mà không hỏi trước: {providers}",
+  "settingsDeleteAllDataPractice": "{count, plural, =1{Tiến độ luyện tập của 1 thẻ} other{Tiến độ luyện tập của {count} thẻ}}"
 }

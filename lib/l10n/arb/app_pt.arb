@@ -2406,5 +2406,20 @@
   "pairingFailureNoSpace": "Este celular está sem espaço de armazenamento.",
   "pairingFailureUnknown": "Algo deu errado. Tente novamente.",
   "conversationSharePrivacyNote": "Só dispositivos nesta rede podem abri-la, mas, como é http simples, outras pessoas no mesmo Wi-Fi poderiam ler junto. Por isso, evite Wi-Fi público para conversas sensíveis: o ponto de acesso do seu celular é a melhor opção.",
-  "onboardingRestoreBackup": "Restaurar de um backup"
+  "onboardingRestoreBackup": "Restaurar de um backup",
+  "practiceSettingsTileSubtitle": "Cartões com suas frases, sessões curtas de revisão, exportação para o Anki",
+  "practiceSearchKeywords": "Cartões de memorização, flashcards, repetição espaçada, FSRS, Anki, pronúncia",
+  "pairingAcceptAfterNumbers": "Confira os números primeiro: você poderá aceitar depois de confirmar que os dois celulares mostram o mesmo.",
+  "backupRestoreNewProviders": "Novos provedores de IA e serviços de tradução: {providers}",
+  "backupRestoreNewInstances": "Novas instâncias do Mozhi, usadas só com Substituir: {instances}",
+  "backupRestoreAddedProviders": "Provedores de IA e serviços de tradução adicionados: {providers}",
+  "backupRestoreAddedInstances": "Instâncias do Mozhi adicionadas: {instances}",
+  "backupRestoreSkippedInstances": "Não adicionadas, porque Mesclar nunca adiciona instâncias do Mozhi: {instances}",
+  "backupRestoreProviderHost": "{name} ({host})",
+  "backupRestoreSettingsModesBody": "Configurações: Mesclar adiciona os provedores de IA do backup (usados só quando você os escolhe), mas não as instâncias do Mozhi que ele contém, já que o Mozhi pode enviar seu texto por conta própria a qualquer instância da sua lista. Substituir usa os provedores e as instâncias do backup.",
+  "conversationShareGuestLanguageLimit": "No momento, não é possível adicionar mais idiomas a esta conversa. Escolha um que ela já usa: {languages}.",
+  "conversationShareLanguagePending": "{count, plural, =0{Faltam {count} mensagens para traduzir} =1{Falta 1 mensagem para traduzir} other{Faltam {count} mensagens para traduzir}}",
+  "conversationShareLanguagesLimit": "{count, plural, =0{Convidados podem ler até {count} outros idiomas por vez.} =1{Convidados podem ler 1 outro idioma por vez.} other{Convidados podem ler até {count} outros idiomas por vez.}}",
+  "backupRestoreAddedProvidersOff": "Adicionados, mas desativados até você ativá-los nas Configurações, pois receberiam seu texto sem perguntar antes: {providers}",
+  "settingsDeleteAllDataPractice": "{count, plural, =0{Progresso da prática de {count} cartões} =1{Progresso da prática de 1 cartão} other{Progresso da prática de {count} cartões}}"
 }

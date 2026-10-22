@@ -2406,5 +2406,20 @@
   "pairingFailureNoSpace": "На этом телефоне закончилось место.",
   "pairingFailureUnknown": "Что-то пошло не так. Повторите попытку.",
   "conversationSharePrivacyNote": "Открыть его могут только устройства в этой сети, а так как это обычный http, другие в той же сети Wi-Fi могли бы читать разговор. Поэтому не используйте общественный Wi-Fi для конфиденциальных бесед: лучше всего подходит точка доступа вашего телефона.",
-  "onboardingRestoreBackup": "Восстановить из резервной копии"
+  "onboardingRestoreBackup": "Восстановить из резервной копии",
+  "practiceSettingsTileSubtitle": "Карточки из ваших фраз, короткие занятия для повторения, экспорт в Anki",
+  "practiceSearchKeywords": "Карточки, флеш-карточки, интервальное повторение, FSRS, Anki, произношение",
+  "pairingAcceptAfterNumbers": "Сначала проверьте числа: принять можно после того, как вы подтвердите, что на обоих телефонах показано одно и то же число.",
+  "backupRestoreNewProviders": "Новые ИИ-провайдеры и сервисы перевода: {providers}",
+  "backupRestoreNewInstances": "Новые серверы Mozhi, которые используются только при замене: {instances}",
+  "backupRestoreAddedProviders": "Добавлены ИИ-провайдеры и сервисы перевода: {providers}",
+  "backupRestoreAddedInstances": "Добавлены серверы Mozhi: {instances}",
+  "backupRestoreSkippedInstances": "Не добавлены, так как при объединении серверы Mozhi никогда не добавляются: {instances}",
+  "backupRestoreProviderHost": "{name} ({host})",
+  "backupRestoreSettingsModesBody": "Настройки: при объединении добавляются ИИ-провайдеры из резервной копии (они используются, только когда вы их выберете), но не её серверы Mozhi, ведь Mozhi может сам отправить ваш текст на любой сервер из вашего списка. При замене используются провайдеры и серверы из резервной копии.",
+  "conversationShareGuestLanguageLimit": "Сейчас в этот разговор нельзя добавить больше языков. Выберите один из тех, что в нём уже используются: {languages}.",
+  "conversationShareLanguagePending": "{count, plural, one{Осталось перевести {count} сообщение} few{Осталось перевести {count} сообщения} many{Осталось перевести {count} сообщений} other{Осталось перевести {count} сообщения}}",
+  "conversationShareLanguagesLimit": "{count, plural, =1{Гости могут одновременно читать 1 другой язык.} one{Гости могут одновременно читать до {count} другого языка.} few{Гости могут одновременно читать до {count} других языков.} many{Гости могут одновременно читать до {count} других языков.} other{Гости могут одновременно читать до {count} другого языка.}}",
+  "backupRestoreAddedProvidersOff": "Добавлены, но выключены, пока вы не включите их в настройках, так как они получали бы ваш текст без предварительного запроса: {providers}",
+  "settingsDeleteAllDataPractice": "{count, plural, one{Прогресс тренировок: {count} карточка} few{Прогресс тренировок: {count} карточки} many{Прогресс тренировок: {count} карточек} other{Прогресс тренировок: {count} карточки}}"
 }

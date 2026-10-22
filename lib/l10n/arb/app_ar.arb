@@ -2406,5 +2406,20 @@
   "pairingFailureNoSpace": "نفدت مساحة التخزين على هذا الهاتف.",
   "pairingFailureUnknown": "حدث خطأ ما. أعِد المحاولة.",
   "conversationSharePrivacyNote": "لا يمكن فتحها إلا من الأجهزة المتصلة بهذه الشبكة، ولأنها تستخدم http عاديًا يمكن للآخرين على شبكة Wi-Fi نفسها قراءتها، لذا تجنّب شبكات Wi-Fi العامة في الأحاديث الحساسة: نقطة الاتصال في هاتفك هي الخيار الأفضل.",
-  "onboardingRestoreBackup": "الاستعادة من نسخة احتياطية"
+  "onboardingRestoreBackup": "الاستعادة من نسخة احتياطية",
+  "practiceSettingsTileSubtitle": "بطاقات تعليمية من عباراتك، وجلسات مراجعة قصيرة، وتصدير إلى Anki",
+  "practiceSearchKeywords": "بطاقات تعليمية، التكرار المتباعد، FSRS، Anki، النطق، flashcards",
+  "pairingAcceptAfterNumbers": "تحقّق من الرقمين أولًا: يمكنك القبول بعد أن تؤكّد أن الهاتفين يعرضان الرقم نفسه.",
+  "backupRestoreNewProviders": "مزوّدون جدد للذكاء الاصطناعي والترجمة: {providers}",
+  "backupRestoreNewInstances": "مثيلات Mozhi جديدة، لا تُستخدم إلا مع الاستبدال: {instances}",
+  "backupRestoreAddedProviders": "تمت إضافة مزوّدي الذكاء الاصطناعي والترجمة: {providers}",
+  "backupRestoreAddedInstances": "تمت إضافة مثيلات Mozhi: {instances}",
+  "backupRestoreSkippedInstances": "لم تُضَف، لأن الدمج لا يضيف مثيلات Mozhi أبدًا: {instances}",
+  "backupRestoreProviderHost": "{name} ({host})",
+  "backupRestoreSettingsModesBody": "الإعدادات: يضيف الدمج مزوّدي الذكاء الاصطناعي الموجودين في النسخة الاحتياطية (ولا يُستخدمون إلا بعد أن تختارهم)، لكنه لا يضيف مثيلات Mozhi الموجودة فيها، لأن Mozhi يمكنه أن يرسل نصك بنفسه إلى أي مثيل في قائمتك. أما الاستبدال فيستخدم المزوّدين والمثيلات الموجودة في النسخة الاحتياطية.",
+  "conversationShareGuestLanguageLimit": "لا يمكن إضافة المزيد من اللغات إلى هذه المحادثة الآن. اختر لغة تستخدمها المحادثة بالفعل: {languages}.",
+  "conversationShareLanguagePending": "{count, plural, =1{بقيت رسالة واحدة للترجمة} =2{بقيت رسالتان للترجمة} few{بقيت {count} رسائل للترجمة} many{بقيت {count} رسالةً للترجمة} other{بقيت {count} رسالة للترجمة}}",
+  "conversationShareLanguagesLimit": "{count, plural, =1{يمكن للضيوف قراءة لغة أخرى واحدة في الوقت نفسه.} =2{يمكن للضيوف قراءة ما يصل إلى لغتين أخريين في الوقت نفسه.} few{يمكن للضيوف قراءة ما يصل إلى {count} لغات أخرى في الوقت نفسه.} many{يمكن للضيوف قراءة ما يصل إلى {count} لغةً أخرى في الوقت نفسه.} other{يمكن للضيوف قراءة ما يصل إلى {count} لغة أخرى في الوقت نفسه.}}",
+  "backupRestoreAddedProvidersOff": "أُضيفت لكنها غير مفعّلة حتى تفعّلها في الإعدادات، لأنها كانت ستتلقّى نصك دون أن تسألك أولًا: {providers}",
+  "settingsDeleteAllDataPractice": "{count, plural, =1{التقدّم في التدريب: بطاقة واحدة} =2{التقدّم في التدريب: بطاقتان} few{التقدّم في التدريب: {count} بطاقات} many{التقدّم في التدريب: {count} بطاقةً} other{التقدّم في التدريب: {count} بطاقة}}"
 }

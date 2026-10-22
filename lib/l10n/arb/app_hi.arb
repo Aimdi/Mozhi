@@ -2406,5 +2406,20 @@
   "pairingFailureNoSpace": "इस फ़ोन में स्टोरेज की जगह खत्म हो गई है।",
   "pairingFailureUnknown": "कुछ गड़बड़ हो गई। फिर से कोशिश करें।",
   "conversationSharePrivacyNote": "इसे सिर्फ़ इस नेटवर्क के डिवाइस खोल सकते हैं, और यह सादा http है, इसलिए उसी वाई-फ़ाई पर मौजूद दूसरे लोग भी इसे पढ़ सकते हैं। संवेदनशील बातचीत के लिए सार्वजनिक वाई-फ़ाई से बचें: आपके फ़ोन का हॉटस्पॉट सबसे अच्छा है।",
-  "onboardingRestoreBackup": "बैकअप से रीस्टोर करें"
+  "onboardingRestoreBackup": "बैकअप से रीस्टोर करें",
+  "practiceSettingsTileSubtitle": "आपके वाक्यांशों के फ़्लैशकार्ड, दोहराने के छोटे सेशन, Anki में एक्सपोर्ट",
+  "practiceSearchKeywords": "फ़्लैशकार्ड, अंतराल पर दोहराना, स्पेस्ड रिपीटिशन, FSRS, Anki, उच्चारण, flashcards",
+  "pairingAcceptAfterNumbers": "पहले नंबर जांचें: जब आप पुष्टि कर लें कि दोनों फ़ोन पर एक ही नंबर दिख रहा है, तब आप स्वीकार कर सकते हैं।",
+  "backupRestoreNewProviders": "नए AI प्रोवाइडर और अनुवाद सेवाएं: {providers}",
+  "backupRestoreNewInstances": "नए Mozhi इंस्टेंस, जो सिर्फ़ बदलने पर इस्तेमाल होंगे: {instances}",
+  "backupRestoreAddedProviders": "जोड़े गए AI प्रोवाइडर और अनुवाद सेवाएं: {providers}",
+  "backupRestoreAddedInstances": "जोड़े गए Mozhi इंस्टेंस: {instances}",
+  "backupRestoreSkippedInstances": "नहीं जोड़े गए, क्योंकि मिलाने पर Mozhi इंस्टेंस कभी नहीं जोड़े जाते: {instances}",
+  "backupRestoreProviderHost": "{name} ({host})",
+  "backupRestoreSettingsModesBody": "सेटिंग: मिलाने पर बैकअप के AI प्रोवाइडर जुड़ जाते हैं (जिनका इस्तेमाल तभी होता है जब आप उन्हें चुनें), लेकिन उसके Mozhi इंस्टेंस नहीं, क्योंकि Mozhi आपका टेक्स्ट आपकी सूची के किसी भी इंस्टेंस को खुद भेज सकता है। बदलने पर बैकअप के प्रोवाइडर और इंस्टेंस इस्तेमाल होते हैं।",
+  "conversationShareGuestLanguageLimit": "इस बातचीत में अभी और भाषाएं नहीं जोड़ी जा सकतीं। इनमें से कोई भाषा चुनें, जो इसमें पहले से इस्तेमाल हो रही है: {languages}।",
+  "conversationShareLanguagePending": "{count, plural, =1{1 मैसेज का अनुवाद बाकी है} other{{count} मैसेज का अनुवाद बाकी है}}",
+  "conversationShareLanguagesLimit": "{count, plural, =1{मेहमान एक समय में 1 दूसरी भाषा पढ़ सकते हैं।} other{मेहमान एक समय में ज़्यादा से ज़्यादा {count} दूसरी भाषाएं पढ़ सकते हैं।}}",
+  "backupRestoreAddedProvidersOff": "जोड़े गए, लेकिन तब तक बंद रहेंगे जब तक आप उन्हें सेटिंग में चालू नहीं करते, क्योंकि वे पहले पूछे बिना आपका टेक्स्ट पा लेते: {providers}",
+  "settingsDeleteAllDataPractice": "{count, plural, =1{1 कार्ड की अभ्यास प्रगति} other{{count} कार्ड की अभ्यास प्रगति}}"
 }

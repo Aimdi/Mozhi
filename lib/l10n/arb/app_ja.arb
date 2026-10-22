@@ -2406,5 +2406,20 @@
   "pairingFailureNoSpace": "このスマートフォンのストレージの空き容量が不足しています。",
   "pairingFailureUnknown": "問題が発生しました。もう一度お試しください。",
   "conversationSharePrivacyNote": "このネットワーク上のデバイスからしか開けませんが、暗号化されていない http のため、同じ Wi-Fi にいる他の人に内容を読まれる可能性があります。機密性の高い会話では公共 Wi-Fi を避けてください。スマートフォンのテザリングが最適です。",
-  "onboardingRestoreBackup": "バックアップから復元"
+  "onboardingRestoreBackup": "バックアップから復元",
+  "practiceSettingsTileSubtitle": "フレーズのフラッシュカード、短い復習セッション、Anki へのエクスポート",
+  "practiceSearchKeywords": "フラッシュカード、単語カード、間隔反復、FSRS、Anki、発音",
+  "pairingAcceptAfterNumbers": "まず番号を確認してください。両方のスマートフォンに同じ番号が表示されていることを確認すると、受け入れられるようになります。",
+  "backupRestoreNewProviders": "新しい AI プロバイダと翻訳サービス: {providers}",
+  "backupRestoreNewInstances": "新しい Mozhi インスタンス（置き換えでのみ使用）: {instances}",
+  "backupRestoreAddedProviders": "追加された AI プロバイダと翻訳サービス: {providers}",
+  "backupRestoreAddedInstances": "追加された Mozhi インスタンス: {instances}",
+  "backupRestoreSkippedInstances": "統合では Mozhi インスタンスは一切追加されないため未追加: {instances}",
+  "backupRestoreProviderHost": "{name}（{host}）",
+  "backupRestoreSettingsModesBody": "設定: 統合では、バックアップの AI プロバイダを追加します（使用されるのは選択した後だけです）が、Mozhi インスタンスは追加しません。Mozhi はリストにあるどのインスタンスにも、自動的にテキストを送信できるためです。置き換えでは、バックアップのプロバイダとインスタンスを使用します。",
+  "conversationShareGuestLanguageLimit": "現在、この会話にはこれ以上言語を追加できません。すでに使われている言語（{languages}）から選んでください。",
+  "conversationShareLanguagePending": "{count, plural, other{翻訳待ちのメッセージ {count} 件}}",
+  "conversationShareLanguagesLimit": "{count, plural, =1{ゲストが同時に読めるその他の言語は 1 つだけです。} other{ゲストが同時に読めるその他の言語は最大 {count} 言語です。}}",
+  "backupRestoreAddedProvidersOff": "追加しましたが、事前の確認なしにテキストが送信されることになるため、設定でオンにするまでオフにしています: {providers}",
+  "settingsDeleteAllDataPractice": "{count, plural, other{カード {count} 枚分の練習の進捗}}"
 }

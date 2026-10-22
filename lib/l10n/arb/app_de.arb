@@ -2406,5 +2406,20 @@
   "pairingFailureNoSpace": "Auf diesem Smartphone ist kein Speicherplatz mehr frei.",
   "pairingFailureUnknown": "Etwas ist schiefgelaufen. Versuche es erneut.",
   "conversationSharePrivacyNote": "Nur Geräte in diesem Netzwerk können den Link öffnen. Da es unverschlüsseltes http ist, könnten andere im selben WLAN mitlesen – meide also öffentliches WLAN für vertrauliche Gespräche: Am besten ist der Hotspot deines Smartphones.",
-  "onboardingRestoreBackup": "Aus einem Backup wiederherstellen"
+  "onboardingRestoreBackup": "Aus einem Backup wiederherstellen",
+  "practiceSettingsTileSubtitle": "Lernkarten aus deinen Ausdrücken, kurze Wiederholungssitzungen, Export nach Anki",
+  "practiceSearchKeywords": "Lernkarten, Karteikarten, Flashcards, verteilte Wiederholung, Spaced Repetition, FSRS, Anki, Aussprache",
+  "pairingAcceptAfterNumbers": "Prüfe zuerst die Zahlen: Annehmen kannst du, sobald du bestätigt hast, dass beide Smartphones dieselbe Zahl zeigen.",
+  "backupRestoreNewProviders": "Neue KI-Anbieter und Übersetzungsdienste: {providers}",
+  "backupRestoreNewInstances": "Neue Mozhi-Instanzen, nur bei „Ersetzen“ verwendet: {instances}",
+  "backupRestoreAddedProviders": "Hinzugefügte KI-Anbieter und Übersetzungsdienste: {providers}",
+  "backupRestoreAddedInstances": "Hinzugefügte Mozhi-Instanzen: {instances}",
+  "backupRestoreSkippedInstances": "Nicht hinzugefügt, da „Zusammenführen“ nie Mozhi-Instanzen hinzufügt: {instances}",
+  "backupRestoreProviderHost": "{name} ({host})",
+  "backupRestoreSettingsModesBody": "Einstellungen: „Zusammenführen“ fügt die KI-Anbieter aus dem Backup hinzu (sie werden erst verwendet, wenn du sie auswählst), nicht aber seine Mozhi-Instanzen, da Mozhi deinen Text von sich aus an jede Instanz in deiner Liste senden kann. „Ersetzen“ verwendet die Anbieter und Instanzen aus dem Backup.",
+  "conversationShareGuestLanguageLimit": "Diesem Gespräch können gerade keine weiteren Sprachen hinzugefügt werden. Wähle eine, die es schon verwendet: {languages}.",
+  "conversationShareLanguagePending": "{count, plural, =1{Noch 1 Nachricht zu übersetzen} other{Noch {count} Nachrichten zu übersetzen}}",
+  "conversationShareLanguagesLimit": "{count, plural, =1{Gäste können gleichzeitig 1 weitere Sprache lesen.} other{Gäste können gleichzeitig bis zu {count} weitere Sprachen lesen.}}",
+  "backupRestoreAddedProvidersOff": "Hinzugefügt, aber deaktiviert, bis du sie in den Einstellungen aktivierst, da sie deinen Text sonst ohne vorherige Nachfrage erhalten würden: {providers}",
+  "settingsDeleteAllDataPractice": "{count, plural, =1{Lernfortschritt von 1 Karte} other{Lernfortschritt von {count} Karten}}"
 }

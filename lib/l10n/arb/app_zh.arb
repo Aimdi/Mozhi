@@ -2406,5 +2406,20 @@
   "pairingFailureNoSpace": "此手机的存储空间不足。",
   "pairingFailureUnknown": "出了点问题。请重试。",
   "conversationSharePrivacyNote": "只有此网络中的设备才能打开它；但由于使用的是普通 http，同一 Wi-Fi 中的其他人可能会看到内容，因此敏感的对话请避免使用公共 Wi-Fi：最好使用你手机的热点。",
-  "onboardingRestoreBackup": "从备份恢复"
+  "onboardingRestoreBackup": "从备份恢复",
+  "practiceSettingsTileSubtitle": "用你的短语制作的抽认卡、简短的复习、导出到 Anki",
+  "practiceSearchKeywords": "抽认卡、闪卡、间隔重复、FSRS、Anki、发音",
+  "pairingAcceptAfterNumbers": "请先核对数字：确认两部手机显示的是同一个数字后，才能接受。",
+  "backupRestoreNewProviders": "新的 AI 服务商和翻译服务：{providers}",
+  "backupRestoreNewInstances": "新的 Mozhi 实例（仅在替换时使用）：{instances}",
+  "backupRestoreAddedProviders": "已添加的 AI 服务商和翻译服务：{providers}",
+  "backupRestoreAddedInstances": "已添加的 Mozhi 实例：{instances}",
+  "backupRestoreSkippedInstances": "未添加，因为合并从不添加 Mozhi 实例：{instances}",
+  "backupRestoreProviderHost": "{name}（{host}）",
+  "backupRestoreSettingsModesBody": "设置：合并会添加备份中的 AI 服务商（只有在你选择后才会使用），但不会添加其中的 Mozhi 实例，因为 Mozhi 可以自行把你的文本发送到你列表中的任何实例。替换会使用备份中的服务商和实例。",
+  "conversationShareGuestLanguageLimit": "目前无法再为此对话添加语言。请从它已使用的语言中选择一种：{languages}。",
+  "conversationShareLanguagePending": "{count, plural, other{还有 {count} 条消息待翻译}}",
+  "conversationShareLanguagesLimit": "{count, plural, =1{访客一次只能阅读 1 种其他语言。} other{访客一次最多可阅读 {count} 种其他语言。}}",
+  "backupRestoreAddedProvidersOff": "已添加，但在你于设置中开启之前保持关闭，因为它们会不先询问就收到你的文本：{providers}",
+  "settingsDeleteAllDataPractice": "{count, plural, other{{count} 张卡片的练习进度}}"
 }

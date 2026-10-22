@@ -2406,5 +2406,20 @@
   "pairingFailureNoSpace": "Este teléfono se quedó sin espacio de almacenamiento.",
   "pairingFailureUnknown": "Algo salió mal. Vuelve a intentarlo.",
   "conversationSharePrivacyNote": "Solo los dispositivos de esta red pueden abrirla, pero como usa http sin cifrar, otras personas en la misma red Wi-Fi podrían leerla, así que evita las redes Wi-Fi públicas para conversaciones delicadas: lo mejor es el punto de acceso de tu teléfono.",
-  "onboardingRestoreBackup": "Restaurar desde una copia de seguridad"
+  "onboardingRestoreBackup": "Restaurar desde una copia de seguridad",
+  "practiceSettingsTileSubtitle": "Tarjetas con tus frases, sesiones de repaso cortas, exportación a Anki",
+  "practiceSearchKeywords": "Tarjetas de memoria, flashcards, repetición espaciada, FSRS, Anki, pronunciación",
+  "pairingAcceptAfterNumbers": "Comprueba primero los números: podrás aceptar cuando hayas confirmado que los dos teléfonos muestran el mismo.",
+  "backupRestoreNewProviders": "Nuevos proveedores de IA y servicios de traducción: {providers}",
+  "backupRestoreNewInstances": "Nuevas instancias de Mozhi, que solo se usan con Reemplazar: {instances}",
+  "backupRestoreAddedProviders": "Proveedores de IA y servicios de traducción añadidos: {providers}",
+  "backupRestoreAddedInstances": "Instancias de Mozhi añadidas: {instances}",
+  "backupRestoreSkippedInstances": "No se añadieron porque Combinar nunca añade instancias de Mozhi: {instances}",
+  "backupRestoreProviderHost": "{name} ({host})",
+  "backupRestoreSettingsModesBody": "Ajustes: Combinar añade los proveedores de IA de la copia (que solo se usan cuando los eliges), pero no sus instancias de Mozhi, ya que Mozhi puede enviar tu texto por sí solo a cualquier instancia de tu lista. Reemplazar usa los proveedores y las instancias de la copia de seguridad.",
+  "conversationShareGuestLanguageLimit": "Ahora mismo no se pueden añadir más idiomas a esta conversación. Elige uno que ya use: {languages}.",
+  "conversationShareLanguagePending": "{count, plural, =1{Falta 1 mensaje por traducir} other{Faltan {count} mensajes por traducir}}",
+  "conversationShareLanguagesLimit": "{count, plural, =1{Los invitados pueden leer 1 idioma más a la vez.} other{Los invitados pueden leer hasta {count} idiomas más a la vez.}}",
+  "backupRestoreAddedProvidersOff": "Añadidos, pero desactivados hasta que los actives en Ajustes, ya que recibirían tu texto sin preguntar antes: {providers}",
+  "settingsDeleteAllDataPractice": "{count, plural, =1{Progreso de práctica de 1 tarjeta} other{Progreso de práctica de {count} tarjetas}}"
 }

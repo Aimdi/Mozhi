@@ -2406,5 +2406,20 @@
   "pairingFailureNoSpace": "Ruang penyimpanan ponsel ini habis.",
   "pairingFailureUnknown": "Terjadi kesalahan. Coba lagi.",
   "conversationSharePrivacyNote": "Hanya perangkat di jaringan ini yang dapat membukanya, dan karena menggunakan http biasa, orang lain di Wi-Fi yang sama dapat ikut membaca. Jadi hindari Wi-Fi publik untuk pembicaraan sensitif: hotspot ponsel Anda adalah pilihan terbaik.",
-  "onboardingRestoreBackup": "Pulihkan dari cadangan"
+  "onboardingRestoreBackup": "Pulihkan dari cadangan",
+  "practiceSettingsTileSubtitle": "Flashcard dari frasa Anda, sesi ulasan singkat, ekspor ke Anki",
+  "practiceSearchKeywords": "Flashcard, kartu hafalan, pengulangan berjarak, FSRS, Anki, pelafalan",
+  "pairingAcceptAfterNumbers": "Periksa angkanya terlebih dahulu: Anda dapat menerima setelah memastikan kedua ponsel menampilkan angka yang sama.",
+  "backupRestoreNewProviders": "Penyedia AI dan layanan terjemahan baru: {providers}",
+  "backupRestoreNewInstances": "Instans Mozhi baru, hanya digunakan dengan Ganti: {instances}",
+  "backupRestoreAddedProviders": "Penyedia AI dan layanan terjemahan yang ditambahkan: {providers}",
+  "backupRestoreAddedInstances": "Instans Mozhi yang ditambahkan: {instances}",
+  "backupRestoreSkippedInstances": "Tidak ditambahkan, karena Gabungkan tidak pernah menambahkan instans Mozhi: {instances}",
+  "backupRestoreProviderHost": "{name} ({host})",
+  "backupRestoreSettingsModesBody": "Setelan: Gabungkan menambahkan penyedia AI dari cadangan (hanya digunakan setelah Anda memilihnya), tetapi tidak menambahkan instans Mozhi-nya, karena Mozhi dapat mengirim teks Anda ke instans mana pun dalam daftar Anda dengan sendirinya. Ganti menggunakan penyedia dan instans dari cadangan.",
+  "conversationShareGuestLanguageLimit": "Saat ini tidak ada lagi bahasa yang dapat ditambahkan ke percakapan ini. Pilih salah satu bahasa yang sudah digunakan: {languages}.",
+  "conversationShareLanguagePending": "{count, plural, =1{1 pesan belum diterjemahkan} other{{count} pesan belum diterjemahkan}}",
+  "conversationShareLanguagesLimit": "{count, plural, =1{Tamu dapat membaca 1 bahasa lain dalam satu waktu.} other{Tamu dapat membaca hingga {count} bahasa lain dalam satu waktu.}}",
+  "backupRestoreAddedProvidersOff": "Ditambahkan tetapi nonaktif sampai Anda mengaktifkannya di Setelan, karena penyedia ini akan menerima teks Anda tanpa bertanya terlebih dahulu: {providers}",
+  "settingsDeleteAllDataPractice": "{count, plural, =1{Kemajuan latihan 1 kartu} other{Kemajuan latihan {count} kartu}}"
 }

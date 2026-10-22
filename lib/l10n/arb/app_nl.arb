@@ -2406,5 +2406,20 @@
   "pairingFailureNoSpace": "Deze telefoon heeft geen opslagruimte meer.",
   "pairingFailureUnknown": "Er ging iets mis. Probeer het opnieuw.",
   "conversationSharePrivacyNote": "Alleen apparaten op dit netwerk kunnen de link openen, en omdat het onversleuteld http is, kunnen anderen op hetzelfde wifinetwerk meelezen. Vermijd dus openbare wifi voor gevoelige gesprekken: de hotspot van je telefoon is het beste.",
-  "onboardingRestoreBackup": "Herstellen vanuit een back-up"
+  "onboardingRestoreBackup": "Herstellen vanuit een back-up",
+  "practiceSettingsTileSubtitle": "Oefenkaarten van je zinnen, korte herhaalsessies, exporteren naar Anki",
+  "practiceSearchKeywords": "Oefenkaarten, flitskaarten, flashcards, gespreide herhaling, spaced repetition, FSRS, Anki, uitspraak",
+  "pairingAcceptAfterNumbers": "Controleer eerst de getallen: je kunt accepteren zodra je hebt bevestigd dat beide telefoons hetzelfde getal tonen.",
+  "backupRestoreNewProviders": "Nieuwe AI-providers en vertaaldiensten: {providers}",
+  "backupRestoreNewInstances": "Nieuwe Mozhi-instanties, alleen gebruikt bij ‘Vervangen’: {instances}",
+  "backupRestoreAddedProviders": "Toegevoegde AI-providers en vertaaldiensten: {providers}",
+  "backupRestoreAddedInstances": "Toegevoegde Mozhi-instanties: {instances}",
+  "backupRestoreSkippedInstances": "Niet toegevoegd, omdat ‘Samenvoegen’ nooit Mozhi-instanties toevoegt: {instances}",
+  "backupRestoreProviderHost": "{name} ({host})",
+  "backupRestoreSettingsModesBody": "Instellingen: ‘Samenvoegen’ voegt de AI-providers uit de back-up toe (die pas worden gebruikt als je ze kiest), maar niet de Mozhi-instanties die erin staan, omdat Mozhi je tekst uit zichzelf naar elke instantie in je lijst kan sturen. ‘Vervangen’ gebruikt de providers en instanties uit de back-up.",
+  "conversationShareGuestLanguageLimit": "Er kunnen nu geen talen meer aan dit gesprek worden toegevoegd. Kies een taal die het al gebruikt: {languages}.",
+  "conversationShareLanguagePending": "{count, plural, =1{Nog 1 bericht te vertalen} other{Nog {count} berichten te vertalen}}",
+  "conversationShareLanguagesLimit": "{count, plural, =1{Gasten kunnen 1 andere taal tegelijk lezen.} other{Gasten kunnen tot {count} andere talen tegelijk lezen.}}",
+  "backupRestoreAddedProvidersOff": "Toegevoegd maar uitgeschakeld totdat je ze in Instellingen inschakelt, omdat ze je tekst anders zouden krijgen zonder eerst te vragen: {providers}",
+  "settingsDeleteAllDataPractice": "{count, plural, =1{Oefenvoortgang van 1 kaart} other{Oefenvoortgang van {count} kaarten}}"
 }

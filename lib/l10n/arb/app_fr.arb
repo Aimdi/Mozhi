@@ -2406,5 +2406,20 @@
   "pairingFailureNoSpace": "Ce téléphone n’a plus d’espace de stockage.",
   "pairingFailureUnknown": "Une erreur s’est produite. Réessayez.",
   "conversationSharePrivacyNote": "Seuls les appareils de ce réseau peuvent l’ouvrir, et comme il s’agit de http non chiffré, d’autres personnes sur le même Wi-Fi pourraient lire la conversation : évitez donc les Wi-Fi publics pour les échanges sensibles. Le point d’accès de votre téléphone est la meilleure option.",
-  "onboardingRestoreBackup": "Restaurer une sauvegarde"
+  "onboardingRestoreBackup": "Restaurer une sauvegarde",
+  "practiceSettingsTileSubtitle": "Cartes mémoire de vos expressions, courtes sessions de révision, export vers Anki",
+  "practiceSearchKeywords": "Cartes mémoire, flashcards, répétition espacée, FSRS, Anki, prononciation",
+  "pairingAcceptAfterNumbers": "Vérifiez d’abord les nombres : vous pourrez accepter une fois que vous aurez confirmé que les deux téléphones affichent le même.",
+  "backupRestoreNewProviders": "Nouveaux fournisseurs d’IA et services de traduction : {providers}",
+  "backupRestoreNewInstances": "Nouvelles instances Mozhi, utilisées uniquement avec « Remplacer » : {instances}",
+  "backupRestoreAddedProviders": "Fournisseurs d’IA et services de traduction ajoutés : {providers}",
+  "backupRestoreAddedInstances": "Instances Mozhi ajoutées : {instances}",
+  "backupRestoreSkippedInstances": "Non ajoutées, car « Fusionner » n’ajoute jamais d’instances Mozhi : {instances}",
+  "backupRestoreProviderHost": "{name} ({host})",
+  "backupRestoreSettingsModesBody": "Paramètres : « Fusionner » ajoute les fournisseurs d’IA de la sauvegarde (utilisés seulement une fois que vous les avez choisis), mais pas ses instances Mozhi, car Mozhi peut de lui-même envoyer votre texte à n’importe quelle instance de votre liste. « Remplacer » utilise les fournisseurs et les instances de la sauvegarde.",
+  "conversationShareGuestLanguageLimit": "Impossible d’ajouter d’autres langues à cette conversation pour le moment. Choisissez-en une qu’elle utilise déjà : {languages}.",
+  "conversationShareLanguagePending": "{count, plural, one{Encore {count} message à traduire} other{Encore {count} messages à traduire}}",
+  "conversationShareLanguagesLimit": "{count, plural, one{Les invités peuvent lire {count} autre langue à la fois.} other{Les invités peuvent lire jusqu’à {count} autres langues à la fois.}}",
+  "backupRestoreAddedProvidersOff": "Ajoutés mais désactivés jusqu’à ce que vous les activiez dans les paramètres, car ils recevraient votre texte sans vous demander d’abord : {providers}",
+  "settingsDeleteAllDataPractice": "{count, plural, one{Progression d’entraînement de {count} carte} other{Progression d’entraînement de {count} cartes}}"
 }

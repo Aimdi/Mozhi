@@ -2406,5 +2406,20 @@
   "pairingFailureNoSpace": "Bu telefonda depolama alanı kalmadı.",
   "pairingFailureUnknown": "Bir sorun oluştu. Tekrar deneyin.",
   "conversationSharePrivacyNote": "Bunu yalnızca bu ağdaki cihazlar açabilir. Ancak bağlantı düz http olduğu için aynı Wi-Fi ağındaki başkaları da okuyabilir; bu yüzden hassas konuşmalar için herkese açık Wi-Fi ağlarından kaçının: en iyisi telefonunuzun hotspot'udur.",
-  "onboardingRestoreBackup": "Yedekten geri yükle"
+  "onboardingRestoreBackup": "Yedekten geri yükle",
+  "practiceSettingsTileSubtitle": "İfadelerinizden bilgi kartları, kısa tekrar oturumları, Anki'ye aktarma",
+  "practiceSearchKeywords": "Bilgi kartları, flashcard, aralıklı tekrar, FSRS, Anki, telaffuz",
+  "pairingAcceptAfterNumbers": "Önce sayıları kontrol edin: iki telefonun da aynı sayıyı gösterdiğini doğruladıktan sonra kabul edebilirsiniz.",
+  "backupRestoreNewProviders": "Yeni yapay zekâ sağlayıcıları ve çeviri hizmetleri: {providers}",
+  "backupRestoreNewInstances": "Yeni Mozhi sunucuları, yalnızca Değiştirme ile kullanılır: {instances}",
+  "backupRestoreAddedProviders": "Eklenen yapay zekâ sağlayıcıları ve çeviri hizmetleri: {providers}",
+  "backupRestoreAddedInstances": "Eklenen Mozhi sunucuları: {instances}",
+  "backupRestoreSkippedInstances": "Birleştirme hiçbir zaman Mozhi sunucusu eklemediği için eklenmedi: {instances}",
+  "backupRestoreProviderHost": "{name} ({host})",
+  "backupRestoreSettingsModesBody": "Ayarlar: Birleştirme, yedekteki yapay zekâ sağlayıcılarını ekler (bunlar yalnızca siz seçtikten sonra kullanılır) ancak Mozhi sunucularını eklemez, çünkü Mozhi metninizi listenizdeki herhangi bir sunucuya kendiliğinden gönderebilir. Değiştirme, yedekteki sağlayıcıları ve sunucuları kullanır.",
+  "conversationShareGuestLanguageLimit": "Bu sohbete şu anda daha fazla dil eklenemiyor. Sohbette zaten kullanılan dillerden birini seçin: {languages}.",
+  "conversationShareLanguagePending": "{count, plural, =1{Çevrilmeyi bekleyen 1 mesaj} other{Çevrilmeyi bekleyen {count} mesaj}}",
+  "conversationShareLanguagesLimit": "{count, plural, =1{Misafirler aynı anda 1 başka dil okuyabilir.} other{Misafirler aynı anda en fazla {count} başka dil okuyabilir.}}",
+  "backupRestoreAddedProvidersOff": "Eklendi ancak metninizi önce sormadan alacakları için siz Ayarlar'dan açana kadar kapalı: {providers}",
+  "settingsDeleteAllDataPractice": "{count, plural, =1{1 kartın alıştırma ilerlemesi} other{{count} kartın alıştırma ilerlemesi}}"
 }

@@ -2406,5 +2406,20 @@
   "pairingFailureNoSpace": "이 휴대전화의 저장 공간이 부족합니다.",
   "pairingFailureUnknown": "문제가 발생했습니다. 다시 시도하세요.",
   "conversationSharePrivacyNote": "이 네트워크에 있는 기기에서만 열 수 있지만, 암호화되지 않은 일반 http이므로 같은 Wi-Fi에 있는 다른 사람이 내용을 볼 수 있습니다. 민감한 대화에는 공용 Wi-Fi를 피하세요. 휴대전화의 핫스팟을 사용하는 것이 가장 좋습니다.",
-  "onboardingRestoreBackup": "백업에서 복원"
+  "onboardingRestoreBackup": "백업에서 복원",
+  "practiceSettingsTileSubtitle": "내 표현으로 만든 플래시카드, 짧은 복습 세션, Anki로 내보내기",
+  "practiceSearchKeywords": "플래시카드, 암기 카드, 간격 반복, FSRS, Anki, 발음",
+  "pairingAcceptAfterNumbers": "먼저 숫자를 확인하세요. 두 휴대전화에 같은 숫자가 표시되는지 확인한 후에 수락할 수 있습니다.",
+  "backupRestoreNewProviders": "새 AI 제공업체 및 번역 서비스: {providers}",
+  "backupRestoreNewInstances": "새 Mozhi 인스턴스(대체 시에만 사용): {instances}",
+  "backupRestoreAddedProviders": "추가된 AI 제공업체 및 번역 서비스: {providers}",
+  "backupRestoreAddedInstances": "추가된 Mozhi 인스턴스: {instances}",
+  "backupRestoreSkippedInstances": "병합은 Mozhi 인스턴스를 절대 추가하지 않으므로 추가되지 않음: {instances}",
+  "backupRestoreProviderHost": "{name}({host})",
+  "backupRestoreSettingsModesBody": "설정: 병합은 백업의 AI 제공업체를 추가하지만(직접 선택한 후에만 사용됨) Mozhi 인스턴스는 추가하지 않습니다. Mozhi는 목록에 있는 어느 인스턴스로든 스스로 텍스트를 보낼 수 있기 때문입니다. 대체는 백업의 제공업체와 인스턴스를 사용합니다.",
+  "conversationShareGuestLanguageLimit": "지금은 이 대화에 언어를 더 추가할 수 없습니다. 이미 사용 중인 언어 중에서 선택하세요: {languages}.",
+  "conversationShareLanguagePending": "{count, plural, other{번역 대기 중인 메시지 {count}개}}",
+  "conversationShareLanguagesLimit": "{count, plural, =1{게스트는 한 번에 다른 언어를 1개만 읽을 수 있습니다.} other{게스트는 한 번에 최대 {count}개의 다른 언어를 읽을 수 있습니다.}}",
+  "backupRestoreAddedProvidersOff": "추가되었지만, 먼저 묻지 않고 텍스트를 받게 되므로 설정에서 켤 때까지 꺼져 있음: {providers}",
+  "settingsDeleteAllDataPractice": "{count, plural, other{카드 {count}장의 연습 진행 상황}}"
 }

@@ -2406,5 +2406,20 @@
   "pairingFailureNoSpace": "Na tym telefonie zabrakło miejsca.",
   "pairingFailureUnknown": "Coś poszło nie tak. Spróbuj ponownie.",
   "conversationSharePrivacyNote": "Mogą go otworzyć tylko urządzenia w tej sieci, a ponieważ to zwykłe http, inne osoby w tej samej sieci Wi-Fi mogłyby odczytać rozmowę. Unikaj więc publicznych sieci Wi-Fi przy poufnych rozmowach: najlepszy jest hotspot Twojego telefonu.",
-  "onboardingRestoreBackup": "Przywróć z kopii zapasowej"
+  "onboardingRestoreBackup": "Przywróć z kopii zapasowej",
+  "practiceSettingsTileSubtitle": "Fiszki z Twoich fraz, krótkie sesje powtórek, eksport do Anki",
+  "practiceSearchKeywords": "Fiszki, powtórki rozłożone w czasie, FSRS, Anki, wymowa",
+  "pairingAcceptAfterNumbers": "Najpierw sprawdź liczby: możesz zaakceptować, gdy potwierdzisz, że oba telefony pokazują tę samą liczbę.",
+  "backupRestoreNewProviders": "Nowi dostawcy AI i usługi tłumaczeniowe: {providers}",
+  "backupRestoreNewInstances": "Nowe instancje Mozhi, używane tylko przy zastąpieniu: {instances}",
+  "backupRestoreAddedProviders": "Dodano dostawców AI i usługi tłumaczeniowe: {providers}",
+  "backupRestoreAddedInstances": "Dodano instancje Mozhi: {instances}",
+  "backupRestoreSkippedInstances": "Nie dodano, ponieważ scalanie nigdy nie dodaje instancji Mozhi: {instances}",
+  "backupRestoreProviderHost": "{name} ({host})",
+  "backupRestoreSettingsModesBody": "Ustawienia: scalanie dodaje dostawców AI z kopii zapasowej (używanych dopiero wtedy, gdy ich wybierzesz), ale nie jej instancje Mozhi, ponieważ Mozhi może samodzielnie wysłać Twój tekst do dowolnej instancji z Twojej listy. Zastąpienie używa dostawców i instancji z kopii zapasowej.",
+  "conversationShareGuestLanguageLimit": "Do tej rozmowy nie można teraz dodać więcej języków. Wybierz jeden z tych, których już używa: {languages}.",
+  "conversationShareLanguagePending": "{count, plural, one{Jeszcze {count} wiadomość do przetłumaczenia} few{Jeszcze {count} wiadomości do przetłumaczenia} many{Jeszcze {count} wiadomości do przetłumaczenia} other{Jeszcze {count} wiadomości do przetłumaczenia}}",
+  "conversationShareLanguagesLimit": "{count, plural, =1{Goście mogą jednocześnie czytać 1 inny język.} one{Goście mogą jednocześnie czytać {count} inny język.} few{Goście mogą jednocześnie czytać do {count} innych języków.} many{Goście mogą jednocześnie czytać do {count} innych języków.} other{Goście mogą jednocześnie czytać do {count} innego języka.}}",
+  "backupRestoreAddedProvidersOff": "Dodani, ale wyłączeni, dopóki nie włączysz ich w Ustawieniach, ponieważ otrzymywaliby Twój tekst bez wcześniejszego pytania: {providers}",
+  "settingsDeleteAllDataPractice": "{count, plural, one{Postępy w ćwiczeniach: {count} fiszka} few{Postępy w ćwiczeniach: {count} fiszki} many{Postępy w ćwiczeniach: {count} fiszek} other{Postępy w ćwiczeniach: {count} fiszki}}"
 }
