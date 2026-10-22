@@ -28,6 +28,8 @@ class WhisperSpeech {
   /// [root] is an app-private directory: models go to
   /// `<root>/models/<id>/`. [httpClient] downloads them (default: a new
   /// client). [engine] and [isAvailable] replace the platform's (tests).
+  /// With [idleUnloadAfter] the model is unloaded once no transcription
+  /// has run for that long ([unload]).
   new({
     required this.catalog,
     required Directory root,
@@ -35,6 +37,7 @@ class WhisperSpeech {
     WhisperEngine? engine,
     bool? isAvailable,
     Duration requestTimeout = const Duration(seconds: 60),
+    this.idleUnloadAfter,
   }) : models = WhisperModelManager(
          root: root,
          httpClient: httpClient,
@@ -53,7 +56,14 @@ class WhisperSpeech {
   /// CPU; never on the web).
   final bool isAvailable;
 
+  /// How long the model stays loaded after the last transcription (it
+  /// takes 75-150 MB); null keeps it until [unload] or [dispose].
+  final Duration? idleUnloadAfter;
+
   final WhisperEngine _engine;
+  Timer? _idleTimer;
+  var _running = 0;
+  var _unloadWhenIdle = false;
 
   /// The catalog models that are installed (the exact catalog file),
   /// fastest first.
@@ -116,12 +126,47 @@ class WhisperSpeech {
     }
     final installed = await modelFor(preferred: model);
     if (installed == null) throw const WhisperModelMissingException();
-    return await _engine.transcribe(
-      installed.path,
-      pcm16k,
-      language: whisperLanguageFor(language),
-      threads: threads,
-    );
+    _idleTimer?.cancel();
+    _idleTimer = null;
+    _running++;
+    try {
+      return await _engine.transcribe(
+        installed.path,
+        pcm16k,
+        language: whisperLanguageFor(language),
+        threads: threads,
+      );
+    } finally {
+      if (--_running == 0) _becameIdle();
+    }
+  }
+
+  /// Unloads the model and stops the engine isolate, giving their memory
+  /// back (when the app goes to the background or memory runs low). A
+  /// running transcription finishes first; the next one loads the model
+  /// again (about a second).
+  Future<void> unload() async {
+    _idleTimer?.cancel();
+    _idleTimer = null;
+    if (_running > 0) {
+      _unloadWhenIdle = true;
+      return;
+    }
+    await _engine.dispose();
+  }
+
+  void _becameIdle() {
+    if (_unloadWhenIdle) {
+      _unloadWhenIdle = false;
+      unawaited(_engine.dispose());
+      return;
+    }
+    final after = idleUnloadAfter;
+    if (after == null) return;
+    _idleTimer = Timer(after, () {
+      _idleTimer = null;
+      unawaited(_engine.dispose());
+    });
   }
 
   /// Stops a running [transcribe] (it throws [WhisperCancelledException]).
@@ -153,6 +198,8 @@ class WhisperSpeech {
 
   /// Stops the engine isolate and closes the HTTP client it created.
   Future<void> dispose() async {
+    _idleTimer?.cancel();
+    _idleTimer = null;
     await _engine.dispose();
     models.close();
   }

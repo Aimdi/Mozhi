@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:mozhi/core/network/network_session.dart';
 import 'package:mozhi/offline/data/unavailable_offline_translator.dart';
 import 'package:mozhi/platform/metered_network.dart';
+import 'package:mozhi/platform/native_memory.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -33,6 +34,12 @@ Future<OfflineTranslator> createOfflineTranslator() =>
 /// ([BergamotModelManager.cleanUp]); nothing here waits for it.
 /// [isAvailable] and [engine] replace the platform's (tests).
 ///
+/// Memory: the engine keeps [DeviceMemory.bergamotModelCacheSize] models
+/// loaded ([deviceMemory], default [DeviceMemory.query], asked while the
+/// catalog loads), and on memory pressure ([memoryBudget], default
+/// [NativeMemoryBudget.instance]) unloads all but those of the last
+/// translation ([BergamotTranslator.trimMemory]).
+///
 /// Never throws: when the catalog or the directory cannot be loaded (for
 /// example on a desktop host without path_provider), it logs the error and
 /// returns an [UnavailableOfflineTranslator].
@@ -44,11 +51,14 @@ Future<OfflineTranslator> createBergamotOfflineTranslator({
   http.Client? httpClient,
   bool? isAvailable,
   BergamotEngine? engine,
+  Future<DeviceMemory?> Function()? deviceMemory,
+  NativeMemoryBudget? memoryBudget,
 }) async {
   try {
-    final (catalog, support) = await (
+    final (catalog, support, memory) = await (
       loadBundledCatalog(bundle: bundle),
       supportDirectory(),
+      (deviceMemory ?? DeviceMemory.query)(),
     ).wait;
     final translator = BergamotTranslator(
       catalog: catalog,
@@ -58,10 +68,21 @@ Future<OfflineTranslator> createBergamotOfflineTranslator({
       isMeteredConnection:
           isMeteredConnection ?? MeteredNetwork.instance.isMetered,
       httpClient: httpClient ?? CurrentSessionClient(),
-      engine: engine,
+      engine:
+          engine ??
+          createBergamotEngine(
+            maxLoadedModels:
+                memory?.bergamotModelCacheSize ??
+                const DeviceMemory().bergamotModelCacheSize,
+          ),
       isAvailable: isAvailable,
     );
-    if (translator.isAvailable) unawaited(_cleanUp(translator));
+    if (translator.isAvailable) {
+      unawaited(_cleanUp(translator));
+      (memoryBudget ?? NativeMemoryBudget.instance).onMemoryPressure(
+        translator.trimMemory,
+      );
+    }
     return translator;
   } on Object catch (error, stackTrace) {
     final cause = error is ParallelWaitError ? error.errors : error;

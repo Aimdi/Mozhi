@@ -298,6 +298,11 @@ class SettingsCubit extends Cubit<AppSettings> {
   void setSecureScreen({required bool enabled}) =>
       _apply(state.copyWith(secureScreen: enabled));
 
+  /// "Hide personal data from online engines"
+  /// (`AppSettings.maskPersonalData`).
+  void setMaskPersonalData({required bool enabled}) =>
+      _apply(state.copyWith(maskPersonalData: enabled));
+
   /// Sets the HTTP proxy (`host:port`); null or blank = no proxy.
   void setHttpProxy(String? proxy) {
     final value = proxy?.trim();

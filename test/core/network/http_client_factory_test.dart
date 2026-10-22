@@ -8,9 +8,12 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
+import 'package:http/io_client.dart';
 import 'package:mozhi/core/network/http_client_factory.dart';
 import 'package:mozhi/core/network/http_client_factory_io.dart';
 import 'package:mozhi/core/network/http_proxy_tunnel.dart';
+import 'package:mozhi_api/mozhi_api.dart' show MozhiApiClient;
+import 'package:translation_repository/translation_repository.dart';
 
 /// Real sockets, whatever `HttpOverrides` the test binding installs.
 class _RealHttp extends HttpOverrides;
@@ -327,6 +330,101 @@ void main() {
         );
         expect(log, ['CONNECT mozhi.example:443 HTTP/1.1']);
       });
+    });
+  });
+
+  group('createIoHttpClient', () {
+    test('connects within connectTimeout and keeps idle connections', () {
+      final client = createIoHttpClient();
+      addTearDown(client.close);
+
+      expect(client.connectionTimeout, connectTimeout);
+      expect(client.idleTimeout, idleConnectionTimeout);
+      expect(client.userAgent, appUserAgent);
+    });
+
+    test('allows proxyConnectTimeout through a proxy', () {
+      final client = createIoHttpClient(
+        proxy: const ProxyAddress('127.0.0.1', 8118),
+      );
+      addTearDown(client.close);
+
+      expect(client.connectionTimeout, proxyConnectTimeout);
+      expect(client.idleTimeout, idleConnectionTimeout);
+    });
+
+    test('gives up connecting long before a Mozhi request times out', () {
+      expect(connectTimeout, const Duration(seconds: 7));
+      expect(proxyConnectTimeout, const Duration(seconds: 20));
+      expect(idleConnectionTimeout, const Duration(seconds: 90));
+      expect(proxyConnectTimeout, lessThan(MozhiApiClient.defaultTimeout));
+    });
+
+    test('a server that never answers the handshake fails over to the next '
+        'instance, also for a translation', () async {
+      // Accepts connections but never answers TLS: what a host that drops
+      // packets looks like to the client, minus the TCP handshake.
+      final silent = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+      servers.add(silent);
+      final silentSockets = <Socket>[];
+      silent.listen((socket) {
+        silentSockets.add(socket);
+        socket.listen((_) {}, onError: (_) {});
+      });
+      addTearDown(() {
+        for (final socket in silentSockets) {
+          socket.destroy();
+        }
+      });
+      final answering = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      servers.add(answering);
+      answering.listen((request) async {
+        await request.drain<void>();
+        request.response
+          ..headers.contentType = ContentType.json
+          ..write('{"engine":"google","translated-text":"Hallo"}');
+        await request.response.close();
+      });
+      final repository =
+          TranslationRepository(
+              mozhiClientFactory: (baseUrl) => MozhiApiClient(
+                baseUrl: baseUrl,
+                httpClient: IOClient(
+                  createIoHttpClient(
+                    connectionTimeout: const Duration(milliseconds: 300),
+                  ),
+                ),
+              ),
+            )
+            ..updatePrivacy(mode: PrivacyMode.online)
+            ..updateConfiguration(
+              instances: [
+                MozhiInstance(url: 'https://127.0.0.1:${silent.port}'),
+                MozhiInstance(url: 'http://127.0.0.1:${answering.port}'),
+              ],
+              providers: const [],
+            );
+      addTearDown(repository.dispose);
+
+      final results = await real(
+        () => repository
+            .translate(
+              TranslationEngine.mozhi('google', 'Google'),
+              const TranslationRequest(
+                text: 'Hello',
+                source: Language(code: 'en', name: 'English'),
+                target: Language(code: 'de', name: 'German'),
+              ),
+            )
+            .toList(),
+      );
+
+      expect(results.last.text, 'Hallo');
+      expect(silentSockets, hasLength(1));
+      expect(
+        repository.activeInstance?.url,
+        'http://127.0.0.1:${answering.port}',
+      );
     });
   });
 

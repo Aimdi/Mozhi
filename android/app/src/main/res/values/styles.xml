@@ -15,4 +15,17 @@
     <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
         <item name="android:windowBackground">?android:colorBackground</item>
     </style>
+    <!-- The translucent windows over other apps: the quick translate sheet
+         of text selections (QuickTranslateActivity, whose Flutter surface is
+         transparent too) and the invisible share receiver
+         (ShareReceiverActivity). The calling app stays visible around them;
+         no dimming here, the sheet's own scrim does that. The same for
+         dark mode: there is nothing of it to see. -->
+    <style name="TransparentTheme" parent="@android:style/Theme.Translucent.NoTitleBar">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:backgroundDimEnabled">false</item>
+    </style>
 </resources>

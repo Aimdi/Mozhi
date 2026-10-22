@@ -12,6 +12,7 @@ builds. For day-to-day development (flavors, tests, localisation) see
 - [Build like the release workflow](#build-like-the-release-workflow)
 - [Check an APK for Google code](#check-an-apk-for-google-code)
 - [Check an APK for 16 KB pages](#check-an-apk-for-16-kb-pages)
+- [Web build: self-hosted fonts and deferred languages](#web-build-self-hosted-fonts-and-deferred-languages)
 - [Compare two builds](#compare-two-builds)
 - [ccache and build paths](#ccache-and-build-paths)
 - [Golden tests](#golden-tests)
@@ -124,9 +125,10 @@ flutter build apk --release --flavor production -t lib/main_production.dart \
 flutter build appbundle --release --flavor production -t lib/main_production.dart \
   --obfuscate --split-debug-info=build/symbols/aab
 
-# Web zip (no CDN; for the root of a web server)
+# Web zip (no CDN; for the root of a web server), then its fallback fonts
 flutter build web --release -t lib/main_production.dart \
   --base-href / --no-web-resources-cdn
+python3 tool/web_fallback_fonts.py build/web
 ```
 
 CI on branches (`main.yaml`) builds the APKs **without** `--obfuscate`, so
@@ -197,6 +199,49 @@ python3 tool/check_page_size.py path/to/app.apk      # or an .aab, or a .so
   `ANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON`; NDK r28 aligns to 16 KB by
   default anyway, and the Android Gradle Plugin (8.5.1 and later) stores
   uncompressed libraries 16 KB aligned.
+
+## Web build: self-hosted fonts and deferred languages
+
+`flutter build web` alone makes a working build, but one that still
+contacts Google: CanvasKit draws text with the bundled Roboto, and
+downloads a Noto font from `fonts.gstatic.com` for every character Roboto
+lacks (Chinese, Japanese, Korean, Indic and Arabic scripts, emoji,
+symbols). That request tells Google the user's IP address and which
+scripts they read. The release zip and the CI builds therefore run one
+more step:
+
+```sh
+python3 tool/web_fallback_fonts.py build/web
+```
+
+- **What it does**: reads the font list from the web engine of the Flutter
+  SDK that built the app (`bin/cache/flutter_web_sdk`: 725 files for
+  Flutter 3.47.7, Roboto included), downloads them once into
+  `build/web_fallback_fonts_cache`, and copies them to
+  `build/web/fallback_fonts/` at the same paths as on `fonts.gstatic.com`.
+  Then it turns on `mozhiSelfHostedFonts` in `build/web/flutter_bootstrap.js`
+  (which sets the engine's `fontFallbackBaseUrl` to `fallback_fonts/`) and
+  removes `https://fonts.gstatic.com` from the Content Security Policy in
+  `build/web/index.html`.
+- **Size**: 21.8 MB for Flutter 3.47.7 (the zip grows by about as much:
+  the fonts are already compressed). The browser only fetches the fonts a
+  page needs, so loading the app is not slower.
+- **Checks**: every file must be a font of its type (magic bytes) and at
+  most 8 MB. The cache is reused (`--cache DIR`); `--offline` uses only
+  the cache and fails if a font is missing; `--list` prints the files.
+  Exit status 1 means a font could not be fetched or is invalid, 2 a
+  usage or build error.
+- **Without it** (a plain local build), the bootstrap keeps Flutter's
+  default and the fonts come from Google, as before; nothing breaks.
+- **Tests**: `python3 tool/web_fallback_fonts_test.py` (no network).
+
+The app's own texts are split as well (`use-deferred-loading` in
+`l10n.yaml`): `main.dart.js` holds English only, and each other language is
+a `main.dart.js_N.part.js` file the app fetches once, before its first frame
+when it is the app's language (`preloadAppLocalizations`). In a build of
+the development flavor this took `main.dart.js` from 7.9 MB to 5.0 MB
+(1.92 MB to 1.45 MB gzipped). Serve the `*.part.js` files with the rest of
+the build.
 
 ## Compare two builds
 

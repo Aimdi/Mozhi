@@ -139,9 +139,12 @@ class LlmRequest {
   /// Only Ollama lets the client choose it: sent as `options.num_ctx`. When
   /// null (or not positive) Ollama gets 8192, raised to 16384 or 32768
   /// when a rough estimate of the prompt plus its reply would not fit (see
-  /// `OllamaClient.contextWindowFor`); Ollama's own default of a few
-  /// thousand tokens silently drops the start of longer prompts. Ignored by
-  /// the other providers, whose context size is fixed by the server.
+  /// `OllamaClient.contextWindowFor`), and never less than the size used
+  /// before for the same server and model in this session (Ollama reloads
+  /// the model when it changes; see `OllamaClient.contextSizeFor`).
+  /// Ollama's own default of a few thousand tokens silently drops the start
+  /// of longer prompts. Ignored by the other providers, whose context size
+  /// is fixed by the server.
   final int? contextWindow;
 
   LlmRequest copyWith({

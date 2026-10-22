@@ -37,4 +37,5 @@ export 'translate_hero.dart';
 export 'translate_layout.dart';
 export 'translate_more.dart';
 export 'translation_memory_card.dart';
+export 'translation_notes.dart';
 export 'word_choices_panel.dart';

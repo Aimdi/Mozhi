@@ -10,6 +10,7 @@ import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/platform/clipboard_service.dart';
 import 'package:mozhi/quick_translate/cubit/quick_translate_cubit.dart';
+import 'package:mozhi/quick_translate/quick_translate_host.dart';
 import 'package:mozhi/quick_translate/widgets/widgets.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/speech/speech_error_message.dart';
@@ -35,6 +36,11 @@ import 'package:translation_repository/translation_repository.dart';
 /// only (see `QuickTranslateCubit`); when a language must be downloaded
 /// first, its button closes the sheet and opens the offline languages
 /// ([AppRoutes.offline]) with the [GoRouter] above [context], if any.
+///
+/// In the translucent quick translate window ([host], default
+/// [QuickTranslateHost.instance], when it [QuickTranslateHost.isActive])
+/// the offline languages open in the main window, and closing the sheet
+/// closes the window.
 Future<void> showQuickTranslate(
   BuildContext context, {
   required String text,
@@ -42,8 +48,11 @@ Future<void> showQuickTranslate(
   ValueChanged<String>? onReplace,
   VoidCallback? onOpenInApp,
   bool offlineOnly = false,
+  QuickTranslateHost? host,
 }) async {
   if (text.trim().isEmpty) return;
+  final window = host ?? QuickTranslateHost.instance;
+  final inWindow = window.isActive;
   final repository = context.read<TranslationRepository>();
   final settings = context.read<SettingsCubit>();
   final speech = _maybeRead<SpeechService>(context);
@@ -72,7 +81,9 @@ Future<void> showQuickTranslate(
           onReplace: onReplace,
           onOpenInApp: onOpenInApp,
           offlineOnly: offlineOnly,
-          onOpenOfflineModels: router == null
+          onOpenOfflineModels: inWindow
+              ? () => unawaited(window.openLocationInApp(AppRoutes.offline))
+              : router == null
               ? null
               : () => unawaited(router.push<void>(AppRoutes.offline)),
           onClose: () => Navigator.of(routeContext).pop(),
@@ -112,6 +123,8 @@ Future<void> showQuickTranslate(
       builder: (routeContext) => content(routeContext, dialog: false),
     );
   }
+  // The window shows nothing else.
+  if (inWindow) await window.close();
 }
 
 T? _maybeRead<T>(BuildContext context) {

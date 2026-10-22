@@ -523,6 +523,13 @@ jobs:
           # instead of Google's CDN (no third-party request on start).
           flutter build web --release -t lib/main_production.dart \
             --base-href "$WEB_BASE_HREF" --no-web-resources-cdn
+
+      # The engine's fallback fonts (CJK, Indic, Arabic, emoji...) come
+      # from the build too instead of fonts.gstatic.com (docs/building.md).
+      - name: Self-host the fallback fonts
+        run: |
+          python3 tool/web_fallback_fonts_test.py
+          python3 tool/web_fallback_fonts.py build/web
           {
             echo "### Web build"
             echo
@@ -566,6 +573,8 @@ jobs:
         run: |
           flutter build web --release -t lib/main_development.dart \
             --no-web-resources-cdn --base-href / -o build/web-e2e
+          # Like the release: fallback fonts from the build, not Google.
+          python3 tool/web_fallback_fonts.py build/web-e2e
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:

@@ -18,7 +18,7 @@ same native library ([Language identification](#language-identification)).
 Use **Mozilla's own fork of bergamot-translator, which now lives in
 [`mozilla/translations`](https://github.com/mozilla/translations) under
 `inference/`** (bergamot v0.6.0 + its Marian fork), vendored as a pinned git
-submodule, behind a ~250-line C API (`native/src/mozhi_bergamot.{h,cc}`)
+submodule, behind a ~800-line C API (`native/src/mozhi_bergamot.{h,cc}`)
 called from Dart with `dart:ffi` in a background isolate.
 
 | Candidate | License | Maintained | Runs Mozilla's current models | Android ARM | Verdict |
@@ -36,7 +36,7 @@ is one ~6-10 MB native library for all languages.
 ## Architecture
 
 ```
-BergamotTranslator (implements OfflineTranslator)          lib/src/bergamot_translator.dart
+BergamotTranslator (implements DetailedOfflineTranslator)  lib/src/bergamot_translator.dart
  ├─ ModelCatalog       assets/catalog.json (113 directions)  lib/src/catalog.dart
  ├─ ModelRouter        app codes -> Mozilla codes, direct    lib/src/model_router.dart
  │                     model or pivot through English
@@ -48,8 +48,9 @@ BergamotTranslator (implements OfflineTranslator)          lib/src/bergamot_tran
  │   │     Isolate.run per call -> mozhi_bergamot_detect -> CLD2
  │   └─ LanguageIdentifier  heuristic (scripts + function    lib/src/language_identifier.dart
  │         words): fallback and second opinion
- └─ BergamotEngine     IsolateBergamotEngine: one long-lived lib/src/engine/ffi/
-      background isolate -> NativeEngine (dart:ffi, LRU of 3 models)
+ └─ BergamotBatchEngine  IsolateBergamotEngine: one long-   lib/src/engine/ffi/
+      lived background isolate, requests queued on the UI side and sent
+      one at a time -> NativeEngine (dart:ffi, LRU of 2-4 models)
         -> libmozhi_bergamot.so (C API) -> bergamot BlockingService -> Marian
 ```
 
@@ -64,6 +65,10 @@ BergamotTranslator (implements OfflineTranslator)          lib/src/bergamot_tran
 * **Long text:** pieces of at most 2000 characters, cut at blank lines, then
   line breaks, then sentence ends; the engine splits each piece into
   sentences itself (ssplit) and keeps whitespace, so paragraphs survive.
+  The pieces go to the engine in batches of up to 6000 characters, one
+  native call (`mozhi_bergamot_translate_ex`) per batch, so Bergamot
+  batches their sentences together; see
+  [Responsiveness](#responsiveness-alignment-and-memory).
   A sentence cache (2048 entries) makes re-translating edited text cheap.
 * **Pivoting:** all Firefox models are xx->en or en->xx. es->de runs es->en
   then en->de inside the engine (`pivotMultiple`, no re-splitting).
@@ -71,6 +76,77 @@ BergamotTranslator (implements OfflineTranslator)          lib/src/bergamot_tran
 * **Web:** the package imports on every platform; `dart:ffi` is behind a
   conditional import (`engine_factory.dart`), web gets a stub and
   `isAvailable == false`.
+
+## Responsiveness, alignment and memory
+
+Added in wave 1 (`DetailedOfflineTranslator` in
+`translation_repository`, `BergamotBatchEngine` here; both are separate
+interfaces, so other `OfflineTranslator`/`BergamotEngine` implementations
+keep compiling).
+
+* **Batching.** `translate` sends the pieces of a text in one native call
+  per 6000 characters (`maxBatchLength`, about Bergamot's mini-batch of
+  1024 words). Typed text is therefore always one call; a long document
+  is several, so it can be cancelled between them.
+* **Abort.** `translate(..., abort:)` / `translateDetailed(..., abort:)`:
+  once the future completes, the request stops before its next batch and
+  throws `OfflineTranslationCancelledException`. The isolate engine keeps
+  its queue on the UI side and sends one request at a time, so a request
+  that is aborted while it waits never reaches the engine; one already in
+  the native call finishes in the background (Bergamot cannot be
+  interrupted), but its caller is released at once (2-41 ms in the
+  real-model test). `TranslationRepository` passes an abort that completes
+  when the caller cancels the translation stream
+  (`offline/offline_requests.dart`), so text typed over a long input no
+  longer queues stale work.
+* **Preload.** `preload(source:, target:)` loads the installed models of
+  a pair in the engine isolate ahead of the first translation (it never
+  downloads or throws; false for `auto`, a missing model or an
+  unsupported pair). The app should call it when the on-device engine is
+  selected for an installed pair and when the input gains focus.
+* **Alignment and confidence.** `translateDetailed` returns an
+  `OfflineTranslation`: per sentence its source and target range, a
+  score, and per translated word the source word it most likely comes
+  from (Marian's soft alignment, summed over the word's tokens) with that
+  probability. Offsets are UTF-16 code units, computed in C++. Words are
+  SentencePiece tokens grouped at whitespace like Bergamot's quality
+  estimator; in scripts written without spaces (Chinese, Japanese, Thai)
+  every token is a word. `OfflineTranslation.alignedSpans()` turns them
+  into the `AlignedSpan`s of `TranslationRepository.align`, which now works
+  for the on-device engine (free, instant, any length, nothing sent).
+* **Low confidence.** A sentence of at least 3 words whose score (the mean
+  log-probability of its words) is below -0.4 is
+  `OfflineSentence.isLowConfidence`. Measured with the de/es models:
+  fluent translations score -0.05 to -0.3; text in another language than
+  the source and garbled output -0.4 to -0.8; on hard-wrapped
+  documentation it fires for ~3% of fragments (mostly genuinely odd
+  ones). Caveat: Bergamot's lexical shortlist is the union for the whole
+  batch, so a bad sentence scores lower inside a longer text (-0.72) than
+  alone (-0.42); fluent ones barely change. Log-probabilities miss
+  confident mistakes (literal idioms score like fluent text).
+* **`skip-cost: false`.** Firefox decodes with `skip-cost: true`, which
+  skips the softmax and leaves raw logits as word scores (+12 to +22,
+  meaningless as confidence). The library now decodes with
+  `skip-cost: false` so the scores are log-probabilities. With beam size 1
+  the softmax only shifts each step's scores by a constant, so the
+  translation stays the same except at near ties: 53 of 54 paragraphs
+  identical (en->de and en->es, one heading changed), ~3% slower
+  (2746 -> 2842 ms for 1374 words).
+* **Memory budget** (`lib/platform/native_memory.dart`).
+  * The engine keeps 2 models loaded on low-RAM devices
+    (`isLowRamDevice`, under 3 GB, or a heap class of 128 MB or less
+    without a RAM figure), 4 from 8 GB of RAM, 3 otherwise
+    (`DeviceMemory.bergamotModelCacheSize`, from the `memoryInfo` method
+    of `MainActivity.kt`'s `io.github.aimdi.mozhi/memory` channel, asked
+    while the catalog loads).
+  * On memory pressure (`didHaveMemoryPressure`, which Flutter raises from
+    Android's `onTrimMemory`, including when the UI is hidden on Android
+    14+) `BergamotTranslator.trimMemory()` unloads every model but those
+    of the last translation; the next request reloads what it needs.
+  * Whisper (`whisper_speech`): the model (75-150 MB) is unloaded after
+    60 s without a transcription, when the app goes to the background and
+    on memory pressure (`WhisperSpeech.unload`; a running transcription
+    finishes first).
 
 ## Models and the catalog
 
@@ -269,6 +345,12 @@ and falls back to the heuristic without it); Dart
   `packages/bergamot_translator/tool/fetch_native_deps.sh` initialises only
   the 5 nested submodules the CPU engine needs (+ ruy's cpuinfo), shallow,
   and applies `native/patches/`.
+* C API, ABI 2 (`native/src/mozhi_bergamot.h`; Dart refuses another ABI):
+  ABI 1's calls are unchanged; ABI 2 adds `mozhi_bergamot_translate_ex`
+  (a batch of texts, direct or pivot, flags for HTML, alignment and
+  quality; returns JSON with `text` and, on request, `sentences` with
+  ranges, scores and words). `mozhi_bergamot_cli --details MODEL SHORTLIST
+  VOCAB < lines.txt` prints that JSON for a batch.
 * `native/CMakeLists.txt` builds `libmozhi_bergamot.so` with nothing
   downloaded at configure or build time. What it has to work around (all
   without editing vendored files, except the one patch):
@@ -320,6 +402,22 @@ and falls back to the heuristic without it); Dart
     `build_info.cpp` (every CMake cache variable: checkout, compiler,
     system library paths) is replaced by a fixed one. Byte-for-byte
     identical builds on two machines were not compared.
+* Character signedness: `char` is unsigned on Linux/Android aarch64 and
+  armv7 and signed on x86_64, so code that relies on a signed `char` can
+  behave differently on phones. It was checked and is not a problem here,
+  so the build sets no `-fsigned-char`: SentencePiece gives byte-for-byte
+  the same tokens on x86_64 and aarch64 (all four test vocabularies, 27
+  lines of accented and NFKC-sensitive text); CLD2 gives the same answers
+  on x86_64, aarch64 and armv7 (238 phrases); translations of accented
+  text agree across x86_64 and aarch64 except for word choice from the
+  different int8 GEMM (intgemm vs ruy), with the same accented letters in
+  the output; and an aarch64 build with `-fsigned-char` translates the same
+  as the default one (see *What was verified*). Names losing their accent
+  in English output ("Malaga", "Angel", "Sofia") is the es-en model's
+  learned English spelling and happens on x86_64 just the same; the
+  source reaches it intact (`▁José ▁vive ▁en ▁Málaga .`).
+  `bergamot_integration_test.dart` checks that accented letters survive
+  in both directions.
 * Android (`android/build.gradle`): `externalNativeBuild` with
   `../native/CMakeLists.txt`, NDK pinned to `28.2.13676358` (= Flutter
   3.47's default), CMake 3.22.1, `abiFilters arm64-v8a, armeabi-v7a,
@@ -369,15 +467,22 @@ against the catalog:
 | armv7 build (GCC 13 cross, NEON+VFPv4, compat header, patches) under qemu-arm | en->de "Hallo, wie geht es dir?"; es->en->de pivot as above |
 | armv7 and aarch64 builds with **clang 18** (closest to the NDK's clang 19) under qemu | es->en->de pivot as above on both (this found the clang-only issues and patch 0002) |
 | `libmozhi_bergamot.so` size, stripped | x86_64 10.4 MB (GCC); aarch64 8.5 MB, armv7 5.8 MB (clang, glibc, shared libstdc++; Android adds ~1 MB of static libc++) |
+| `mozhi_bergamot_translate_ex`, aarch64 build (GCC 13 cross) under qemu | same alignments and UTF-16 offsets as x86_64 ("Málaga." <- "Málaga.", "Jose" <- "José") |
+| accented text, x86_64 vs aarch64 (34 sentences, es/de/en, four directions) | 30 identical, 4 differ in word choice only; accented letters in the output equal (4/4, 4/4, 23/23, 20/20) |
+| SentencePiece tokens, x86_64 vs aarch64 (four vocabularies, 27 lines) | identical |
+| aarch64 built with `-fsigned-char` (all 308 compile units) vs the default unsigned `char`, same 34 sentences | byte-identical JSON (texts, alignments, scores) |
+| abort of a waiting and a running request (real models) | both callers released in 2-41 ms; the engine keeps working |
 | CLD2's cost in the library (x86_64, stripped) | +1.76 MiB: 10,685,432 -> 12,532,760 bytes (12,524,568 with the path changes below) |
 | absolute paths in the library (`strings \| grep -c /home/`) | 200 -> 0 (`-ffile-prefix-map`, fixed Marian `build_info.cpp`) |
 
-`flutter test` in the package: 167 tests pass (the language identification
-ones with the native library run when it is built, as here), plus 7
-real-model tests (skipped unless `BERGAMOT_TEST_MODELS=1`; they pass here,
-including an `auto` translation of "Guten Morgen" identified by CLD2).
-Line coverage without the real models is 96%; the identification code is
-at 100% (the rest of the gap is the translation FFI path).
+`flutter test` in the package: 225 tests pass, 14 of them with the real
+models (skipped unless `BERGAMOT_TEST_MODELS=1`; they pass here,
+including an `auto` translation of "Guten Morgen" identified by CLD2,
+word alignment through a pivot, the low-confidence flag, abort, preload
+and accented letters in both directions). The language identification
+tests that need the native library run whenever it is built. The batch,
+abort and detail paths are also covered with a fake engine, so they run
+without models.
 
 ## Not verified (needs CI or a device)
 
@@ -471,8 +576,13 @@ the SHA-256 checksums bundled with the app.
   code; ranked candidates with a confidence (CLD2 has the top 3) and
   hints from the user's own languages would let the app offer "German or
   Dutch?" instead of guessing or asking.
-* Cancellation of long translations (between pieces) and download
-  cancellation; "translate as you type" debouncing in the app.
+* Download cancellation; a shorter "translate as you type" debounce for
+  the on-device engine (about 250 ms) and the `preload` call sites in the
+  app (both in `TranslateCubit`).
+* Show `OfflineSentence.isLowConfidence` in the output (e.g. a dotted
+  underline and "The on-device engine is unsure about this sentence",
+  with "Compare with another engine"); offer tap-to-highlight for offline
+  results (`TranslateState.canAlign` is AI-only today).
 * Optional: fetch a fresher catalog at run time (same schema), verify it
   (signature) before use.
 * Measure on low-end devices; consider `tiny` models for armeabi-v7a.

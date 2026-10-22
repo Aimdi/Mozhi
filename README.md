@@ -88,7 +88,8 @@ history anywhere.
   month, with optional monthly budgets and warnings.
 - **Android**: *Translate with Mozhi* in the text-selection menu of any app
   opens a quick-translate sheet (with *Replace* for editable fields and
-  *Open in app*), plus a share target for text.
+  *Open in app*), plus a share target for text, images and subtitle, text or
+  JSON files.
 - Links like `/translate?text=hola&from=es&to=en` open pre-filled (same
   parameters as Kagi Translate, including style, formality, reading level
   and `quality`; `q`, `sl` and `tl` work too; free-text context from links
@@ -115,9 +116,18 @@ history anywhere.
 - Incognito, a screenshot and recents blocker, sensitive copies, an HTTP
   proxy (Orbot/Tor), https-only for public servers, and **Delete all local
   data**.
-- Shared text and links never start a paid AI request on their own. (Choosing
-  *Translate with Mozhi* on a text selection is an explicit request: it
-  translates right away with your current engine.)
+- **Hide personal data from online engines** (on by default): e-mail
+  addresses, phone numbers, IBANs, card numbers and IP addresses are
+  replaced before text goes online and put back afterwards.
+- **Network activity**: a session-only log of every request (destination,
+  purpose, size), never with its text.
+- **Translation checks**: missing placeholders, links, numbers or glossary
+  terms are flagged, and an engine that returns the original text or a reply
+  instead of a translation is replaced by another one you already allowed,
+  on the device first.
+- Shared text, images, files and links never start a paid AI request on
+  their own. (Choosing *Translate with Mozhi* on a text selection is an
+  explicit request: it translates right away with your current engine.)
 - Your text only goes to the Mozhi instance or AI provider you choose. Run both
   yourself and nothing leaves your network.
 
@@ -164,6 +174,7 @@ Documentation:
 - [FAQ](docs/faq.md)
 - [Architecture](docs/architecture.md): packages, layers and data flow (for
   contributors)
+- [Roadmap](docs/roadmap.md): what comes next, and why
 
 ---
 

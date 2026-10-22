@@ -7475,16 +7475,6 @@
       }
     }
   },
-  "translateOptionsPartlyNeedAi": "{engine} applies only formality, context and formatting. Style, reading level, gender and the glossary need an AI translator. Your choices are saved and apply when you use one.",
-  "@translateOptionsPartlyNeedAi": {
-    "description": "Note at the top of the translation options sheet for a machine translation service that applies some options (DeepL API); {engine} is its name (e.g. DeepL).",
-    "placeholders": {
-      "engine": {
-        "type": "String",
-        "example": "DeepL"
-      }
-    }
-  },
   "translateOptionsChooseAi": "Choose an AI translator",
   "@translateOptionsChooseAi": {
     "description": "Action of the note in the translation options sheet: closes the sheet and opens the engine picker to switch to an AI translator."
@@ -7935,5 +7925,493 @@
   "translateOfflineOnlyDeviceUnsupported": "This device can’t run offline translation. Switch to Offline first or Online in Settings › Privacy.",
   "@translateOfflineOnlyDeviceUnsupported": {
     "description": "Privacy mode is Offline only on an Android device whose processor cannot run the offline engine"
+  },
+  "settingsNetworkActivity": "Network activity",
+  "@settingsNetworkActivity": {
+    "description": "settingsNetworkActivity"
+  },
+  "settingsNetworkActivitySubtitle": "What left this device this session, and where it went",
+  "@settingsNetworkActivitySubtitle": {
+    "description": "settingsNetworkActivitySubtitle"
+  },
+  "settingsNetworkNothingTitle": "Nothing has left this device",
+  "@settingsNetworkNothingTitle": {
+    "description": "settingsNetworkNothingTitle"
+  },
+  "settingsNetworkNothingBody": "Mozhi hasn't sent anything over the network since {time}. Translations on the device never show up here: they have nothing to send.",
+  "@settingsNetworkNothingBody": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsNetworkHeadline": "{count, plural, =1{1 request since {time}} other{{count} requests since {time}}}",
+  "@settingsNetworkHeadline": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsNetworkContentSummary": "{count, plural, =0{No text or photos were sent.} =1{Text or photos went to 1 destination.} other{Text or photos went to {count} destinations.}}",
+  "@settingsNetworkContentSummary": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsNetworkTotals": "{sent} sent · {received} received",
+  "@settingsNetworkTotals": {
+    "placeholders": {
+      "sent": {
+        "type": "String"
+      },
+      "received": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsNetworkStayedOnDevice": "{count, plural, =1{1 request went to a server on this device and stayed here.} other{{count} requests went to a server on this device and stayed here.}}",
+  "@settingsNetworkStayedOnDevice": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsNetworkDestinations": "Where it went",
+  "@settingsNetworkDestinations": {
+    "description": "settingsNetworkDestinations"
+  },
+  "settingsNetworkLog": "Requests, newest first",
+  "@settingsNetworkLog": {
+    "description": "settingsNetworkLog"
+  },
+  "settingsNetworkDropped": "{count, plural, =1{1 older request is no longer listed.} other{{count} older requests are no longer listed.}}",
+  "@settingsNetworkDropped": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsNetworkClearTooltip": "Clear network activity",
+  "@settingsNetworkClearTooltip": {
+    "description": "settingsNetworkClearTooltip"
+  },
+  "settingsNetworkCleared": "Network activity cleared",
+  "@settingsNetworkCleared": {
+    "description": "settingsNetworkCleared"
+  },
+  "settingsNetworkCopyTooltip": "Copy summary",
+  "@settingsNetworkCopyTooltip": {
+    "description": "settingsNetworkCopyTooltip"
+  },
+  "settingsNetworkKindThisDevice": "Server on this device",
+  "@settingsNetworkKindThisDevice": {
+    "description": "settingsNetworkKindThisDevice"
+  },
+  "settingsNetworkKindLocalNetwork": "Your local network",
+  "@settingsNetworkKindLocalNetwork": {
+    "description": "settingsNetworkKindLocalNetwork"
+  },
+  "settingsNetworkKindHiddenService": "Tor or I2P service",
+  "@settingsNetworkKindHiddenService": {
+    "description": "settingsNetworkKindHiddenService"
+  },
+  "settingsNetworkKindCloudProvider": "Cloud provider",
+  "@settingsNetworkKindCloudProvider": {
+    "description": "settingsNetworkKindCloudProvider"
+  },
+  "settingsNetworkKindPublicServer": "Public server",
+  "@settingsNetworkKindPublicServer": {
+    "description": "settingsNetworkKindPublicServer"
+  },
+  "settingsNetworkKindModelHost": "Model download",
+  "@settingsNetworkKindModelHost": {
+    "description": "settingsNetworkKindModelHost"
+  },
+  "settingsNetworkKindWebsite": "Website",
+  "@settingsNetworkKindWebsite": {
+    "description": "settingsNetworkKindWebsite"
+  },
+  "settingsNetworkKindThisDeviceBody": "A server running on this phone, such as Ollama. What it receives stays on the device.",
+  "@settingsNetworkKindThisDeviceBody": {
+    "description": "settingsNetworkKindThisDeviceBody"
+  },
+  "settingsNetworkKindLocalNetworkBody": "A server on your own network. Only you, and whoever runs that network, can read what it receives.",
+  "@settingsNetworkKindLocalNetworkBody": {
+    "description": "settingsNetworkKindLocalNetworkBody"
+  },
+  "settingsNetworkKindHiddenServiceBody": "Reached through Tor or I2P. The service's operator can read what it receives.",
+  "@settingsNetworkKindHiddenServiceBody": {
+    "description": "settingsNetworkKindHiddenServiceBody"
+  },
+  "settingsNetworkKindCloudProviderBody": "A company's service. Its privacy policy covers what it receives.",
+  "@settingsNetworkKindCloudProviderBody": {
+    "description": "settingsNetworkKindCloudProviderBody"
+  },
+  "settingsNetworkKindPublicServerBody": "A server run by someone else. Its operator can read what it receives.",
+  "@settingsNetworkKindPublicServerBody": {
+    "description": "settingsNetworkKindPublicServerBody"
+  },
+  "settingsNetworkKindModelHostBody": "Where on-device models are downloaded from. No text is sent.",
+  "@settingsNetworkKindModelHostBody": {
+    "description": "settingsNetworkKindModelHostBody"
+  },
+  "settingsNetworkKindWebsiteBody": "Web pages you asked to translate. The site sees which page was opened, not your text.",
+  "@settingsNetworkKindWebsiteBody": {
+    "description": "settingsNetworkKindWebsiteBody"
+  },
+  "settingsNetworkPurposeTranslation": "Translation",
+  "@settingsNetworkPurposeTranslation": {
+    "description": "settingsNetworkPurposeTranslation"
+  },
+  "settingsNetworkPurposeAi": "AI request",
+  "@settingsNetworkPurposeAi": {
+    "description": "settingsNetworkPurposeAi"
+  },
+  "settingsNetworkPurposeSpeech": "Read aloud",
+  "@settingsNetworkPurposeSpeech": {
+    "description": "settingsNetworkPurposeSpeech"
+  },
+  "settingsNetworkPurposeImage": "Photo",
+  "@settingsNetworkPurposeImage": {
+    "description": "settingsNetworkPurposeImage"
+  },
+  "settingsNetworkPurposeCatalog": "Engine and language lists",
+  "@settingsNetworkPurposeCatalog": {
+    "description": "settingsNetworkPurposeCatalog"
+  },
+  "settingsNetworkPurposeModel": "Model download",
+  "@settingsNetworkPurposeModel": {
+    "description": "settingsNetworkPurposeModel"
+  },
+  "settingsNetworkPurposeWebPage": "Web page",
+  "@settingsNetworkPurposeWebPage": {
+    "description": "settingsNetworkPurposeWebPage"
+  },
+  "settingsNetworkPurposeOther": "Other request",
+  "@settingsNetworkPurposeOther": {
+    "description": "settingsNetworkPurposeOther"
+  },
+  "settingsNetworkStatusPending": "Waiting for the answer",
+  "@settingsNetworkStatusPending": {
+    "description": "settingsNetworkStatusPending"
+  },
+  "settingsNetworkStatusOk": "Answered ({code})",
+  "@settingsNetworkStatusOk": {
+    "placeholders": {
+      "code": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsNetworkStatusHttpError": "Error {code}",
+  "@settingsNetworkStatusHttpError": {
+    "placeholders": {
+      "code": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsNetworkStatusTimeout": "Timed out",
+  "@settingsNetworkStatusTimeout": {
+    "description": "settingsNetworkStatusTimeout"
+  },
+  "settingsNetworkStatusConnection": "No connection",
+  "@settingsNetworkStatusConnection": {
+    "description": "settingsNetworkStatusConnection"
+  },
+  "settingsNetworkStatusSecureConnection": "Secure connection failed",
+  "@settingsNetworkStatusSecureConnection": {
+    "description": "settingsNetworkStatusSecureConnection"
+  },
+  "settingsNetworkStatusFailed": "Failed",
+  "@settingsNetworkStatusFailed": {
+    "description": "settingsNetworkStatusFailed"
+  },
+  "settingsNetworkStatusCancelled": "Cancelled",
+  "@settingsNetworkStatusCancelled": {
+    "description": "settingsNetworkStatusCancelled"
+  },
+  "settingsNetworkStatusNotSent": "Not sent",
+  "@settingsNetworkStatusNotSent": {
+    "description": "settingsNetworkStatusNotSent"
+  },
+  "settingsNetworkViaProxy": "Through the proxy",
+  "@settingsNetworkViaProxy": {
+    "description": "settingsNetworkViaProxy"
+  },
+  "settingsNetworkUnencrypted": "Unencrypted (http)",
+  "@settingsNetworkUnencrypted": {
+    "description": "settingsNetworkUnencrypted"
+  },
+  "settingsNetworkContentSent": "Text or photo sent",
+  "@settingsNetworkContentSent": {
+    "description": "settingsNetworkContentSent"
+  },
+  "settingsNetworkNoContent": "No text sent",
+  "@settingsNetworkNoContent": {
+    "description": "settingsNetworkNoContent"
+  },
+  "settingsNetworkRedirected": "Redirected to {host}",
+  "@settingsNetworkRedirected": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsNetworkRequestCount": "{count, plural, =1{1 request} other{{count} requests}}",
+  "@settingsNetworkRequestCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsNetworkSent": "{size} sent",
+  "@settingsNetworkSent": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsNetworkReceived": "{size} received",
+  "@settingsNetworkReceived": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsNetworkDurationMs": "{ms} ms",
+  "@settingsNetworkDurationMs": {
+    "placeholders": {
+      "ms": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsNetworkDurationSeconds": "{seconds} s",
+  "@settingsNetworkDurationSeconds": {
+    "placeholders": {
+      "seconds": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsNetworkAboutTitle": "About this log",
+  "@settingsNetworkAboutTitle": {
+    "description": "settingsNetworkAboutTitle"
+  },
+  "settingsNetworkAboutRecorded": "Recorded: when, which server, what kind of request, its size and how it ended.",
+  "@settingsNetworkAboutRecorded": {
+    "description": "settingsNetworkAboutRecorded"
+  },
+  "settingsNetworkAboutNotRecorded": "Never recorded: your text, photos, page addresses, search terms or headers.",
+  "@settingsNetworkAboutNotRecorded": {
+    "description": "settingsNetworkAboutNotRecorded"
+  },
+  "settingsNetworkAboutSession": "Kept in memory for this session only. It is gone when Mozhi closes or you clear it, and it is never saved or sent anywhere.",
+  "@settingsNetworkAboutSession": {
+    "description": "settingsNetworkAboutSession"
+  },
+  "settingsNetworkAboutRefused": "Requests that Mozhi's privacy rules block are never sent, so they don't appear here.",
+  "@settingsNetworkAboutRefused": {
+    "description": "settingsNetworkAboutRefused"
+  },
+  "settingsNetworkAboutQuick": "Translations from another app's text selection menu are added here while Mozhi is open.",
+  "@settingsNetworkAboutQuick": {
+    "description": "settingsNetworkAboutQuick"
+  },
+  "settingsNetworkCopyHeader": "Mozhi network activity since {time}",
+  "@settingsNetworkCopyHeader": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsNetworkCopyFooter": "Only times, servers, kinds of request and sizes are recorded, never text.",
+  "@settingsNetworkCopyFooter": {
+    "description": "settingsNetworkCopyFooter"
+  },
+  "settingsNetworkDateTime": "{date}, {time}",
+  "@settingsNetworkDateTime": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsNetworkCopyLine": "{destination} ({kind}): {requests}, {sent}, {received}, {content}",
+  "@settingsNetworkCopyLine": {
+    "placeholders": {
+      "destination": {
+        "type": "String"
+      },
+      "kind": {
+        "type": "String"
+      },
+      "requests": {
+        "type": "String"
+      },
+      "sent": {
+        "type": "String"
+      },
+      "received": {
+        "type": "String"
+      },
+      "content": {
+        "type": "String"
+      }
+    }
+  },
+  "translateWarningsLabel": "Translation checks",
+  "@translateWarningsLabel": {
+    "description": "translateWarningsLabel"
+  },
+  "translateWarningPlaceholders": "Placeholders may be missing or changed",
+  "@translateWarningPlaceholders": {
+    "description": "translateWarningPlaceholders"
+  },
+  "translateWarningMarkup": "Tags or formatting may have changed",
+  "@translateWarningMarkup": {
+    "description": "translateWarningMarkup"
+  },
+  "translateWarningLinks": "Links may be missing or changed",
+  "@translateWarningLinks": {
+    "description": "translateWarningLinks"
+  },
+  "translateWarningEmails": "E-mail addresses may be missing or changed",
+  "@translateWarningEmails": {
+    "description": "translateWarningEmails"
+  },
+  "translateWarningNumbers": "Some numbers differ from the original",
+  "@translateWarningNumbers": {
+    "description": "translateWarningNumbers"
+  },
+  "translateWarningGlossary": "Glossary terms not used: {terms}",
+  "@translateWarningGlossary": {
+    "placeholders": {
+      "terms": {
+        "type": "String"
+      }
+    }
+  },
+  "translateWarningEcho": "The translation is the same as the original",
+  "@translateWarningEcho": {
+    "description": "translateWarningEcho"
+  },
+  "translateWarningWrongLanguage": "This may not be in {language}",
+  "@translateWarningWrongLanguage": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "translateWarningLength": "The length is very different from the original",
+  "@translateWarningLength": {
+    "description": "translateWarningLength"
+  },
+  "translateWarningReply": "This looks like a reply, not a translation",
+  "@translateWarningReply": {
+    "description": "translateWarningReply"
+  },
+  "translateWarningPersonalDataLost": "Some hidden personal data could not be put back",
+  "@translateWarningPersonalDataLost": {
+    "description": "translateWarningPersonalDataLost"
+  },
+  "translatePersonalDataKept": "{count, plural, =1{1 item kept on this device} other{{count} items kept on this device}}",
+  "@translatePersonalDataKept": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "translatePersonalDataKeptHint": "E-mail addresses, phone numbers and account numbers were replaced before the text left the device",
+  "@translatePersonalDataKeptHint": {
+    "description": "translatePersonalDataKeptHint"
+  },
+  "translateFallbackEcho": "{engine} returned the original text.",
+  "@translateFallbackEcho": {
+    "placeholders": {
+      "engine": {
+        "type": "String"
+      }
+    }
+  },
+  "translateFallbackWrongLanguage": "{engine} answered in the wrong language.",
+  "@translateFallbackWrongLanguage": {
+    "placeholders": {
+      "engine": {
+        "type": "String"
+      }
+    }
+  },
+  "translateFallbackLength": "{engine} returned an incomplete or garbled translation.",
+  "@translateFallbackLength": {
+    "placeholders": {
+      "engine": {
+        "type": "String"
+      }
+    }
+  },
+  "translateFallbackReply": "{engine} replied instead of translating.",
+  "@translateFallbackReply": {
+    "placeholders": {
+      "engine": {
+        "type": "String"
+      }
+    }
+  },
+  "translateFallbackOnDevice": "Translated on this device.",
+  "@translateFallbackOnDevice": {
+    "description": "translateFallbackOnDevice"
+  },
+  "translateFallbackWith": "Translated with {engine}.",
+  "@translateFallbackWith": {
+    "placeholders": {
+      "engine": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsMaskPersonalData": "Hide personal data from online engines",
+  "@settingsMaskPersonalData": {
+    "description": "settingsMaskPersonalData"
+  },
+  "settingsMaskPersonalDataSubtitle": "E-mail addresses, phone numbers, IBANs and card numbers are replaced before text leaves the device, then put back into the translation",
+  "@settingsMaskPersonalDataSubtitle": {
+    "description": "settingsMaskPersonalDataSubtitle"
+  },
+  "settingsProviderDeeplQualityModel": "Prefer the quality-optimised model",
+  "@settingsProviderDeeplQualityModel": {
+    "description": "settingsProviderDeeplQualityModel"
+  },
+  "settingsProviderDeeplQualityModelSubtitle": "Asks DeepL for its next-generation model where the language pair supports it. It can be a little slower.",
+  "@settingsProviderDeeplQualityModelSubtitle": {
+    "description": "settingsProviderDeeplQualityModelSubtitle"
+  },
+  "translateOptionsDeeplNeedAi": "{engine} applies formality, context, formatting and the glossary. Style, reading level and gender need an AI translator. Your choices are saved and apply when you use one.",
+  "@translateOptionsDeeplNeedAi": {
+    "placeholders": {
+      "engine": {
+        "type": "String"
+      }
+    }
   }
 }

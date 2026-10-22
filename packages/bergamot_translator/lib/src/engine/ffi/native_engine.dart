@@ -3,8 +3,10 @@ import 'dart:ffi';
 
 import 'package:bergamot_translator/src/engine/bergamot_engine.dart';
 import 'package:bergamot_translator/src/engine/ffi/bindings.dart';
+import 'package:bergamot_translator/src/engine/translation_json.dart';
 import 'package:bergamot_translator/src/model_manager.dart';
 import 'package:ffi/ffi.dart';
+import 'package:translation_repository/translation_repository.dart';
 
 /// Synchronous access to the native engine with a small cache of loaded
 /// models. Blocks the calling isolate: only used inside the translation
@@ -37,6 +39,9 @@ final class NativeEngine {
   /// Loaded models, least recently used first.
   final LinkedHashMap<String, Pointer<NativeModel>> _models = LinkedHashMap();
 
+  /// Keys of the chain of the most recent request ([trim] keeps them).
+  List<String> _recent = const [];
+
   /// Engine version, e.g. `bergamot v0.6.0`.
   String get version => _bindings.version().toDartString();
 
@@ -44,10 +49,7 @@ final class NativeEngine {
   List<String> get loadedModels => List.unmodifiable(_models.keys);
 
   String translate(List<ModelPaths> chain, String text, {bool html = false}) {
-    if (chain.isEmpty || chain.length > 2) {
-      throw ArgumentError.value(chain.length, 'chain', 'Must be 1 or 2');
-    }
-    final models = [for (final paths in chain) _load(paths, keep: chain)];
+    final models = _loadChain(chain);
     return using((arena) {
       final input = text.toNativeUtf8(allocator: arena);
       final output = models.length == 1
@@ -55,6 +57,50 @@ final class NativeEngine {
           : _bindings.translatePivot(models[0], models[1], input, html ? 1 : 0);
       return _take(output, 'translate');
     });
+  }
+
+  /// Translates [texts] through [chain] in one native call
+  /// (`mozhi_bergamot_translate_ex`); with [details] with sentences, word
+  /// alignment and quality scores.
+  List<OfflineTranslation> translateBatch(
+    List<ModelPaths> chain,
+    List<String> texts, {
+    bool html = false,
+    bool details = false,
+  }) {
+    final models = _loadChain(chain);
+    if (texts.isEmpty) return const [];
+    final flags =
+        (html ? BergamotBindings.translateHtml : 0) |
+        (details
+            ? BergamotBindings.translateAlignment |
+                  BergamotBindings.translateQuality
+            : 0);
+    final json = using((arena) {
+      final array = arena<Pointer<Utf8>>(texts.length);
+      for (var i = 0; i < texts.length; i++) {
+        array[i] = texts[i].toNativeUtf8(allocator: arena);
+      }
+      final output = _bindings.translateEx(
+        models.first,
+        models.length == 2 ? models[1] : nullptr,
+        array,
+        texts.length,
+        flags,
+      );
+      return _take(output, 'translate');
+    });
+    return parseBergamotTranslations(json, count: texts.length);
+  }
+
+  /// Loads the models of [chain] without translating.
+  void preload(List<ModelPaths> chain) => _loadChain(chain);
+
+  /// Unloads every model but those of the most recent request.
+  void trim() {
+    for (final key in [..._models.keys]) {
+      if (!_recent.contains(key)) release(key);
+    }
   }
 
   void release(String key) {
@@ -65,6 +111,17 @@ final class NativeEngine {
   void dispose() {
     _models.values.forEach(_bindings.modelDestroy);
     _models.clear();
+  }
+
+  /// The loaded models of [chain] (one, or two for a pivot); it becomes the
+  /// most recent chain.
+  List<Pointer<NativeModel>> _loadChain(List<ModelPaths> chain) {
+    if (chain.isEmpty || chain.length > 2) {
+      throw ArgumentError.value(chain.length, 'chain', 'Must be 1 or 2');
+    }
+    final models = [for (final paths in chain) _load(paths, keep: chain)];
+    _recent = [for (final paths in chain) paths.key];
+    return models;
   }
 
   Pointer<NativeModel> _load(

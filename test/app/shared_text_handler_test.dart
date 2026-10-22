@@ -1,17 +1,22 @@
 import 'dart:async';
+import 'dart:ui';
 
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/app/shared_text_handler.dart';
+import 'package:mozhi/core/privacy/egress/egress.dart';
 import 'package:mozhi/platform/shared_text_service.dart';
+import 'package:mozhi/quick_translate/quick_translate_host.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 
 class _MockTranslateCubit extends MockCubit<TranslateState>
     implements TranslateCubit;
 
 class _MockSharedTextService extends Mock implements SharedTextService;
+
+class _MockQuickTranslateHost extends Mock implements QuickTranslateHost;
 
 const _ready = TranslateState(enginesStatus: EnginesStatus.ready);
 
@@ -344,6 +349,163 @@ void main() {
 
       expect(shown, 0);
       verifyNoInput();
+    });
+  });
+
+  group('in the quick translate window', () {
+    late _MockTranslateCubit cubit;
+    late _MockSharedTextService service;
+    late _MockQuickTranslateHost window;
+    late List<QuickTranslateRequest> quick;
+    late int shown;
+    late EgressLedger ledger;
+
+    setUp(() {
+      cubit = _MockTranslateCubit();
+      service = _MockSharedTextService();
+      window = _MockQuickTranslateHost();
+      quick = [];
+      shown = 0;
+      ledger = EgressLedger();
+      when(() => cubit.state).thenReturn(_ready);
+      when(() => service.texts).thenAnswer((_) => const Stream.empty());
+      when(() => service.initialText()).thenAnswer((_) async => null);
+      when(() => window.isActive).thenReturn(true);
+      when(window.close).thenAnswer((_) async {});
+      when(() => window.openTextInApp(any())).thenAnswer((_) async {});
+    });
+
+    tearDown(
+      () => IsolateNameServer.removePortNameMapping(EgressRelay.portName),
+    );
+
+    SharedTextHandler create({bool withQuick = true}) => SharedTextHandler(
+      service: service,
+      translateCubit: cubit,
+      onShowTranslate: () => shown++,
+      onQuickTranslate: withQuick ? quick.add : null,
+      quickHost: window,
+      ledger: ledger,
+    );
+
+    test(
+      'shows the selection; "Open in app" goes to the main window',
+      () async {
+        when(() => service.initialText()).thenAnswer(
+          (_) async =>
+              const SharedText('hola', readOnly: false, isProcessText: true),
+        );
+        final handler = create();
+        addTearDown(handler.dispose);
+
+        await handler.start();
+        quick.single.onOpenInApp();
+
+        verify(() => window.openTextInApp('hola')).called(1);
+        verifyNever(() => cubit.setExternalInput(any()));
+        expect(shown, 0);
+        expect(quick.single.canReplace, isTrue);
+        verifyNever(window.close);
+      },
+    );
+
+    test('any text shows quick translate there', () async {
+      when(() => service.initialText())
+          .thenAnswer((_) async => const SharedText('plain'));
+      final handler = create();
+      addTearDown(handler.dispose);
+
+      await handler.start();
+
+      expect(quick.single.text, 'plain');
+    });
+
+    test('closes the window without a selection', () async {
+      final handler = create();
+      addTearDown(handler.dispose);
+
+      await handler.start();
+
+      verify(window.close).called(1);
+      expect(quick, isEmpty);
+    });
+
+    test('closes the window for a blank selection', () async {
+      final handler = create();
+      addTearDown(handler.dispose);
+      await handler.handle(const SharedText(' ', isProcessText: true));
+      verify(window.close).called(1);
+    });
+
+    test('closes the window when there is no quick translate UI', () async {
+      final handler = create(withQuick: false);
+      addTearDown(handler.dispose);
+      await handler.handle(const SharedText('hola', isProcessText: true));
+      verify(window.close).called(1);
+      expect(shown, 0);
+    });
+
+    test('hands its network activity to the main window', () async {
+      final main = EgressLedger();
+      final stop = EgressRelay.receive(main);
+      addTearDown(stop);
+      final handler = create();
+      await handler.start();
+
+      final entry = ledger.begin(
+        method: 'POST',
+        scheme: 'https',
+        destination: const EgressDestination(
+          kind: EgressDestinationKind.cloudProvider,
+          host: 'api.openai.com',
+          name: 'OpenAI',
+        ),
+        purpose: EgressPurpose.aiModel,
+      );
+      ledger.update(entry.copyWith(outcome: EgressOutcome.succeeded));
+      await pumpEventQueue();
+      expect(main.entries, hasLength(1));
+
+      await handler.dispose();
+      final later = ledger.begin(
+        method: 'GET',
+        scheme: 'https',
+        destination: entry.destination,
+        purpose: EgressPurpose.catalog,
+      );
+      ledger.update(later.copyWith(outcome: EgressOutcome.succeeded));
+      await pumpEventQueue();
+      expect(main.entries, hasLength(1));
+    });
+
+    test('the main window receives the activity of the others', () async {
+      when(() => window.isActive).thenReturn(false);
+      final handler = create();
+      await handler.start();
+
+      expect(
+        IsolateNameServer.lookupPortByName(EgressRelay.portName),
+        isNotNull,
+      );
+      final entry = EgressEntry(
+        id: 0,
+        startedAt: DateTime(2026),
+        method: 'GET',
+        scheme: 'https',
+        destination: const EgressDestination(
+          kind: EgressDestinationKind.publicServer,
+          host: 'mozhi.example',
+        ),
+        purpose: EgressPurpose.catalog,
+        outcome: EgressOutcome.succeeded,
+      );
+      IsolateNameServer.lookupPortByName(EgressRelay.portName)!
+          .send(entry.toMap());
+      await pumpEventQueue();
+      expect(ledger.entries.single.destination.host, 'mozhi.example');
+
+      await handler.dispose();
+      expect(IsolateNameServer.lookupPortByName(EgressRelay.portName), isNull);
     });
   });
 

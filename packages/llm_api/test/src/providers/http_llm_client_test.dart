@@ -28,6 +28,7 @@ OpenAiCompatibleClient _client(
   String? apiKey,
   Map<String, String> headers = const {},
   Duration timeout = const Duration(seconds: 5),
+  LlmRetryPolicy retryPolicy = LlmRetryPolicy.none,
 }) => OpenAiCompatibleClient(
   LlmEndpoint(
     provider: LlmProvider.openAiCompatible,
@@ -37,6 +38,7 @@ OpenAiCompatibleClient _client(
   ),
   httpClient: httpClient,
   timeout: timeout,
+  retryPolicy: retryPolicy,
 );
 
 Matcher _apiException({

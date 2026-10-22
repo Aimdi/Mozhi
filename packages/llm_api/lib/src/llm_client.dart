@@ -4,6 +4,7 @@ import 'package:llm_api/src/providers/anthropic_client.dart';
 import 'package:llm_api/src/providers/gemini_client.dart';
 import 'package:llm_api/src/providers/ollama_client.dart';
 import 'package:llm_api/src/providers/openai_compatible_client.dart';
+import 'package:llm_api/src/retry_policy.dart';
 
 /// A chat client for one [LlmEndpoint].
 ///
@@ -25,6 +26,12 @@ import 'package:llm_api/src/providers/openai_compatible_client.dart';
 ///   `LlmInterruptedException`.
 /// * Requests honour [timeout] for connection + time-to-first-byte; once
 ///   streaming, an idle gap longer than [timeout] errors the stream.
+/// * A transient failure (`LlmApiException.isTransient`: 429, 500, 502,
+///   503, 504, 529 or a dropped connection, including such an error event
+///   at the start of the stream) is retried as the client's
+///   [LlmRetryPolicy] allows (once by default), but only while no text
+///   delta has been emitted, so visible output is never paid for twice.
+///   `Retry-After` is honoured up to `LlmRetryPolicy.maxRetryAfter`.
 /// * Redirects are never followed, because HTTP stacks forward custom auth
 ///   headers (`x-api-key`, `x-goog-api-key`) to the new host: a 3xx answer
 ///   errors with `LlmApiException` (`isRedirect`, message
@@ -38,30 +45,43 @@ abstract class LlmClient {
   ///
   /// When [httpClient] is given it is used for all requests and is *not*
   /// closed by [close]; otherwise the client creates (and owns) one.
+  ///
+  /// [retryPolicy] decides when [streamChat] retries a transient failure
+  /// ([LlmRetryPolicy.none] turns retries off). [keepAlive] is how long a
+  /// local server keeps the model loaded after a request (Ollama
+  /// `keep_alive`; negative means forever); null leaves it to the server.
+  /// Cloud providers ignore it.
   factory(
     LlmEndpoint endpoint, {
     http.Client? httpClient,
     Duration timeout = defaultTimeout,
+    LlmRetryPolicy retryPolicy = LlmRetryPolicy.standard,
+    Duration? keepAlive,
   }) => switch (endpoint.provider) {
     LlmProvider.openAiCompatible => OpenAiCompatibleClient(
       endpoint,
       httpClient: httpClient,
       timeout: timeout,
+      retryPolicy: retryPolicy,
     ),
     LlmProvider.anthropic => AnthropicClient(
       endpoint,
       httpClient: httpClient,
       timeout: timeout,
+      retryPolicy: retryPolicy,
     ),
     LlmProvider.gemini => GeminiClient(
       endpoint,
       httpClient: httpClient,
       timeout: timeout,
+      retryPolicy: retryPolicy,
     ),
     LlmProvider.ollama => OllamaClient(
       endpoint,
       httpClient: httpClient,
       timeout: timeout,
+      retryPolicy: retryPolicy,
+      keepAlive: keepAlive,
     ),
   };
 
@@ -84,6 +104,18 @@ abstract class LlmClient {
   /// Lists available models, sorted by id. Providers without a listing
   /// endpoint throw `LlmApiException`.
   Future<List<LlmModel>> listModels();
+
+  /// Asks a local server to load [model] now (and keep it loaded for the
+  /// client's keep-alive), so that the first request does not wait for the
+  /// model to load. Meant to be called, without awaiting, when the user
+  /// selects a local engine.
+  ///
+  /// Ollama: an empty `POST {base}/api/generate` with the `num_ctx` that
+  /// later chat requests will use (a different one would reload the
+  /// model). Every other provider does nothing. Never throws: answers
+  /// whether the server confirmed that the model is loaded (false for
+  /// providers without warm-up and on any failure). Sends no user text.
+  Future<bool> warmUp(String model);
 
   /// Releases the HTTP client if owned.
   void close();

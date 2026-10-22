@@ -3,6 +3,11 @@ template-arb-file: app_en.arb
 output-localization-file: app_localizations.dart
 output-dir: lib/l10n/gen
 nullable-getter: false
+# Each language is a deferred part of the web build, fetched when needed:
+# main.dart.js keeps only English (lib/l10n/l10n.dart imports it directly).
+# lib/l10n/l10n.dart keeps the app's delegates synchronous on native
+# platforms and for languages loaded ahead (preloadAppLocalizations).
+use-deferred-loading: true
 
 # Needed to ensure the formatter does not run on the generated files.
 # See https://github.com/dart-lang/dart_style/issues/864 for more information

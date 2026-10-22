@@ -784,6 +784,30 @@ void main() {
           expect(find.text('Provider saved'), findsOneWidget);
         });
 
+        testWidgets('prefers the quality-optimised model when switched on', (
+          tester,
+        ) async {
+          await pump(tester, presetId: 'deepl');
+          await tester.enterText(field('API key'), 'abc:fx');
+          final toggle = find.byKey(const Key('provider_deepl_quality_model'));
+          await tester.ensureVisible(toggle);
+          expect(tester.widget<SwitchListTile>(toggle).value, isFalse);
+          await tester.tap(toggle);
+          await tester.pump();
+          await tester.tap(find.text('Save'));
+          await tester.pumpAndSettle();
+          expect(savedConfig().preferQualityModel, isTrue);
+        });
+
+        testWidgets('keeps the quality-model choice of an existing service', (
+          tester,
+        ) async {
+          await pump(tester, providerId: 'mt1');
+          await tester.tap(find.text('Save'));
+          await tester.pumpAndSettle();
+          expect(savedConfig().preferQualityModel, isFalse);
+        });
+
         testWidgets('rejects secrets in a proxy URL', (tester) async {
           await pump(tester, presetId: 'deepl');
           await tester.enterText(field('API key'), 'abc');

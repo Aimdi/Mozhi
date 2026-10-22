@@ -17,6 +17,7 @@ OpenAiCompatibleClient _client(
     headers: headers,
   ),
   httpClient: server.client,
+  retryPolicy: LlmRetryPolicy.none,
 );
 
 Map<String, Object?> _chunk(Map<String, Object?> delta, {String? finish}) => {

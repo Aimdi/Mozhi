@@ -227,6 +227,7 @@ void main() {
           mode: PrivacyMode.offlineOnly,
           approvedPairs: const ['de>en'],
           consentedProviders: const ['claude'],
+          maskPersonalData: true,
         ),
       ).called(1);
     });
@@ -243,6 +244,7 @@ void main() {
         () => env.translationRepository.updatePrivacy(
           mode: settings.state.privacyMode,
           approvedPairs: const ['de>en'],
+          maskPersonalData: true,
         ),
       ).called(1);
       verifyNever(() => env.translationRepository.getEngines());
@@ -253,6 +255,7 @@ void main() {
         () => env.translationRepository.updatePrivacy(
           mode: PrivacyMode.offlineOnly,
           approvedPairs: const ['de>en'],
+          maskPersonalData: true,
         ),
       ).called(1);
       verify(() => env.translationRepository.getEngines()).called(1);

@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/platform/metered_network.dart';
+import 'package:mozhi/platform/native_memory.dart';
 import 'package:mozhi/platform/offline_engine_io.dart'
     show CurrentSessionClient;
 import 'package:mozhi/voice/offline/offline_speech.dart';
@@ -15,6 +16,9 @@ import 'package:whisper_speech/whisper_speech.dart';
 /// Folder of the app's support directory that holds the Whisper models
 /// (`<support>/whisper/models/<id>/`).
 const offlineSpeechFolder = 'whisper';
+
+/// How long the Whisper model stays loaded after the last transcription.
+const speechModelIdleTimeout = Duration(seconds: 60);
 
 /// Creates the offline speech recognition: [WhisperSpeech] with the
 /// bundled model catalog ([bundle], default `rootBundle`), its models in
@@ -29,6 +33,11 @@ const offlineSpeechFolder = 'whisper';
 /// Android on a supported CPU; [isAvailable] overrides it in tests) or the
 /// catalog or the directory cannot be loaded (logged). Leftovers of
 /// interrupted installs are removed in the background.
+///
+/// The model (75-150 MB) is unloaded after [speechModelIdleTimeout]
+/// without a transcription, when the app goes to the background and on
+/// memory pressure ([memoryBudget], default [NativeMemoryBudget.instance]);
+/// the next transcription loads it again.
 Future<OfflineSpeech?> createOfflineSpeech({
   required KeyValueStore store,
   AssetBundle? bundle,
@@ -38,6 +47,7 @@ Future<OfflineSpeech?> createOfflineSpeech({
   http.Client? httpClient,
   bool? isAvailable,
   WhisperEngine? engine,
+  NativeMemoryBudget? memoryBudget,
 }) async {
   if (!(isAvailable ?? whisperPlatformSupported)) return null;
   try {
@@ -53,8 +63,12 @@ Future<OfflineSpeech?> createOfflineSpeech({
       httpClient: httpClient ?? CurrentSessionClient(),
       engine: engine,
       isAvailable: true,
+      idleUnloadAfter: speechModelIdleTimeout,
     );
     unawaited(_cleanUp(whisper));
+    (memoryBudget ?? NativeMemoryBudget.instance)
+      ..onBackground(whisper.unload)
+      ..onMemoryPressure(whisper.unload);
     return OfflineSpeech(
       whisper: whisper,
       store: store,

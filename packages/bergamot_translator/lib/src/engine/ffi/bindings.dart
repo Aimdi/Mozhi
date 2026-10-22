@@ -104,6 +104,23 @@ final class BergamotBindings {
               int,
             )
           >('mozhi_bergamot_translate_pivot'),
+      translateEx = library
+          .lookupFunction<
+            Pointer<Utf8> Function(
+              Pointer<NativeModel>,
+              Pointer<NativeModel>,
+              Pointer<Pointer<Utf8>>,
+              Int32,
+              Int32,
+            ),
+            Pointer<Utf8> Function(
+              Pointer<NativeModel>,
+              Pointer<NativeModel>,
+              Pointer<Pointer<Utf8>>,
+              int,
+              int,
+            )
+          >('mozhi_bergamot_translate_ex'),
       freeString = library
           .lookupFunction<
             Void Function(Pointer<Utf8>),
@@ -117,8 +134,9 @@ final class BergamotBindings {
           ? library.lookupFunction<_DetectNative, DetectFunction>(detectSymbol)
           : null;
 
-  /// MOZHI_BERGAMOT_ABI_VERSION these bindings were written for.
-  static const expectedAbiVersion = 1;
+  /// MOZHI_BERGAMOT_ABI_VERSION these bindings were written for (2 added
+  /// `mozhi_bergamot_translate_ex`).
+  static const expectedAbiVersion = 2;
 
   /// File name of the library (Android packs it into the APK per ABI).
   static const libraryName = 'libmozhi_bergamot.so';
@@ -135,6 +153,15 @@ final class BergamotBindings {
 
   /// `MOZHI_BERGAMOT_DETECT_BEST_EFFORT`.
   static const detectBestEffort = 1;
+
+  /// `MOZHI_BERGAMOT_TRANSLATE_HTML`.
+  static const translateHtml = 1;
+
+  /// `MOZHI_BERGAMOT_TRANSLATE_ALIGNMENT`.
+  static const translateAlignment = 2;
+
+  /// `MOZHI_BERGAMOT_TRANSLATE_QUALITY`.
+  static const translateQuality = 4;
 
   final int Function() abiVersion;
   final Pointer<Utf8> Function() version;
@@ -160,6 +187,18 @@ final class BergamotBindings {
     int html,
   )
   translatePivot;
+
+  /// `mozhi_bergamot_translate_ex`: `texts` (an array of `count` strings)
+  /// through `first` (and `second` for a pivot, else `nullptr`); returns
+  /// JSON (see `parseBergamotTranslations`).
+  final Pointer<Utf8> Function(
+    Pointer<NativeModel> first,
+    Pointer<NativeModel> second,
+    Pointer<Pointer<Utf8>> texts,
+    int count,
+    int flags,
+  )
+  translateEx;
   final void Function(Pointer<Utf8> text) freeString;
   final Pointer<Utf8> Function() lastError;
 

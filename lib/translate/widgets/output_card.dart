@@ -34,6 +34,7 @@ import 'package:mozhi/translate/widgets/translate_layout.dart';
 import 'package:mozhi/translate/widgets/translate_more.dart';
 import 'package:mozhi/translate/widgets/translation_memory_card.dart'
     show MemoryResultBadge;
+import 'package:mozhi/translate/widgets/translation_notes.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -112,7 +113,9 @@ bool translateOutputIsEmpty(TranslateState state) =>
 
 /// The translation: streaming text, progress, errors, romanization,
 /// detected language (with other likely languages when uncertain),
-/// engine/latency footer, the everyday actions (copy, listen, favourite;
+/// engine/latency footer, the checks' findings ([TranslationNotes]: a
+/// fallback to another engine, personal data kept on the device, warnings),
+/// the everyday actions (copy, listen, favourite;
 /// share at the end) and, behind the "More" toggle
 /// ([TranslateMoreToggle]), labelled tools (check meaning, insights,
 /// romanization, matching phrases, compare engines). The toggle's state is
@@ -706,6 +709,21 @@ class _OutputCardState extends State<OutputCard> {
           ),
         if (_showInsights && state.hasExtras) _insightsStatus(context, state),
         if (_showAlignment && state.hasExtras) _alignmentStatus(context, state),
+        // The checks' findings: fallback, kept personal data, warnings.
+        if (TranslationNotes.hasNotes(state)) TranslationNotes(state: state),
+        // The translation stopped part way: what arrived stays, with the
+        // error and Retry.
+        if (state.status == TranslateStatus.failure)
+          Padding(
+            padding: const EdgeInsetsDirectional.only(top: 8, end: 12),
+            child: TranslateErrorView(
+              key: const Key('translate_partial_error'),
+              error: state.error,
+              dense: true,
+              onRetry: () =>
+                  unawaited(context.read<TranslateCubit>().translate()),
+            ),
+          ),
         if (complete &&
             result != null &&
             ((detected != null && state.source.isAuto) ||
@@ -1098,7 +1116,7 @@ class _OutputCardState extends State<OutputCard> {
           shown: romanizationShown,
           onPressed: () => _toggleRomanization(state, shown: romanizationShown),
         ),
-      if (state.assistEngine?.supportsExtras ?? false)
+      if (state.alignmentEngine != null)
         TranslateToolChip(
           key: const Key('translate_alignment_button'),
           icon: Icons.sync_alt,

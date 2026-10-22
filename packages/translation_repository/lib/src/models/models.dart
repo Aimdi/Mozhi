@@ -10,3 +10,4 @@ export 'translation_engine.dart';
 export 'translation_options.dart';
 export 'translation_request.dart';
 export 'translation_result.dart';
+export 'translation_warning.dart';

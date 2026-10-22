@@ -14,10 +14,14 @@ import 'package:translation_repository/src/chunking/paragraph_chunker.dart';
 import 'package:translation_repository/src/language_catalog.dart';
 import 'package:translation_repository/src/language_matcher.dart';
 import 'package:translation_repository/src/models/models.dart';
+import 'package:translation_repository/src/offline/offline_requests.dart';
 import 'package:translation_repository/src/offline/offline_translator.dart';
 import 'package:translation_repository/src/prompts/mt_prompts.dart';
 import 'package:translation_repository/src/prompts/response_parsers.dart';
 import 'package:translation_repository/src/prompts/translation_prompts.dart';
+import 'package:translation_repository/src/quality/personal_data.dart';
+import 'package:translation_repository/src/quality/text_masker.dart';
+import 'package:translation_repository/src/quality/translation_qa.dart';
 import 'package:translation_repository/src/repository/ai_translation_stream.dart';
 import 'package:translation_repository/src/repository/llm_pool.dart';
 import 'package:translation_repository/src/repository/mappers.dart';
@@ -158,6 +162,9 @@ class TranslationRepository {
   final MtEngines _mt;
   final OfflineEngine? _offline;
   final TranslationCache _cache;
+
+  /// Translations of the parts of long AI inputs (see [translate]).
+  final MemoryChunkCache _chunkCache = MemoryChunkCache();
   final Duration _snapshotInterval;
   final int _aiChunkThreshold;
   final int _localAiChunkThreshold;
@@ -168,6 +175,10 @@ class TranslationRepository {
   PrivacyMode _privacyMode = PrivacyMode.offlineFirst;
   Set<String> _approvedPairs = const {};
   Set<String> _consentedProviders = const {};
+
+  /// Ids of providers that rejected the default temperature (HTTP 400) in
+  /// this session; their requests go without it.
+  final Set<String> _rejectsTemperature = {};
 
   /// One-shot approvals ([allowOnce]), oldest first.
   final List<_OnceGrant> _grants = [];
@@ -218,6 +229,8 @@ class TranslationRepository {
     _cache
       ..invalidateEngine('ai:$id')
       ..invalidateEngine('mt:$id');
+    // Parts are not kept by engine: all of them go.
+    _chunkCache.clear();
   }
 
   List<MozhiInstance> get instances => _mozhi.instances;
@@ -235,8 +248,11 @@ class TranslationRepository {
   /// injected and is available on this platform).
   bool get hasOfflineEngine => _offline?.isAvailable ?? false;
 
-  /// Removes every cached translation.
-  void clearCache() => _cache.clear();
+  /// Removes every cached translation (also of the parts of long texts).
+  void clearCache() {
+    _cache.clear();
+    _chunkCache.clear();
+  }
 
   // ---------------------------------------------------------------------
   // Privacy
@@ -292,14 +308,78 @@ class TranslationRepository {
   /// instance that answered. Connection tests the user starts in settings
   /// ([pingInstance], [listModels], [testProvider]) carry no user text and
   /// are not restricted.
+  ///
+  /// [maskPersonalData] sets [TranslationRepository.maskPersonalData]
+  /// (null keeps it).
   void updatePrivacy({
     required PrivacyMode mode,
     Iterable<String> approvedPairs = const [],
     Iterable<String> consentedProviders = const [],
+    bool? maskPersonalData,
   }) {
     _privacyMode = mode;
     _approvedPairs = Set.unmodifiable(approvedPairs);
     _consentedProviders = Set.unmodifiable(consentedProviders);
+    if (maskPersonalData != null) this.maskPersonalData = maskPersonalData;
+  }
+
+  /// The personal data shield (on by default): before a translation's
+  /// text goes to a destination that [DataDestination.leavesDevice] (every
+  /// engine but the offline one), e-mail addresses, phone numbers, IBANs,
+  /// payment card numbers and IP addresses (`PersonalData`) are replaced by
+  /// placeholders, which are put back into the translation; results say
+  /// how many items stayed on the device
+  /// ([TranslationResult.maskedPersonalData]). Applies to [translate] (also
+  /// the language detections it makes, [compare] and [backTranslate]),
+  /// [refine] and [detectLanguage]; the AI extras on a translation
+  /// (alternatives, insights, explanations, dictionary, alignment, meaning
+  /// checks) and text-to-speech are sent as they are. Masked data is never
+  /// sent unmasked: when an engine loses a placeholder, the translation
+  /// keeps the gap and gets [TranslationWarningKind.personalDataLost].
+  bool maskPersonalData = true;
+
+  /// Whether text for [destination] gets the personal data shield (see
+  /// [maskPersonalData]).
+  bool _shields(DataDestination? destination) =>
+      maskPersonalData && destination != null && destination.leavesDevice;
+
+  /// [text] with its personal data masked ([MaskStyle.brackets]), or null
+  /// when it has none.
+  static MaskedText? _maskPersonal(String text) {
+    final spans = PersonalData.find(text);
+    return spans.isEmpty ? null : TextMasker.mask(text, spans);
+  }
+
+  /// [text] as it may go to [destination]: with its personal data masked
+  /// when the shield applies (see [maskPersonalData]).
+  String _shielded(String text, DataDestination? destination) =>
+      _shields(destination) ? _maskPersonal(text)?.text ?? text : text;
+
+  /// Whether a request of [engine] for text in [source] translated into
+  /// [target] would stop for the user's consent ([ConsentRequiredException])
+  /// with the current privacy settings, e.g. to choose a fallback engine
+  /// that needs no new consent. Nothing is used up or unlocked:
+  /// [allowOnce] approvals are not counted. True for an engine whose
+  /// provider is not configured.
+  bool needsConsent(
+    TranslationEngine engine, {
+    required Language source,
+    required Language target,
+  }) {
+    final destination = _destinationFor(engine);
+    if (destination == null) return true;
+    return _denial(
+          destination,
+          engineId: engine.id,
+          providerId: engine.isAi || engine.isMt
+              ? _configFor(engine, engine.isAi ? 'ai:' : 'mt:')?.id
+              : null,
+          source: source.code,
+          target: target.code,
+          useGrants: false,
+          probe: true,
+        ) !=
+        null;
   }
 
   /// See [updatePrivacy].
@@ -462,7 +542,8 @@ class TranslationRepository {
   /// Why text of [engineId] for [source] > [target] may not go to
   /// [destination] (see [updatePrivacy]), or null when it may.
   /// [providerId] is the provider of a [CloudProviderDestination]. With
-  /// [useGrants], matching [allowOnce] approvals are used up.
+  /// [useGrants], matching [allowOnce] approvals are used up. A [probe]
+  /// only asks: it does not unlock the metadata (see [metadataDeferred]).
   ConsentRequiredException? _denial(
     DataDestination destination, {
     required String engineId,
@@ -470,6 +551,7 @@ class TranslationRepository {
     required String target,
     String? providerId,
     bool useGrants = true,
+    bool probe = false,
   }) {
     if (!destination.leavesDevice) return null;
     ConsentRequiredException denied(ConsentKind kind) =>
@@ -497,7 +579,7 @@ class TranslationRepository {
       if (!grant && !_approvedPairs.contains(pair)) {
         return denied(ConsentKind.pair);
       }
-      _unlockMetadata();
+      if (!probe) _unlockMetadata();
     }
     return null;
   }
@@ -1051,7 +1133,8 @@ class TranslationRepository {
       target: safe.target.code,
     );
     if (denied != null) return Stream.error(denied);
-    Stream<TranslationResult> fetch() => _translateUncached(engine, safe);
+    Stream<TranslationResult> fetch() =>
+        _translateUncached(engine, safe, refresh: refresh);
     final key = _cacheKeyOf(engine, safe);
     if (refresh) _cache.remove(engine, key);
     if (!_wantsDetectionHint(engine, safe)) {
@@ -1176,29 +1259,311 @@ class TranslationRepository {
 
   /// The engine's translation of [request], every result with its
   /// [TranslationResult.destination].
+  /// With [refresh], the parts of a long AI input are translated again too
+  /// (not served from the part cache).
   Stream<TranslationResult> _translateUncached(
     TranslationEngine engine,
-    TranslationRequest request,
-  ) {
+    TranslationRequest request, {
+    bool refresh = false,
+  }) {
     final destination = _destinationFor(engine);
+    final shield = _shields(destination);
     final results = switch (engine.kind) {
-      EngineKind.mozhi => _abortable(
-        (abort) => _translateMozhi(engine, request, abort: abort),
+      EngineKind.mozhi => _machineTranslation(
+        engine,
+        request,
+        shield: shield,
+        style: MaskStyle.brackets,
+        limit: mozhiCharacterLimit(mozhiEngineId(engine)),
+        concurrency: mozhiConcurrency(mozhiEngineId(engine)),
+        send: (part, {required masked, abort, original}) =>
+            _translateMozhi(engine, part, abort: abort),
       ),
-      EngineKind.ai => _translateAi(engine, request),
-      EngineKind.offline => Stream.fromFuture(
-        Future.sync(() => _offlineFor(engine).translate(engine, request)),
+      EngineKind.ai => _translateAi(
+        engine,
+        request,
+        shield: shield,
+        refresh: refresh,
       ),
-      EngineKind.mt => _abortable(
-        (abort) => _mt.translate(
+      // Cancelling the subscription stops the work on the device.
+      EngineKind.offline => _abortable(
+        (abort) => translateOffline(
+          _offlineFor(engine),
           engine,
-          _mtProviderFor(engine),
           request,
           abort: abort,
         ),
       ),
+      EngineKind.mt => _translateMt(engine, request, shield: shield),
     };
-    return _withDestination(results, destination);
+    return _withDestination(_checked(engine, request, results), destination);
+  }
+
+  /// Most characters a Mozhi engine gets in one request: longer input is
+  /// translated in paragraphs (see [translate]). Upstream services limit
+  /// their requests (Google about 5000 characters, DeepL's web API, Reverso
+  /// and MyMemory far less).
+  static int mozhiCharacterLimit(String engine) =>
+      switch (engine.toLowerCase()) {
+        'google' => 4500,
+        'yandex' => 4500,
+        'deepl' => 1500,
+        'reverso' => 1500,
+        'libre' => 2000,
+        'duckduckgo' || 'bing' => 1000,
+        'mymemory' => 450,
+        _ => 1500,
+      };
+
+  /// How many parts of a long input go to one Mozhi engine at a time:
+  /// 2, or 1 for upstreams with strict rate limits.
+  static int mozhiConcurrency(String engine) => switch (engine.toLowerCase()) {
+    'deepl' || 'reverso' || 'mymemory' => 1,
+    _ => 2,
+  };
+
+  /// Most characters the DeepL API gets in one request (its limit is a
+  /// 128 KiB request body).
+  static const deeplCharacterLimit = 10000;
+
+  /// Most characters a LibreTranslate server gets in one request (public
+  /// servers often limit requests to a few thousand characters).
+  static const libreCharacterLimit = 2500;
+
+  /// A machine translation service's translation of [request] (see
+  /// [_machineTranslation]); DeepL gets the masks as XML tags
+  /// (`tag_handling=xml`), its glossaries and its quality-optimised model
+  /// when the provider prefers it.
+  Stream<TranslationResult> _translateMt(
+    TranslationEngine engine,
+    TranslationRequest request, {
+    required bool shield,
+  }) {
+    final AiProviderConfig config;
+    try {
+      config = _mtProviderFor(engine);
+    } on Object catch (error, stackTrace) {
+      return Stream.error(error, stackTrace);
+    }
+    final deepl = config.service == MtService.deepl;
+    return _machineTranslation(
+      engine,
+      request,
+      shield: shield,
+      style: deepl ? MaskStyle.xml : MaskStyle.brackets,
+      limit: deepl ? deeplCharacterLimit : libreCharacterLimit,
+      concurrency: 2,
+      send: (part, {required masked, abort, original}) => _mt.translate(
+        engine,
+        config,
+        part,
+        abort: abort,
+        xmlTags: deepl && masked,
+        identifySource: () => _identifyOnDevice((original ?? part).text),
+      ),
+    );
+  }
+
+  /// The language of [text] by the on-device identifier, or null when
+  /// there is none or it cannot tell (never a request).
+  Future<String?> _identifyOnDevice(String text) async {
+    final offline = _offline;
+    if (offline == null || !offline.isAvailable) return null;
+    try {
+      return normalizeDetected(await offline.translator.identifyLanguage(text));
+    } on Object {
+      return null;
+    }
+  }
+
+  /// A non-AI engine's translation of [request] with [send] (one request
+  /// of a part of the text, already masked):
+  ///
+  /// * Formatting (`TextMasker.formatSpans`: tags, entities, URLs, e-mail
+  ///   addresses, placeholders; when `TranslationOptions.preserveFormatting`)
+  ///   and, with [shield], personal data are replaced by [style] tokens and
+  ///   put back afterwards. When the engine damages the tokens, the part is
+  ///   sent once more with only the personal data masked (and plain when
+  ///   there is none). Personal data is never sent unmasked: a lost token of
+  ///   it stays lost ([TranslationWarningKind.personalDataLost]).
+  /// * Input longer than [limit] characters is split at paragraphs
+  ///   (`ParagraphChunker`) and translated [concurrency] parts at a time;
+  ///   snapshots combine the parts (see `chunkedTranslation`).
+  ///
+  /// The final result has [TranslationResult.maskedPersonalData].
+  Stream<TranslationResult> _machineTranslation(
+    TranslationEngine engine,
+    TranslationRequest request, {
+    required bool shield,
+    required MaskStyle style,
+    required int limit,
+    required int concurrency,
+    required _Send send,
+  }) {
+    final report = _MaskReport();
+    Stream<TranslationResult> one(TranslationRequest part) => _abortable(
+      (abort) => _protectedRequest(
+        part,
+        shield: shield,
+        style: style,
+        report: report,
+        send: (masked, {required isMasked}) =>
+            send(masked, masked: isMasked, abort: abort, original: part),
+      ),
+    );
+    final chunks = request.text.length > limit
+        ? ParagraphChunker.split(request.text, maxChars: limit)
+        : const <TextChunk>[];
+    final results = chunks.length < 2
+        ? one(request)
+        : chunkedTranslation(
+            engine: engine,
+            request: request,
+            chunks: chunks,
+            translate: (chunk, _) => one(chunk),
+            languageFor: _languageFor,
+            concurrency: concurrency,
+          );
+    return results.map(
+      (result) => result.isComplete ? report.applyTo(result) : result,
+    );
+  }
+
+  /// One request of [request] with [send], its protected spans masked (see
+  /// [_machineTranslation]).
+  static Future<TranslationResult> _protectedRequest(
+    TranslationRequest request, {
+    required bool shield,
+    required MaskStyle style,
+    required _MaskReport report,
+    required Future<TranslationResult> Function(
+      TranslationRequest request, {
+      required bool isMasked,
+    })
+    send,
+  }) async {
+    final personal = shield
+        ? PersonalData.find(request.text)
+        : const <ProtectedSpan>[];
+    final format = request.options.preserveFormatting
+        ? TextMasker.formatSpans(request.text)
+        : const <ProtectedSpan>[];
+    if (personal.isEmpty && format.isEmpty) {
+      return await send(request, isMasked: false);
+    }
+    final masked = TextMasker.mask(request.text, [
+      ...format,
+      ...personal,
+    ], style: style);
+    report.personal += masked.personalCount;
+    final first = await send(
+      request.copyWith(text: masked.text),
+      isMasked: true,
+    );
+    final restored = masked.restore(first.text);
+    if (restored.isComplete) return _restoredResult(first, restored, masked);
+    if (masked.formatCount == 0) {
+      // Only personal data is masked, and it never goes as it is.
+      report.lost = true;
+      return _restoredResult(first, restored, masked);
+    }
+    // The engine damaged the tokens: once more with only the personal data
+    // masked.
+    if (personal.isEmpty) return await send(request, isMasked: false);
+    final personalOnly = TextMasker.mask(request.text, personal, style: style);
+    final second = await send(
+      request.copyWith(text: personalOnly.text),
+      isMasked: true,
+    );
+    final again = personalOnly.restore(second.text);
+    if (!again.isComplete) report.lost = true;
+    return _restoredResult(second, again, personalOnly);
+  }
+
+  /// [result] of masked text with [restored] text (and its
+  /// transliterations restored with [masked]).
+  static TranslationResult _restoredResult(
+    TranslationResult result,
+    RestoredText restored,
+    MaskedText masked,
+  ) => result.copyWith(
+    text: restored.text,
+    sourceTransliteration: result.sourceTransliteration.isEmpty
+        ? null
+        : masked.restore(result.sourceTransliteration).text,
+    targetTransliteration: result.targetTransliteration.isEmpty
+        ? null
+        : masked.restore(result.targetTransliteration).text,
+  );
+
+  /// The checks after a translation ([TranslationQa]) for the final
+  /// results of [results] (the translation of [request] by [engine]): their
+  /// warnings are added to [TranslationResult.warnings]. Glossary targets
+  /// are only checked for engines that use glossaries (AI engines with
+  /// options, DeepL). With an on-device identifier, the output of a network
+  /// engine is also checked for still being in the source language
+  /// ([TranslationWarningKind.wrongLanguage]).
+  Stream<TranslationResult> _checked(
+    TranslationEngine engine,
+    TranslationRequest request,
+    Stream<TranslationResult> results,
+  ) => results.asyncMap((result) async {
+    if (!result.isComplete) return result;
+    final warnings = [
+      ...result.warnings,
+      ...TranslationQa.check(
+        source: request.text,
+        output: result.text,
+        sourceLanguage: request.source,
+        target: request.target,
+        detectedSource: result.detectedSource,
+        glossary: engine.supportsOptions || engine.mtService == MtService.deepl
+            ? request.options.glossary
+            : const {},
+        ai: engine.isAi,
+      ),
+    ];
+    if (!warnings.any((warning) => warning.isSuspect) &&
+        await _stayedInSourceLanguage(engine, request, result)) {
+      warnings.add(
+        const TranslationWarning(TranslationWarningKind.wrongLanguage),
+      );
+    }
+    return warnings.isEmpty
+        ? result
+        : result.copyWith(warnings: List.unmodifiable(warnings));
+  });
+
+  /// Least letters of output [_stayedInSourceLanguage] identifies.
+  static const _minIdentifiedLetters = 20;
+
+  static final _letter = RegExp(r'\p{L}', unicode: true);
+
+  /// Whether the on-device identifier finds [result] (of a network engine)
+  /// still in the source language of [request] (explicit or detected),
+  /// which is not the target: the engine ignored the target language.
+  Future<bool> _stayedInSourceLanguage(
+    TranslationEngine engine,
+    TranslationRequest request,
+    TranslationResult result,
+  ) async {
+    if (engine.isOffline ||
+        request.target.isCustom ||
+        request.source.isCustom ||
+        !TranslationQa.checksSuspects(request.text)) {
+      return false;
+    }
+    final from = request.source.isAuto
+        ? result.detectedSource
+        : request.source.code;
+    if (from == null || _sameLanguage(from, request.target.code)) return false;
+    if (_letter.allMatches(result.text).length < _minIdentifiedLetters) {
+      return false;
+    }
+    final code = await _identifyOnDevice(result.text);
+    return code != null &&
+        _sameLanguage(code, from) &&
+        !_sameLanguage(code, request.target.code);
   }
 
   /// [results] with [destination] where they have none yet.
@@ -1284,38 +1649,270 @@ class TranslationRepository {
     ).copyWith(destination: _mozhiDestination(id, instance));
   }
 
+  /// With [shield], personal data is masked before the text goes to the
+  /// model and put back into every snapshot (see [maskPersonalData]).
+  /// General-profile models get a default temperature
+  /// ([_defaultTemperature]) and, when a part's translation fails the
+  /// checks worth it ([TranslationQa.worthRetrying]), one more attempt
+  /// with a corrective note ([_retriedOnce]).
   Stream<TranslationResult> _translateAi(
     TranslationEngine engine,
-    TranslationRequest request,
-  ) {
+    TranslationRequest request, {
+    bool shield = false,
+    bool refresh = false,
+  }) {
     final config = _configFor(engine, 'ai:');
     if (config == null || config.isMtService) {
       return Stream.error(
         ArgumentError.value(engine.id, 'engine', 'Unknown AI provider'),
       );
     }
+    final masked = shield ? _maskPersonal(request.text) : null;
+    final work = masked == null ? request : request.copyWith(text: masked.text);
     final profile = config.resolvedPromptProfile;
-    if (profile.isTranslationOnly) {
-      return _translateWithMtProfile(engine, config, profile, request);
-    }
-    return _inChunks(
-      engine,
-      config,
-      request,
-      (chunk, preceding) => aiTranslationStream(
-        open: () => _llm
-            .clientFor(config)
-            .streamChat(
-              _llmRequest(
-                config,
-                TranslationPrompts.translate(chunk, precedingText: preceding),
-              ),
+    final results = profile.isTranslationOnly
+        ? _translateWithMtProfile(
+            engine,
+            config,
+            profile,
+            work,
+            refresh: refresh,
+          )
+        : _inChunks(
+            engine,
+            config,
+            work,
+            (chunk, context) => _retriedOnce(
+              engine: engine,
+              chunk: chunk,
+              open: (extra) => _streamTranslation(config, [
+                ...TranslationPrompts.translate(
+                  chunk,
+                  precedingText: context.precedingText,
+                  precedingTranslation: context.precedingTranslation,
+                  earlierTerms: context.terms,
+                ),
+                ...extra,
+              ]),
             ),
-        engine: engine,
-        request: chunk,
-        snapshotInterval: _snapshotInterval,
-      ),
+            refresh: refresh,
+          );
+    return masked == null ? results : _unmasked(results, masked);
+  }
+
+  /// [results] of masked text with the tokens of [masked] put back (into
+  /// every snapshot); final results get
+  /// [TranslationResult.maskedPersonalData] and, when a token of personal
+  /// data was lost, [TranslationWarningKind.personalDataLost].
+  static Stream<TranslationResult> _unmasked(
+    Stream<TranslationResult> results,
+    MaskedText masked,
+  ) => results.map((result) {
+    final restored = masked.restore(result.text);
+    if (!result.isComplete) return result.copyWith(text: restored.text);
+    return result.copyWith(
+      text: restored.text,
+      maskedPersonalData: masked.personalCount,
+      warnings: restored.lostPersonalData
+          ? List.unmodifiable([
+              ...result.warnings,
+              const TranslationWarning(TranslationWarningKind.personalDataLost),
+            ])
+          : null,
     );
+  });
+
+  /// Default temperature of AI translations (see [_defaultTemperature]):
+  /// low, for faithful and consistent output (providers default to about
+  /// 1.0).
+  static const defaultAiTemperature = 0.2;
+
+  /// Reasoning models, which reject or ignore sampling parameters (OpenAI
+  /// o-series and GPT-5, DeepSeek R1 / reasoner, QwQ, "thinking" models).
+  static final _reasoningModel = RegExp(
+    r'(?:^|[/:])(?:o\d(?:-|$)|gpt-5)|reasoner|thinking|qwq|'
+    r'(?:^|[/:\-])r1(?:[\-:]|$)',
+    caseSensitive: false,
+  );
+
+  /// The temperature a translation with [config] gets when its provider
+  /// sets none: [defaultAiTemperature] for models known to accept it; null
+  /// (the provider's default) for Anthropic, reasoning models, providers
+  /// with a reasoning effort and providers that rejected it before.
+  double? _defaultTemperature(AiProviderConfig config) {
+    if (config.provider == LlmProvider.anthropic ||
+        config.effort != null ||
+        _rejectsTemperature.contains(config.id) ||
+        _reasoningModel.hasMatch(config.model.trim())) {
+      return null;
+    }
+    return defaultAiTemperature;
+  }
+
+  /// The streamed reply to a translation request of [messages] with
+  /// [config] at the default temperature ([_defaultTemperature]). When the
+  /// server rejects the request (HTTP 400) before any text, it is sent once
+  /// more without the temperature, which the provider then never gets
+  /// again this session.
+  Stream<String> _streamTranslation(
+    AiProviderConfig config,
+    List<LlmMessage> messages,
+  ) {
+    final client = _llm.clientFor(config);
+    final temperature = config.temperature == null
+        ? _defaultTemperature(config)
+        : null;
+    final request = _llmRequest(
+      config,
+      messages,
+      defaultTemperature: temperature,
+    );
+    if (temperature == null) return client.streamChat(request);
+    late final StreamController<String> controller;
+    StreamSubscription<String>? subscription;
+    var received = false;
+    void listen(LlmRequest request, {required bool retry}) {
+      subscription = client
+          .streamChat(request)
+          .listen(
+            (delta) {
+              received = true;
+              controller.add(delta);
+            },
+            onError: (Object error, StackTrace stackTrace) {
+              if (retry &&
+                  !received &&
+                  error is LlmApiException &&
+                  error.statusCode == 400) {
+                _rejectsTemperature.add(config.id);
+                listen(_withoutTemperature(request), retry: false);
+                return;
+              }
+              controller.addError(error, stackTrace);
+              unawaited(controller.close());
+            },
+            onDone: controller.close,
+            cancelOnError: true,
+          );
+    }
+
+    controller = StreamController<String>(
+      onListen: () => listen(request, retry: true),
+      onPause: () => subscription?.pause(),
+      onResume: () => subscription?.resume(),
+      onCancel: () => subscription?.cancel(),
+    );
+    return controller.stream;
+  }
+
+  static LlmRequest _withoutTemperature(LlmRequest request) => LlmRequest(
+    model: request.model,
+    messages: request.messages,
+    maxTokens: request.maxTokens,
+    jsonOutput: request.jsonOutput,
+    effort: request.effort,
+    contextWindow: request.contextWindow,
+  );
+
+  /// The translation of [chunk] streamed from [open] (no extra messages),
+  /// checked when complete ([TranslationQa.check]). When the checks find
+  /// problems worth it ([TranslationQa.worthRetrying]), the model gets one
+  /// more attempt, like the JSON retry: its reply and a short corrective
+  /// note ([TranslationQa.correctiveNote]) are added to the conversation.
+  /// That attempt's snapshots follow; the stream ends with the better of
+  /// both results (fewer problems; the second on a tie), or with the first
+  /// when the second fails.
+  Stream<TranslationResult> _retriedOnce({
+    required TranslationEngine engine,
+    required TranslationRequest chunk,
+    required Stream<String> Function(List<LlmMessage> extra) open,
+  }) {
+    late final StreamController<TranslationResult> controller;
+    StreamSubscription<TranslationResult>? subscription;
+    TranslationResult? first;
+    var firstScore = 0;
+
+    List<TranslationWarning> problems(TranslationResult result) => [
+      for (final warning in TranslationQa.check(
+        source: chunk.text,
+        output: result.text,
+        sourceLanguage: chunk.source,
+        target: chunk.target,
+        detectedSource: result.detectedSource,
+        glossary: chunk.options.glossary,
+        ai: true,
+      ))
+        if (TranslationQa.worthRetrying([warning])) warning,
+    ];
+    int score(List<TranslationWarning> warnings) =>
+        warnings.fold(0, (sum, w) => sum + (w.isSuspect ? 2 : 1));
+
+    void finish(TranslationResult result) {
+      if (controller.isClosed) return;
+      controller.add(result);
+      unawaited(controller.close());
+    }
+
+    void attempt(List<LlmMessage> extra) {
+      final retry = extra.isNotEmpty;
+      subscription =
+          aiTranslationStream(
+            open: () => open(extra),
+            engine: engine,
+            request: chunk,
+            snapshotInterval: _snapshotInterval,
+          ).listen(
+            (result) {
+              if (!result.isComplete) {
+                controller.add(result);
+                return;
+              }
+              final found = problems(result);
+              if (retry) {
+                final previous = first!;
+                final better = score(found) <= firstScore ? result : previous;
+                finish(
+                  better.copyWith(
+                    detectedSource:
+                        better.detectedSource ?? previous.detectedSource,
+                  ),
+                );
+                return;
+              }
+              if (found.isEmpty || !TranslationQa.worthRetrying(found)) {
+                finish(result);
+                return;
+              }
+              first = result;
+              firstScore = score(found);
+              attempt([
+                if (result.text.trim().isNotEmpty)
+                  LlmMessage.assistant(result.text),
+                LlmMessage.user(
+                  TranslationQa.correctiveNote(found, target: chunk.target),
+                ),
+              ]);
+            },
+            onError: (Object error, StackTrace stackTrace) {
+              if (retry) {
+                finish(first!);
+                return;
+              }
+              if (controller.isClosed) return;
+              controller.addError(error, stackTrace);
+              unawaited(controller.close());
+            },
+            cancelOnError: true,
+          );
+    }
+
+    controller = StreamController<TranslationResult>(
+      onListen: () => attempt(const []),
+      onPause: () => subscription?.pause(),
+      onResume: () => subscription?.resume(),
+      onCancel: () => subscription?.cancel(),
+    );
+    return controller.stream;
   }
 
   /// The longest AI input of [engine] with [config] that is sent in one
@@ -1325,29 +1922,36 @@ class TranslationRepository {
       ? _localAiChunkThreshold
       : _aiChunkThreshold;
 
-  /// [translate] applied to [request] (with no preceding text), or to the
+  /// [translate] applied to [request] (with an empty context), or to the
   /// parts of its text when it is longer than the chunk threshold of
-  /// [config] (see the constructor and [chunkedTranslation]).
+  /// [config] (see the constructor and [chunkedTranslation]: each part with
+  /// its [ChunkContext], parts served from and stored in the part cache
+  /// unless [refresh]).
   Stream<TranslationResult> _inChunks(
     TranslationEngine engine,
     AiProviderConfig config,
     TranslationRequest request,
     Stream<TranslationResult> Function(
       TranslationRequest chunk,
-      String precedingText,
+      ChunkContext context,
     )
-    translate,
-  ) {
+    translate, {
+    bool refresh = false,
+  }) {
     final limit = _chunkLimit(engine, config);
-    if (request.text.length <= limit) return translate(request, '');
+    if (request.text.length <= limit) {
+      return translate(request, const ChunkContext());
+    }
     final chunks = ParagraphChunker.split(request.text, maxChars: limit);
-    if (chunks.length < 2) return translate(request, '');
+    if (chunks.length < 2) return translate(request, const ChunkContext());
     return chunkedTranslation(
       engine: engine,
       request: request,
       chunks: chunks,
-      translate: translate,
+      translateInContext: translate,
       languageFor: _languageFor,
+      cache: _chunkCache,
+      refresh: refresh,
     );
   }
 
@@ -1355,8 +1959,9 @@ class TranslationRepository {
     TranslationEngine engine,
     AiProviderConfig config,
     PromptProfile profile,
-    TranslationRequest request,
-  ) async* {
+    TranslationRequest request, {
+    bool refresh = false,
+  }) async* {
     if (request.source.isCustom || request.target.isCustom) {
       final custom = request.source.isCustom ? request.source : request.target;
       throw ArgumentError.value(
@@ -1410,6 +2015,7 @@ class TranslationRepository {
         parseMarker: false,
         detectedSource: detected,
       ),
+      refresh: refresh,
     );
   }
 
@@ -1517,15 +2123,21 @@ class TranslationRepository {
         text.split(RegExp(r'\s+')).length <= _hintMaxWords;
   }
 
-  /// Forwards [translation] while a second language detection of
-  /// `request.text` (the [detectLanguage] prompt) runs on the side, and adds
-  /// its verdict to the final result (see [translate]). [onVerdict] gets
-  /// that final result when the detection answered in time.
+  /// Forwards [translation] and adds a second opinion on the language of
+  /// `request.text` to its final result (see [translate]). [onVerdict]
+  /// gets that final result when an opinion arrived in time.
   ///
-  /// The detection is best effort: streamed (so that cancelling the
-  /// returned stream, and giving up after `detectionHintTimeout`, abort the
-  /// request), without reasoning effort and without a retry for invalid
-  /// JSON; its failures are ignored.
+  /// The device answers first ([OfflineTranslator.identifyLanguage], no
+  /// request): when it names the language the model marked, that is the
+  /// verdict. The [detectLanguage] prompt only runs when the device is
+  /// unsure (or has no identifier) or disagrees with the model's marker; it
+  /// is best effort: streamed (so that cancelling the returned stream, and
+  /// giving up after `detectionHintTimeout`, abort the request), without
+  /// reasoning effort and without a retry for invalid JSON; its failures
+  /// are ignored. When the model is not asked and the device disagreed, the
+  /// result is marked uncertain with the device's language as the
+  /// alternative (and not stored). With the personal data shield, the
+  /// detection gets the masked text.
   Stream<TranslationResult> _withDetectionHint(
     TranslationEngine engine,
     TranslationRequest request,
@@ -1537,9 +2149,19 @@ class TranslationRepository {
     StreamSubscription<String>? detecting;
     DetectedLanguage? detection;
     var translated = false;
+    var askedModel = false;
     TranslationResult? held;
     TranslationResult? lastPartial;
     Timer? timer;
+    final offline = _offline;
+    final onDevice = offline != null && offline.isAvailable;
+    // The device's opinion: pending until it answered (null: unsure).
+    var deviceAnswered = !onDevice;
+    String? device;
+    String? marked;
+
+    bool agrees(String? shown) =>
+        device != null && shown != null && _sameLanguage(device!, shown);
 
     void stopDetecting() {
       unawaited(detecting?.cancel());
@@ -1548,9 +2170,25 @@ class TranslationRepository {
 
     void emitFinal(TranslationResult result) {
       final verdict = detection;
-      final last = _withDetectionVerdict(result, verdict, request);
-      controller.add(last);
-      if (verdict != null) onVerdict(last);
+      if (verdict != null) {
+        final last = _withDetectionVerdict(result, verdict, request);
+        controller.add(last);
+        onVerdict(last);
+      } else if (agrees(result.detectedSource)) {
+        controller.add(result);
+        onVerdict(result);
+      } else if (device != null) {
+        // The model was not asked in time: the device's doubt stands.
+        controller.add(
+          _withDetectionVerdict(
+            result,
+            DetectedLanguage(code: device!),
+            request,
+          ),
+        );
+      } else {
+        controller.add(result);
+      }
     }
 
     void release() {
@@ -1565,14 +2203,84 @@ class TranslationRepository {
       if (translated) unawaited(controller.close());
     }
 
+    void detected(String output) {
+      detecting = null;
+      try {
+        detection = ResponseParsers.parseDetectedLanguage(output);
+      } on Object {
+        // Best effort: no hint.
+      }
+      release();
+    }
+
+    void askModel() {
+      if (askedModel || controller.isClosed) return;
+      askedModel = true;
+      try {
+        final config = _extrasProviderFor(engine);
+        final output = StringBuffer();
+        detecting = _llm
+            .clientFor(config)
+            .streamChat(
+              _llmRequest(
+                config,
+                TranslationPrompts.detectLanguage(
+                  _shielded(request.text, _destinationFor(engine)),
+                ),
+                jsonOutput: true,
+                withEffort: false,
+              ),
+            )
+            .listen(
+              output.write,
+              onError: (Object _) {
+                detecting = null;
+                release();
+              },
+              onDone: () => detected(output.toString()),
+              cancelOnError: true,
+            );
+      } on Object {
+        detecting = null;
+      }
+    }
+
+    /// Whether the final result must wait (for the device or the model).
+    bool waiting() => !deviceAnswered || detecting != null;
+
+    void onDeviceAnswer(String? code) {
+      if (deviceAnswered || controller.isClosed) return;
+      deviceAnswered = true;
+      device = code;
+      final shown = held?.detectedSource ?? marked;
+      if (code == null ||
+          (shown != null && !agrees(shown)) ||
+          (held != null && shown == null)) {
+        askModel();
+      }
+      if (held != null && !waiting()) release();
+    }
+
     void onResult(TranslationResult result) {
+      if (result.detectedSource case final code?) marked = code;
       if (!result.isComplete) {
         lastPartial = result;
         controller.add(result);
+        // The marker came early: ask the model now when the device
+        // disagrees.
+        if (deviceAnswered &&
+            device != null &&
+            marked != null &&
+            !agrees(marked)) {
+          askModel();
+        }
         return;
       }
       release();
-      if (detecting == null) {
+      if (deviceAnswered && device != null && !agrees(result.detectedSource)) {
+        askModel();
+      }
+      if (!waiting()) {
         emitFinal(result);
         return;
       }
@@ -1584,16 +2292,6 @@ class TranslationRepository {
       }
       held = result;
       timer = Timer(_detectionHintTimeout, release);
-    }
-
-    void detected(String output) {
-      detecting = null;
-      try {
-        detection = ResponseParsers.parseDetectedLanguage(output);
-      } on Object {
-        // Best effort: no hint.
-      }
-      release();
     }
 
     controller = StreamController<TranslationResult>(
@@ -1608,31 +2306,17 @@ class TranslationRepository {
             unawaited(controller.close());
           },
         );
-        // Started after the translation, which it must never hold up.
-        try {
-          final config = _extrasProviderFor(engine);
-          final output = StringBuffer();
-          detecting = _llm
-              .clientFor(config)
-              .streamChat(
-                _llmRequest(
-                  config,
-                  TranslationPrompts.detectLanguage(request.text),
-                  jsonOutput: true,
-                  withEffort: false,
-                ),
+        // Started after the translation, which they must never hold up.
+        if (onDevice) {
+          offline.translator
+              .identifyLanguage(request.text)
+              .then(
+                (code) => onDeviceAnswer(normalizeDetected(code)),
+                onError: (Object _) => onDeviceAnswer(null),
               )
-              .listen(
-                output.write,
-                onError: (Object _) {
-                  detecting = null;
-                  release();
-                },
-                onDone: () => detected(output.toString()),
-                cancelOnError: true,
-              );
-        } on Object {
-          detecting = null;
+              .ignore();
+        } else {
+          askModel();
         }
       },
       onPause: () => subscription?.pause(),
@@ -1640,6 +2324,7 @@ class TranslationRepository {
       onCancel: () {
         timer?.cancel();
         held = null;
+        deviceAnswered = true;
         stopDetecting();
         return subscription?.cancel();
       },
@@ -1934,22 +2619,33 @@ class TranslationRepository {
     final safe = _sanitizeRequest(request);
     if (safe == null) throw _emptyCustomLanguage(request);
     _ensureAllowed(engine, source: safe.source.code, target: safe.target.code);
+    final destination = _destinationFor(engine);
+    // The text and its translation share one set of tokens.
+    final masked = _shields(destination)
+        ? _maskPersonal('${safe.text}$_pairSeparator$currentTranslation')
+        : null;
+    final parts = masked?.text.split(_pairSeparator);
+    final work = parts == null ? safe : safe.copyWith(text: parts.first);
     final messages = TranslationPrompts.refine(
-      safe,
-      currentTranslation: currentTranslation,
+      work,
+      currentTranslation: parts?.last ?? currentTranslation,
       instruction: instruction,
     );
+    final results = aiTranslationStream(
+      open: () => _streamTranslation(config, messages),
+      engine: engine,
+      request: work,
+      snapshotInterval: _snapshotInterval,
+    );
     yield* _withDestination(
-      aiTranslationStream(
-        open: () =>
-            _llm.clientFor(config).streamChat(_llmRequest(config, messages)),
-        engine: engine,
-        request: safe,
-        snapshotInterval: _snapshotInterval,
-      ),
-      _destinationFor(engine),
+      masked == null ? results : _unmasked(results, masked),
+      destination,
     );
   }
+
+  /// Joins two texts that are masked together (no personal data pattern
+  /// matches across it).
+  static const _pairSeparator = '\u0000';
 
   /// [text] (in [language], which may be auto) in the Latin script, using
   /// the standard romanization of the language (`TranslationPrompts
@@ -2022,6 +2718,11 @@ class TranslationRepository {
   /// Requires an AI engine with [TranslationEngine.supportsExtras]
   /// ([ArgumentError] otherwise); invalid JSON is retried once, like the
   /// other JSON extras.
+  ///
+  /// The on-device engine ([TranslationEngine.isOffline]) aligns words
+  /// itself, free and instantly, without sending anything (`alignOffline`;
+  /// whole texts, any length), when its translator is a
+  /// [DetailedOfflineTranslator] ([ArgumentError] otherwise).
   Future<List<AlignedSpan>> align(
     TranslationEngine engine, {
     required String source,
@@ -2029,6 +2730,16 @@ class TranslationRepository {
     required Language sourceLanguage,
     required Language targetLanguage,
   }) async {
+    if (engine.isOffline) {
+      return await alignOffline(
+        _offlineFor(engine),
+        engine,
+        source: source,
+        translation: translation,
+        sourceLanguage: sourceLanguage,
+        targetLanguage: targetLanguage,
+      );
+    }
     if (source.trim().isEmpty || translation.trim().isEmpty) {
       _extrasProviderFor(engine);
       return const [];
@@ -2206,7 +2917,9 @@ class TranslationRepository {
     if (engine != null && engine.supportsExtras) {
       return await _chatJson(
         engine,
-        () => TranslationPrompts.detectLanguage(text),
+        () => TranslationPrompts.detectLanguage(
+          _shielded(text, _destinationFor(engine)),
+        ),
         ResponseParsers.parseDetectedLanguage,
         source: Language.auto.code,
         target: Language.auto.code,
@@ -2246,14 +2959,16 @@ class TranslationRepository {
   }
 
   /// Detects the language of [text] with Mozhi google (the consent was
-  /// checked by the caller).
+  /// checked by the caller); with the personal data shield, the instance
+  /// gets the masked text.
   Future<DetectedLanguage> _detectWithMozhi(String text) async {
+    final sent = _shielded(text, _mozhiDestination(_detectionEngine));
     final translation = await _mozhi.run(
       (client, _) => client.translate(
         engine: _detectionEngine,
         from: 'auto',
         to: 'en',
-        text: text,
+        text: sent,
       ),
       failOverOnTimeout: false,
       allow: _mozhiFailoverAllowed,
@@ -2492,6 +3207,58 @@ class TranslationRepository {
   Future<Duration> pingInstance(MozhiInstance instance) =>
       _mozhi.withClient(instance, (client) => client.ping());
 
+  /// Loads the model of a local AI [engine] (Ollama, LM Studio, llama.cpp:
+  /// [TranslationEngine.isLocal] or a local provider) into memory, so that
+  /// the first translation does not wait for it (`LlmClient.warmUp`; no
+  /// user text is sent). Returns whether the server warmed the model up;
+  /// false without a request for other engines, unknown providers and
+  /// providers whose destination the privacy settings keep the device from
+  /// contacting ([PrivacyMode.offlineOnly]), and false when the request
+  /// fails.
+  Future<bool> warmUp(TranslationEngine engine) async {
+    if (!engine.isAi) return false;
+    final config = _configFor(engine, 'ai:');
+    if (config == null ||
+        config.isMtService ||
+        !(engine.isLocal || config.isLocal)) {
+      return false;
+    }
+    if (_privacyMode == PrivacyMode.offlineOnly &&
+        _providerDestination(config).leavesDevice) {
+      return false;
+    }
+    try {
+      return await _llm.clientFor(config).warmUp(config.model);
+    } on Object {
+      return false;
+    }
+  }
+
+  /// Loads the on-device models for [source] → [target] before the first
+  /// translation (`DetailedOfflineTranslator.preload`), so that it doesn't
+  /// wait for them. Nothing is downloaded and nothing leaves the device.
+  /// Returns false, without throwing, when [engine] is not the on-device
+  /// engine, the source is [Language.auto], the pair isn't installed or
+  /// the translator cannot preload.
+  Future<bool> preloadOffline(
+    TranslationEngine engine, {
+    required Language source,
+    required Language target,
+  }) async {
+    final offline = _offline;
+    if (!engine.isOffline || offline == null || source.isAuto) return false;
+    final translator = offline.translator;
+    if (translator is! DetailedOfflineTranslator) return false;
+    final from = offline.codeFor(source);
+    final to = offline.codeFor(target, isTarget: true);
+    if (from == null || to == null || from == to) return false;
+    try {
+      return await translator.preload(source: from, target: to);
+    } on Object {
+      return false;
+    }
+  }
+
   /// The models of an AI provider; machine translation services have none
   /// (an empty list).
   Future<List<LlmModel>> listModels(AiProviderConfig config) async {
@@ -2545,6 +3312,7 @@ class TranslationRepository {
     _clearMozhiCaches();
     unawaited(_metadataChanges.close());
     _cache.clear();
+    _chunkCache.clear();
     _mozhi.dispose();
     _llm.dispose();
     _mt.dispose();
@@ -2672,6 +3440,40 @@ class TranslationRepository {
       );
       return parse(retry);
     }
+  }
+}
+
+/// Sends one (masked) part of a non-AI translation: [masked] when it has
+/// tokens, [original] the part before masking.
+typedef _Send = Future<TranslationResult> Function(
+  TranslationRequest request, {
+  required bool masked,
+  Future<void>? abort,
+  TranslationRequest? original,
+});
+
+/// What the masking of a non-AI translation's parts did (see
+/// `TranslationRepository._machineTranslation`).
+class _MaskReport {
+  /// Distinct items of personal data masked, summed over the parts.
+  int personal = 0;
+
+  /// Whether a part lost a token of personal data.
+  bool lost = false;
+
+  /// [result] (final) with [TranslationResult.maskedPersonalData] and, when
+  /// [lost], [TranslationWarningKind.personalDataLost].
+  TranslationResult applyTo(TranslationResult result) {
+    if (personal == 0 && !lost) return result;
+    return result.copyWith(
+      maskedPersonalData: personal,
+      warnings: lost
+          ? List.unmodifiable([
+              ...result.warnings,
+              const TranslationWarning(TranslationWarningKind.personalDataLost),
+            ])
+          : null,
+    );
   }
 }
 

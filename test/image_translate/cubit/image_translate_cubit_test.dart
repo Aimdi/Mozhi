@@ -1328,6 +1328,33 @@ void main() {
       expect(cubit.state.status, ImageTranslateStatus.success);
     });
 
+    test('a shared image waits for Translate without autoTranslate', () async {
+      stubText(() => Stream.value(text('Hello')));
+      final cubit = remembering(engines: const [deepl]);
+      addTearDown(cubit.close);
+      await cubit.methodRestored;
+      expect(cubit.state.method, onDeviceMethod);
+      await cubit.setImage(pngImage, autoTranslate: false);
+      expect(cubit.state.status, ImageTranslateStatus.ready);
+      expect(cubit.state.image, pngImage);
+      verifyNever(() => repository.translate(any(), any()));
+    });
+
+    test(
+      'a recovered image waits for Translate without autoTranslate',
+      () async {
+        stubText(() => Stream.value(text('Hello')));
+        picker.lost = pngImage;
+        final cubit = remembering(engines: const [deepl]);
+        addTearDown(cubit.close);
+        await cubit.methodRestored;
+        await cubit.recoverLostImage(autoTranslate: false);
+        expect(cubit.state.status, ImageTranslateStatus.ready);
+        expect(cubit.state.image, pngImage);
+        verifyNever(() => repository.translate(any(), any()));
+      },
+    );
+
     test('remembers the chosen method', () async {
       final cubit = remembering();
       addTearDown(cubit.close);

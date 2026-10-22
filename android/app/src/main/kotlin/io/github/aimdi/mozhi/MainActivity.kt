@@ -1,6 +1,7 @@
 package io.github.aimdi.mozhi
 
 import android.app.Activity
+import android.app.ActivityManager
 import android.content.ClipData
 import android.content.ClipDescription
 import android.content.ClipboardManager
@@ -55,12 +56,20 @@ import java.util.Locale
  * `isActiveNetworkMetered()` answers whether the active network is metered
  * (`lib/platform/metered_network.dart`: Wi-Fi-only offline model downloads).
  *
+ * [MEMORY_CHANNEL] (`lib/platform/native_memory.dart`): `memoryInfo()` answers
+ * what [ActivityManager] says about memory (see [memoryInfo]), which sizes the
+ * on-device engines' model caches. Memory pressure needs nothing here: Flutter
+ * forwards `onTrimMemory` to Dart (`didHaveMemoryPressure`).
+ *
  * Deep links `mozhi://<screen>[/<path>][?<query>][#<fragment>]` are handed to
  * the Flutter router as the plain route `/<screen>[/<path>][?<query>]...`
  * (see [deepLinkRoute]), e.g. `mozhi://image` -> `/image` and
  * `mozhi://translate?text=hola&from=es&to=en` -> `/translate?text=hola&from=es&to=en`.
+ *
+ * Open for [QuickTranslateActivity], the translucent window of text
+ * selections, which shares all of the above.
  */
-class MainActivity : FlutterActivity() {
+open class MainActivity : FlutterActivity() {
     /** Text the activity was started with, until Dart asks for it once. */
     private var initialText: Map<String, Any>? = null
 
@@ -180,6 +189,13 @@ class MainActivity : FlutterActivity() {
             }
         }
 
+        MethodChannel(messenger, MEMORY_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "memoryInfo" -> result.success(memoryInfo())
+                else -> result.notImplemented()
+            }
+        }
+
         EventChannel(messenger, EVENT_CHANNEL).setStreamHandler(
             object : EventChannel.StreamHandler {
                 override fun onListen(arguments: Any?, events: EventChannel.EventSink) {
@@ -264,6 +280,24 @@ class MainActivity : FlutterActivity() {
         } catch (e: SecurityException) {
             true
         }
+    }
+
+    /**
+     * The device's memory as [ActivityManager] reports it: `memoryClass` and
+     * `largeMemoryClass` (the app's heap budget in MB), `totalMem` (bytes of
+     * RAM) and `lowRam` (`isLowRamDevice`). Empty when the service is missing.
+     */
+    private fun memoryInfo(): Map<String, Any> {
+        val activityManager = getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
+            ?: return emptyMap()
+        val info = ActivityManager.MemoryInfo()
+        activityManager.getMemoryInfo(info)
+        return mapOf(
+            "memoryClass" to activityManager.memoryClass,
+            "largeMemoryClass" to activityManager.largeMemoryClass,
+            "totalMem" to info.totalMem,
+            "lowRam" to activityManager.isLowRamDevice,
+        )
     }
 
     /** Sends [payload] on the event channel, or queues it until Dart listens. */
@@ -414,6 +448,7 @@ class MainActivity : FlutterActivity() {
         private const val METHOD_CHANNEL = "io.github.aimdi.mozhi/shared_text"
         private const val EVENT_CHANNEL = "io.github.aimdi.mozhi/shared_text_events"
         private const val PRIVACY_CHANNEL = "io.github.aimdi.mozhi/privacy"
+        private const val MEMORY_CHANNEL = "io.github.aimdi.mozhi/memory"
         private const val KEY_ACTION = "action"
         private const val ACTION_VALUE_TRANSLATE_CLIPBOARD = "translateClipboard"
         private const val ACTION_VALUE_TRANSLATE_OFFLINE = "translateOffline"

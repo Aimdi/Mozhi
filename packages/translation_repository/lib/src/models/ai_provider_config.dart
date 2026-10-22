@@ -53,6 +53,7 @@ class AiProviderConfig {
     this.supportsVision = false,
     this.service = MtService.llm,
     this.promptProfile = PromptProfile.auto,
+    this.preferQualityModel = false,
   });
 
   /// Tolerant counterpart of [toJson]. Throws [FormatException] only when
@@ -85,6 +86,7 @@ class AiProviderConfig {
       service: MtService.tryParse(json['service']) ?? MtService.llm,
       promptProfile:
           PromptProfile.tryParse(json['promptProfile']) ?? PromptProfile.auto,
+      preferQualityModel: json['preferQualityModel'] == true,
     );
   }
 
@@ -120,6 +122,12 @@ class AiProviderConfig {
   /// detects translation-specialised models from the model id. See
   /// [resolvedPromptProfile].
   final PromptProfile promptProfile;
+
+  /// DeepL ([MtService.deepl]): prefer the quality-optimised
+  /// (next-generation) model, falling back to the classic one for language
+  /// pairs it does not cover (`model_type=prefer_quality_optimized`).
+  /// Ignored by other services.
+  final bool preferQualityModel;
 
   /// Whether this is a machine translation service rather than an LLM.
   bool get isMtService => service != MtService.llm;
@@ -162,6 +170,7 @@ class AiProviderConfig {
     bool? supportsVision,
     MtService? service,
     PromptProfile? promptProfile,
+    bool? preferQualityModel,
     bool clearApiKey = false,
     bool clearPresetId = false,
     bool clearEffort = false,
@@ -181,6 +190,7 @@ class AiProviderConfig {
     supportsVision: supportsVision ?? this.supportsVision,
     service: service ?? this.service,
     promptProfile: promptProfile ?? this.promptProfile,
+    preferQualityModel: preferQualityModel ?? this.preferQualityModel,
   );
 
   /// Never contains the API key. `service` is only written for machine
@@ -201,6 +211,7 @@ class AiProviderConfig {
     if (service != MtService.llm) 'service': service.name,
     if (promptProfile != PromptProfile.auto)
       'promptProfile': promptProfile.name,
+    if (preferQualityModel) 'preferQualityModel': true,
   };
 
   @override
@@ -219,6 +230,7 @@ class AiProviderConfig {
       other.supportsVision == supportsVision &&
       other.service == service &&
       other.promptProfile == promptProfile &&
+      other.preferQualityModel == preferQualityModel &&
       const MapEquality<String, String>().equals(other.headers, headers);
 
   @override
@@ -236,6 +248,7 @@ class AiProviderConfig {
     supportsVision,
     service,
     promptProfile,
+    preferQualityModel,
     const MapEquality<String, String>().hash(headers),
   );
 

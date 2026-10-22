@@ -6,6 +6,7 @@
 // Models are cached in BERGAMOT_TEST_CACHE (default build/test_models).
 //
 //   BERGAMOT_TEST_MODELS=1 flutter test test/src/bergamot_integration_test.dart
+import 'dart:async';
 import 'dart:io';
 
 import 'package:bergamot_translator/bergamot_translator.dart';
@@ -15,6 +16,7 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
+import 'package:translation_repository/translation_repository.dart';
 
 import '../helpers/native_library.dart';
 
@@ -169,6 +171,180 @@ void main() {
     },
     skip: skip,
     timeout: const Timeout(Duration(minutes: 5)),
+  );
+
+  test('batches give the same text as the single call', () async {
+    const text = 'The weather is nice today. We are going to the lake.';
+    final installed = await translator.models.installedModel('en', 'de');
+    final single = await engine.translate([installed!.paths], text);
+    final [batched] = await engine.translateBatch([installed.paths], [text]);
+    expect(batched.text, single);
+    expect(
+      await translator.translate(text, source: 'en', target: 'de'),
+      single,
+    );
+    final spanish = await translator.models.installedModel('es', 'en');
+    const hola = 'Hola, ¿qué tal? Hace buen tiempo.';
+    final pivot = [spanish!.paths, installed.paths];
+    final [pivoted] = await engine.translateBatch(pivot, [hola]);
+    expect(pivoted.text, await engine.translate(pivot, hola));
+  }, skip: skip);
+
+  test('translateDetailed aligns words and scores sentences', () async {
+    const text = 'Hello world. How are you today?';
+    final result = await translator.translateDetailed(
+      text,
+      source: 'en',
+      target: 'de',
+    );
+    debugPrint('detailed en->de: ${result.text} ${result.sentences}');
+    expect(
+      [for (final s in result.sentences) s.sourceIn(text)],
+      ['Hello world.', 'How are you today?'],
+    );
+    for (final sentence in result.sentences) {
+      expect(sentence.score, lessThanOrEqualTo(0));
+      expect(sentence.isLowConfidence, isFalse);
+      expect(sentence.words, isNotEmpty);
+    }
+    final spans = result.alignedSpans();
+    final pairs = {
+      for (final span in spans) span.sourceIn(text): span.targetIn(result.text),
+    };
+    expect(pairs['Hello'], 'Hallo');
+    expect(pairs['How'], 'Wie');
+  }, skip: skip);
+
+  test('accented letters survive on the way in and out', () async {
+    // A regression guard for every architecture the tests run on (char is
+    // unsigned on Linux/Android aarch64 and armv7, signed on x86_64):
+    // letters outside ASCII must reach the model and come back intact.
+    final spanish = await translator.translate(
+      'Tomorrow the child will go to the Spanish city of Malaga with José.',
+      source: 'en',
+      target: 'es',
+    );
+    final german = await translator.translate(
+      'Thank you for your help. The fox jumps over the lazy dog.',
+      source: 'en',
+      target: 'de',
+    );
+    final english = await translator.translate(
+      'Grüße aus München. Ich bin müde.',
+      source: 'de',
+      target: 'en',
+    );
+    debugPrint('accents: "$spanish" / "$german" / "$english"');
+    expect(
+      spanish,
+      allOf(contains('Mañana'), contains('niño'), contains('José')),
+    );
+    expect(german, allOf(contains('für'), contains('über')));
+    expect(
+      english,
+      allOf(contains('Greetings'), contains('Munich'), contains('tired')),
+    );
+
+    // Not a sentence of the pivot test below: the engine caches sentences.
+    const text = 'Mi amigo José trabaja en Málaga.';
+    final detailed = await translator.translateDetailed(
+      text,
+      source: 'es',
+      target: 'en',
+    );
+    expect([
+      for (final span in detailed.alignedSpans()) span.sourceIn(text),
+    ], containsAll(['José', 'Málaga.']));
+  }, skip: skip);
+
+  test('pivot alignment keeps UTF-16 offsets (es -> de)', () async {
+    const text = '¿Cómo estás? Me llamo José y vivo en Málaga.';
+    final result = await translator.translateDetailed(
+      text,
+      source: 'es',
+      target: 'de',
+    );
+    debugPrint('detailed es->de: ${result.text}');
+    expect(result.sentences, hasLength(2));
+    final spans = result.alignedSpans();
+    // Offsets after "¿", "ó" and "á" still land on whole words.
+    expect([
+      for (final span in spans) span.sourceIn(text),
+    ], containsAll(['José', 'Málaga.']));
+    for (final span in spans) {
+      final word = span.targetIn(result.text);
+      expect(word, isNotEmpty);
+      expect(word.trim(), word);
+    }
+  }, skip: skip);
+
+  test('flags a sentence in the wrong language as unsure', () async {
+    // German sent through en -> de: the model garbles it ("Ich habe, die
+    // Ahnung, war das bedeutet.").
+    final [wrong, fluent] = (await translator.translateDetailed(
+      'Ich habe keine Ahnung, was das bedeutet. The cat sat on the mat.',
+      source: 'en',
+      target: 'de',
+    )).sentences;
+    debugPrint('scores: wrong ${wrong.score}, fluent ${fluent.score}');
+    expect(wrong.isLowConfidence, isTrue);
+    expect(fluent.isLowConfidence, isFalse);
+    expect(fluent.score! - wrong.score!, greaterThan(0.25));
+  }, skip: skip);
+
+  test('preload loads an installed pair', () async {
+    expect(await translator.preload(source: 'de', target: 'es'), isTrue);
+    expect(await translator.preload(source: 'auto', target: 'es'), isFalse);
+    expect(
+      await translator.translate('Guten Tag', source: 'de', target: 'es'),
+      isNotEmpty,
+    );
+    await translator.trimMemory();
+    expect(
+      await translator.translate('Guten Abend', source: 'de', target: 'es'),
+      isNotEmpty,
+    );
+  }, skip: skip);
+
+  test(
+    'abort drops waiting requests and releases running ones',
+    () async {
+      final running = Completer<void>();
+      final waiting = Completer<void>();
+      // Other sentences than the timing test's, which must not find them
+      // in the engine's cache.
+      final long = expectLater(
+        translator.translate(
+          _longText.replaceAll('. ', '; '),
+          source: 'en',
+          target: 'de',
+          abort: running.future,
+        ),
+        throwsA(isA<OfflineTranslationCancelledException>()),
+      );
+      final queued = expectLater(
+        translator.translate(
+          'Never translated.',
+          source: 'en',
+          target: 'de',
+          abort: waiting.future,
+        ),
+        throwsA(isA<OfflineTranslationCancelledException>()),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      final stopwatch = Stopwatch()..start();
+      waiting.complete();
+      running.complete();
+      await Future.wait([queued, long]);
+      _report('abort released both callers', stopwatch.elapsed);
+      // The engine is still usable afterwards.
+      expect(
+        await translator.translate('Thank you.', source: 'en', target: 'de'),
+        isNotEmpty,
+      );
+    },
+    skip: skip,
+    timeout: const Timeout(Duration(minutes: 2)),
   );
 }
 

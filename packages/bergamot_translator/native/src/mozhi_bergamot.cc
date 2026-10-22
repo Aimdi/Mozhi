@@ -7,6 +7,8 @@
 #include "mozhi_bergamot.h"
 
 #include <algorithm>
+#include <cmath>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -32,7 +34,9 @@
 
 namespace {
 
+using marian::bergamot::AnnotatedText;
 using marian::bergamot::BlockingService;
+using marian::bergamot::ByteRange;
 using marian::bergamot::Response;
 using marian::bergamot::ResponseOptions;
 using marian::bergamot::TranslationModel;
@@ -42,7 +46,12 @@ using marian::bergamot::TranslationModel;
 constexpr size_t kCacheSize = 2048;
 
 // Defaults used by Firefox and by Mozilla's evaluation of these models
-// (mozilla/translations pipeline/eval/translators.py).
+// (mozilla/translations pipeline/eval/translators.py), except skip-cost:
+// Firefox skips the softmax (skip-cost: true), which leaves raw logits as
+// word scores. The quality scores (MOZHI_BERGAMOT_TRANSLATE_QUALITY) need
+// log-probabilities. With beam-size 1 the softmax only shifts every step's
+// scores by a constant, so the translation stays the same except for rare
+// near ties (53 of 54 paragraphs identical en->de/en->es), ~3% slower.
 constexpr const char* kDefaultConfig =
     "beam-size: 1\n"
     "normalize: 1.0\n"
@@ -51,7 +60,7 @@ constexpr const char* kDefaultConfig =
     "mini-batch-words: 1024\n"
     "workspace: 128\n"
     "max-length-factor: 2.0\n"
-    "skip-cost: true\n"
+    "skip-cost: false\n"
     "cpu-threads: 0\n"
     "quiet: true\n"
     "quiet-translation: true\n"
@@ -147,6 +156,268 @@ std::string BuildConfig(const char* model_path, const char* shortlist_path,
 void CopyCode(CLD2::Language language, char* out, size_t size) {
   const char* code = CLD2::LanguageCode(language);
   std::snprintf(out, size, "%s", code == nullptr ? "un" : code);
+}
+
+// --- mozhi_bergamot_translate_ex() -------------------------------------------
+
+// ASCII whitespace, independent of the locale (the tokens' bytes may be
+// UTF-8 continuation bytes, which are never whitespace).
+bool IsSpace(char c) {
+  return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f' ||
+         c == '\v';
+}
+
+// The UTF-16 offset of every byte offset of UTF-8 `text` (size() + 1
+// entries; the bytes of a character map to its start). Malformed bytes
+// count as one character each.
+std::vector<uint32_t> Utf16Offsets(const std::string& text) {
+  std::vector<uint32_t> offsets(text.size() + 1);
+  uint32_t units = 0;
+  size_t i = 0;
+  while (i < text.size()) {
+    const auto lead = static_cast<unsigned char>(text[i]);
+    size_t length = 1;
+    if (lead >= 0xF0 && lead < 0xF8) {
+      length = 4;
+    } else if (lead >= 0xE0 && lead < 0xF0) {
+      length = 3;
+    } else if (lead >= 0xC0 && lead < 0xE0) {
+      length = 2;
+    }
+    length = std::min(length, text.size() - i);
+    for (size_t k = 0; k < length; ++k) offsets[i + k] = units;
+    units += length == 4 ? 2 : 1;  // 4 bytes: a surrogate pair
+    i += length;
+  }
+  offsets[text.size()] = units;
+  return offsets;
+}
+
+// Tokens [begin, end) of one sentence of an AnnotatedText.
+struct TokenSpan {
+  size_t begin;
+  size_t end;
+};
+
+// The words of sentence `s` of `text`: its subword tokens grouped like
+// Bergamot's quality estimator groups them (a token that starts with
+// whitespace starts a word; quality_estimator.cpp mapWords), without the
+// empty end-of-sentence token. A sentence without whitespace in a script
+// written without spaces (Chinese, Japanese, Thai: 3-byte UTF-8) gives one
+// word per token instead of one for the whole sentence.
+std::vector<TokenSpan> Words(const AnnotatedText& text, size_t s) {
+  std::vector<TokenSpan> words;
+  size_t tokens = text.numWords(s);
+  if (tokens > 0 && text.wordAsByteRange(s, tokens - 1).size() == 0) {
+    --tokens;  // end of sentence
+  }
+  if (tokens == 0) return words;
+  const ByteRange sentence = text.sentenceAsByteRange(s);
+  bool spaced = false;
+  bool unspacedScript = false;
+  for (size_t b = sentence.begin; b < sentence.end; ++b) {
+    const auto byte = static_cast<unsigned char>(text.text[b]);
+    if (IsSpace(text.text[b])) spaced = true;
+    if (byte >= 0xE0 && byte < 0xF0) unspacedScript = true;
+  }
+  if (!spaced && unspacedScript) {
+    for (size_t t = 0; t < tokens; ++t) words.push_back({t, t + 1});
+    return words;
+  }
+  size_t begin = 0;
+  for (size_t t = 1; t < tokens; ++t) {
+    const ByteRange range = text.wordAsByteRange(s, t);
+    if (range.size() > 0 && IsSpace(text.text[range.begin])) {
+      words.push_back({begin, t});
+      begin = t;
+    }
+  }
+  words.push_back({begin, tokens});
+  return words;
+}
+
+// The bytes of `word` (in sentence `s` of `text`) without the whitespace
+// around it.
+ByteRange WordBytes(const AnnotatedText& text, size_t s, TokenSpan word) {
+  size_t begin = text.wordAsByteRange(s, word.begin).begin;
+  size_t end = text.wordAsByteRange(s, word.end - 1).end;
+  while (begin < end && IsSpace(text.text[begin])) ++begin;
+  while (end > begin && IsSpace(text.text[end - 1])) --end;
+  return ByteRange{begin, end};
+}
+
+void AppendJsonString(std::string& out, const std::string& value) {
+  out += '"';
+  for (const char c : value) {
+    switch (c) {
+      case '"':
+        out += "\\\"";
+        break;
+      case '\\':
+        out += "\\\\";
+        break;
+      case '\n':
+        out += "\\n";
+        break;
+      case '\r':
+        out += "\\r";
+        break;
+      case '\t':
+        out += "\\t";
+        break;
+      default:
+        if (static_cast<unsigned char>(c) < 0x20) {
+          char escaped[8];
+          std::snprintf(escaped, sizeof(escaped), "\\u%04x",
+                        static_cast<unsigned>(static_cast<unsigned char>(c)));
+          out += escaped;
+        } else {
+          out += c;
+        }
+    }
+  }
+  out += '"';
+}
+
+// A JSON number with 4 significant digits, or null. %g never writes a
+// comma, so one can only be a locale's decimal separator (bionic always
+// writes '.'; glibc follows LC_NUMERIC).
+void AppendNumber(std::string& out, float value) {
+  if (!std::isfinite(value)) {
+    out += "null";
+    return;
+  }
+  char buffer[32];
+  const int length = std::snprintf(buffer, sizeof(buffer), "%.4g",
+                                   static_cast<double>(value));
+  if (length <= 0 || static_cast<size_t>(length) >= sizeof(buffer)) {
+    out += "null";
+    return;
+  }
+  for (int i = 0; i < length; ++i) {
+    if (buffer[i] == ',') buffer[i] = '.';
+  }
+  out.append(buffer, static_cast<size_t>(length));
+}
+
+void AppendRange(std::string& out, const std::vector<uint32_t>& utf16,
+                 ByteRange range) {
+  out += '[';
+  out += std::to_string(utf16[range.begin]);
+  out += ',';
+  out += std::to_string(utf16[range.end]);
+  out += ']';
+}
+
+// The quality score of the quality estimator's word that holds token
+// `begin` (the same word as ours, except in unspaced scripts, where its
+// word is the whole sentence), or NaN.
+float WordScore(const Response::SentenceQualityScore* scores, size_t begin) {
+  if (scores == nullptr) return NAN;
+  const size_t count =
+      std::min(scores->wordRanges.size(), scores->wordScores.size());
+  for (size_t i = 0; i < count; ++i) {
+    const auto& range = scores->wordRanges[i];
+    if (range.begin <= begin && begin < range.end) {
+      return scores->wordScores[i];
+    }
+  }
+  return NAN;
+}
+
+// The "words" of sentence `s` of `response` (see mozhi_bergamot.h).
+void AppendWords(std::string& json, const Response& response, size_t s,
+                 const std::vector<uint32_t>& source16,
+                 const std::vector<uint32_t>& target16, bool alignment,
+                 const Response::SentenceQualityScore* scores, bool quality) {
+  // P[t][s] = p(source token s | target token t), one row per target token.
+  const marian::bergamot::Alignment* matrix = nullptr;
+  if (alignment && s < response.alignments.size() &&
+      response.alignments[s].size() == response.target.numWords(s)) {
+    matrix = &response.alignments[s];
+  }
+  std::vector<TokenSpan> sources;
+  std::vector<ByteRange> sourceBytes;
+  if (matrix != nullptr) {
+    for (const TokenSpan& word : Words(response.source, s)) {
+      const ByteRange bytes = WordBytes(response.source, s, word);
+      if (bytes.size() == 0) continue;
+      sources.push_back(word);
+      sourceBytes.push_back(bytes);
+    }
+  }
+  json += ",\"words\":[";
+  bool first = true;
+  std::vector<float> mass(sources.size());
+  for (const TokenSpan& word : Words(response.target, s)) {
+    const ByteRange bytes = WordBytes(response.target, s, word);
+    if (bytes.size() == 0) continue;
+    if (!first) json += ',';
+    first = false;
+    json += "{\"target\":";
+    AppendRange(json, target16, bytes);
+    if (quality) {
+      json += ",\"score\":";
+      AppendNumber(json, WordScore(scores, word.begin));
+    }
+    if (!sources.empty()) {
+      // The source word with the most alignment mass, averaged over the
+      // word's tokens.
+      std::fill(mass.begin(), mass.end(), 0.0f);
+      for (size_t t = word.begin; t < word.end; ++t) {
+        const std::vector<float>& row = (*matrix)[t];
+        for (size_t w = 0; w < sources.size(); ++w) {
+          for (size_t k = sources[w].begin; k < sources[w].end && k < row.size();
+               ++k) {
+            mass[w] += row[k];
+          }
+        }
+      }
+      const size_t best = static_cast<size_t>(
+          std::max_element(mass.begin(), mass.end()) - mass.begin());
+      json += ",\"source\":";
+      AppendRange(json, source16, sourceBytes[best]);
+      json += ",\"p\":";
+      AppendNumber(json, std::min(1.0f, mass[best] / static_cast<float>(
+                                                         word.end - word.begin)));
+    }
+    json += '}';
+  }
+  json += ']';
+}
+
+// One element of the mozhi_bergamot_translate_ex() array.
+void AppendResponse(std::string& json, const Response& response,
+                    bool alignment, bool quality) {
+  json += "{\"text\":";
+  AppendJsonString(json, response.target.text);
+  if (alignment || quality) {
+    const std::vector<uint32_t> source16 = Utf16Offsets(response.source.text);
+    const std::vector<uint32_t> target16 = Utf16Offsets(response.target.text);
+    const size_t sentences = std::min(response.source.numSentences(),
+                                      response.target.numSentences());
+    json += ",\"sentences\":[";
+    for (size_t s = 0; s < sentences; ++s) {
+      if (s > 0) json += ',';
+      json += "{\"source\":";
+      AppendRange(json, source16, response.source.sentenceAsByteRange(s));
+      json += ",\"target\":";
+      AppendRange(json, target16, response.target.sentenceAsByteRange(s));
+      const Response::SentenceQualityScore* scores =
+          quality && s < response.qualityScores.size()
+              ? &response.qualityScores[s]
+              : nullptr;
+      if (quality) {
+        json += ",\"score\":";
+        AppendNumber(json, scores == nullptr ? NAN : scores->sentenceScore);
+      }
+      AppendWords(json, response, s, source16, target16, alignment, scores,
+                  quality);
+      json += '}';
+    }
+    json += ']';
+  }
+  json += '}';
 }
 
 // Runs `body` under the engine lock and converts every exception into the
@@ -246,6 +517,47 @@ char* mozhi_bergamot_translate_pivot(MozhiBergamotModel* first,
         first->model, second->model, std::vector<std::string>{std::string(text)},
         {options});
     return CopyString(responses.at(0).target.text);
+  });
+}
+
+char* mozhi_bergamot_translate_ex(MozhiBergamotModel* first,
+                                  MozhiBergamotModel* second,
+                                  const char* const* texts, int32_t count,
+                                  int32_t flags) {
+  if (first == nullptr || count < 0 || (count > 0 && texts == nullptr)) {
+    SetError("first, texts and a count >= 0 are required");
+    return nullptr;
+  }
+  for (int32_t i = 0; i < count; ++i) {
+    if (texts[i] == nullptr) {
+      SetError("texts must not contain NULL");
+      return nullptr;
+    }
+  }
+  return Guarded<char*>(nullptr, [&]() -> char* {
+    const bool alignment = (flags & MOZHI_BERGAMOT_TRANSLATE_ALIGNMENT) != 0;
+    const bool quality = (flags & MOZHI_BERGAMOT_TRANSLATE_QUALITY) != 0;
+    ResponseOptions options;
+    options.HTML = (flags & MOZHI_BERGAMOT_TRANSLATE_HTML) != 0;
+    options.alignment = alignment;
+    options.qualityScores = quality;
+    std::vector<std::string> sources(texts, texts + count);
+    const std::vector<ResponseOptions> all(sources.size(), options);
+    std::vector<Response> responses;
+    if (!sources.empty()) {
+      responses = second == nullptr
+                      ? Service().translateMultiple(first->model,
+                                                    std::move(sources), all)
+                      : Service().pivotMultiple(first->model, second->model,
+                                                std::move(sources), all);
+    }
+    std::string json = "[";
+    for (size_t i = 0; i < responses.size(); ++i) {
+      if (i > 0) json += ',';
+      AppendResponse(json, responses[i], alignment, quality);
+    }
+    json += ']';
+    return CopyString(json);
   });
 }
 

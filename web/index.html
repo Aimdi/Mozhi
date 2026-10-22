@@ -23,7 +23,9 @@
     'wasm-unsafe-eval' for CanvasKit's WebAssembly. Inline styles are needed
     by the Flutter engine. connect-src allows any http(s) host because the
     user picks their own Mozhi instances and AI providers (including LAN
-    ones); fonts.gstatic.com serves Flutter's fallback fonts.
+    ones). fonts.gstatic.com serves Flutter's fallback fonts unless the build
+    hosts them itself: tool/web_fallback_fonts.py then removes it here and
+    points the engine at its copy (flutter_bootstrap.js).
   -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https: http: blob: data:; media-src 'self' blob: data:; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
   <!--
@@ -33,7 +35,7 @@
   <meta name="referrer" content="no-referrer">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="description" content="A fast, private translator: use your own Mozhi instance or AI model (OpenAI, Anthropic, Gemini, Ollama, ...) with Kagi-style alternatives, insights and proofreading.">
-  <meta name="theme-color" content="#3F51B5">
+  <meta name="theme-color" content="#1D9BF0">
   <meta name="color-scheme" content="light dark">
 
   <!-- iOS meta tags & icons -->
@@ -49,11 +51,14 @@
   <link rel="manifest" href="manifest.json">
 
   <!-- Splash shown until Flutter draws its first frame (no external
-       resources; follows the system light/dark preference). -->
+       resources; follows the system light/dark preference). Its colours
+       are the app's defaults (lib/app/theme.dart: the accent #1D9BF0 on
+       white, and on "Lights out" black in the dark), so the first frame
+       does not flash another colour. -->
   <style>
-    :root { --splash-bg: #fbf8ff; --splash-fg: #1b1b21; --splash-accent: #3f51b5; --splash-track: #e0e0f0; }
+    :root { --splash-bg: #ffffff; --splash-fg: #0f1419; --splash-accent: #0d77be; --splash-track: #eff3f4; }
     @media (prefers-color-scheme: dark) {
-      :root { --splash-bg: #121318; --splash-fg: #e4e1e9; --splash-accent: #bac3ff; --splash-track: #2e3040; }
+      :root { --splash-bg: #000000; --splash-fg: #e7e9ea; --splash-accent: #1d9bf0; --splash-track: #2f3336; }
     }
     html, body { margin: 0; height: 100%; background: var(--splash-bg); }
     #splash {
@@ -81,7 +86,8 @@
     <div class="spinner"></div>
     <div>Mozhi</div>
   </div>
-  <!-- Scripts are files, not inline, so the CSP needs no 'unsafe-inline'. -->
+  <!-- Scripts are files, not inline, so the CSP needs no 'unsafe-inline'.
+       flutter_bootstrap.js (from web/flutter_bootstrap.js) starts the engine. -->
   <script src="splash.js"></script>
   <script src="flutter_bootstrap.js" async></script>
 </body>

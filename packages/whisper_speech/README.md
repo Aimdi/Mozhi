@@ -41,7 +41,7 @@ model.
 
 | Type | What |
 | --- | --- |
-| `WhisperSpeech` | Facade: `isAvailable`, `installedModels()`, `isReady()`, `modelFor()`, `transcribe()`, `cancel()`, `download()`, `delete()`, `importFiles()`, `cleanUp()`, `dispose()` |
+| `WhisperSpeech` | Facade: `isAvailable`, `installedModels()`, `isReady()`, `modelFor()`, `transcribe()`, `cancel()`, `unload()`, `download()`, `delete()`, `importFiles()`, `cleanUp()`, `dispose()`; with `idleUnloadAfter` the model (75-150 MB) is unloaded once no transcription ran for that long (the app uses 60 s and also unloads in the background and on memory pressure) |
 | `WhisperModelCatalog`, `WhisperCatalogModel`, `loadBundledWhisperCatalog` | `assets/models.json`: `tiny` (Fast) and `base` (Better) with URL, exact size and SHA-1 |
 | `WhisperModelManager` | Download with `Range` resume, size + SHA-1 verification, atomic install (staging + rename), delete, `importFiles` (by name or, for renamed copies, by size), `cleanUp` |
 | `WhisperEngine`, `createWhisperEngine`, `whisperPlatformSupported` | The native engine in a long-lived background isolate (`IsolateWhisperEngine`); a stub on the web (conditional export: `dart:ffi` never reaches web builds) |
@@ -61,7 +61,10 @@ whisper.cpp on Hugging Face
 | `base` | `ggml-base.bin` | 147,951,465 | `465707469ff3a37a2b9b8d8f89f2f99de7299dac` |
 
 The SHA-1s are the ones in whisper.cpp v1.9.5's `models/README.md` (a test
-compares them). Hugging Face could not be reached when the catalogue was
+compares them). Quantized variants (`ggml-tiny-q5_1.bin`,
+`ggml-base-q5_1.bin`, `-q8_0`; 2-3x smaller) run on the existing library
+(ggml has NEON kernels for them) but are not listed yet: their exact sizes
+and SHA-1s must be taken from Hugging Face first (the README lists none). Hugging Face could not be reached when the catalogue was
 written; the byte sizes were checked against the layout
 `convert-pt-to-ggml.py` writes (the tensors of tiny and base differ by
 exactly the 70,259,752 bytes these sizes differ by). If a download ever

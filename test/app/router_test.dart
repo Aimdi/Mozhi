@@ -1,18 +1,23 @@
 import 'dart:async';
+import 'dart:io';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/app/router.dart';
+import 'package:mozhi/app/shared_files.dart';
 import 'package:mozhi/app/translate_link.dart';
 import 'package:mozhi/app/view/app_shell.dart';
+import 'package:mozhi/app/view/shared_image_picker.dart';
 import 'package:mozhi/app/view/top_level_actions.dart';
 import 'package:mozhi/conversation/view/conversation_page.dart';
 import 'package:mozhi/dictionary/view/dictionary_page.dart';
 import 'package:mozhi/documents/view/document_translate_page.dart';
 import 'package:mozhi/history/view/history_page.dart';
+import 'package:mozhi/image_translate/cubit/image_translate_cubit.dart';
 import 'package:mozhi/image_translate/models/picked_image.dart';
 import 'package:mozhi/image_translate/view/image_translate_page.dart';
 import 'package:mozhi/l10n/l10n.dart';
@@ -21,15 +26,18 @@ import 'package:mozhi/onboarding/view/onboarding_page.dart';
 import 'package:mozhi/presets/view/glossaries_page.dart';
 import 'package:mozhi/presets/view/presets_page.dart';
 import 'package:mozhi/proofread/view/proofread_page.dart';
+import 'package:mozhi/quick_translate/quick_translate_host.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/settings/view/about_page.dart';
 import 'package:mozhi/settings/view/instances_page.dart';
+import 'package:mozhi/settings/view/network_activity_page.dart';
 import 'package:mozhi/settings/view/provider_editor_page.dart';
 import 'package:mozhi/settings/view/providers_page.dart';
 import 'package:mozhi/settings/view/quality_modes_page.dart';
 import 'package:mozhi/settings/view/settings_page.dart';
 import 'package:mozhi/settings/view/tab_order_page.dart';
 import 'package:mozhi/settings/view/voice_input_settings_page.dart';
+import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/view/translate_page.dart';
 import 'package:mozhi/usage/view/usage_summary_page.dart';
 import 'package:mozhi/web_translate/cubit/web_translate_cubit.dart';
@@ -101,6 +109,13 @@ void main() {
       expect(AppRoutes.onboarding, '/onboarding');
     });
 
+    test('network activity, the quick window and shared files', () {
+      expect(AppRoutes.networkActivity, '/settings/network');
+      expect(AppRoutes.quickTranslate, QuickTranslateHost.location);
+      expect(AppRoutes.sharedImage('ab'), '/image?shared=ab');
+      expect(AppRoutes.sharedDocument('ab'), '/documents?shared=ab');
+    });
+
     test('tab maps every tab to its location', () {
       expect(
         [for (final tab in AppTab.values) AppRoutes.tab(tab)],
@@ -112,6 +127,49 @@ void main() {
         ],
       );
       expect(AppRoutes.tabOrder, '/settings/tabs');
+    });
+  });
+
+  group('mayAutoTranslateShared', () {
+    Future<bool> decide(
+      WidgetTester tester,
+      Widget Function(Widget) wrap,
+    ) async {
+      late bool result;
+      await tester.pumpWidget(
+        wrap(
+          Builder(
+            builder: (context) {
+              result = mayAutoTranslateShared(context);
+              return const SizedBox();
+            },
+          ),
+        ),
+      );
+      return result;
+    }
+
+    testWidgets('only for an engine that is not an AI model', (tester) async {
+      final env = TestEnvironment();
+      expect(await decide(tester, env.wrap), isTrue);
+
+      when(() => env.translateCubit.state).thenReturn(
+        TranslateState(
+          enginesStatus: EnginesStatus.ready,
+          engines: testEngines,
+          engine: testEngines.first,
+          compareMode: true,
+        ),
+      );
+      expect(await decide(tester, env.wrap), isFalse);
+
+      when(() => env.translateCubit.state)
+          .thenReturn(const TranslateState(enginesStatus: EnginesStatus.ready));
+      expect(await decide(tester, env.wrap), isFalse);
+    });
+
+    testWidgets('never without a translator', (tester) async {
+      expect(await decide(tester, (child) => child), isFalse);
     });
   });
 
@@ -390,6 +448,7 @@ void main() {
       '/settings/usage': UsageSummaryPage,
       '/settings/quality': QualityModesPage,
       '/settings/tabs': TabOrderPage,
+      '/settings/network': NetworkActivityPage,
       AppRoutes.voiceSettings: VoiceInputSettingsPage,
     };
     for (final MapEntry(key: path, value: page) in fullScreenPages.entries) {
@@ -432,6 +491,165 @@ void main() {
         find.byType(ImageTranslatePage),
       );
       expect(page.initialSource, ImagePickSource.gallery);
+    });
+
+    group('quick translate window', () {
+      testWidgets('shows only its transparent page there', (tester) async {
+        router.dispose();
+        router = createAppRouter(
+          quickTranslateWindow: true,
+          launchRedirect: (_) => AppRoutes.onboarding,
+        );
+        await pumpRouter(tester);
+
+        expect(location(), AppRoutes.quickTranslate);
+        expect(find.byType(QuickTranslateHostView), findsOneWidget);
+        expect(find.byType(AppShell), findsNothing);
+
+        await go(tester, AppRoutes.settings);
+        expect(location(), AppRoutes.quickTranslate);
+        await go(tester, AppRoutes.translateText(text: 'hola'));
+        expect(location(), AppRoutes.quickTranslate);
+        expect(links, isEmpty);
+      });
+
+      testWidgets('the main window never shows it', (tester) async {
+        await pumpRouter(tester);
+        await go(tester, AppRoutes.quickTranslate);
+
+        expect(location(), AppRoutes.translate);
+        expect(find.byType(QuickTranslateHostView), findsNothing);
+      });
+    });
+
+    group('shared files', () {
+      const token = '0123456789abcdef0123456789abcdef';
+      const pathProvider = MethodChannel('plugins.flutter.io/path_provider');
+      late Directory cache;
+
+      setUp(() {
+        cache = Directory.systemTemp.createTempSync('router_shared');
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(pathProvider, (call) async => cache.path);
+      });
+
+      tearDown(() {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(pathProvider, null);
+        cache.deleteSync(recursive: true);
+      });
+
+      void share(String name, List<int> bytes) {
+        final folder = Directory('${cache.path}/${SharedFiles.folder}/$token')
+          ..createSync(recursive: true);
+        File('${folder.path}/$name').writeAsBytesSync(bytes);
+      }
+
+      Future<void> open(WidgetTester tester, String location) async {
+        await pumpRouter(tester);
+        router.go(location);
+        await tester.pump();
+        // Reading the file is real I/O.
+        for (var i = 0; i < 30; i++) {
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 5)),
+          );
+          await tester.pump();
+        }
+        await tester.pump(_transition);
+      }
+
+      testWidgets('a shared document opens in the document translator', (
+        tester,
+      ) async {
+        share('talk.srt', '1\n00:00:01,000 --> 00:00:02,000\nHola\n'.codeUnits);
+        await open(tester, AppRoutes.sharedDocument(token));
+
+        final page = tester.widget<DocumentTranslatePage>(
+          find.byType(DocumentTranslatePage),
+        );
+        expect(page.initialFile!.name, 'talk.srt');
+        expect(String.fromCharCodes(page.initialFile!.bytes), contains('Hola'));
+        // Nothing is translated until the user asks.
+        verifyNever(() => env.translationRepository.translate(any(), any()));
+      });
+
+      testWidgets('an unknown token opens the empty document translator', (
+        tester,
+      ) async {
+        await open(tester, AppRoutes.sharedDocument(token));
+        final page = tester.widget<DocumentTranslatePage>(
+          find.byType(DocumentTranslatePage),
+        );
+        expect(page.initialFile, isNull);
+      });
+
+      testWidgets('a malformed token is no shared file', (tester) async {
+        await pumpRouter(tester);
+        await go(tester, '/documents?shared=../secret');
+        expect(
+          tester
+              .widget<DocumentTranslatePage>(find.byType(DocumentTranslatePage))
+              .initialFile,
+          isNull,
+        );
+        await go(tester, '/image?shared=../secret');
+        expect(
+          tester
+              .widget<ImageTranslatePage>(find.byType(ImageTranslatePage))
+              .picker,
+          isNull,
+        );
+      });
+
+      testWidgets('a shared image is handed to the image translator', (
+        tester,
+      ) async {
+        share('shot.png', const [0x89, 0x50, 0x4E, 0x47]);
+        await open(tester, AppRoutes.sharedImage(token));
+
+        final page = tester.widget<ImageTranslatePage>(
+          find.byType(ImageTranslatePage),
+        );
+        expect(page.picker, isA<SharedImagePicker>());
+        // The screen took it on arrival.
+        final image = tester
+            .element(find.byType(ImageTranslateView))
+            .read<ImageTranslateCubit>()
+            .state
+            .image;
+        expect(image!.name, 'shot.png');
+        expect(image.mimeType, 'image/png');
+        // Kept for on-device text recognition.
+        expect(File(image.path!).existsSync(), isTrue);
+      });
+
+      testWidgets('waits for the user when an AI model would translate it', (
+        tester,
+      ) async {
+        const claude = TranslationEngine(
+          id: 'ai:claude',
+          kind: EngineKind.ai,
+          name: 'Claude',
+          providerId: 'claude',
+        );
+        when(() => env.translateCubit.state).thenReturn(
+          const TranslateState(
+            enginesStatus: EnginesStatus.ready,
+            engines: [claude],
+            engine: claude,
+          ),
+        );
+        share('shot.png', const [0x89, 0x50, 0x4E, 0x47]);
+        await open(tester, AppRoutes.sharedImage(token));
+
+        final page = tester.widget<ImageTranslatePage>(
+          find.byType(ImageTranslatePage),
+        );
+        // The image is shown, and only the user's Translate sends it on.
+        expect(page.picker, isA<SharedImagePicker>());
+        expect(page.autoTranslate, isFalse);
+      });
     });
 
     WebTranslateState webState(WidgetTester tester) => tester

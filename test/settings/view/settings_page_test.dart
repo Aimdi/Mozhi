@@ -739,7 +739,7 @@ void main() {
       ) async {
         when(() => settings.state)
             .thenReturn(const AppSettings(dynamicColor: false));
-        tester.setScreenSize(const Size(800, 3000));
+        tester.setScreenSize(const Size(800, 4000));
         await tester.pumpView(
           Builder(
             builder: (context) => MediaQuery(
@@ -838,7 +838,7 @@ void main() {
           ),
         ]) {
           when(() => settings.state).thenReturn(const AppSettings());
-          tester.setScreenSize(const Size(800, 3000));
+          tester.setScreenSize(const Size(800, 4000));
           await tester.pumpView(
             const SettingsPage(),
             settings: settings,
@@ -1592,7 +1592,7 @@ void main() {
 
       testWidgets('renders in dark mode', (tester) async {
         when(() => settings.state).thenReturn(const AppSettings());
-        tester.setScreenSize(const Size(800, 3000));
+        tester.setScreenSize(const Size(800, 4000));
         await tester.pumpView(
           const SettingsPage(),
           settings: settings,

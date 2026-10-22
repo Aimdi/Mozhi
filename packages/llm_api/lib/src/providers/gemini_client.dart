@@ -18,7 +18,7 @@ import 'package:llm_api/src/streaming/sse_decoder.dart';
 /// ...) raises [LlmApiException]. A body that ends without a finish reason
 /// raises [LlmInterruptedException].
 class GeminiClient extends HttpLlmClient {
-  new(super.endpoint, {super.httpClient, super.timeout});
+  new(super.endpoint, {super.httpClient, super.timeout, super.retryPolicy});
 
   /// `finishReason`s that mean the response was blocked.
   static const refusalFinishReasons = {

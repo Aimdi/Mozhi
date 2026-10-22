@@ -42,8 +42,10 @@ pick ones you trust, or self-host them ([guide](self-hosting-mozhi.md)).
 - **Web app:** keys are kept in session storage, so they last only as long
   as the browser tab. Host the web app on its own origin (its own domain or
   subdomain); any page on the same origin can read the browser's storage.
-- If secure storage doesn't work, keys are kept in memory only and the app
-  says so; they are never written to plain storage instead.
+- If secure storage doesn't work when the app starts, keys are kept in
+  memory only and the app says so; they are never written to plain storage
+  instead. A later failure (after a working start) is retried once and then
+  reported; keys are never moved to memory silently.
 - Keys are sent only in the provider's auth header, never in URLs. Error
   messages and server responses shown in the app have keys removed. Error
   descriptions (`toString`) leave out credentials and query strings in URLs.

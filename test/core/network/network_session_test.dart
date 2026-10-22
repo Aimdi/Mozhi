@@ -4,7 +4,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:llm_api/llm_api.dart';
+import 'package:mozhi/core/network/http_client_factory_io.dart'
+    show bypassesProxy;
 import 'package:mozhi/core/network/network.dart';
+import 'package:mozhi/core/privacy/egress/egress.dart';
+import 'package:mozhi_api/mozhi_api.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 class _RecordingClient extends http.BaseClient {
@@ -153,7 +157,24 @@ void main() {
       expect(health, isA<InstanceOnline>());
       expect(
         session.mozhiClient(Uri.parse('https://a.example')).timeout,
-        const Duration(seconds: 30),
+        MozhiApiClient.defaultTimeout,
+      );
+      expect(
+        session
+            .mozhiClient(
+              Uri.parse('https://a.example'),
+              timeout: const Duration(seconds: 3),
+            )
+            .timeout,
+        const Duration(seconds: 3),
+      );
+      // Tor adds seconds to every request.
+      expect(
+        NetworkSession(
+          proxy: '127.0.0.1:8118',
+          httpClient: platform,
+        ).mozhiClient(Uri.parse('https://a.example')).timeout,
+        NetworkSession.proxyRequestTimeout,
       );
     });
 
@@ -165,6 +186,67 @@ void main() {
       expect(session.client, isNotNull);
       await session.close();
       expect(platform.closed, isTrue);
+    });
+
+    test('records what the backends and the web client send', () async {
+      final ledger = EgressLedger();
+      final session = NetworkSession(httpClient: platform, ledger: ledger);
+
+      await session
+          .mozhiClient(Uri.parse('https://mozhi.example'))
+          .getEngines();
+      await session.webClient.get(Uri.parse('http://example.org/page?q=1'));
+
+      expect(session.ledger, same(ledger));
+      final [engines, page] = ledger.entries;
+      expect(engines.destination.host, 'mozhi.example');
+      expect(engines.purpose, EgressPurpose.catalog);
+      expect(engines.outcome, EgressOutcome.succeeded);
+      expect(page.purpose, EgressPurpose.webPage);
+      expect(page.destination.kind, EgressDestinationKind.website);
+      expect(page.scheme, 'http');
+    });
+
+    test('does not record what the policy refuses (never sent)', () async {
+      final session = NetworkSession(httpClient: platform);
+
+      await expectLater(
+        session.client.get(Uri.parse('http://public.example/')),
+        throwsA(isA<CleartextRefusedException>()),
+      );
+
+      expect(session.ledger.entries, isEmpty);
+      expect(platform.requests, isEmpty);
+    });
+
+    test('notes which requests use the proxy', () async {
+      final direct = NetworkSession();
+      expect(direct.usesProxyFor('mozhi.example'), isFalse);
+
+      final proxied = NetworkSession(
+        proxy: '127.0.0.1:8118',
+        httpClient: platform,
+      );
+      expect(proxied.usesProxyFor('mozhi.example'), isTrue);
+      expect(proxied.usesProxyFor('abc.ONION'), isTrue);
+      expect(proxied.usesProxyFor('mozhi.i2p'), isTrue);
+      expect(proxied.usesProxyFor('192.168.1.4'), isFalse);
+      expect(proxied.usesProxyFor('localhost'), isFalse);
+
+      // The same rule as the platform client's.
+      for (final host in [
+        'mozhi.example',
+        'abc.onion',
+        '10.0.0.2',
+        'nas.local',
+        '::1',
+        'fd00::1',
+      ]) {
+        expect(proxied.usesProxyFor(host), !bypassesProxy(host), reason: host);
+      }
+
+      await proxied.client.get(Uri.parse('https://mozhi.example/api/version'));
+      expect(proxied.ledger.entries.single.viaProxy, isTrue);
     });
 
     test('current can be replaced', () {

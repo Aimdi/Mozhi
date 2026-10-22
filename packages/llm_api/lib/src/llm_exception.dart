@@ -1,6 +1,17 @@
 /// Any failure talking to an LLM endpoint.
 class LlmApiException implements Exception {
-  const new(this.message, {this.statusCode, this.body});
+  const new(
+    this.message, {
+    this.statusCode,
+    this.body,
+    this.retryAfter,
+    this.connectionDropped = false,
+  });
+
+  /// HTTP statuses of failures that usually pass: rate limits (429), server
+  /// errors (500, 502, 503, 504) and Anthropic's "overloaded" (529). 501
+  /// (not implemented) is permanent.
+  static const transientStatusCodes = {429, 500, 502, 503, 504, 529};
 
   final String message;
 
@@ -10,9 +21,29 @@ class LlmApiException implements Exception {
   /// Raw response body (truncated to 2000 chars) for diagnostics.
   final String? body;
 
+  /// How long the server asked the client to wait before trying again
+  /// (`Retry-After` / `retry-after-ms` headers, or Gemini's `RetryInfo`),
+  /// or null when it did not say.
+  final Duration? retryAfter;
+
+  /// The connection was reset or closed by the server or the network before
+  /// a response arrived (not refused, not a failed DNS lookup and not a
+  /// network policy refusal), so trying again may well work.
+  final bool connectionDropped;
+
   bool get isAuthError => statusCode == 401 || statusCode == 403;
   bool get isRateLimited => statusCode == 429;
   bool get isNotFound => statusCode == 404;
+
+  /// Whether the failure is likely to pass when the request is sent again:
+  /// a [transientStatusCodes] answer (except a 429 for exhausted credit,
+  /// `insufficient_quota`), a [connectionDropped] or an [isInterrupted]
+  /// response. Refusals, truncation, timeouts and other errors are not.
+  bool get isTransient {
+    if (connectionDropped || isInterrupted) return true;
+    if (!transientStatusCodes.contains(statusCode)) return false;
+    return !(isRateLimited && (body?.contains('insufficient_quota') ?? false));
+  }
 
   /// The server answered with a redirect (3xx). Redirects are never
   /// followed, so that API keys are not sent to another host; the base URL

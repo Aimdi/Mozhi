@@ -1,6 +1,7 @@
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:llm_api/llm_api.dart';
+import 'package:llm_api/src/providers/http_llm_client.dart';
 import 'package:test/test.dart';
 
 import '../helpers/fake_server.dart';
@@ -39,6 +40,47 @@ void main() {
       }
     });
 
+    test('passes the retry policy and keep-alive on', () {
+      const policy = LlmRetryPolicy(maxRetries: 3);
+      for (final provider in LlmProvider.values) {
+        final client = LlmClient(
+          endpointFor(provider),
+          httpClient: FakeServer().client,
+          retryPolicy: policy,
+          keepAlive: const Duration(minutes: 5),
+        );
+        expect(
+          (client as HttpLlmClient).retryPolicy,
+          same(policy),
+          reason: provider.name,
+        );
+      }
+      final ollama = LlmClient(
+        endpointFor(LlmProvider.ollama),
+        httpClient: FakeServer().client,
+        keepAlive: const Duration(minutes: 5),
+      );
+      expect((ollama as OllamaClient).keepAlive, const Duration(minutes: 5));
+      expect(ollama.retryPolicy, same(LlmRetryPolicy.standard));
+      expect(ollama.contextSizes, same(OllamaContextSizes.shared));
+    });
+
+    test('warmUp does nothing for cloud providers', () async {
+      for (final provider in [
+        LlmProvider.openAiCompatible,
+        LlmProvider.anthropic,
+        LlmProvider.gemini,
+      ]) {
+        final server = FakeServer();
+        final client = LlmClient(
+          endpointFor(provider),
+          httpClient: server.client,
+        );
+        expect(await client.warmUp('m'), isFalse, reason: provider.name);
+        expect(server.requests, isEmpty, reason: provider.name);
+      }
+    });
+
     test('defaults the timeout', () {
       final client = LlmClient(endpointFor(LlmProvider.ollama));
       expect(client.timeout, LlmClient.defaultTimeout);
@@ -64,6 +106,8 @@ void main() {
         final client = LlmClient(
           endpointFor(provider),
           httpClient: server.client,
+          // The empty responses would otherwise be retried.
+          retryPolicy: LlmRetryPolicy.none,
         );
         for (final sent in [request, request.copyWith(contextWindow: 2048)]) {
           try {

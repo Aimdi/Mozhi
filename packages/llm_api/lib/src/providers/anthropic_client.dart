@@ -24,7 +24,7 @@ import 'package:llm_api/src/streaming/sse_decoder.dart';
 /// when they mention `effort` or `output_config` (models such as Claude
 /// Haiku 4.5 and Sonnet 4.5 reject the effort parameter).
 class AnthropicClient extends HttpLlmClient {
-  new(super.endpoint, {super.httpClient, super.timeout});
+  new(super.endpoint, {super.httpClient, super.timeout, super.retryPolicy});
 
   /// Value of the `anthropic-version` header.
   static const apiVersion = '2023-06-01';

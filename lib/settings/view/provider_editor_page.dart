@@ -147,6 +147,7 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
   double? _temperature;
   double _lastTemperature = 0.3;
   bool _supportsVision = false;
+  bool _preferQualityModel = false;
   bool _obscureKey = true;
   bool _loadingModels = false;
   String? _modelsError;
@@ -198,6 +199,7 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
       _temperature = existing.temperature;
       _lastTemperature = existing.temperature ?? _lastTemperature;
       _supportsVision = existing.supportsVision;
+      _preferQualityModel = existing.preferQualityModel;
     } else {
       final presetId = widget.presetId;
       final preset = presetId == null ? null : AiProviderPreset.byId(presetId);
@@ -322,6 +324,7 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
       headers: _headers,
       enabled: existing?.enabled ?? true,
       supportsVision: !_isMt && _supportsVision,
+      preferQualityModel: _service == MtService.deepl && _preferQualityModel,
       // Kept from the provider or preset: dropping it would silently turn
       // a DeepL or LibreTranslate service into an AI provider.
       service: _service,
@@ -558,6 +561,18 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
               const SizedBox(height: 16),
               if (_keyFirst) urlField else keyField,
               if (!_isMt) ..._buildModelFields(context),
+              if (_service == MtService.deepl)
+                SwitchListTile(
+                  key: const Key('provider_deepl_quality_model'),
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(l10n.settingsProviderDeeplQualityModel),
+                  subtitle: Text(
+                    l10n.settingsProviderDeeplQualityModelSubtitle,
+                  ),
+                  value: _preferQualityModel,
+                  onChanged: (value) =>
+                      setState(() => _preferQualityModel = value),
+                ),
               const SizedBox(height: 16),
               if (_test case final test?) ...[
                 _TestResultView(result: test),

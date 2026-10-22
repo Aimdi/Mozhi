@@ -536,8 +536,8 @@ void main() {
       );
       expect(
         find.text(
-          'DeepL API applies only formality, context and formatting. Style, '
-          'reading level, gender and the glossary need an AI translator. '
+          'DeepL API applies formality, context, formatting and the '
+          'glossary. Style, reading level and gender need an AI translator. '
           'Your choices are saved and apply when you use one.',
         ),
         findsOneWidget,

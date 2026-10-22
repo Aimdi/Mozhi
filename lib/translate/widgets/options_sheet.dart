@@ -128,11 +128,11 @@ Future<void> showOptionsSheet(BuildContext context) async {
 /// The note of the options sheet for [engine], or null when it applies
 /// every option: AI engines with the general prompt profile do; DeepL
 /// (`TranslationEngine.supportsFormality`) applies the formality, the
-/// context and the formatting; other engines none.
+/// context, the formatting and the glossary; other engines none.
 String? translateOptionsNote(AppLocalizations l10n, TranslationEngine engine) {
   if (engine.supportsOptions) return null;
   return engine.supportsFormality
-      ? l10n.translateOptionsPartlyNeedAi(engine.name)
+      ? l10n.translateOptionsDeeplNeedAi(engine.name)
       : l10n.translateOptionsNeedAi(engine.name);
 }
 

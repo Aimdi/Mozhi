@@ -3,9 +3,13 @@ import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/shared_files.dart';
 import 'package:mozhi/app/translate_link.dart';
 import 'package:mozhi/app/view/app_shell.dart';
 import 'package:mozhi/app/view/deferred_page.dart';
+import 'package:mozhi/app/view/shared_file_loader.dart';
+import 'package:mozhi/app/view/shared_image_picker.dart'
+    deferred as shared_image;
 import 'package:mozhi/app/view/top_level_actions.dart';
 import 'package:mozhi/conversation/view/conversation_page.dart'
     deferred as conversation_page;
@@ -15,6 +19,8 @@ import 'package:mozhi/dictionary/view/dictionary_page.dart'
     deferred as dictionary_page;
 import 'package:mozhi/dictionary/view/dictionary_page.dart'
     show DictionaryLaunch;
+import 'package:mozhi/documents/data/document_file_service.dart'
+    deferred as document_files;
 import 'package:mozhi/documents/view/document_translate_page.dart'
     deferred as documents_page;
 import 'package:mozhi/history/view/history_page.dart';
@@ -31,17 +37,29 @@ import 'package:mozhi/onboarding/view/onboarding_page.dart'
 import 'package:mozhi/presets/view/glossaries_page.dart'
     deferred as glossaries_page;
 import 'package:mozhi/presets/view/presets_page.dart' deferred as presets_page;
-import 'package:mozhi/proofread/view/proofread_page.dart';
+import 'package:mozhi/proofread/view/proofread_page.dart'
+    deferred as proofread_page;
+import 'package:mozhi/quick_translate/quick_translate_host.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
-import 'package:mozhi/settings/view/about_page.dart';
-import 'package:mozhi/settings/view/instances_page.dart';
-import 'package:mozhi/settings/view/provider_editor_page.dart';
-import 'package:mozhi/settings/view/providers_page.dart';
-import 'package:mozhi/settings/view/quality_modes_page.dart';
-import 'package:mozhi/settings/view/settings_page.dart';
-import 'package:mozhi/settings/view/tab_order_page.dart';
-import 'package:mozhi/settings/view/voice_input_settings_page.dart';
+import 'package:mozhi/settings/view/about_page.dart' deferred as about_page;
+import 'package:mozhi/settings/view/instances_page.dart'
+    deferred as instances_page;
+import 'package:mozhi/settings/view/network_activity_page.dart'
+    deferred as network_page;
+import 'package:mozhi/settings/view/provider_editor_page.dart'
+    deferred as provider_editor_page;
+import 'package:mozhi/settings/view/providers_page.dart'
+    deferred as providers_page;
+import 'package:mozhi/settings/view/quality_modes_page.dart'
+    deferred as quality_page;
+import 'package:mozhi/settings/view/settings_page.dart'
+    deferred as settings_page;
+import 'package:mozhi/settings/view/tab_order_page.dart'
+    deferred as tab_order_page;
+import 'package:mozhi/settings/view/voice_input_settings_page.dart'
+    deferred as voice_settings_page;
+import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/view/translate_page.dart';
 import 'package:mozhi/usage/view/usage_summary_page.dart'
     deferred as usage_page;
@@ -90,6 +108,9 @@ abstract final class AppRoutes {
 
   /// AI provider usage this and last month.
   static const usage = '/settings/usage';
+
+  /// What the app sent over the network this session.
+  static const networkActivity = '/settings/network';
   static const quality = '/settings/quality';
 
   /// The order of the tabs.
@@ -105,6 +126,10 @@ abstract final class AppRoutes {
   static const image = '/image';
   static const documents = '/documents';
   static const web = '/web';
+
+  /// The only page of the translucent quick translate window on Android
+  /// (see [QuickTranslateHost]); never shown in the main window.
+  static const String quickTranslate = QuickTranslateHost.location;
 
   /// Scheme of the app's deep links, `mozhi://<screen>[/<path>][?<query>]`
   /// (see [deepLinkLocation]).
@@ -137,6 +162,16 @@ abstract final class AppRoutes {
   static String imageTranslate({ImagePickSource? source}) =>
       _location(image, {ImageTranslatePage.sourceParameter: ?source?.name});
 
+  /// The image translator with the image shared from another app under
+  /// [token] ([SharedFiles]).
+  static String sharedImage(String token) =>
+      _location(image, {SharedFiles.parameter: token});
+
+  /// The document translator with the file shared from another app under
+  /// [token] ([SharedFiles]).
+  static String sharedDocument(String token) =>
+      _location(documents, {SharedFiles.parameter: token});
+
   /// The web page translator with [url] in its address field.
   ///
   /// Pass [WebPageLaunch.load] as the navigation's `extra` to load and
@@ -163,8 +198,18 @@ abstract final class AppRoutes {
 /// on the web, keeping them out of the startup bundle).
 abstract final class DeferredFeatures {
   static final onboarding = DeferredLibrary(onboarding_page.loadLibrary);
-  static final image = DeferredLibrary(image_page.loadLibrary);
-  static final documents = DeferredLibrary(documents_page.loadLibrary);
+  static final image = DeferredLibrary(
+    () => Future.wait<void>([
+      image_page.loadLibrary(),
+      shared_image.loadLibrary(),
+    ]),
+  );
+  static final documents = DeferredLibrary(
+    () => Future.wait<void>([
+      documents_page.loadLibrary(),
+      document_files.loadLibrary(),
+    ]),
+  );
   static final web = DeferredLibrary(web_page.loadLibrary);
   static final conversation = DeferredLibrary(
     () => Future.wait<void>([
@@ -177,6 +222,23 @@ abstract final class DeferredFeatures {
   static final presets = DeferredLibrary(presets_page.loadLibrary);
   static final glossaries = DeferredLibrary(glossaries_page.loadLibrary);
   static final usage = DeferredLibrary(usage_page.loadLibrary);
+  static final proofread = DeferredLibrary(proofread_page.loadLibrary);
+
+  /// The settings and their pages (but the offline languages, presets,
+  /// glossaries and usage, which are loaded on their own).
+  static final settings = DeferredLibrary(
+    () => Future.wait<void>([
+      settings_page.loadLibrary(),
+      instances_page.loadLibrary(),
+      providers_page.loadLibrary(),
+      provider_editor_page.loadLibrary(),
+      quality_page.loadLibrary(),
+      tab_order_page.loadLibrary(),
+      voice_settings_page.loadLibrary(),
+      about_page.loadLibrary(),
+      network_page.loadLibrary(),
+    ]),
+  );
 
   /// All of them.
   static List<DeferredLibrary> get all => [
@@ -190,6 +252,8 @@ abstract final class DeferredFeatures {
     presets,
     glossaries,
     usage,
+    proofread,
+    settings,
   ];
 }
 
@@ -250,13 +314,28 @@ typedef LaunchRedirect = String? Function(String location);
 /// route of a deep link, the address of a reloaded web page), so `/` is
 /// only seen for a plain launch and an explicit `/translate` (the
 /// home-screen widget's Type button) can be told apart from it.
+///
+/// Files shared from other apps open `/image?shared=<token>` and
+/// `/documents?shared=<token>` ([SharedFiles]): the document is loaded
+/// into the document translator (which waits for Translate); the image is
+/// shown on the image screen and only translated right away when the
+/// translator's engine is not an AI model (as for shared text, see
+/// [mayAutoTranslateShared]); otherwise it waits for Translate.
+///
+/// In the quick translate window ([quickTranslateWindow], default
+/// [QuickTranslateHost.isActive] of [QuickTranslateHost.instance]) every
+/// location shows [AppRoutes.quickTranslate], a transparent page under the
+/// quick translate sheet; the main window never shows that page.
 GoRouter createAppRouter({
   TranslateLinkCallback? onTranslateLink,
   LaunchRedirect? launchRedirect,
   String initialLocation = '/',
   GlobalKey<NavigatorState>? navigatorKey,
+  bool? quickTranslateWindow,
 }) {
   final rootKey = navigatorKey ?? GlobalKey<NavigatorState>();
+  final inQuickWindow =
+      quickTranslateWindow ?? QuickTranslateHost.instance.isActive;
   var launched = false;
 
   /// A route whose page lives in a deferred [library] (a separate download
@@ -266,9 +345,11 @@ GoRouter createAppRouter({
     DeferredLibrary library,
     GoRouterWidgetBuilder builder, {
     GlobalKey<NavigatorState>? parentNavigatorKey,
+    List<RouteBase> routes = const [],
   }) => GoRoute(
     path: path,
     parentNavigatorKey: parentNavigatorKey,
+    routes: routes,
     builder: (context, state) => DeferredPage(
       library: library,
       builder: (context) => builder(context, state),
@@ -285,6 +366,12 @@ GoRouter createAppRouter({
     initialLocation: initialLocation,
     redirect: (context, state) {
       final uri = state.uri;
+      if (inQuickWindow) {
+        return uri.path == AppRoutes.quickTranslate
+            ? null
+            : AppRoutes.quickTranslate;
+      }
+      if (uri.path == AppRoutes.quickTranslate) return AppRoutes.translate;
       if (!launched) {
         launched = true;
         if (launchRedirect != null && isLaunchLocation(uri)) {
@@ -296,6 +383,11 @@ GoRouter createAppRouter({
     },
     onException: (context, state, router) => router.go(AppRoutes.translate),
     routes: [
+      GoRoute(
+        path: AppRoutes.quickTranslate,
+        pageBuilder: (context, state) =>
+            const NoTransitionPage(child: QuickTranslateHostView()),
+      ),
       fullScreenDeferred(
         AppRoutes.onboarding,
         DeferredFeatures.onboarding,
@@ -303,20 +395,49 @@ GoRouter createAppRouter({
           finishLocation: _homeLocation(context),
         ),
       ),
-      fullScreenDeferred(
-        AppRoutes.image,
-        DeferredFeatures.image,
-        (context, state) => image_page.ImageTranslatePage(
+      fullScreenDeferred(AppRoutes.image, DeferredFeatures.image, (
+        context,
+        state,
+      ) {
+        final token = state.uri.queryParameters[SharedFiles.parameter];
+        if (SharedFiles.isToken(token)) {
+          return SharedFileLoader(
+            key: ValueKey(token),
+            token: token!,
+            // On-device text recognition reads the file.
+            keep: true,
+            builder: (context, file) => file == null
+                ? image_page.ImageTranslatePage()
+                : image_page.ImageTranslatePage(
+                    picker: shared_image.SharedImagePicker(file),
+                    autoTranslate: mayAutoTranslateShared(context),
+                  ),
+          );
+        }
+        return image_page.ImageTranslatePage(
           initialSource: ImagePickSource.tryParse(
             state.uri.queryParameters[ImageTranslatePage.sourceParameter],
           ),
-        ),
-      ),
-      fullScreenDeferred(
-        AppRoutes.documents,
-        DeferredFeatures.documents,
-        (context, state) => documents_page.DocumentTranslatePage(),
-      ),
+        );
+      }),
+      fullScreenDeferred(AppRoutes.documents, DeferredFeatures.documents, (
+        context,
+        state,
+      ) {
+        final token = state.uri.queryParameters[SharedFiles.parameter];
+        if (!SharedFiles.isToken(token)) {
+          return documents_page.DocumentTranslatePage();
+        }
+        return SharedFileLoader(
+          key: ValueKey(token),
+          token: token!,
+          builder: (context, file) => documents_page.DocumentTranslatePage(
+            initialFile: file == null
+                ? null
+                : document_files.PickedFile(name: file.name, bytes: file.bytes),
+          ),
+        );
+      }),
       fullScreenDeferred(AppRoutes.web, DeferredFeatures.web, (context, state) {
         final url =
             state.uri.queryParameters[WebTranslateRoute.urlParameter]?.trim() ??
@@ -332,6 +453,9 @@ GoRouter createAppRouter({
           autoLoad: false,
         );
       }),
+      // Not deferred: in the VM, deferred libraries share one load, and a
+      // test that opens History before another deferred page would leave
+      // that load to a finished test's zone (test/app/view/app_test.dart).
       GoRoute(
         path: AppRoutes.history,
         builder: (context, state) => TopLevelPageScope(
@@ -344,20 +468,28 @@ GoRouter createAppRouter({
       ),
       GoRoute(
         path: AppRoutes.settings,
-        builder: (context, state) =>
-            const TopLevelPageScope(child: SettingsPage()),
+        builder: (context, state) => DeferredPage(
+          library: DeferredFeatures.settings,
+          builder: (context) =>
+              // A deferred class cannot be const (the lint does not know).
+              // ignore: prefer_const_constructors
+              TopLevelPageScope(child: settings_page.SettingsPage()),
+        ),
         routes: [
-          GoRoute(
-            path: 'instances',
-            builder: (context, state) => const InstancesPage(),
+          deferredRoute(
+            'instances',
+            DeferredFeatures.settings,
+            (context, state) => instances_page.InstancesPage(),
           ),
-          GoRoute(
-            path: 'providers',
-            builder: (context, state) => const ProvidersPage(),
+          deferredRoute(
+            'providers',
+            DeferredFeatures.settings,
+            (context, state) => providers_page.ProvidersPage(),
             routes: [
-              GoRoute(
-                path: 'edit',
-                builder: (context, state) => ProviderEditorPage(
+              deferredRoute(
+                'edit',
+                DeferredFeatures.settings,
+                (context, state) => provider_editor_page.ProviderEditorPage(
                   providerId: state.uri.queryParameters['id'],
                   presetId: state.uri.queryParameters['preset'],
                 ),
@@ -382,26 +514,35 @@ GoRouter createAppRouter({
             DeferredFeatures.glossaries,
             (context, state) => glossaries_page.GlossariesPage(),
           ),
-          GoRoute(
-            path: 'quality',
-            builder: (context, state) => const QualityModesPage(),
+          deferredRoute(
+            'quality',
+            DeferredFeatures.settings,
+            (context, state) => quality_page.QualityModesPage(),
           ),
-          GoRoute(
-            path: 'tabs',
-            builder: (context, state) => const TabOrderPage(),
+          deferredRoute(
+            'tabs',
+            DeferredFeatures.settings,
+            (context, state) => tab_order_page.TabOrderPage(),
           ),
-          GoRoute(
-            path: 'voice',
-            builder: (context, state) => const VoiceInputSettingsPage(),
+          deferredRoute(
+            'voice',
+            DeferredFeatures.settings,
+            (context, state) => voice_settings_page.VoiceInputSettingsPage(),
           ),
           deferredRoute(
             'usage',
             DeferredFeatures.usage,
             (context, state) => const _UsageRoute(),
           ),
-          GoRoute(
-            path: 'about',
-            builder: (context, state) => const AboutPage(),
+          deferredRoute(
+            'network',
+            DeferredFeatures.settings,
+            (context, state) => network_page.NetworkActivityPage(),
+          ),
+          deferredRoute(
+            'about',
+            DeferredFeatures.settings,
+            (context, state) => about_page.AboutPage(),
           ),
         ],
       ),
@@ -445,9 +586,10 @@ GoRouter createAppRouter({
           ),
           StatefulShellBranch(
             routes: [
-              GoRoute(
-                path: AppRoutes.proofread,
-                builder: (context, state) => ProofreadPage(
+              deferredRoute(
+                AppRoutes.proofread,
+                DeferredFeatures.proofread,
+                (context, state) => proofread_page.ProofreadPage(
                   initialText: state.uri.queryParameters['text'],
                 ),
               ),
@@ -519,6 +661,21 @@ String? deepLinkLocation(Uri uri) {
     path: '/${path.path}',
     query: uri.hasQuery && uri.query.isNotEmpty ? uri.query : null,
   ).toString();
+}
+
+/// Whether something shared from another app may be translated without the
+/// user pressing Translate: only by the translator's engine when it is not
+/// an AI model, outside compare mode (the rule of shared text, see
+/// `TranslateCubit.setExternalInput`). False without a [TranslateCubit].
+bool mayAutoTranslateShared(BuildContext context) {
+  final TranslateState state;
+  try {
+    state = context.read<TranslateCubit>().state;
+  } on ProviderNotFoundException {
+    return false;
+  }
+  final engine = state.engine;
+  return engine != null && !engine.isAi && !state.compareMode;
 }
 
 /// [LaunchRedirect] to the first tab of the user's order

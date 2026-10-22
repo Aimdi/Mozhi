@@ -103,6 +103,32 @@ void main() {
         expect(cache.isEmpty, isTrue);
       });
 
+      test('ignores suspect results but keeps other warnings', () {
+        expect(
+          cache.store(
+            claude,
+            request,
+            result('Hello world').copyWith(
+              warnings: const [TranslationWarning(TranslationWarningKind.echo)],
+            ),
+          ),
+          isFalse,
+        );
+        expect(cache.isEmpty, isTrue);
+        expect(
+          cache.store(
+            claude,
+            request,
+            result('Hallo Welt').copyWith(
+              warnings: const [
+                TranslationWarning(TranslationWarningKind.numbers),
+              ],
+            ),
+          ),
+          isTrue,
+        );
+      });
+
       test('stores nothing when maxEntries is 0', () {
         final cache = TranslationCache(maxEntries: 0, clock: () => now);
         expect(cache.store(claude, request, result('Hallo Welt')), isFalse);

@@ -61,7 +61,23 @@ alone.
 - **Output actions:** copy, share, listen, add to favourites,
   [**Check meaning**](#meaning-check), and the elapsed time per engine. With
   an AI model available, the output also offers **Insights**, **Show
-  romanization** and **Show matching phrases** (see below).
+  romanization** and **Show matching phrases** (see below). **Show matching
+  phrases** also works with the on-device engine, for free and without a
+  network.
+- **Translation checks.** Every result is checked on the device. A note
+  under it says when placeholders (`{name}`, `%s`), tags, links, e-mail
+  addresses, numbers or glossary terms went missing, when the result looks
+  like the original text, the wrong language or a reply instead of a
+  translation, and how many personal details stayed on the device. AI
+  models get one corrected attempt first. Mozhi, DeepL and LibreTranslate
+  never see placeholders and markup: they are protected and put back.
+- **Automatic fallback.** When an engine returns the original text, the
+  wrong language or a garbled or chat-style result, Mozhi translates again
+  with another engine you already allowed (on this device first) and says
+  which one ("Google returned the original text. Translated on this
+  device."). Paid AI providers are never tried automatically.
+- **When the network fails**, the error offers **Translate on this device**
+  if the language pair is installed, or its download.
 - **More languages at once:** **Also translate into…** under the translation
   adds up to four more target languages; see
   [Extra target languages](#extra-target-languages).
@@ -69,13 +85,19 @@ alone.
   include definitions with examples and synonyms.
 - **Same language in and out** (AI): choose the same source and target
   language to have the text improved and rephrased instead of translated.
-- **Long texts** (AI): the input holds up to 20,000 characters. AI models
-  get texts longer than 6,000 characters in parts (2,500 characters for
-  local models, which usually have small context windows). Parts are cut at
-  paragraph boundaries where possible (else at line breaks or sentence
-  ends; code blocks are never cut), two are translated at a time, and each
-  part comes with the end of the part before it as context, so terms and
-  tone stay consistent. The translation fills in as the parts finish.
+- **Long texts:** the input holds up to 20,000 characters.
+  - **AI models** get texts longer than 6,000 characters in parts (2,500
+    characters for local models, which usually have small context windows).
+    Parts are cut at paragraph boundaries where possible (else at line
+    breaks or sentence ends; code blocks are never cut), and two are
+    translated at a time. Each part comes with the end of the part before
+    it and of its translation, plus the names and glossary terms used so
+    far, so terms and tone stay consistent.
+  - **Mozhi engines, DeepL and LibreTranslate** get parts too, within each
+    engine's limit (for example 4,500 characters for Google, 1,500 for
+    Reverso).
+  - The translation fills in as the parts finish. If a part fails, the
+    finished parts stay on screen with the error.
 
 ## Languages and detection
 
@@ -655,6 +677,13 @@ stays behind (details in [Privacy](privacy.md)):
 - **HTTP proxy** (Android): every request goes through it, for example
   Orbot's `127.0.0.1:8118` for Tor; needed for `.onion` and `.i2p`
   servers. Applies after restarting the app.
+- **Hide personal data from online engines** (on by default): e-mail
+  addresses, phone numbers, IBANs, card numbers and IP addresses are
+  replaced before text goes online and put back into the translation; the
+  result says how many items stayed on the device.
+- **Network activity**: every request of this session, grouped by
+  destination, with its purpose and size and never its text. Kept in
+  memory only.
 - **Delete all local data**: the history and its key, settings, keys and
   passwords, presets, glossaries, usage counters, cached lists and offline
   models; setup then starts again.
@@ -741,8 +770,9 @@ has a text-to-speech engine (Android and most browsers). The settings are kept o
 ## Android integration
 
 - **Translate with Mozhi** appears in the text-selection menu of other apps.
-  A quick-translate sheet opens over the other app. If the text was selected
-  in an editable field, **Replace** puts the translation back into that app;
+  A quick-translate sheet opens over the other app, which stays visible
+  behind it; closing the sheet returns to it. If the text was selected in
+  an editable field, **Replace** puts the translation back into that app;
   **Open in app** continues in the full translator.
 - **Quick Settings tile** and the **Translate clipboard** app shortcut open
   the translator with the clipboard text.
@@ -761,7 +791,11 @@ has a text-to-speech engine (Android and most browsers). The settings are kept o
   Camera button is left out. On Android 12 and later it uses your
   wallpaper colours (Material You) and the launcher's corner radius; it
   follows light and dark mode on all versions.
-- **Share** text from any app to Mozhi to translate it.
+- **Share** text from any app to Mozhi to translate it. Share an
+  **image** (a screenshot, a photo) to read and translate it on the image
+  screen, or a subtitle, text or JSON **file** to open it in Documents.
+  Shared content never starts an AI request by itself: with an AI engine it
+  waits for **Translate**.
 - **Material You**: with **Dynamic color** on (Android 12 and later), the app
   takes its colours from your wallpaper.
 

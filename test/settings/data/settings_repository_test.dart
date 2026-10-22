@@ -73,6 +73,44 @@ class _GatedStore extends MemoryStore {
   }
 }
 
+/// A [MemoryStore] for secrets that records its writes and deletes, can
+/// fail reads of [unreadable] keys and the next write, and holds reads
+/// until [readGate] completes (counting how many wait at once).
+class _SecretStore extends MemoryStore {
+  final List<String> changes = [];
+  final Set<String> unreadable = {};
+  bool failNextWrite = false;
+  Completer<void> readGate = Completer<void>()..complete();
+  int _reading = 0;
+  int maxConcurrentReads = 0;
+
+  @override
+  Future<String?> read(String key) async {
+    _reading++;
+    if (_reading > maxConcurrentReads) maxConcurrentReads = _reading;
+    await readGate.future;
+    _reading--;
+    if (unreadable.contains(key)) throw StateError('read $key');
+    return await super.read(key);
+  }
+
+  @override
+  Future<void> write(String key, String value) async {
+    if (failNextWrite) {
+      failNextWrite = false;
+      throw StateError('write $key');
+    }
+    changes.add('write $key');
+    await super.write(key, value);
+  }
+
+  @override
+  Future<void> delete(String key) async {
+    changes.add('delete $key');
+    await super.delete(key);
+  }
+}
+
 void main() {
   group(SettingsRepository, () {
     late MemoryStore prefs;
@@ -711,6 +749,158 @@ void main() {
         expect(loaded.providers.map((p) => p.headers), [isEmpty, isEmpty]);
         expect(loaded.instances.single.url, plainUrl);
       });
+    });
+  });
+
+  group('SettingsRepository secrets', () {
+    const headers = {'X-Auth': 'secret-header'};
+    const securedUrl = 'https://user:pass@mozhi.example.org';
+    late MemoryStore prefs;
+    late _SecretStore secrets;
+    late SettingsRepository repository;
+    final settings = AppSettings(
+      instances: const [MozhiInstance(url: securedUrl)],
+      providers: [
+        _provider('a', apiKey: 'key-a').copyWith(headers: headers),
+        _provider('b'),
+      ],
+    );
+
+    setUp(() {
+      prefs = MemoryStore();
+      secrets = _SecretStore();
+      repository = SettingsRepository(prefs: prefs, secrets: secrets);
+    });
+
+    test('are read all at once', () async {
+      await repository.save(settings);
+      secrets.readGate = Completer<void>();
+
+      final loading = SettingsRepository(prefs: prefs, secrets: secrets).load();
+      await pumpEventQueue();
+      secrets.readGate.complete();
+      final loaded = await loading;
+
+      // An API key and the headers per provider, and the credentials.
+      expect(secrets.maxConcurrentReads, 5);
+      expect(loaded, equals(settings));
+    });
+
+    test('are not written again when they did not change', () async {
+      await repository.save(settings);
+      expect(secrets.changes, [
+        'write apikey.a',
+        'write apiheaders.a',
+        'delete apikey.b',
+        'delete apiheaders.b',
+        'write instancecreds',
+      ]);
+      secrets.changes.clear();
+
+      await repository.save(settings.copyWith(seedColor: 1));
+      await repository.save(settings.copyWith(seedColor: 2));
+
+      expect(secrets.changes, isEmpty);
+      expect((await repository.load()).seedColor, 2);
+    });
+
+    test('that were loaded are not written again', () async {
+      await repository.save(settings);
+      secrets.changes.clear();
+      final repository2 = SettingsRepository(prefs: prefs, secrets: secrets);
+
+      final loaded = await repository2.load();
+      await repository2.save(loaded.copyWith(seedColor: 1));
+
+      expect(secrets.changes, isEmpty);
+    });
+
+    test('only the one that changed is written', () async {
+      await repository.save(settings);
+      secrets.changes.clear();
+
+      await repository.save(
+        settings.copyWith(
+          providers: [
+            settings.providers.first,
+            _provider('b', apiKey: 'b2'),
+          ],
+        ),
+      );
+      await repository.save(
+        settings.copyWith(
+          providers: [
+            settings.providers.first.copyWith(apiKey: ''),
+            _provider('b', apiKey: 'b2'),
+          ],
+        ),
+      );
+
+      expect(secrets.changes, ['write apikey.b', 'delete apikey.a']);
+      expect(secrets.values['apikey.b'], 'b2');
+      expect(secrets.values, isNot(contains('apikey.a')));
+    });
+
+    test('are written again after a failed write', () async {
+      await repository.save(settings);
+      final changed = settings.copyWith(
+        providers: [_provider('a', apiKey: 'new').copyWith(headers: headers)],
+      );
+      secrets
+        ..changes.clear()
+        ..failNextWrite = true;
+
+      await expectLater(repository.save(changed), throwsStateError);
+      await repository.save(changed);
+
+      expect(secrets.changes, ['write apikey.a']);
+      expect(secrets.values['apikey.a'], 'new');
+    });
+
+    test(
+      'that could not be read are kept, and replaced by new values',
+      () async {
+        await repository.save(settings);
+        secrets
+          ..changes.clear()
+          ..unreadable.addAll(['apikey.a', 'instancecreds']);
+        final repository2 = SettingsRepository(prefs: prefs, secrets: secrets);
+
+        final loaded = await repository2.load();
+        expect(loaded.providers.first.apiKey, isNull);
+        expect(loaded.instances.single.url, 'https://mozhi.example.org');
+        await repository2.save(loaded.copyWith(seedColor: 1));
+
+        expect(secrets.changes, isEmpty);
+        expect(secrets.values['apikey.a'], 'key-a');
+        expect(secrets.values, contains('instancecreds'));
+
+        await repository2.save(
+          loaded.copyWith(
+            providers: [loaded.providers.first.copyWith(apiKey: 'typed again')],
+          ),
+        );
+        expect(secrets.changes, ['write apikey.a']);
+        expect(secrets.values['apikey.a'], 'typed again');
+      },
+    );
+
+    test('that could not be read are deleted with their provider', () async {
+      await repository.save(settings);
+      secrets
+        ..changes.clear()
+        ..unreadable.add('apikey.a');
+      final repository2 = SettingsRepository(prefs: prefs, secrets: secrets);
+      await repository2.load();
+
+      await repository2.save(const AppSettings());
+
+      expect(secrets.changes, [
+        'delete instancecreds',
+        'delete apikey.a',
+        'delete apiheaders.a',
+      ]);
+      expect(secrets.values, isEmpty);
     });
   });
 

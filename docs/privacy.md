@@ -23,6 +23,12 @@ goes anywhere else.
 - **Your text is sent only to the back end you choose** for that
   translation: a Mozhi instance, an AI provider, a DeepL or LibreTranslate
   service, or nowhere at all with the offline engine and local models.
+- **Personal data stays behind.** E-mail addresses, phone numbers, IBANs,
+  card numbers and IP addresses are [replaced before text goes
+  online](#personal-data-shield) and put back into the translation.
+- **You can check what left the device.** [Network
+  activity](#network-activity) lists every request of this session, without
+  its text.
 
 ## Privacy modes
 
@@ -79,6 +85,46 @@ The chip names the instance that actually answered, so a failover is
 visible. The engine list shows the same categories as a badge: **On
 device**, **Self-hosted**, **Public server** or **Cloud**.
 
+When an engine's result is clearly wrong (the original text, the wrong
+language, a garbled or chat-style reply), Mozhi may translate again with
+another engine, and the result says so. It only uses engines that need no
+new consent: the on-device engine first, then servers and providers you
+already allowed. A paid AI provider is never tried automatically.
+
+### Personal data shield
+
+**Settings > Privacy > Hide personal data from online engines** (on by
+default) replaces e-mail addresses, phone numbers, IBANs (checked with
+their check digits), payment card numbers (checked with the Luhn
+algorithm) and IPv4 addresses with placeholders before the text goes to a
+Mozhi instance, an AI provider or a DeepL or LibreTranslate service, and
+puts them back into the translation on the device. The result says how
+many items stayed on the device. Language detection and back-translation
+for the meaning check are covered too. If an engine damages a placeholder,
+the text is **not** sent again unmasked: the result is marked instead.
+
+It doesn't apply to the on-device engine, which never sends anything. Not
+yet covered: the AI extras (alternatives, word insights, explanations,
+dictionary, alignment, proofreading, romanization) and text-to-speech,
+which receive the text as written. Names and addresses aren't detected.
+
+### Network activity
+
+**Settings > Privacy > Network activity** lists every request the app made
+this session: when, to which host, why (translation, AI, speech, photo,
+catalogue, model download, web page), how many bytes went each way, the
+answer's status, and whether it went through your proxy. It groups them by
+destination with a line on who can read what was sent, and has Clear and
+Copy summary actions.
+
+The log never records text, paths, query strings, request bodies or
+headers. It lives in memory only (the last 500 requests), is never saved
+and is gone when the app closes. Requests the app refuses (for example
+plain `http` to a public server) are never sent, so they don't appear.
+Network use outside the app's own connections isn't listed: the system's
+speech recognition and text-to-speech, links you open in the browser, and
+in the web app the browser's own loading of the app's files.
+
 ## What is sent, to whom, and how long it is kept
 
 Mozhi itself keeps nothing off the device. "Kept" below means what Mozhi
@@ -102,7 +148,7 @@ stores on the device and what the other party may keep.
 | Offline speech model download (**Settings > Voice input**) | `huggingface.co` (the [whisper.cpp models](https://huggingface.co/ggerganov/whisper.cpp)), which may redirect to its download servers | Plain file requests (HTTPS `GET`, `Range` to resume): Hugging Face sees your IP address, the time and which model (Fast or Better) you download. No voice, text, identifiers or cookies | Hugging Face's logs. The model stays on the device until you delete it; **Import from files** contacts nothing. |
 | Engine and language lists | The Mozhi instances in your list | Nothing about you except your IP address | The instance's logs. Stored on the device as a cache. |
 | **Check instances**, **Test**, **Test connection**, **Browse models** | Each instance or provider, only when you ask | A version request, or a model list request with your key | The server's logs. |
-| Web app fonts | `fonts.gstatic.com`, when a page needs a script the bundled font lacks (for example Chinese or Devanagari) | The font file name and your IP address, not your text | The browser caches the font. |
+| Web app fonts | The server that hosts the web app: the release zip and the CI builds include the fonts for scripts the bundled font lacks (for example Chinese or Devanagari) and emoji. Only a web build made without `tool/web_fallback_fonts.py` ([building](building.md#web-build-self-hosted-fonts-and-deferred-languages)) fetches them from Google's `fonts.gstatic.com` | The font file name, so which scripts you read, and your IP address; not your text | The browser caches the font. |
 
 Text from other apps (text selection, the share sheet, the Quick Settings
 tile and widget) and links (`/translate?text=…`, `mozhi://…`) is treated

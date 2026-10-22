@@ -13,10 +13,12 @@ import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/core/network/network_session.dart';
 import 'package:mozhi/core/on_device_ml.dart';
 import 'package:mozhi/history/data/history_repository.dart';
+import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/platform/offline_engine.dart';
 import 'package:mozhi/platform/offline_speech.dart';
 import 'package:mozhi/platform/shared_text_service.dart';
 import 'package:mozhi/settings/data/settings_repository.dart';
+import 'package:mozhi/settings/models/app_languages.dart';
 import 'package:mozhi/speech/speech_service.dart';
 import 'package:mozhi/usage/data/usage_tracker.dart';
 import 'package:mozhi/voice/offline/offline_speech.dart';
@@ -85,14 +87,20 @@ Future<void> bootstrap(
 /// Creates the long-lived services and loads the saved settings.
 ///
 /// [prefs] and [secrets] default to the platform stores; secure storage
-/// falls back to memory when it is unavailable (reported by
+/// falls back to memory when its startup probe fails (reported by
 /// [AppDependencies.secretsInMemory]). [offlineTranslator] defaults to
 /// [createOfflineTranslator]: Mozilla's Bergamot engine (Android; never
-/// available on the web), created while the settings load. Its model
-/// downloads go through [NetworkSession.current] (the proxy setting).
-/// [offlineSpeech] defaults to [createOfflineSpeech]: Whisper for offline
-/// voice input (Android on a supported CPU; null elsewhere), behind the
-/// [SpeechInputService].
+/// available on the web). Its model downloads go through
+/// [NetworkSession.current] (the proxy setting). [offlineSpeech] defaults
+/// to [createOfflineSpeech]: Whisper for offline voice input (Android on a
+/// supported CPU; null elsewhere), behind the [SpeechInputService].
+///
+/// Nothing waits for what it does not need: the offline engine and the
+/// offline speech load their catalogues while the settings load, the
+/// secure-storage probe runs alongside the settings read, and the secrets
+/// are read at once (see [SettingsRepository.load]). The app's texts in its
+/// language load before it returns ([preloadAppLocalizations]: on the web
+/// a deferred part of the app), so the first frame needs no wait.
 ///
 /// Every backend client of the [TranslationRepository] comes from one
 /// [NetworkSession] built from the saved `httpProxy` (a later change
@@ -105,24 +113,43 @@ Future<AppDependencies> createDependencies({
   NetworkSession Function(String? proxy)? network,
   Future<OfflineSpeech?> Function(KeyValueStore preferences)? offlineSpeech,
 }) async {
-  // Started first: loading the model catalog runs while the stores open.
+  // Started first: loading the model catalogues runs while the stores open.
+  // Neither sends anything yet (downloads use the session set below).
   final offlineFuture = offlineTranslator != null
       ? Future.value(offlineTranslator)
       : createOfflineTranslator();
   final preferences = prefs ?? PreferencesStore();
-  final secretStore = secrets ?? await _secureStore();
+  final speechFuture = (offlineSpeech ?? _offlineSpeech)(preferences);
+  final secretStore =
+      secrets ?? FallbackKeyValueStore(SecureStore(appSecureStorage));
 
   final settingsRepository = SettingsRepository(
     prefs: preferences,
     secrets: secretStore,
   );
+  // The probe runs while the settings JSON is read; reading the secrets
+  // waits for it.
+  final probe = switch (secretStore) {
+    final FallbackKeyValueStore store => store.probe(),
+    _ => Future<void>.value(),
+  };
   final settings = await settingsRepository.load();
+  await probe;
+
+  final texts = preloadAppLocalizations([
+    AppLanguages.resolve(settings.appLocale) ??
+        AppLanguages.resolveDeviceLocales(
+          PlatformDispatcher.instance.locales,
+          AppLanguages.supported,
+        ),
+  ]);
 
   final session = (network ?? _networkSession)(settings.httpProxy);
   NetworkSession.current = session;
 
   final offline = await offlineFuture;
-  final speech = await (offlineSpeech ?? _offlineSpeech)(preferences);
+  final speech = await speechFuture;
+  await texts;
   final translationRepository =
       TranslationRepository(
         mozhiClientFactory: session.mozhiClient,
@@ -186,9 +213,3 @@ const appSecureStorage = FlutterSecureStorage(
   mOptions: MacOsOptions(usesDataProtectionKeychain: false),
   webOptions: WebOptions(useSessionStorage: true),
 );
-
-Future<KeyValueStore> _secureStore() async {
-  final store = FallbackKeyValueStore(SecureStore(appSecureStorage));
-  await store.probe();
-  return store;
-}

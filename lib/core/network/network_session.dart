@@ -6,25 +6,29 @@ import 'package:llm_api/llm_api.dart';
 import 'package:mozhi/core/network/http_client_factory.dart';
 import 'package:mozhi/core/network/mozhi_instance_checker.dart';
 import 'package:mozhi/core/network/network_policy.dart';
+import 'package:mozhi/core/privacy/egress/egress.dart';
 import 'package:mozhi_api/mozhi_api.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 /// The network setup of this run of the app: the proxy read from the
 /// settings at startup (`AppSettings.httpProxy`; a change applies after a
-/// restart), the [NetworkPolicy], and the one HTTP [client] every
-/// translation backend shares. Its factories create the backend clients
-/// for the `TranslationRepository`.
+/// restart), the [NetworkPolicy], the one HTTP [client] every translation
+/// backend shares, and the [ledger] of the requests made through it. Its
+/// factories create the backend clients for the `TranslationRepository`.
 ///
 /// `bootstrap` creates it and makes it [current]; widgets that talk to a
 /// backend outside the repository (the instance checks) use [current].
 class NetworkSession {
   /// [proxy] is `host:port` (see [ProxyAddress.parse]); it is ignored in a
   /// browser. [httpClient] replaces the platform client from
-  /// [createHttpClient] (tests); either is wrapped in a
-  /// [BackendHttpClient] with [policy].
-  new({String? proxy, http.Client? httpClient})
+  /// [createHttpClient] (tests); either is wrapped in an
+  /// [EgressRecordingClient] that records every request in [ledger]
+  /// (default: a new, empty one), and that in a [BackendHttpClient] with
+  /// [policy].
+  new({String? proxy, http.Client? httpClient, EgressLedger? ledger})
     : proxy = kIsWeb ? null : _blankToNull(proxy),
-      _platformClient = httpClient;
+      _platformClient = httpClient,
+      ledger = ledger ?? EgressLedger();
 
   /// The session of this run (see `bootstrap`). Until one is set, a
   /// session without a proxy.
@@ -32,6 +36,12 @@ class NetworkSession {
 
   /// The proxy setting this session uses, or null for direct connections.
   final String? proxy;
+
+  /// The requests this session sent (in memory only; see [EgressLedger]):
+  /// every backend, the web page translator and the model downloads (which
+  /// use [current]'s [client]). Requests the [policy] refuses are not sent
+  /// and not recorded.
+  final EgressLedger ledger;
 
   final http.Client? _platformClient;
   bool _clientCreated = false;
@@ -51,8 +61,25 @@ class NetworkSession {
     return _platformClient ?? createHttpClient(proxy: proxy);
   }();
 
+  /// Whether a request to [host] goes through the [proxy]: all of them but
+  /// those to this device and the private network, which a proxy such as
+  /// Tor could not reach (the platform client's `bypassesProxy`; `.onion`
+  /// and `.i2p` always use it).
+  bool usesProxyFor(String host) {
+    if (!hasProxy) return false;
+    final name = host.toLowerCase();
+    final bypassed =
+        DataDestination.isPrivateHost(name) &&
+        !name.endsWith('.onion') &&
+        !name.endsWith('.i2p');
+    return !bypassed;
+  }
+
   /// The client of every backend; created on first use.
-  late final http.Client client = BackendHttpClient(_platform, policy: policy);
+  late final http.Client client = BackendHttpClient(
+    EgressRecordingClient(_platform, ledger: ledger, viaProxy: usesProxyFor),
+    policy: policy,
+  );
 
   /// The client of the web page translator, for pages the user asks for:
   /// the same connection and proxy as [client], so a page is never fetched
@@ -60,7 +87,12 @@ class NetworkSession {
   /// plain http). See [WebsiteHttpClient]. Closing it does nothing; [close]
   /// closes the connection.
   late final http.Client webClient = WebsiteHttpClient(
-    _platform,
+    EgressRecordingClient(
+      _platform,
+      ledger: ledger,
+      purpose: EgressPurpose.webPage,
+      viaProxy: usesProxyFor,
+    ),
     policy: policy,
   );
 
@@ -69,11 +101,24 @@ class NetworkSession {
     (baseUrl, timeout) => mozhiClient(baseUrl, timeout: timeout),
   );
 
-  /// A Mozhi client for [baseUrl] on [client].
-  MozhiApiClient mozhiClient(
-    Uri baseUrl, {
-    Duration timeout = const Duration(seconds: 30),
-  }) => MozhiApiClient(baseUrl: baseUrl, httpClient: client, timeout: timeout);
+  /// How long a Mozhi request may take through a proxy: Tor adds seconds
+  /// to every hop.
+  static const proxyRequestTimeout = Duration(seconds: 45);
+
+  /// How long a Mozhi request may take in this session:
+  /// [MozhiApiClient.defaultTimeout], or [proxyRequestTimeout] with a
+  /// proxy.
+  Duration get mozhiRequestTimeout =>
+      hasProxy ? proxyRequestTimeout : MozhiApiClient.defaultTimeout;
+
+  /// A Mozhi client for [baseUrl] on [client], with [timeout] (default
+  /// [mozhiRequestTimeout]).
+  MozhiApiClient mozhiClient(Uri baseUrl, {Duration? timeout}) =>
+      MozhiApiClient(
+        baseUrl: baseUrl,
+        httpClient: client,
+        timeout: timeout ?? mozhiRequestTimeout,
+      );
 
   /// An LLM client for [endpoint] on [client].
   LlmClient llmClient(LlmEndpoint endpoint) =>

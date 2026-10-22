@@ -3,7 +3,8 @@ import 'dart:convert';
 import 'package:mozhi/documents/core/document_builder.dart';
 import 'package:mozhi/documents/core/document_format.dart';
 import 'package:mozhi/documents/core/parsed_document.dart';
-import 'package:mozhi/documents/core/parsers/protected_patterns.dart';
+import 'package:translation_repository/translation_repository.dart'
+    show ProtectedPatterns;
 
 /// Thrown when a document cannot be parsed in the requested format.
 class DocumentParseException implements Exception {

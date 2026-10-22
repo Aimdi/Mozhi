@@ -28,6 +28,14 @@ import 'package:translation_repository/translation_repository.dart';
 /// [SettingsUnavailableException] when stored settings exist that the
 /// failed [load] did not see). A later successful [load] lifts this.
 ///
+/// [load] reads all secrets at once. [save] writes only the secrets that
+/// changed since they were last read or written: settings are saved after
+/// every change (a new language pair after each translation), and each
+/// Keystore write is slow and can fail. A secret that [load] could not read
+/// is not deleted by a later [save] that still has no value for it (that
+/// would turn a passing storage error into a lost API key); removing its
+/// provider or instance still deletes it.
+///
 /// [prefs] defaults to [PreferencesStore] and [secrets] to [SecureStore].
 /// Saves are serialised, so the last [save] call always wins.
 class SettingsRepository {
@@ -64,10 +72,12 @@ class SettingsRepository {
   /// load/save. Used together with the stored JSON to find orphan keys.
   final Set<String> _knownProviderIds = {};
 
-  /// What [instanceCredentialsKey] holds (null: nothing), as last read or
-  /// written; unknown until then ([_credentialsKnown]).
-  String? _storedCredentials;
-  bool _credentialsKnown = false;
+  /// What [secrets] holds (null: nothing) under each key, as last read or
+  /// written by this repository; keys missing here are unknown.
+  final Map<String, String?> _storedSecrets = {};
+
+  /// Keys whose last read in [load] failed: what they hold is unknown.
+  final Set<String> _unreadableSecrets = {};
 
   Future<void> _pendingSave = Future.value();
 
@@ -93,13 +103,29 @@ class SettingsRepository {
         settings.providers.any((p) => p.headers.isNotEmpty) ||
         settings.instances.any((i) => urlCredentials(i.url) != null);
 
+    // Every secret at once: each is a separate Keystore call.
+    final (apiKeys, storedHeaders, storedCredentials) = await (
+      Future.wait([
+        for (final provider in settings.providers)
+          _readSecret(apiKeyKey(provider.id)),
+      ]),
+      Future.wait([
+        for (final provider in settings.providers)
+          // Older versions kept the headers in the JSON itself.
+          if (provider.headers.isEmpty)
+            _readSecret(headersKey(provider.id))
+          else
+            Future<String?>.value(),
+      ]),
+      _readCredentials(),
+    ).wait;
+
     final providers = <AiProviderConfig>[];
-    for (final provider in settings.providers) {
-      final apiKey = await _readSecret(apiKeyKey(provider.id));
+    for (final (index, provider) in settings.providers.indexed) {
+      final apiKey = apiKeys[index];
       final stored = provider.headers.isNotEmpty
           ? provider.headers
-          : _decodeStrings(await _readSecret(headersKey(provider.id))) ??
-                const <String, String>{};
+          : _decodeStrings(storedHeaders[index]) ?? const <String, String>{};
       final headers = {
         for (final MapEntry(:key, :value) in stored.entries)
           if (legacyAttributionHeaders[key] != value) key: value,
@@ -109,7 +135,6 @@ class SettingsRepository {
         provider.copyWith(apiKey: apiKey, headers: Map.unmodifiable(headers)),
       );
     }
-    final storedCredentials = await _readCredentials();
     final instances = <MozhiInstance>[
       for (final instance in settings.instances)
         switch (storedCredentials[instance.url]) {
@@ -173,22 +198,18 @@ class SettingsRepository {
     final encodedCredentials = credentials.isEmpty
         ? null
         : jsonEncode(credentials);
-    final credentialsChanged =
-        !_credentialsKnown || encodedCredentials != _storedCredentials;
-    if (credentialsChanged && encodedCredentials != null) {
-      await secrets.write(instanceCredentialsKey, encodedCredentials);
+    if (encodedCredentials != null) {
+      await _writeSecret(instanceCredentialsKey, encodedCredentials);
     }
 
     await prefs.write(settingsKey, jsonEncode(settings.toJson()));
 
-    if (credentialsChanged && encodedCredentials == null) {
-      await secrets.delete(instanceCredentialsKey);
+    if (encodedCredentials == null) {
+      await _writeSecret(instanceCredentialsKey, null);
     }
-    _storedCredentials = encodedCredentials;
-    _credentialsKnown = true;
     for (final id in staleIds) {
-      await secrets.delete(apiKeyKey(id));
-      await secrets.delete(headersKey(id));
+      await _deleteSecret(apiKeyKey(id));
+      await _deleteSecret(headersKey(id));
     }
     _knownProviderIds
       ..clear()
@@ -196,13 +217,27 @@ class SettingsRepository {
   }
 
   /// Stores [value] under [key] in [secrets], or deletes it when [value]
-  /// is null or empty.
+  /// is null or empty; does nothing when [secrets] already holds that
+  /// ([_storedSecrets]), or when there is nothing to store for a key that
+  /// [load] could not read.
   Future<void> _writeSecret(String key, String? value) async {
-    if (value == null || value.isEmpty) {
-      await secrets.delete(key);
-    } else {
-      await secrets.write(key, value);
+    final next = (value == null || value.isEmpty) ? null : value;
+    if (next == null) {
+      if (!_unreadableSecrets.contains(key)) await _deleteSecret(key);
+      return;
     }
+    if (_storedSecrets.containsKey(key) && _storedSecrets[key] == next) return;
+    await secrets.write(key, next);
+    _storedSecrets[key] = next;
+    _unreadableSecrets.remove(key);
+  }
+
+  /// Deletes [key] from [secrets] unless it is known to hold nothing.
+  Future<void> _deleteSecret(String key) async {
+    if (_storedSecrets.containsKey(key) && _storedSecrets[key] == null) return;
+    await secrets.delete(key);
+    _storedSecrets[key] = null;
+    _unreadableSecrets.remove(key);
   }
 
   /// The settings (without the secrets kept in [secrets], unless an older
@@ -231,29 +266,26 @@ class SettingsRepository {
   }
 
   /// The non-empty value of [key] in [secrets], or null (also when the
-  /// store fails).
+  /// store fails, which marks [key] unreadable).
   Future<String?> _readSecret(String key) async {
+    final String? value;
     try {
-      final value = await secrets.read(key);
-      return (value?.isEmpty ?? true) ? null : value;
+      value = await secrets.read(key);
     } on Object {
+      _storedSecrets.remove(key);
+      _unreadableSecrets.add(key);
       return null;
     }
+    final stored = (value?.isEmpty ?? true) ? null : value;
+    _storedSecrets[key] = stored;
+    _unreadableSecrets.remove(key);
+    return stored;
   }
 
   /// The stored instance credentials ([instanceCredentialsKey]); empty
   /// when there are none or they cannot be read.
-  Future<Map<String, String>> _readCredentials() async {
-    final String? raw;
-    try {
-      raw = await secrets.read(instanceCredentialsKey);
-    } on Object {
-      return const {};
-    }
-    _storedCredentials = raw;
-    _credentialsKnown = true;
-    return _decodeStrings(raw) ?? const {};
-  }
+  Future<Map<String, String>> _readCredentials() async =>
+      _decodeStrings(await _readSecret(instanceCredentialsKey)) ?? const {};
 
   /// The string values of the JSON object [raw] (headers, credentials as
   /// written by [_save]), or null when there are none (or [raw] is not a

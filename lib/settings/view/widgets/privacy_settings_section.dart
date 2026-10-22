@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/router.dart' show AppRoutes;
 import 'package:mozhi/core/undo_snack_bar.dart';
 import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/history/view/widgets/clear_history_dialog.dart';
@@ -70,6 +72,14 @@ class PrivacySettingsSection extends StatelessWidget {
             onChanged: (value) => cubit.setSecureScreen(enabled: value),
           ),
         SwitchListTile(
+          key: const Key('settings_mask_personal_data'),
+          secondary: const SettingsIcon(Icons.shield_outlined),
+          title: Text(l10n.settingsMaskPersonalData),
+          subtitle: Text(l10n.settingsMaskPersonalDataSubtitle),
+          value: settings.maskPersonalData,
+          onChanged: (value) => cubit.setMaskPersonalData(enabled: value),
+        ),
+        SwitchListTile(
           secondary: const SettingsIcon(Icons.history),
           title: Text(l10n.settingsSaveHistory),
           subtitle: Text(l10n.settingsSaveHistorySubtitle),
@@ -110,6 +120,15 @@ class PrivacySettingsSection extends StatelessWidget {
           subtitle: Text(settings.httpProxy ?? l10n.settingsHttpProxyOff),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => _editProxy(context),
+        ),
+        ListTile(
+          key: const Key('settings_network_activity'),
+          leading: const SettingsIcon(Icons.swap_vert),
+          title: Text(l10n.settingsNetworkActivity),
+          subtitle: Text(l10n.settingsNetworkActivitySubtitle),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () =>
+              GoRouter.maybeOf(context)?.push<void>(AppRoutes.networkActivity),
         ),
         const SettingsDangerDivider(),
         ListTile(

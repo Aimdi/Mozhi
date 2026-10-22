@@ -3,7 +3,10 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:mozhi/app/translate_link.dart';
+import 'package:mozhi/core/network/network_session.dart';
+import 'package:mozhi/core/privacy/egress/egress.dart';
 import 'package:mozhi/platform/shared_text_service.dart';
+import 'package:mozhi/quick_translate/quick_translate_host.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 
 /// Text selected in another app (Android `PROCESS_TEXT`, "Translate with
@@ -60,6 +63,14 @@ Future<String?> readClipboardText() async {
 /// Text from outside the app goes through
 /// [TranslateCubit.setExternalInput]: it is length-capped and never starts
 /// a paid AI translation on its own.
+///
+/// In the translucent quick translate window ([quickHost], when it
+/// [QuickTranslateHost.isActive]) there is nothing but the quick translate
+/// UI: "Open in app" continues in the main window
+/// ([QuickTranslateHost.openTextInApp]), and a window started without a
+/// selection (e.g. recreated after Android ended the app) closes at once.
+/// The window's network activity is handed to the main window's log
+/// ([EgressRelay], from [ledger]).
 class SharedTextHandler {
   new({
     required this.service,
@@ -68,7 +79,9 @@ class SharedTextHandler {
     this.onQuickTranslate,
     this.readClipboard = readClipboardText,
     this.timeout = const Duration(seconds: 20),
-  });
+    QuickTranslateHost? quickHost,
+    this.ledger,
+  }) : quickHost = quickHost ?? QuickTranslateHost.instance;
 
   final SharedTextService service;
   final TranslateCubit translateCubit;
@@ -89,20 +102,38 @@ class SharedTextHandler {
   /// How long to wait for the engines before applying text.
   final Duration timeout;
 
+  /// The quick translate window this app may run in.
+  final QuickTranslateHost quickHost;
+
+  /// The network activity log to join (default: the one of
+  /// [NetworkSession.current]).
+  final EgressLedger? ledger;
+
   StreamSubscription<SharedText>? _texts;
+  void Function()? _stopRelay;
   bool _disposed = false;
 
   /// Handles the launch text, then texts received while running.
   Future<void> start() async {
+    final log = ledger ?? NetworkSession.current.ledger;
+    final inWindow = quickHost.isActive;
+    _stopRelay = inWindow ? EgressRelay.forward(log) : EgressRelay.receive(log);
     _texts = service.texts.listen(
       (shared) => unawaited(handle(shared)),
       onError: (Object _) {},
     );
+    SharedText? initial;
     try {
-      final initial = await service.initialText();
-      if (initial != null && !_disposed) await handle(initial);
+      initial = await service.initialText();
     } on Exception {
       // No platform support: nothing was shared.
+    }
+    if (_disposed) return;
+    if (initial != null) {
+      await handle(initial);
+    } else if (inWindow) {
+      // Nothing to show: never leave an invisible window over the app.
+      await quickHost.close();
     }
   }
 
@@ -115,14 +146,24 @@ class SharedTextHandler {
     }
 
     final text = shared.text;
-    if (text.trim().isEmpty) return;
+    final inWindow = quickHost.isActive;
+    if (text.trim().isEmpty) {
+      if (inWindow) await quickHost.close();
+      return;
+    }
     final quick = onQuickTranslate;
     final offlineOnly = shared.isTranslateOffline;
-    if ((shared.isProcessText || offlineOnly) && quick != null) {
+    if (inWindow && quick == null) {
+      await quickHost.close();
+      return;
+    }
+    if ((shared.isProcessText || offlineOnly || inWindow) && quick != null) {
       quick(
         QuickTranslateRequest(
           text: text,
-          onOpenInApp: () => unawaited(openInApp(text)),
+          onOpenInApp: inWindow
+              ? () => unawaited(quickHost.openTextInApp(text))
+              : () => unawaited(openInApp(text)),
           onReplace: shared.readOnly
               ? null
               : (translation) => unawaited(replaceSelection(translation)),
@@ -169,6 +210,8 @@ class SharedTextHandler {
 
   Future<void> dispose() async {
     _disposed = true;
+    _stopRelay?.call();
+    _stopRelay = null;
     await _texts?.cancel();
   }
 }
