@@ -97,6 +97,14 @@ another engine, and the result says so. It only uses engines that need no
 new consent: the on-device engine first, then servers and providers you
 already allowed. A paid AI provider is never tried automatically.
 
+Text that an engine on this device translated (offline translation or
+on-device AI) is never sent to another engine automatically: its only
+fallback is offline translation, which runs on the phone too, never a
+Mozhi instance, your own server or a provider. Its romanization (with
+**Show transliterations** on) only starts on its own when the extras
+engine is on this device too. Comparing it with another engine (**Compare
+engines**) stays your choice.
+
 ### Personal data shield
 
 **Settings > Privacy & data > Hide personal data from online engines** (on by

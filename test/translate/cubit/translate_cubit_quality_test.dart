@@ -149,6 +149,166 @@ void main() {
       expect(cubit.state.fallback, isNull);
     });
 
+    group('of text translated on the device', () {
+      const onDeviceAi = TranslationEngine(
+        id: 'ai:device-hy-mt2-1.8b-q4',
+        kind: EngineKind.ai,
+        name: 'Hy-MT2 1.8B',
+        providerId: 'device-hy-mt2-1.8b-q4',
+        isLocal: true,
+        onDevice: true,
+      );
+      // The user's own server on the network: allowed, but off the phone.
+      const lanAi = TranslationEngine(
+        id: 'ai:lan',
+        kind: EngineKind.ai,
+        name: 'LAN',
+        providerId: 'lan',
+        isLocal: true,
+      );
+      final networkEngines = [google, deepl, lanAi];
+
+      setUp(() {
+        when(() => mocks.repository.getEngines(refresh: any(named: 'refresh')))
+            .thenAnswer((_) async => [onDeviceAi, ...networkEngines, offline]);
+        // Everything is allowed without a new consent (e.g. Online mode
+        // with a public Mozhi instance).
+        allowWithoutConsent({
+          onDeviceAi.id,
+          for (final engine in networkEngines) engine.id,
+          offline.id,
+        });
+        for (final engine in networkEngines) {
+          answer(engine, resultOf('Das Wetter ist schön.', engine: engine));
+        }
+      });
+
+      Future<TranslateCubit> translateWith(TranslationEngine engine) async {
+        final cubit = mocks.build();
+        addTearDown(cubit.close);
+        await cubit.loadEngines();
+        await cubit.selectEngine(engine);
+        cubit
+          ..setSource(en)
+          ..setTarget(de)
+          ..setInput(sentence);
+        await cubit.translate();
+        return cubit;
+      }
+
+      void verifyNoNetworkEngine() {
+        for (final engine in networkEngines) {
+          verifyNever(() => mocks.repository.translate(engine, any()));
+        }
+      }
+
+      test('on-device AI falls back to the offline engine only', () async {
+        answer(onDeviceAi, suspect(onDeviceAi));
+        answer(offline, resultOf('Das Wetter ist schön.', engine: offline));
+        final cubit = await translateWith(onDeviceAi);
+        verifyNoNetworkEngine();
+        verify(() => mocks.repository.translate(offline, any())).called(1);
+        expect(cubit.state.result?.engineId, offline.id);
+        expect(
+          cubit.state.fallback,
+          TranslationFallback(
+            fromEngineName: onDeviceAi.name,
+            reason: TranslationWarningKind.echo,
+            engineName: offline.name,
+            onDevice: true,
+          ),
+        );
+      });
+
+      test('on-device AI keeps its suspect result when the offline engine '
+          'fails', () async {
+        answer(
+          onDeviceAi,
+          suspect(onDeviceAi, kind: TranslationWarningKind.wrongLanguage),
+        );
+        answer(offline, const OfflineModelMissingException(['de']));
+        final cubit = await translateWith(onDeviceAi);
+        verifyNoNetworkEngine();
+        expect(cubit.state.result?.engineId, onDeviceAi.id);
+        expect(cubit.state.result?.isSuspect, isTrue);
+        expect(cubit.state.result?.isComplete, isTrue);
+        expect(cubit.state.fallback, isNull);
+        expect(cubit.state.status, TranslateStatus.success);
+      });
+
+      test('on-device AI without the offline engine has no fallback', () async {
+        when(() => mocks.repository.getEngines(refresh: any(named: 'refresh')))
+            .thenAnswer((_) async => [onDeviceAi, google]);
+        answer(
+          onDeviceAi,
+          suspect(onDeviceAi, kind: TranslationWarningKind.length),
+        );
+        final cubit = await translateWith(onDeviceAi);
+        verifyNever(() => mocks.repository.translate(google, any()));
+        expect(cubit.state.result?.engineId, onDeviceAi.id);
+        expect(cubit.state.result?.isSuspect, isTrue);
+        expect(cubit.state.fallback, isNull);
+      });
+
+      test('the offline engine has no network fallback', () async {
+        answer(offline, suspect(offline));
+        final cubit = await translateWith(offline);
+        verifyNoNetworkEngine();
+        verifyNever(() => mocks.repository.translate(onDeviceAi, any()));
+        verify(() => mocks.repository.translate(offline, any())).called(1);
+        expect(cubit.state.result?.engineId, offline.id);
+        expect(cubit.state.result?.isSuspect, isTrue);
+        expect(cubit.state.result?.isComplete, isTrue);
+        expect(cubit.state.fallback, isNull);
+        expect(cubit.state.status, TranslateStatus.success);
+      });
+
+      test('the repository decides what stays on the device', () async {
+        // An engine the repository places on the device (whatever its
+        // flags say); the others go over the network.
+        const deviceModel = TranslationEngine(
+          id: 'ai:device-model',
+          kind: EngineKind.ai,
+          name: 'Model',
+          providerId: 'device-model',
+        );
+        when(() => mocks.repository.getEngines(refresh: any(named: 'refresh')))
+            .thenAnswer((_) async => [deviceModel, ...networkEngines, offline]);
+        when(() => mocks.repository.destinationOf(any())).thenAnswer(
+          (invocation) => switch (invocation.positionalArguments.single) {
+            'ai:device-model' ||
+            TranslationEngine.offlineId => const OnDeviceDestination(),
+            'ai:lan' => const SelfHostedDestination('192.168.1.2'),
+            _ => const PublicInstanceDestination('mozhi.example.com'),
+          },
+        );
+        allowWithoutConsent({
+          deviceModel.id,
+          for (final engine in networkEngines) engine.id,
+        });
+        answer(deviceModel, suspect(deviceModel));
+        answer(offline, Exception('no model'));
+        final cubit = await translateWith(deviceModel);
+        verifyNoNetworkEngine();
+        verify(() => mocks.repository.translate(offline, any())).called(1);
+        expect(cubit.state.result?.engineId, deviceModel.id);
+        expect(cubit.state.fallback, isNull);
+      });
+
+      test('a network engine still falls back to the device, then to '
+          'allowed servers', () async {
+        answer(google, suspect(google));
+        answer(offline, Exception('no model'));
+        final cubit = await translateWith(google);
+        verify(() => mocks.repository.translate(offline, any())).called(1);
+        verify(() => mocks.repository.translate(deepl, any())).called(1);
+        verifyNever(() => mocks.repository.translate(onDeviceAi, any()));
+        expect(cubit.state.result?.engineId, deepl.id);
+        expect(cubit.state.fallback?.engineName, deepl.name);
+        expect(cubit.state.fallback?.onDevice, isFalse);
+      });
+    });
+
     test('skips engines that need a new consent', () async {
       when(() => mocks.repository.getEngines(refresh: any(named: 'refresh')))
           .thenAnswer((_) async => [google, deepl]);

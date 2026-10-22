@@ -172,10 +172,19 @@ session warms the phone. Mozhi is careful about that:
   (romanization, insights, matching phrases). With on-device AI as the
   engine, a line under your text says why; press **Enter** or **Translate**
   to translate. Everything else works as usual.
+- Choosing on-device AI as the engine loads the model in the background,
+  so that the first translation is quicker, but not while the phone is hot
+  or battery saver is on: the first translation loads it then.
+- Every reply has a length limit in proportion to the text (about three
+  times its length, plus a little), so a model that starts repeating
+  itself stops early instead of running until its 4,096-token window is
+  full. Such a reply is shown as cut short.
 - The model is freed when you leave the app, so it doesn't hold memory or
   run in the background.
 - Nothing runs on its own: on-device AI only works when you translate or
-  ask for an extra.
+  ask for an extra. A translation that has already started (a long text,
+  a document or a web page, part by part) runs to its end even if the
+  phone gets hot; **Cancel** stops it.
 
 ## Privacy
 
@@ -187,6 +196,14 @@ session warms the phone. Mozhi is careful about that:
 - With an on-device engine selected and a privacy mode other than
   **Online**, the extras use the on-device assistant model rather than a
   cloud provider, so they stay on the phone too.
+- A result that looks wrong (the original text, the wrong language, a
+  chat-style reply) is never sent to another engine automatically: Mozhi
+  only tries offline translation (Bergamot), on the phone, and otherwise
+  shows the result with a note. Text from on-device AI goes to a Mozhi
+  instance, your own server or a provider only when you choose to compare
+  it with one (**Compare engines**). Its romanization only starts on its
+  own when the extras engine is on the phone too.
+- History lists on-device AI translations under **On device**.
 - The only network use is downloading a model, when you tap **Download**:
   from the model source you chose (below). That server sees your IP address
   and which file you download, nothing else. Importing a file needs no

@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:llama_engine/llama_engine.dart';
 import 'package:llm_api/llm_api.dart';
 import 'package:mozhi/on_device_ai/data/on_device_runtime.dart';
+import 'package:mozhi/platform/device_conditions.dart';
 
 /// The in-process [LlmClient] of an on-device model
 /// ([LlmProvider.onDevice]): the AI features talk to it as to any provider,
@@ -14,16 +15,19 @@ import 'package:mozhi/on_device_ai/data/on_device_runtime.dart';
 ///   ([LlamaGenerateRequest]): system messages joined first (blank lines
 ///   between them), the other messages in order (Qwen3's last user
 ///   message ends with [noThinkSwitch], so it answers without reasoning
-///   first), the request's
-///   sampling where set and else the catalogue entry's (else the
-///   engine's), [LlmRequest.jsonOutput] as a JSON grammar and
-///   [LlmRequest.stop]. The reply may use what the prompt leaves of the
-///   context ([LlmRequest.maxTokens] caps it); a prompt that leaves less
-///   than an eighth of it fails at once with an [LlmApiException]
+///   first), the request's sampling where set and else the catalogue
+///   entry's (else the engine's), [LlmRequest.jsonOutput] as a JSON
+///   grammar and [LlmRequest.stop]. The reply gets [LlmRequest.maxTokens]
+///   tokens (when positive), else [replyTokensFor] the prompt (a bound on
+///   its length, so that a model caught in a loop, or told to repeat
+///   itself forever, does not keep the phone busy until the context is
+///   full), and never more than the prompt leaves of the context; a
+///   prompt that leaves less than an eighth of it fails at once with an
+///   [LlmApiException]
 ///   ([contextMessage]), as does one the engine finds too long. Pieces
 ///   stream through [ThinkTagFilter]; a reply the engine ended at its
-///   token limit ([LlamaFinishReason.length]) ends with an
-///   [LlmTruncatedException] carrying the text. Images are not
+///   token limit ([LlamaFinishReason.length]: the cap, or a full context)
+///   ends with an [LlmTruncatedException] carrying the text. Images are not
 ///   supported ([imagesMessage]). The model loads first when needed
 ///   ([OnDeviceRuntime.run]: requests run one at a time). Cancelling the
 ///   subscription cancels the generation (or the request, while it
@@ -31,15 +35,24 @@ import 'package:mozhi/on_device_ai/data/on_device_runtime.dart';
 /// * There is no timeout: nothing waits on a network, and the user can
 ///   cancel.
 /// * [listModels] lists the installed models of the catalogue; [warmUp]
-///   loads the model; [close] does nothing (the runtime is shared).
+///   loads the model, unless the phone is hot or battery saver is on
+///   ([DeviceConditions]: loading a model of 1-3 GB is heavy work the user
+///   did not ask for yet); [close] does nothing (the runtime is shared).
 class OnDeviceLlmClient implements LlmClient {
-  new(this.endpoint, {required this.runtime});
+  new(
+    this.endpoint, {
+    required this.runtime,
+    DeviceConditions? deviceConditions,
+  }) : _deviceConditions = deviceConditions ?? DeviceConditions.instance;
 
   @override
   final LlmEndpoint endpoint;
 
   /// The engine and its queue (shared by every on-device client).
   final OnDeviceRuntime runtime;
+
+  /// The phone's heat and battery saver ([warmUp]).
+  final DeviceConditions _deviceConditions;
 
   /// What [streamChat] fails with for a prompt the model's context cannot
   /// hold with a reply.
@@ -51,6 +64,28 @@ class OnDeviceLlmClient implements LlmClient {
 
   /// The smallest share of the context a reply must have (an eighth).
   static const _minReplyShare = 8;
+
+  /// See [replyTokensFor].
+  static const replyTokensPerPromptToken = 3;
+
+  /// See [replyTokensFor].
+  static const replyTokenMargin = 512;
+
+  /// The most tokens the reply to a prompt of [promptTokens] tokens and
+  /// [promptLength] characters gets when the request sets no
+  /// [LlmRequest.maxTokens]: [replyTokensPerPromptToken] times its tokens,
+  /// or its characters when they are more (text in scripts without spaces
+  /// takes up to a token per character, and the reply may be in such a
+  /// script while the prompt is not), plus [replyTokenMargin] (for short
+  /// prompts and answers that explain). A translation, a proofread text
+  /// or a few alternatives fit; a reply that would go on until the
+  /// context is full does not.
+  static int replyTokensFor({
+    required int promptTokens,
+    required int promptLength,
+  }) =>
+      math.max(promptTokens * replyTokensPerPromptToken, promptLength) +
+      replyTokenMargin;
 
   @override
   Duration get timeout => LlmClient.defaultTimeout;
@@ -85,6 +120,18 @@ class OnDeviceLlmClient implements LlmClient {
         throw const LlmApiException(contextMessage);
       }
       if (cancelled) return;
+      // A cap of 0 or less would let the engine go on until the context is
+      // full: none set.
+      final asked = request.maxTokens;
+      final cap = asked != null && asked > 0
+          ? asked
+          : replyTokensFor(
+              promptTokens: promptTokens,
+              promptLength: messages.fold(
+                0,
+                (length, message) => length + message.content.length,
+              ),
+            );
       final text = StringBuffer();
       var finishReason = LlamaFinishReason.stop;
       generation = engine
@@ -92,7 +139,8 @@ class OnDeviceLlmClient implements LlmClient {
             LlamaGenerateRequest(
               messages: messages,
               sampling: _sampling(request, loaded.model.sampling),
-              maxTokens: math.min(request.maxTokens ?? room, room),
+              // The prompt and the reply must fit the context.
+              maxTokens: math.min(cap, room),
               jsonOutput: request.jsonOutput,
               stop: request.stop,
               onFinish: (stats) => finishReason = stats.finishReason,
@@ -174,10 +222,14 @@ class OnDeviceLlmClient implements LlmClient {
   }
 
   /// Loads [model] (sends nothing anywhere); false when it is not
-  /// installed or cannot be loaded.
+  /// installed or cannot be loaded, and, without loading it, while the
+  /// phone is hot or battery saver is on ([DeviceConditions]; the first
+  /// request loads it then).
   @override
   Future<bool> warmUp(String model) async {
     try {
+      final conditions = await _deviceConditions.refresh();
+      if (conditions.strain != null) return false;
       await runtime.run(_modelOf(model), (_) async {}, generating: false);
       return true;
     } on Object {

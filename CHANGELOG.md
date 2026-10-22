@@ -17,7 +17,8 @@ in `-rc.N`).
   wrong language, a garbled result or a chat-style reply instead of a
   translation, Mozhi tries another engine you already allowed, on this
   device first, and says so. Paid AI providers are never tried on their
-  own.
+  own, and text translated on this device (offline translation or
+  on-device AI) is only tried again on this device.
 - **Hide personal data from online engines** (on by default, Settings ›
   Privacy & data). E-mail addresses, phone numbers, IBANs, card numbers and
   IP addresses are replaced before text leaves the device and put back into

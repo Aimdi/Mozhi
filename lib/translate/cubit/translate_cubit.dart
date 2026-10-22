@@ -101,7 +101,12 @@ typedef _Languages = ({List<Language> sources, List<Language> targets});
 ///   [maxFallbackEngines] other engines are tried in turn: the on-device
 ///   engine first, then engines that are not cloud providers and that the
 ///   privacy settings allow without a new consent
-///   (`TranslationRepository.needsConsent`). The first result that is not
+///   (`TranslationRepository.needsConsent`). Text that an engine on this
+///   device translated (the offline engine, an on-device AI model) is
+///   never sent to another engine by itself: its fallbacks stay on the
+///   device too (the offline engine); comparing with another engine stays
+///   the user's choice. On-device AI models are never fallbacks (they
+///   would load a large model unasked). The first result that is not
 ///   suspect is shown with [TranslateState.fallback] ("Google returned the
 ///   original text. Translated on this device."); when none is, the
 ///   suspect result is shown with its warnings. The suspect result is
@@ -2277,11 +2282,14 @@ class TranslateCubit extends Cubit<TranslateState> {
   }
 
   /// The engines tried after a suspect result of [from] for [request] (see
-  /// the class documentation), at most [maxFallbackEngines].
+  /// the class documentation), at most [maxFallbackEngines]. When [from]
+  /// keeps the text on the device ([_staysOnDevice]), so do they: the text
+  /// never leaves the device unasked.
   List<TranslationEngine> _fallbackEngines(
     TranslationEngine from,
     TranslationRequest request,
   ) {
+    final onDeviceOnly = _staysOnDevice(from);
     bool allowed(TranslationEngine engine) {
       try {
         return !_repository.needsConsent(
@@ -2298,15 +2306,18 @@ class TranslateCubit extends Cubit<TranslateState> {
     return [
       for (final engine in state.engines)
         if (engine.isOffline && engine.id != from.id) engine,
-      for (final engine in state.engines)
-        if (!engine.isOffline &&
-            // On-device AI would load a 1-3 GB model unasked: only when
-            // chosen.
-            !(engine.isAi && engine.onDevice) &&
-            engine.id != from.id &&
-            !_isCloudEngine(engine) &&
-            allowed(engine))
-          engine,
+      // Network engines (public servers, the user's own servers): never
+      // for text that stayed on the device.
+      if (!onDeviceOnly)
+        for (final engine in state.engines)
+          if (!engine.isOffline &&
+              // On-device AI would load a 1-3 GB model unasked: only when
+              // chosen.
+              !(engine.isAi && engine.onDevice) &&
+              engine.id != from.id &&
+              !_isCloudEngine(engine) &&
+              allowed(engine))
+            engine,
     ].take(maxFallbackEngines).toList();
   }
 
@@ -4034,7 +4045,9 @@ class TranslateCubit extends Cubit<TranslateState> {
   }
 
   /// Romanizes the new result on its own when the user wants to see
-  /// transliterations and it costs nothing (see [loadRomanization]).
+  /// transliterations and it costs nothing (see [loadRomanization]). A
+  /// translation made on this device is only romanized on its own by an
+  /// engine on this device too, never by a server on the network.
   void _autoRomanize() {
     final result = state.result;
     if (result == null || !_settings.state.showTransliteration) return;
@@ -4043,10 +4056,20 @@ class TranslateCubit extends Cubit<TranslateState> {
         result.targetTransliteration.trim().isNotEmpty ||
         (assist != null &&
             assist.isLocal &&
+            (_staysOnDevice(assist) || !_translatedOnDevice(result)) &&
             // Typing doesn't start on-device AI while the device is
             // strained, nor its extras.
             !(state.instantResult && _sparesDevice(assist)));
     if (free && state.canRomanize) unawaited(loadRomanization());
+  }
+
+  /// Whether the engine of [result] (else the selected one) keeps the text
+  /// on this device ([_staysOnDevice]).
+  bool _translatedOnDevice(TranslationResult result) {
+    final engine =
+        state.engines.where((e) => e.id == result.engineId).firstOrNull ??
+        state.engine;
+    return engine != null && _staysOnDevice(engine);
   }
 
   /// Finds the corresponding phrases of the input and the output

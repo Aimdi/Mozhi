@@ -149,7 +149,13 @@ else works with a Mozhi instance alone.
   wrong language or a garbled or chat-style result, Mozhi translates again
   with another engine you already allowed (on this device first) and says
   which one ("Google returned the original text. Translated on this
-  device."). Paid AI providers are never tried automatically.
+  device."). Paid AI providers are never tried automatically, and neither
+  are on-device AI models (they would load a large model unasked). Text
+  from an engine on this device (offline translation or on-device AI) is
+  never sent to another engine automatically: it only falls back to
+  offline translation, on the phone, never to a server. Comparing it with
+  another engine (**Compare engines**, **Compare with another engine**) is
+  always your choice.
 - **Errors** have a short title in the error colour (**Couldn't connect**,
   **AI provider problem**, **Mozhi instance problem**, ...) above what to
   do; with no network on the device the title is **You're offline**. When
@@ -987,9 +993,10 @@ every AI extra without a network, and your text never leaves the device
   **Public server** and **Cloud** chips to where the text was translated
   (only those that occur in your history are shown). Mozhi entries are
   classed by your current preferred instance, since an entry doesn't record
-  which instance answered; look-ups by the AI model that wrote them (a local
-  model is **Self-hosted**, other providers **Cloud**). **Clear filters**
-  shows everything again.
+  which instance answered; AI translations and look-ups by the AI model
+  that wrote them (a model on this phone is **On device**, a local model
+  **Self-hosted**, other providers **Cloud**). **Clear filters** shows
+  everything again.
 - **Opening an entry.** Tap a translation to open it in the translator (on
   wide screens: from its details), or a look-up to open the Dictionary tab,
   which looks the word up again with the detail level it was saved with

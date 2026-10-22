@@ -6,8 +6,20 @@ import 'package:llm_api/llm_api.dart';
 import 'package:mozhi/on_device_ai/data/on_device_ai.dart';
 import 'package:mozhi/on_device_ai/data/on_device_llm_client.dart';
 import 'package:mozhi/on_device_ai/data/on_device_runtime.dart';
+import 'package:mozhi/platform/device_conditions.dart';
 
 import 'helpers.dart';
+
+class _FakeConditions extends Fake implements DeviceConditions {
+  DeviceConditionsSnapshot snapshot = DeviceConditionsSnapshot.unknown;
+  int refreshes = 0;
+
+  @override
+  Future<DeviceConditionsSnapshot> refresh() async {
+    refreshes++;
+    return snapshot;
+  }
+}
 
 void main() {
   late FakeLlamaEngine engine;
@@ -86,9 +98,14 @@ void main() {
       );
       expect(sent.jsonOutput, isTrue);
       expect(sent.stop, ['</s>']);
-      // The reply may use the rest of the context.
+      // The reply is bounded by the prompt (the fake counts a token per
+      // character).
       const prompt = 'Be brief.\n\nReply in JSON.HelloHalloAgain'.length;
-      expect(sent.maxTokens, 4096 - prompt);
+      expect(
+        sent.maxTokens,
+        prompt * OnDeviceLlmClient.replyTokensPerPromptToken +
+            OnDeviceLlmClient.replyTokenMargin,
+      );
       // The catalogue's sampling, else the engine's.
       expect(sent.sampling.temperature, 1);
       expect(sent.sampling.topP, 0.95);
@@ -117,6 +134,72 @@ void main() {
       expect(sent.sampling.repeatPenalty, 1.1);
       expect(sent.maxTokens, 100);
       expect(sent.messages.single.role, LlamaRole.user);
+    });
+
+    group('without a cap of the request', () {
+      Future<int> capOf(String text, {int? maxTokens}) async {
+        engine.requests.clear();
+        await client
+            .streamChat(request([LlmMessage.user(text)], maxTokens: maxTokens))
+            .drain<void>();
+        return engine.requests.single.maxTokens;
+      }
+
+      test('the reply is bounded by the prompt', () async {
+        engine.tokens = (_) => 100;
+        // Three times the prompt's tokens and a margin, far less than the
+        // context leaves (3996 tokens).
+        expect(await capOf('Hi'), 300 + OnDeviceLlmClient.replyTokenMargin);
+        // A cap of 0 or less would run until the context is full.
+        expect(
+          await capOf('Hi', maxTokens: 0),
+          300 + OnDeviceLlmClient.replyTokenMargin,
+        );
+        expect(
+          await capOf('Hi', maxTokens: -1),
+          300 + OnDeviceLlmClient.replyTokenMargin,
+        );
+      });
+
+      test('by its characters when they are more than its tokens', () async {
+        // A prompt in a script the tokenizer packs well; the reply may be
+        // in one with a token per character.
+        engine.tokens = (_) => 10;
+        expect(
+          await capOf('x' * 1000),
+          1000 + OnDeviceLlmClient.replyTokenMargin,
+        );
+      });
+
+      test('prompt and reply always fit the context', () async {
+        engine.tokens = (_) => 3000;
+        expect(await capOf('long'), 4096 - 3000);
+        expect(await capOf('long', maxTokens: 2000), 4096 - 3000);
+        expect(await capOf('long', maxTokens: 50), 50);
+      });
+
+      test('a reply that reaches the bound is cut off', () async {
+        engine
+          ..reply = ((_) => Stream.fromIterable(['again ', 'again ']))
+          ..finishReason = LlamaFinishReason.length;
+        final events = <Object>[];
+        await client
+            .streamChat(request([const LlmMessage.user('Repeat forever.')]))
+            .handleError(events.add)
+            .forEach(events.add);
+        expect(events.last, isA<LlmTruncatedException>());
+        expect(
+          (events.last as LlmTruncatedException).partialText,
+          'again again ',
+        );
+        expect(
+          engine.requests.single.maxTokens,
+          OnDeviceLlmClient.replyTokensFor(
+            promptTokens: 'Repeat forever.'.length,
+            promptLength: 'Repeat forever.'.length,
+          ),
+        );
+      });
     });
 
     test('uses the model of the request, else of the endpoint', () async {
@@ -328,6 +411,36 @@ void main() {
 
     test('is false when the model cannot be loaded', () async {
       expect(await client.warmUp('missing'), isFalse);
+    });
+
+    test('loads nothing while the phone is hot or saves battery', () async {
+      final conditions = _FakeConditions();
+      final guarded = OnDeviceLlmClient(
+        client.endpoint,
+        runtime: runtime,
+        deviceConditions: conditions,
+      );
+      for (final strained in const [
+        DeviceConditionsSnapshot(thermal: ThermalStatus.severe),
+        DeviceConditionsSnapshot(powerSave: true),
+      ]) {
+        conditions.snapshot = strained;
+        expect(await guarded.warmUp('gemma'), isFalse);
+      }
+      expect(engine.loads, isEmpty);
+      expect(conditions.refreshes, 2);
+      // A request still loads it (the user asked).
+      await guarded
+          .streamChat(request([const LlmMessage.user('Hi')]))
+          .drain<void>();
+      expect(engine.loads, hasLength(1));
+      // Cool again: warm-ups load.
+      conditions.snapshot = const DeviceConditionsSnapshot(
+        thermal: ThermalStatus.moderate,
+      );
+      await runtime.unload();
+      expect(await guarded.warmUp('gemma'), isTrue);
+      expect(engine.loads, hasLength(2));
     });
   });
 
