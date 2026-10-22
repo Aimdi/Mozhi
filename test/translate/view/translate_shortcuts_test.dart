@@ -37,6 +37,13 @@ Future<void> _focusInput(WidgetTester tester) async {
   await tester.pump();
 }
 
+/// A key only a hardware keyboard sends (the menu then offers the
+/// keyboard shortcuts, see `HardwareKeyboardSeen`).
+Future<void> _showHardwareKeyboard(WidgetTester tester) async {
+  await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+  await tester.pump();
+}
+
 /// Whether the input field has the keyboard focus.
 bool _inputFocused(WidgetTester tester) => tester
     .widget<EditableText>(
@@ -89,6 +96,7 @@ Future<List<String>> _tabOrder(WidgetTester tester) async {
 
 void main() {
   setUpAll(registerTranslateFallbacks);
+  setUp(HardwareKeyboardSeen.reset);
 
   group('keyboard shortcuts', () {
     testWidgets('Ctrl+Shift+C copies the translation', (tester) async {
@@ -535,6 +543,7 @@ void main() {
     testWidgets('the cheat sheet lists them', (tester) async {
       final harness = TranslateHarness(state: translatedState());
       await harness.pump(tester);
+      await _showHardwareKeyboard(tester);
       await tester.tap(find.byKey(const Key('translate_more_tools')));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Keyboard shortcuts'));
@@ -573,7 +582,6 @@ void main() {
 
   group('More tools menu', () {
     for (final (label, route) in [
-      ('Image (camera)', '/image'),
       ('Documents', '/documents'),
       ('Web page', '/web'),
     ]) {
@@ -587,6 +595,21 @@ void main() {
         verify(() => harness.router.push<void>(route)).called(1);
       });
     }
+
+    testWidgets('Image (camera) opens /image while there are no engines', (
+      tester,
+    ) async {
+      // With engines the screen has its Camera chip and button.
+      final harness = TranslateHarness(
+        state: const TranslateState(enginesStatus: EnginesStatus.failure),
+      );
+      await harness.pump(tester);
+      await tester.tap(find.byTooltip('More tools'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Image (camera)'));
+      await tester.pumpAndSettle();
+      verify(() => harness.router.push<void>('/image')).called(1);
+    });
 
     Future<void> openTool(WidgetTester tester, String label) async {
       await tester.tap(find.byKey(const Key('translate_more_tools')));
@@ -602,7 +625,7 @@ void main() {
       await harness.pump(tester);
       await tester.tap(find.byKey(const Key('translate_more_tools')));
       await tester.pumpAndSettle();
-      expect(find.text('Image (camera)'), findsOneWidget);
+      expect(find.text('Documents'), findsOneWidget);
       expect(find.text('Dictionary'), findsNothing);
       expect(find.text('Conversation'), findsNothing);
     });
@@ -631,6 +654,7 @@ void main() {
         state: const TranslateState(enginesStatus: EnginesStatus.failure),
       );
       await harness.pump(tester);
+      await _showHardwareKeyboard(tester);
       await tester.tap(find.byKey(const Key('translate_more_tools')));
       await tester.pumpAndSettle();
       expect(find.text('Recent language pairs'), findsNothing);
@@ -638,83 +662,9 @@ void main() {
       expect(find.text('Keyboard shortcuts'), findsOneWidget);
     });
 
+    // Reading the translation slowly is a long press on its Listen button
+    // (see the output card's tests), no longer an entry here.
     group('Listen to the translation slowly', () {
-      const label = 'Listen to the translation slowly';
-
-      Future<void> openMenu(WidgetTester tester) async {
-        await tester.tap(find.byKey(const Key('translate_more_tools')));
-        await tester.pumpAndSettle();
-      }
-
-      void verifyNoSlowReading(TranslateHarness harness) => verifyNever(
-        () => harness.speech.speak(
-          id: any(named: 'id'),
-          text: any(named: 'text'),
-          languageCode: any(named: 'languageCode'),
-          slow: any(named: 'slow'),
-        ),
-      );
-
-      testWidgets('reads the translation slowly', (tester) async {
-        final harness = TranslateHarness(state: translatedState());
-        await harness.pump(tester);
-        await openTool(tester, label);
-        verify(
-          () => harness.speech.speak(
-            id: translateOutputSpeechId,
-            text: 'Bonjour le monde',
-            languageCode: 'fr',
-            slow: true,
-          ),
-        ).called(1);
-      });
-
-      testWidgets('shows the listen error when it fails', (tester) async {
-        final harness = TranslateHarness(state: translatedState());
-        when(
-          () => harness.speech.speak(
-            id: any(named: 'id'),
-            text: any(named: 'text'),
-            languageCode: any(named: 'languageCode'),
-            slow: any(named: 'slow'),
-          ),
-        ).thenThrow(Exception('offline'));
-        await harness.pump(tester);
-        await openTool(tester, label);
-        expect(find.text("Couldn't play audio."), findsOneWidget);
-      });
-
-      for (final (name, state) in [
-        ('without a translation', readyState(input: 'Hello')),
-        (
-          'into a custom language',
-          translatedState(engine: claude)
-              .copyWith(target: const Language.custom('Pirate speak')),
-        ),
-      ]) {
-        testWidgets('is disabled $name', (tester) async {
-          final harness = TranslateHarness(state: state);
-          await harness.pump(tester);
-          await openMenu(tester);
-          final item = tester.widget<PopupMenuItem<TranslateTool>>(
-            find.byKey(const ValueKey('translate_tool_listenSlowly')),
-          );
-          expect(item.enabled, isFalse);
-          await tester.tap(find.text(label), warnIfMissed: false);
-          await tester.pumpAndSettle();
-          verifyNoSlowReading(harness);
-        });
-      }
-
-      testWidgets('needs engines', (tester) async {
-        final harness = TranslateHarness(
-          state: const TranslateState(enginesStatus: EnginesStatus.failure),
-        );
-        await harness.pump(tester);
-        await openMenu(tester);
-        expect(find.text(label), findsNothing);
-      });
-
       test('canListenToTranslation', () {
         expect(canListenToTranslation(translatedState()), isTrue);
         expect(canListenToTranslation(readyState(input: 'Hi')), isFalse);
@@ -733,9 +683,18 @@ void main() {
       });
     });
 
-    testWidgets('lists the keyboard shortcuts', (tester) async {
+    testWidgets('lists the keyboard shortcuts after a hardware key', (
+      tester,
+    ) async {
       final harness = TranslateHarness(state: translatedState());
       await harness.pump(tester);
+      await tester.tap(find.byKey(const Key('translate_more_tools')));
+      await tester.pumpAndSettle();
+      // Not for touch only.
+      expect(find.text('Keyboard shortcuts'), findsNothing);
+      await tester.tapAt(const Offset(1, 1));
+      await tester.pumpAndSettle();
+      await _showHardwareKeyboard(tester);
       await tester.tap(find.byKey(const Key('translate_more_tools')));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Keyboard shortcuts'));
@@ -821,29 +780,42 @@ void main() {
   });
 
   group('detected language chip', () {
+    // The chip shows under the translation while the detection is
+    // uncertain and other languages are likely ("Bank": German or
+    // English).
+    final bank = translatedState(
+      input: 'Bank',
+      result: const TranslationResult(
+        engineId: 'mozhi:deepl',
+        engineName: 'DeepL',
+        text: 'Banque',
+        detectedSource: 'de',
+        detectionUncertain: true,
+        detectedAlternatives: ['en'],
+      ),
+    );
+
     testWidgets('opens the source picker', (tester) async {
-      final harness = TranslateHarness(state: translatedState());
+      final harness = TranslateHarness(state: bank);
       await harness.pump(tester, child: const OutputCard());
       await tester.tap(find.byKey(const Key('translate_detected_chip')));
       await tester.pumpAndSettle();
       expect(find.text('Translate from'), findsOneWidget);
-      await tester.tap(find.text('German'));
+      // The other likely language is listed under Detected.
+      await tester.tap(
+        find
+            .descendant(
+              of: find.byType(LanguagePickerSheet),
+              matching: find.text('English'),
+            )
+            .first,
+      );
       await tester.pumpAndSettle();
-      verify(() => harness.translate.setSource(german)).called(1);
+      verify(() => harness.translate.setSource(english)).called(1);
     });
 
     testWidgets('marks an uncertain detection', (tester) async {
-      final harness = TranslateHarness(
-        state: translatedState(
-          input: 'Bank',
-          result: const TranslationResult(
-            engineId: 'mozhi:deepl',
-            engineName: 'DeepL',
-            text: 'Banque',
-            detectedSource: 'de',
-          ),
-        ),
-      );
+      final harness = TranslateHarness(state: bank);
       await harness.pump(tester, child: const OutputCard());
       expect(find.text('Detected: German?'), findsOneWidget);
       expect(

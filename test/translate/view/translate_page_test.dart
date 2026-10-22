@@ -419,6 +419,17 @@ void main() {
           await tester.pumpAndSettle();
           expect(find.byKey(const Key('translate_quality_chip')), findsNothing);
           expect(hero(), findsOneWidget);
+          // Fast | Best first, then the engine selector.
+          expect(
+            tester
+                .getRect(find.byKey(const Key('translate_quality_toggle')))
+                .right,
+            lessThanOrEqualTo(
+              tester
+                  .getRect(find.byKey(const Key('translate_engine_selector')))
+                  .left,
+            ),
+          );
         });
 
         testWidgets('fit a low window', (tester) async {

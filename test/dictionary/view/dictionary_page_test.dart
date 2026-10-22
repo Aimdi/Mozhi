@@ -1913,6 +1913,26 @@ void main() {
         verifyNever(() => history.add(any()));
       });
 
+      testWidgets('is left out on its own for an error', (tester) async {
+        final dictionary = MockDictionaryCubit();
+        whenListen(
+          dictionary,
+          const Stream<DictionaryState>.empty(),
+          initialState: const DictionaryState(status: DictionaryStatus.failure),
+        );
+        await tester.pumpApp(
+          MultiBlocProvider(
+            providers: [
+              BlocProvider<DictionaryCubit>.value(value: dictionary),
+              BlocProvider<HistoryCubit>.value(value: history),
+            ],
+            child: const Scaffold(body: DictionaryFavoriteButton()),
+          ),
+        );
+
+        expect(heart(), findsNothing);
+      });
+
       testWidgets('is left out without a history', (tester) async {
         await pumpGato(tester, withHistory: false);
         await tester.pump();

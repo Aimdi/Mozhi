@@ -29,6 +29,7 @@ import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/data/settings_repository.dart';
 import 'package:mozhi/settings/models/app_languages.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
+import 'package:mozhi/settings/view/widgets/settings_save_failure_listener.dart';
 import 'package:mozhi/speech/speech_service.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/usage/data/usage_tracker.dart';
@@ -324,11 +325,14 @@ class _AppState extends State<App> {
                         // Transparent system bars whose icons follow the
                         // theme (edge to edge on Android).
                         builder: (context, child) => SystemBarsStyle(
-                          child: UsageWarningListener(
-                            tracker: _deps.usageTracker,
+                          child: SettingsSaveFailureListener(
                             messengerKey: _messengerKey,
-                            providerName: _providerName,
-                            child: child ?? const SizedBox.shrink(),
+                            child: UsageWarningListener(
+                              tracker: _deps.usageTracker,
+                              messengerKey: _messengerKey,
+                              providerName: _providerName,
+                              child: child ?? const SizedBox.shrink(),
+                            ),
                           ),
                         ),
                       );

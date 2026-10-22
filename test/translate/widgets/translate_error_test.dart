@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
@@ -9,6 +10,7 @@ import 'package:mozhi/translate/translate.dart';
 import 'package:mozhi/translate/widgets/widgets.dart';
 import 'package:translation_repository/translation_repository.dart';
 
+import '../../helpers/helpers.dart';
 import '../helpers/fake_offline.dart';
 import '../helpers/helpers.dart';
 
@@ -663,6 +665,30 @@ void main() {
         verify(harness.translate.translate).called(1);
       });
 
+      testWidgets('does not translate once the screen is gone', (tester) async {
+        const error = MozhiApiException('Connection refused');
+        const first = MozhiInstance(url: 'https://a.example');
+        const second = MozhiInstance(url: 'https://b.example');
+        final harness = failedWith(
+          error,
+          engine: deepl,
+          instances: const [first, second],
+        );
+        when(() => harness.settings.preferInstance(any())).thenReturn(null);
+        when(() => harness.translate.isClosed).thenReturn(true);
+        await harness.pump(
+          tester,
+          child: TranslateErrorView(error: error, onRetry: () {}),
+        );
+
+        await tester.tap(
+          find.byKey(const Key('translate_error_next_instance')),
+        );
+        await tester.pump(Duration.zero);
+        verify(() => harness.settings.preferInstance(second.url)).called(1);
+        verifyNever(harness.translate.translate);
+      });
+
       testWidgets('does not offer another instance with only one', (
         tester,
       ) async {
@@ -702,6 +728,74 @@ void main() {
 
         expect(
           find.byKey(const Key('translate_error_next_instance')),
+          findsNothing,
+        );
+      });
+    });
+
+    group('without the Translate screen around', () {
+      testWidgets('shows a network error alone', (tester) async {
+        await tester.pumpApp(
+          const Scaffold(
+            body: TranslateErrorView(
+              error: MozhiApiException('Connection refused'),
+            ),
+          ),
+        );
+        await tester.pump();
+
+        expect(find.text(l10n.translateErrorTitleConnection), findsOneWidget);
+        expect(
+          find.byKey(const Key('translate_error_next_instance')),
+          findsNothing,
+        );
+      });
+
+      testWidgets('offers no other instance without the settings', (
+        tester,
+      ) async {
+        const error = MozhiApiException('Connection refused');
+        final translate = MockTranslateCubit();
+        when(() => translate.state).thenReturn(
+          readyState(
+            input: 'Hello',
+            status: TranslateStatus.failure,
+          ).copyWith(error: () => error),
+        );
+        await tester.pumpApp(
+          BlocProvider<TranslateCubit>.value(
+            value: translate,
+            child: const Scaffold(body: TranslateErrorView(error: error)),
+          ),
+        );
+
+        expect(
+          find.byKey(const Key('translate_error_next_instance')),
+          findsNothing,
+        );
+      });
+
+      testWidgets('offers no other engine without the repository', (
+        tester,
+      ) async {
+        const error = LlmApiException('x', statusCode: 401);
+        final translate = MockTranslateCubit();
+        when(() => translate.state).thenReturn(
+          readyState(
+            engine: claude,
+            input: 'Hello',
+            status: TranslateStatus.failure,
+          ).copyWith(error: () => error),
+        );
+        await tester.pumpApp(
+          BlocProvider<TranslateCubit>.value(
+            value: translate,
+            child: const Scaffold(body: TranslateErrorView(error: error)),
+          ),
+        );
+
+        expect(
+          find.byKey(const Key('translate_error_use_engine')),
           findsNothing,
         );
       });

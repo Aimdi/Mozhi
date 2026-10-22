@@ -282,6 +282,25 @@ void main() {
         expect(find.byIcon(Icons.stop_rounded), findsOneWidget);
       });
 
+      testWidgets('follows a change of engine', (tester) async {
+        final idle = readyState(input: 'Hello');
+        final harness = TranslateHarness(
+          state: idle,
+          settings: const AppSettings(instantTranslateAi: false),
+        );
+        final states = await _pump(tester, harness, idle);
+        expect(background(tester), Colors.transparent);
+
+        await _emit(
+          harness,
+          states,
+          readyState(engine: claude, input: 'Hello'),
+          tester,
+        );
+        final scheme = Theme.of(tester.element(_button)).colorScheme;
+        expect(background(tester), scheme.primary);
+      });
+
       test('translateGoInstant follows the engine kind and compare mode', () {
         const settings = AppSettings(instantTranslateAi: false);
         expect(translateGoInstant(readyState(), settings), isTrue);

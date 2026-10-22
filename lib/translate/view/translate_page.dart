@@ -537,11 +537,11 @@ class _TranslateAppBar extends StatelessWidget implements PreferredSizeWidget {
     final hasQualityModes = context.select<TranslateCubit, bool>(
       (cubit) => cubit.state.hasQualityModes,
     );
-    // The quality toggle (Fast / Best) sits next to the engine selector;
-    // it is empty while no quality engine is configured, and left out
-    // while the greeting holds the quality chip. Its layout (and whether
-    // the screen title still fits) follows the available width and the
-    // text size.
+    // The quality toggle (Fast / Best) comes first, before the engine
+    // selector; it is empty while no quality engine is configured, and
+    // left out while the greeting holds the quality chip. Its layout (and
+    // whether the screen title still fits) follows the available width
+    // and the text size.
     return ValueListenableBuilder<bool>(
       valueListenable: chipInHero,
       builder: (context, chipInHero, _) {
@@ -574,10 +574,16 @@ class _TranslateAppBar extends StatelessWidget implements PreferredSizeWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    const SizedBox(width: 16),
+                    // With the toggle next, its own start padding makes
+                    // up the rest of the gap.
+                    SizedBox(width: toggle ? 8 : 16),
+                  ],
+                  // Fast | Best first: the primary engine control.
+                  if (toggle) ...[
+                    QualityToggle(layout: layout),
+                    const SizedBox(width: 8),
                   ],
                   const Flexible(child: EngineSelectorButton()),
-                  if (toggle) QualityToggle(layout: layout),
                 ],
               );
             },
