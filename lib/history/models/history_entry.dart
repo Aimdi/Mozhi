@@ -33,6 +33,7 @@ class HistoryEntry extends Equatable {
     this.kind = HistoryEntryKind.translation,
     this.verbosity,
     this.favoriteOnly = false,
+    this.updatedAt,
   });
 
   /// Parses an entry written by [toJson].
@@ -42,7 +43,8 @@ class HistoryEntry extends Equatable {
   /// back to `engineId`, and `createdAt` may also be given as milliseconds
   /// since the epoch. Without `kind` (entries written before kinds
   /// existed) the entry is a [HistoryEntryKind.translation]; `verbosity` is
-  /// read only for dictionary look-ups (unknown values are ignored).
+  /// read only for dictionary look-ups (unknown values are ignored). An
+  /// invalid `updatedAt` is ignored.
   factory fromJson(Map<String, dynamic> json) {
     if (json case {
       'id': final String id,
@@ -92,6 +94,10 @@ class HistoryEntry extends Equatable {
           _ => null,
         },
         favoriteOnly: json['favoriteOnly'] == true,
+        updatedAt: switch (json['updatedAt']) {
+          final String iso => DateTime.tryParse(iso)?.toLocal(),
+          _ => null,
+        },
       );
     }
     throw FormatException('Invalid history entry', json);
@@ -126,6 +132,16 @@ class HistoryEntry extends Equatable {
   /// The detail level of a dictionary look-up (null for translations, and
   /// when unknown).
   final DictionaryVerbosity? verbosity;
+
+  /// When the entry last changed after [createdAt] (starred or un-starred,
+  /// for example); null when it hasn't. Backups and sync keep the newer
+  /// copy of an entry by [modifiedAt].
+  ///
+  /// Bookkeeping only: entries that differ only here are equal (`==`).
+  final DateTime? updatedAt;
+
+  /// [updatedAt], else [createdAt]: when the entry last changed.
+  DateTime get modifiedAt => updatedAt ?? createdAt;
 
   /// Whether this is a dictionary look-up ([HistoryEntryKind.dictionary]).
   bool get isDictionary => kind == HistoryEntryKind.dictionary;
@@ -164,6 +180,7 @@ class HistoryEntry extends Equatable {
     String? translation,
     String? text,
     bool? favoriteOnly,
+    DateTime? updatedAt,
   }) => HistoryEntry(
     id: id ?? this.id,
     text: text ?? this.text,
@@ -178,12 +195,14 @@ class HistoryEntry extends Equatable {
     kind: kind,
     verbosity: verbosity,
     favoriteOnly: favoriteOnly ?? this.favoriteOnly,
+    updatedAt: updatedAt ?? this.updatedAt,
   );
 
   /// [createdAt] is written as a UTC ISO-8601 string. Translations are
   /// written exactly as before kinds existed (no `kind`); dictionary
-  /// look-ups add `"kind": "dictionary"` and their `verbosity`, and entries
-  /// kept only as favourites `"favoriteOnly": true`.
+  /// look-ups add `"kind": "dictionary"` and their `verbosity`, entries
+  /// kept only as favourites `"favoriteOnly": true`, and entries changed
+  /// since they were made their `updatedAt` (UTC).
   Map<String, dynamic> toJson() => {
     'id': id,
     if (isDictionary) 'kind': kind.name,
@@ -198,6 +217,8 @@ class HistoryEntry extends Equatable {
     if (isDictionary && verbosity != null) 'verbosity': verbosity!.name,
     'isFavorite': isFavorite,
     if (favoriteOnly) 'favoriteOnly': true,
+    if (updatedAt case final updatedAt?)
+      'updatedAt': updatedAt.toUtc().toIso8601String(),
   };
 
   @override
@@ -215,6 +236,7 @@ class HistoryEntry extends Equatable {
     kind,
     verbosity,
     favoriteOnly,
+    // Not updatedAt: see there.
   ];
 }
 

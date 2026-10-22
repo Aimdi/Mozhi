@@ -6,7 +6,9 @@ import 'package:flutter/foundation.dart';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/history/data/history_cipher.dart';
 import 'package:mozhi/history/models/history_entry.dart';
+import 'package:mozhi/history/models/history_tombstone.dart';
 
+export '../models/history_tombstone.dart';
 export 'history_cipher.dart';
 
 /// The stored history exists but cannot be decrypted: its key is missing
@@ -120,15 +122,27 @@ class HistoryImport extends Equatable {
 /// being kept as ordinary entries. An entry merged with an ordinary one is
 /// ordinary.
 ///
-/// Retention (history auto-delete): [load], [add] and [importJson] take an
-/// optional `maxAge` and then also drop non-favourite entries created more
-/// than `maxAge` ago; [prune] applies a (new) `maxAge` right away.
-/// Favourites are always kept. [load] writes the pruned history back when
-/// it dropped expired entries.
+/// Retention (history auto-delete): [load], [add], [importJson] and
+/// [mergeBackup] take an optional `maxAge` and then also drop non-favourite
+/// entries created more than `maxAge` ago; [prune] applies a (new) `maxAge`
+/// right away. Favourites are always kept. [load] writes the pruned history
+/// back when it dropped expired entries.
 ///
 /// [toggleFavorite], [delete], [clear], [restore] and [restoreFavorite]
 /// apply no caps (and no retention), so an un-starred or restored entry
 /// survives until the next [add] / [load].
+///
+/// Changes stamp [HistoryEntry.updatedAt] (starring, un-starring), and
+/// entries the user deletes ([delete], [clear], un-starring an entry kept
+/// only as a favourite, an entry replaced by a newer one with another id)
+/// leave a [HistoryTombstone]: backups and sync carry both, so that
+/// [mergeBackup] keeps the newer copy of an entry and does not bring back
+/// deleted ones. Tombstones are encrypted like the history (under
+/// [tombstonesStorageKey]), kept for [tombstoneMaxAge] and at most
+/// [maxTombstones] of them; an entry that comes back (undo, import) drops
+/// its tombstone. Entries evicted by the size limits or the retention
+/// leave none. Tombstones are best effort: when they can't be read or
+/// written the history change still happens.
 ///
 /// [store] defaults to [PreferencesStore], [cipher] to [HistoryCipher] and
 /// `clock` (the current time for retention) to [DateTime.now]. Operations
@@ -144,6 +158,8 @@ class HistoryRepository {
     this.maxStoredLength = 1000000,
     this.maxTextLength = 20000,
     this.refinementWindow = const Duration(seconds: 30),
+    this.maxTombstones = 10000,
+    this.tombstoneMaxAge = const Duration(days: 180),
     DateTime Function()? clock,
   }) : assert(maxTextLength > 0, 'maxTextLength must be positive'),
        store = store ?? PreferencesStore(),
@@ -160,6 +176,13 @@ class HistoryRepository {
 
   /// Key of the history encryption key in [keyStore].
   static const keyStorageKey = 'history.key';
+
+  /// Key of the encrypted tombstones ([HistoryTombstone]) in [store].
+  static const tombstonesStorageKey = 'history.v1.tombstones';
+
+  /// The associated data the tombstones are encrypted with (the history
+  /// itself uses [HistoryCipher.associatedData]).
+  static const tombstonesAssociatedData = 'mozhi.history.tombstones';
 
   /// Where the history key is kept by default: secure storage (Android
   /// Keystore), or on the web [preferences] (the browser storage the
@@ -191,9 +214,21 @@ class HistoryRepository {
   /// treated as a typing refinement of it (see [add]).
   final Duration refinementWindow;
 
+  /// At most this many tombstones are kept (the newest).
+  final int maxTombstones;
+
+  /// Tombstones older than this are dropped.
+  final Duration tombstoneMaxAge;
+
   final DateTime Function() _clock;
 
   List<HistoryEntry>? _entries;
+
+  /// The tombstones (entry id → deleted at), once read.
+  Map<String, DateTime>? _tombstones;
+
+  /// Whether [_tombstones] has changes that could not be written yet.
+  bool _tombstonesDirty = false;
   Future<void> _lock = Future.value();
 
   /// The key, once read or created.
@@ -240,6 +275,10 @@ class HistoryRepository {
         await store.write(unreadableStorageKey, raw);
         await store.delete(storageKey);
       }
+      // Encrypted with the same key: unreadable too.
+      await store.delete(tombstonesStorageKey);
+      _tombstones = {};
+      _tombstonesDirty = false;
       return _entries = const [];
     }
   });
@@ -249,22 +288,27 @@ class HistoryRepository {
   Future<bool> hasUnreadableCopy() async =>
       await store.read(unreadableStorageKey) != null;
 
-  /// Deletes everything this repository stores: the history, the copy set
-  /// aside by [discardUnreadable] and the encryption key.
+  /// Deletes everything this repository stores: the history, its
+  /// tombstones, the copy set aside by [discardUnreadable] and the
+  /// encryption key.
   Future<void> deleteAll() => _synchronized(() async {
     _entries = const [];
     _key = null;
+    _tombstones = {};
+    _tombstonesDirty = false;
     await store.delete(storageKey);
+    await store.delete(tombstonesStorageKey);
     await store.delete(unreadableStorageKey);
     await keyStore.delete(keyStorageKey);
   });
 
   /// How much the history takes in [store]: the length (UTF-16 code
-  /// units) of the stored values, including a copy set aside by
-  /// [discardUnreadable].
+  /// units) of the stored values, including its tombstones and a copy set
+  /// aside by [discardUnreadable].
   Future<int> storedLength() async {
     final values = [
       await store.read(storageKey),
+      await store.read(tombstonesStorageKey),
       await store.read(unreadableStorageKey),
     ];
     return values.fold<int>(0, (sum, value) => sum + (value?.length ?? 0));
@@ -328,28 +372,34 @@ class HistoryRepository {
   /// or it was kept only as a favourite) [entry] is put back as a
   /// favourite, like [restore] does.
   Future<List<HistoryEntry>> restoreFavorite(HistoryEntry entry) {
-    final restored = _limited(entry).copyWith(isFavorite: true);
+    final now = _clock();
+    final restored = _limited(entry).copyWith(isFavorite: true, updatedAt: now);
     return _mutate((entries) {
       final index = entries.indexWhere((e) => e.id == restored.id);
       if (index == -1) return _restored(entries, restored);
-      return entries..[index] = entries[index].copyWith(isFavorite: true);
+      return entries
+        ..[index] = entries[index].copyWith(isFavorite: true, updatedAt: now);
     }, cap: false);
   }
 
-  /// Stars or un-stars the entry [id]. Un-starring an entry kept only as a
-  /// favourite ([HistoryEntry.favoriteOnly]) deletes it.
-  Future<List<HistoryEntry>> toggleFavorite(String id) => _mutate(
-    (entries) => [
-      for (final entry in entries)
-        if (entry.id != id)
-          entry
-        else if (!entry.isFavorite)
-          entry.copyWith(isFavorite: true)
-        else if (!entry.favoriteOnly)
-          entry.copyWith(isFavorite: false),
-    ],
-    cap: false,
-  );
+  /// Stars or un-stars the entry [id] (stamping [HistoryEntry.updatedAt]).
+  /// Un-starring an entry kept only as a favourite
+  /// ([HistoryEntry.favoriteOnly]) deletes it.
+  Future<List<HistoryEntry>> toggleFavorite(String id) {
+    final now = _clock();
+    return _mutate(
+      (entries) => [
+        for (final entry in entries)
+          if (entry.id != id)
+            entry
+          else if (!entry.isFavorite)
+            entry.copyWith(isFavorite: true, updatedAt: now)
+          else if (!entry.favoriteOnly)
+            entry.copyWith(isFavorite: false, updatedAt: now),
+      ],
+      cap: false,
+    );
+  }
 
   Future<List<HistoryEntry>> delete(String id) =>
       _mutate((entries) => entries..removeWhere((e) => e.id == id), cap: false);
@@ -396,7 +446,10 @@ class HistoryRepository {
           if (index >= 0) {
             final existing = merged[index];
             if (entry.isFavorite && !existing.isFavorite) {
-              merged[index] = existing.copyWith(isFavorite: true);
+              merged[index] = existing.copyWith(
+                isFavorite: true,
+                updatedAt: _clock(),
+              );
             }
             continue;
           }
@@ -429,6 +482,239 @@ class HistoryRepository {
     );
   }
 
+  /// The history (newest first) and its tombstones, for a backup.
+  Future<({List<HistoryEntry> entries, List<HistoryTombstone> tombstones})>
+  backupData() => _synchronized(() async {
+    final entries = await _current();
+    final tombstones = _bounded(await _currentTombstones());
+    return (entries: entries, tombstones: _tombstoneList(tombstones));
+  });
+
+  /// Replaces the history with [entries] and its tombstones with
+  /// [tombstones] (a backup restored with "Replace my data"), and returns
+  /// the new history.
+  ///
+  /// The entries are truncated, sorted newest first and capped like
+  /// [importJson] (an id given twice is kept once; two look-ups of the same
+  /// word are merged, see [mergeBackup]); no retention is applied (the
+  /// next [load] does). What was here before leaves no tombstones: the
+  /// backup becomes this device's history.
+  Future<List<HistoryEntry>> replaceAll(
+    List<HistoryEntry> entries, {
+    List<HistoryTombstone> tombstones = const [],
+  }) => _synchronized(() async {
+    // Refuses to overwrite a history that cannot be read.
+    await _current();
+    final byId = <String, HistoryEntry>{};
+    for (final entry in entries) {
+      byId.putIfAbsent(entry.id, () => _limited(entry));
+    }
+    final dropped = <String, DateTime>{};
+    final next = _capped(_normalized(byId.values, dropped));
+    final written = _entries = await _write(next);
+    _tombstones = {
+      for (final tombstone in tombstones)
+        tombstone.id: tombstone.deletedAt.toUtc(),
+      ...dropped,
+    };
+    await _updateTombstones(deleted: const [], present: written, force: true);
+    return written;
+  });
+
+  /// Merges a backup's [entries] and [tombstones] into the history (a
+  /// backup restored with "Merge with my data", and sync) and returns the
+  /// new history.
+  ///
+  /// Per id the newer copy wins ([HistoryEntry.modifiedAt]; this device's
+  /// on a tie). An entry is deleted when either side has a tombstone for it
+  /// from when it was last changed or later; entries only on one side are
+  /// kept otherwise. Two look-ups of the same word and languages
+  /// ([HistoryEntry.isSameLookUp]) become one, the newest, a favourite if
+  /// either was; the other leaves a tombstone. The tombstones of both sides
+  /// are kept (bounded by [tombstoneMaxAge] and [maxTombstones]).
+  ///
+  /// The result is sorted newest first, and this device's limits apply to
+  /// it as they would right after the merge: with [maxAge] (this device's
+  /// "Delete history automatically"), non-favourites created more than
+  /// [maxAge] ago are left out, from either side, and it is capped like
+  /// [importJson] (every favourite and the newest non-favourites). What
+  /// the limits leave out leaves no tombstone, as when they evict entries
+  /// here: a merge never brings back what they removed, and the history
+  /// exported next (the next sync's upload) doesn't hold it either.
+  Future<List<HistoryEntry>> mergeBackup(
+    List<HistoryEntry> entries, {
+    List<HistoryTombstone> tombstones = const [],
+    Duration? maxAge,
+  }) => _synchronized(() async {
+    final local = await _current();
+    final deleted = {...await _currentTombstones()};
+    for (final tombstone in tombstones) {
+      final known = deleted[tombstone.id];
+      if (known == null || tombstone.deletedAt.isAfter(known)) {
+        deleted[tombstone.id] = tombstone.deletedAt.toUtc();
+      }
+    }
+    final byId = {for (final entry in local) entry.id: entry};
+    for (final entry in entries.map(_limited)) {
+      final existing = byId[entry.id];
+      if (existing == null || entry.modifiedAt.isAfter(existing.modifiedAt)) {
+        byId[entry.id] = entry;
+      }
+    }
+    // A tombstone wins over the entries last changed before it.
+    bool isDeleted(HistoryEntry entry) => switch (deleted[entry.id]) {
+      final at? => !entry.modifiedAt.isAfter(at),
+      null => false,
+    };
+    final alive = byId.values.where((entry) => !isDeleted(entry));
+    final next = _capped(_withoutExpired(_normalized(alive, deleted), maxAge));
+    final written = _entries = await _write(next);
+    _tombstones = deleted;
+    await _updateTombstones(deleted: const [], present: written, force: true);
+    return written;
+  });
+
+  /// [entries] sorted newest first, with each look-up of the same word and
+  /// languages only once (the newest; a favourite if any was). The ids of
+  /// the look-ups merged away are added to [deleted] (deleted now).
+  List<HistoryEntry> _normalized(
+    Iterable<HistoryEntry> entries,
+    Map<String, DateTime> deleted,
+  ) {
+    final sorted = [...entries]
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    final result = <HistoryEntry>[];
+    for (final entry in sorted) {
+      if (entry.isDictionary) {
+        final index = result.indexWhere(entry.isSameLookUp);
+        if (index != -1) {
+          result[index] = _merged(result[index], entry);
+          deleted[entry.id] = _clock().toUtc();
+          continue;
+        }
+      }
+      result.add(entry);
+    }
+    return result;
+  }
+
+  /// The tombstones, read once (empty when there are none, or they cannot
+  /// be decrypted). Throws when the store fails.
+  Future<Map<String, DateTime>> _currentTombstones() async {
+    if (_tombstones case final tombstones?) return tombstones;
+    final raw = await store.read(tombstonesStorageKey);
+    final key = raw == null ? null : (_key ?? await _readKey());
+    if (raw == null || key == null) return _tombstones = {};
+    try {
+      final json = jsonDecode(
+        await cipher.decrypt(raw, key, aad: tombstonesAssociatedData),
+      );
+      return _tombstones = {
+        if (json is Map)
+          for (final MapEntry(:key, :value) in json.entries)
+            if (key is String && value is int)
+              key: DateTime.fromMillisecondsSinceEpoch(value, isUtc: true),
+      };
+    } on Object {
+      // Damaged: the next change writes them anew.
+      return _tombstones = {};
+    }
+  }
+
+  /// Records [deleted] ids as deleted now and drops the tombstones of the
+  /// [present] entries, then writes the tombstones when they changed (or
+  /// when [force]d, or when an earlier write failed). Never throws: the
+  /// history change it follows has been written.
+  Future<void> _updateTombstones({
+    required List<String> deleted,
+    required List<HistoryEntry> present,
+    bool force = false,
+  }) async {
+    try {
+      final tombstones = await _currentTombstones();
+      var changed = force || _tombstonesDirty;
+      if (deleted.isNotEmpty) {
+        final now = _clock().toUtc();
+        for (final id in deleted) {
+          tombstones[id] = now;
+        }
+        changed = true;
+      }
+      if (tombstones.isNotEmpty) {
+        for (final entry in present) {
+          if (tombstones.remove(entry.id) != null) changed = true;
+        }
+      }
+      if (!changed) return;
+      final bounded = _tombstones = _bounded(tombstones);
+      _tombstonesDirty = true;
+      await _writeTombstones(bounded);
+      _tombstonesDirty = false;
+    } on Object {
+      // Kept in memory; the next change writes them again.
+    }
+  }
+
+  /// Writes [tombstones] (deletes the stored value when there are none):
+  /// on a full quota, the older half is dropped and the write retried.
+  Future<void> _writeTombstones(Map<String, DateTime> tombstones) async {
+    if (tombstones.isEmpty) {
+      await store.delete(tombstonesStorageKey);
+      return;
+    }
+    final key = await _writeKey();
+    var next = tombstones;
+    for (var attempt = 0; ; attempt++) {
+      final json = jsonEncode({
+        for (final MapEntry(:key, :value) in next.entries)
+          key: value.millisecondsSinceEpoch,
+      });
+      final encoded = await cipher.encrypt(
+        json,
+        key,
+        aad: tombstonesAssociatedData,
+      );
+      try {
+        await store.write(tombstonesStorageKey, encoded);
+        _tombstones = next;
+        return;
+      } on Object catch (error) {
+        if (attempt >= _quotaRetries || !_isQuotaError(error)) rethrow;
+        next = _newest(next, next.length ~/ 2);
+      }
+    }
+  }
+
+  /// [tombstones] without those older than [tombstoneMaxAge], at most the
+  /// newest [maxTombstones].
+  Map<String, DateTime> _bounded(Map<String, DateTime> tombstones) {
+    final cutoff = _clock().subtract(tombstoneMaxAge);
+    final recent = {
+      for (final MapEntry(:key, :value) in tombstones.entries)
+        if (!value.isBefore(cutoff)) key: value,
+    };
+    return recent.length <= maxTombstones
+        ? recent
+        : _newest(recent, maxTombstones);
+  }
+
+  /// The newest [count] of [tombstones].
+  static Map<String, DateTime> _newest(
+    Map<String, DateTime> tombstones,
+    int count,
+  ) {
+    final sorted = tombstones.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    return Map.fromEntries(sorted.take(count));
+  }
+
+  static List<HistoryTombstone> _tombstoneList(
+    Map<String, DateTime> tombstones,
+  ) => List.unmodifiable([
+    for (final MapEntry(:key, :value) in tombstones.entries)
+      HistoryTombstone(id: key, deletedAt: value),
+  ]);
+
   /// Whether the translation [entry] should replace [newest] instead of
   /// being inserted.
   bool _replaces(HistoryEntry newest, HistoryEntry entry) {
@@ -453,7 +739,7 @@ class HistoryRepository {
 
   /// [entries] with [restored] at the position of its createdAt, replacing
   /// the entry with its id (see [restore]).
-  static List<HistoryEntry> _restored(
+  List<HistoryEntry> _restored(
     List<HistoryEntry> entries,
     HistoryEntry restored,
   ) {
@@ -479,16 +765,20 @@ class HistoryRepository {
 
   /// [kept] taking the place of [other], the same look-up or translation:
   /// with [kept]'s content and [id] (default: [kept]'s), a favourite if
-  /// either is, and kept only as a favourite only if both are.
-  static HistoryEntry _merged(
-    HistoryEntry kept,
-    HistoryEntry other, {
-    String? id,
-  }) => kept.copyWith(
-    id: id,
-    isFavorite: kept.isFavorite || other.isFavorite,
-    favoriteOnly: kept.favoriteOnly && other.favoriteOnly,
-  );
+  /// either is, and kept only as a favourite only if both are (stamped as
+  /// updated now when that changes [kept]).
+  HistoryEntry _merged(HistoryEntry kept, HistoryEntry other, {String? id}) {
+    final isFavorite = kept.isFavorite || other.isFavorite;
+    final favoriteOnly = kept.favoriteOnly && other.favoriteOnly;
+    final changed =
+        isFavorite != kept.isFavorite || favoriteOnly != kept.favoriteOnly;
+    return kept.copyWith(
+      id: id,
+      isFavorite: isFavorite,
+      favoriteOnly: favoriteOnly,
+      updatedAt: changed ? _clock() : null,
+    );
+  }
 
   /// [entry] with `text` and `translation` truncated to [maxTextLength].
   HistoryEntry _limited(HistoryEntry entry) {
@@ -622,16 +912,28 @@ class HistoryRepository {
     return _key = key;
   }
 
+  /// Applies [change] to the history and writes it. Entries [change] took
+  /// out leave tombstones; entries left out by the caps or [maxAge] don't.
   Future<List<HistoryEntry>> _mutate(
     List<HistoryEntry> Function(List<HistoryEntry> entries) change, {
     bool cap = true,
     Duration? maxAge,
   }) => _synchronized(() async {
-    final changed = change([...await _current()]);
+    final before = await _current();
+    final changed = change([...before]);
     final next = cap
         ? _capped(_withoutExpired(changed, maxAge))
         : List<HistoryEntry>.unmodifiable(changed);
-    return _entries = await _write(next);
+    final written = _entries = await _write(next);
+    final kept = {for (final entry in changed) entry.id};
+    await _updateTombstones(
+      deleted: [
+        for (final entry in before)
+          if (!kept.contains(entry.id)) entry.id,
+      ],
+      present: written,
+    );
+    return written;
   });
 
   /// Writes [entries] and returns what was written: on a full quota, older

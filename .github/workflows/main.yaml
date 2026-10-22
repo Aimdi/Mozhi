@@ -99,6 +99,11 @@ jobs:
           python3 tool/check_page_size_test.py
           python3 tool/mirror_models_test.py
           python3 tool/dictionary_packs_test.py
+          python3 tool/phrasebooks_test.py
+          python3 tool/check_coverage_markers_test.py
+          # A misplaced coverage marker makes `--coverage` hang (see the
+          # script): fail here instead.
+          python3 tool/check_coverage_markers.py
 
       - name: Test app
         run: flutter test --coverage

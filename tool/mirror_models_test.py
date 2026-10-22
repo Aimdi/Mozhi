@@ -176,6 +176,23 @@ class MirrorModelsTest(unittest.TestCase):
                 }
             )
         self.dictionary = {"schemaVersion": 1, "release": "r", "packs": packs}
+
+        phrasebooks = []
+        for pack_id, language in (("pt", "pt"), ("ja", "ja")):
+            data = b"\x1f\x8b" + f"phrasebook {pack_id}".encode() * 200
+            phrasebooks.append(
+                {
+                    "id": pack_id,
+                    "language": language,
+                    "baseLanguage": "en",
+                    "name": pack_id,
+                    "file": f"{pack_id}.json.gz",
+                    "url": publish(f"/releases/download/p/{pack_id}.json.gz", data),
+                    "size": len(data),
+                    "sha256": _sha256(data),
+                }
+            )
+        self.phrasebook = {"schemaVersion": 1, "packs": phrasebooks}
         self.write_catalogs()
 
     def write_catalogs(self) -> None:
@@ -184,6 +201,7 @@ class MirrorModelsTest(unittest.TestCase):
             ("whisper", self.whisper),
             ("tesseract", self.tesseract),
             ("dictionary", self.dictionary),
+            ("phrasebook", self.phrasebook),
         ):
             (self.tmp / f"{name}.json").write_text(json.dumps(catalog))
 
@@ -201,6 +219,8 @@ class MirrorModelsTest(unittest.TestCase):
                     str(self.tmp / "tesseract.json"),
                     "--dictionary-catalog",
                     str(self.tmp / "dictionary.json"),
+                    "--phrasebook-catalog",
+                    str(self.tmp / "phrasebook.json"),
                     "--jobs",
                     "2",
                     *args,
@@ -219,19 +239,20 @@ class MirrorModelsTest(unittest.TestCase):
         code, output = self.run_tool()
         self.assertEqual(code, 0, output)
         files = self.mirrored()
-        self.assertEqual(len(files), 12 + 2 + 3 + 2)
+        self.assertEqual(len(files), 12 + 2 + 3 + 2 + 2)
         # The layout of bergamotMirrorUrl, whisperMirrorUrl, tessdataMirrorUrl.
         self.assertIn("bergamot/en-de/run_ende/model.ende.intgemm.alphas.bin.gz", files)
         self.assertIn("bergamot/de-en/run_de/vocab.deen.spm.gz", files)
         self.assertIn("whisper/ggml-tiny.bin", files)
         self.assertIn("tesseract/chi_tra.traineddata", files)
         self.assertIn("dictionary/es.mzd", files)
+        self.assertIn("phrasebooks/ja.json.gz", files)
         self.assertEqual(
             (self.out / "tesseract/deu.traineddata").read_bytes(),
             self.server.files["/tessdata/abc123/deu.traineddata"],
         )
         self.assertFalse([name for name in files if name.endswith(".part")])
-        self.assertIn("19 downloaded, 0 already in place, 0 failed", output)
+        self.assertIn("21 downloaded, 0 already in place, 0 failed", output)
 
     def test_filters_by_language_pair_id_and_kind(self) -> None:
         code, _ = self.run_tool("--languages", "de", "--whisper", "tiny")
@@ -297,6 +318,33 @@ class MirrorModelsTest(unittest.TestCase):
             (self.out / "dictionary/es.mzd").read_bytes(),
             self.server.files["/releases/download/r/es.mzd"],
         )
+
+    def test_mirrors_starter_phrasebooks(self) -> None:
+        code, output = self.run_tool("--only", "phrasebook")
+        self.assertEqual(code, 0, output)
+        self.assertEqual(
+            self.mirrored(), {"phrasebooks/pt.json.gz", "phrasebooks/ja.json.gz"}
+        )
+        self.assertEqual(
+            (self.out / "phrasebooks/pt.json.gz").read_bytes(),
+            self.server.files["/releases/download/p/pt.json.gz"],
+        )
+
+    def test_selects_phrasebooks_by_language_or_id(self) -> None:
+        code, _ = self.run_tool("--only", "phrasebook", "--languages", "pt-BR")
+        self.assertEqual(code, 0)
+        self.assertEqual(self.mirrored(), {"phrasebooks/pt.json.gz"})
+        code, _ = self.run_tool("--only", "phrasebook", "--phrasebooks", "ja")
+        self.assertEqual(code, 0)
+        self.assertEqual(
+            self.mirrored(), {"phrasebooks/pt.json.gz", "phrasebooks/ja.json.gz"}
+        )
+
+    def test_reads_the_bundled_phrasebook_catalogue(self) -> None:
+        # Empty until the first release of the data.
+        bundled = mirror.read_dictionary_catalog(mirror.PHRASEBOOK)
+        self.assertEqual(bundled["schemaVersion"], 1)
+        self.assertIsInstance(bundled["packs"], list)
 
     def test_a_damaged_pack_is_not_mirrored(self) -> None:
         path = "/releases/download/r/es.mzd"
@@ -450,33 +498,50 @@ class MirrorModelsTest(unittest.TestCase):
                 url=self.server.base + "/other.mzd"
             ),
             "pack sha": lambda: self.dictionary["packs"][0].update(sha256="0"),
+            "phrasebook id": lambda: self.phrasebook["packs"][0].update(id="PT"),
+            "phrasebook url": lambda: self.phrasebook["packs"][0].update(
+                url=self.server.base + "/pt.json"
+            ),
+            "phrasebook size": lambda: self.phrasebook["packs"][0].update(size=-1),
         }
         originals = (
             json.dumps(self.bergamot),
             json.dumps(self.whisper),
             json.dumps(self.tesseract),
             json.dumps(self.dictionary),
+            json.dumps(self.phrasebook),
         )
         for name, change in cases.items():
             with self.subTest(name):
-                self.bergamot, self.whisper, self.tesseract, self.dictionary = (
-                    json.loads(text) for text in originals
-                )
+                (
+                    self.bergamot,
+                    self.whisper,
+                    self.tesseract,
+                    self.dictionary,
+                    self.phrasebook,
+                ) = (json.loads(text) for text in originals)
                 change()
                 self.write_catalogs()
                 code, output = self.run_tool("--list")
                 self.assertEqual(code, 2, output)
                 self.assertIn("error:", output)
 
-        self.bergamot, self.whisper, self.tesseract, self.dictionary = (
-            json.loads(text) for text in originals
-        )
+        (
+            self.bergamot,
+            self.whisper,
+            self.tesseract,
+            self.dictionary,
+            self.phrasebook,
+        ) = (json.loads(text) for text in originals)
         self.write_catalogs()
         self.assertEqual(self.run_tool("--only", "fonts")[0], 2)
         (self.tmp / "whisper.json").write_text("{not json")
         self.assertEqual(self.run_tool("--list")[0], 2)
         self.write_catalogs()
         (self.tmp / "dictionary.json").write_text("{not json")
+        self.assertEqual(self.run_tool("--list")[0], 2)
+        self.write_catalogs()
+        (self.tmp / "phrasebook.json").write_text("{not json")
         self.assertEqual(self.run_tool("--list")[0], 2)
 
     def test_reads_the_bundled_catalogues(self) -> None:

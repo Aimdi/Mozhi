@@ -10,6 +10,8 @@ import 'package:mozhi/app/router.dart';
 import 'package:mozhi/app/shared_text_handler.dart';
 import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/app/translate_link.dart';
+import 'package:mozhi/backup/data/backup_registry.dart';
+import 'package:mozhi/backup/view/backup_restore_listener.dart';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/dictionary/data/dictionary_packs.dart';
 import 'package:mozhi/history/cubit/history_cubit.dart';
@@ -19,10 +21,12 @@ import 'package:mozhi/image_translate/data/lost_image_recovery.dart'
     deferred as lost_image;
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/onboarding/onboarding_redirect.dart';
+import 'package:mozhi/phrasebook/data/phrasebook_repository.dart';
 import 'package:mozhi/platform/android_device.dart';
 import 'package:mozhi/platform/secure_screen_listener.dart';
 import 'package:mozhi/platform/shared_text_service.dart';
 import 'package:mozhi/platform/system_bars.dart';
+import 'package:mozhi/practice/data/practice_repository.dart';
 import 'package:mozhi/presets/view/presets_providers.dart';
 import 'package:mozhi/presets/widgets/saved_glossaries_binding.dart';
 import 'package:mozhi/quick_translate/quick_translate_host.dart';
@@ -33,6 +37,8 @@ import 'package:mozhi/settings/models/app_languages.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/settings/view/widgets/settings_save_failure_listener.dart';
 import 'package:mozhi/speech/speech_service.dart';
+import 'package:mozhi/sync/data/sync_service.dart';
+import 'package:mozhi/sync/view/sync_scope.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/usage/data/usage_tracker.dart';
 import 'package:mozhi/usage/widgets/usage_warning_listener.dart';
@@ -78,6 +84,10 @@ class _AppState extends State<App> {
       maxAge: _settingsCubit.state.historyRetention.maxAge,
       incognito: _settingsCubit.state.incognito,
       saveHistory: _settingsCubit.state.saveHistory,
+    );
+    // The phrasebook's Favorites collection is the history's favourites.
+    _deps.phrasebookRepository?.attachFavorites(
+      HistoryCubitFavorites(_historyCubit),
     );
     // Before anything can send text: the privacy settings guard every
     // request of the repository.
@@ -162,6 +172,10 @@ class _AppState extends State<App> {
     unawaited(_deps.speechService.dispose());
     unawaited(_deps.usageTracker.dispose());
     unawaited(_deps.offlineTranslator.dispose());
+    unawaited(_deps.backupRegistry?.dispose());
+    unawaited(_deps.syncService?.dispose());
+    unawaited(_deps.practiceRepository?.dispose());
+    unawaited(_deps.phrasebookRepository?.dispose());
     super.dispose();
   }
 
@@ -275,6 +289,18 @@ class _AppState extends State<App> {
           value: _deps.offlineTranslator,
         ),
         RepositoryProvider<UsageTracker>.value(value: _deps.usageTracker),
+        // What backups, sync and pairing carry.
+        if (_deps.backupRegistry case final backupRegistry?)
+          RepositoryProvider<BackupRegistry>.value(value: backupRegistry),
+        // Sync with the user's WebDAV folder (its settings find it).
+        if (_deps.syncService case final syncService?)
+          RepositoryProvider<SyncService>.value(value: syncService),
+        // The phrasebook (`maybePhrasebookRepository` finds it).
+        if (_deps.phrasebookRepository case final phrasebook?)
+          RepositoryProvider<PhrasebookRepository>.value(value: phrasebook),
+        // Practice (`maybePracticeRepository` finds it).
+        if (_deps.practiceRepository case final practice?)
+          RepositoryProvider<PracticeRepository>.value(value: practice),
         // Preferences only: secrets are never handed to the widget tree.
         RepositoryProvider<KeyValueStore>.value(value: _deps.preferences),
         RepositoryProvider<SharedTextService>.value(
@@ -337,7 +363,14 @@ class _AppState extends State<App> {
                                 tracker: _deps.usageTracker,
                                 messengerKey: _messengerKey,
                                 providerName: _providerName,
-                                child: child ?? const SizedBox.shrink(),
+                                // Reloads what a restore changed.
+                                child: BackupRestoreListener(
+                                  // Syncs at start and after changes.
+                                  child: SyncScope.wrap(
+                                    service: _deps.syncService,
+                                    child: child ?? const SizedBox.shrink(),
+                                  ),
+                                ),
                               ),
                             ),
                           ),

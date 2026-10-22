@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -13,6 +14,9 @@ import 'package:mozhi/app/translate_link.dart';
 import 'package:mozhi/app/view/app_shell.dart';
 import 'package:mozhi/app/view/shared_image_picker.dart';
 import 'package:mozhi/app/view/top_level_actions.dart';
+import 'package:mozhi/conversation/cubit/conversation_cubit.dart';
+import 'package:mozhi/conversation/share/cubit/conversation_share_cubit.dart';
+import 'package:mozhi/conversation/share/view/conversation_share_page.dart';
 import 'package:mozhi/conversation/view/conversation_page.dart';
 import 'package:mozhi/dictionary/view/dictionary_page.dart';
 import 'package:mozhi/documents/view/document_translate_page.dart';
@@ -45,6 +49,12 @@ import 'package:mozhi/web_translate/view/web_translate_page.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 import 'mocks.dart';
+
+class _MockConversationShareCubit extends MockCubit<ConversationShareState>
+    implements ConversationShareCubit;
+
+class _MockConversationCubit extends MockCubit<ConversationState>
+    implements ConversationCubit;
 
 /// Longer than any page transition (Android's is 800 ms).
 const _transition = Duration(seconds: 1);
@@ -480,6 +490,56 @@ void main() {
       expect(find.byType(DocumentTranslatePage), findsNothing);
       expect(find.byType(NavigationBar).hitTestable(), findsOneWidget);
       expect(location(), AppRoutes.translate);
+    });
+
+    testWidgets('a share link without its conversation opens the tab', (
+      tester,
+    ) async {
+      await pumpRouter(tester);
+      await go(tester, AppRoutes.conversationShare);
+
+      expect(location(), AppRoutes.conversation);
+      expect(find.byType(ConversationPage), findsOneWidget);
+    });
+
+    testWidgets('pushes the sharing page with its conversation', (
+      tester,
+    ) async {
+      final share = _MockConversationShareCubit();
+      whenListen(
+        share,
+        const Stream<ConversationShareState>.empty(),
+        initialState: const ConversationShareState(),
+      );
+      when(() => share.start(pin: any(named: 'pin'))).thenAnswer((_) async {});
+      when(share.stop).thenAnswer((_) async {});
+      when(() => share.isClosed).thenReturn(false);
+      final conversation = _MockConversationCubit();
+      whenListen(
+        conversation,
+        const Stream<ConversationState>.empty(),
+        initialState: const ConversationState(
+          languageA: Language(code: 'en', name: 'English'),
+          languageB: Language(code: 'de', name: 'German'),
+        ),
+      );
+      await pumpRouter(tester);
+      await go(tester, AppRoutes.conversation);
+
+      unawaited(
+        router.push<void>(
+          AppRoutes.conversationShare,
+          extra: ConversationShareLaunch(
+            share: share,
+            conversation: conversation,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(_transition);
+      await tester.pump();
+
+      expect(find.byType(ConversationShareView), findsOneWidget);
     });
 
     testWidgets('opens feature aliases at their routes', (tester) async {

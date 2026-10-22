@@ -21,6 +21,11 @@ import 'package:mozhi/history/view/widgets/history_entry_tile.dart';
 import 'package:mozhi/history/view/widgets/phrasebook_export.dart'
     deferred as phrasebook;
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/phrasebook/data/phrasebook_repository.dart'
+    show PhraseCollection, PhraseDraft;
+import 'package:mozhi/phrasebook/widgets/add_to_phrasebook.dart';
+import 'package:mozhi/phrasebook/widgets/phrasebook_labels.dart'
+    show maybePhrasebookRepository;
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/view/widgets/empty_state_view.dart';
 import 'package:mozhi/settings/view/widgets/settings_section.dart';
@@ -103,6 +108,9 @@ class HistoryView extends StatefulWidget {
 
   /// Key of the language pair chips of the Favorites tab.
   static const favoritePairsKey = Key('history_favorite_pairs');
+
+  /// Key of "Open phrasebook" (the Favorites tab).
+  static const openPhrasebookKey = Key('history_open_phrasebook');
 
   /// Width from which the list and the selected entry are side by side.
   static const twoPaneBreakpoint = 840.0;
@@ -357,6 +365,21 @@ class _HistoryViewState extends State<HistoryView>
           leading: topLevelBackButton(context),
           title: Text(l10n.historyTitle),
           actions: [
+            // The favorites are the phrasebook's Favorites collection.
+            if (state.favoritesOnly &&
+                maybePhrasebookRepository(context) != null)
+              IconButton(
+                key: HistoryView.openPhrasebookKey,
+                tooltip: l10n.historyOpenPhrasebook,
+                icon: const Icon(Icons.collections_bookmark_outlined),
+                onPressed: () => unawaited(
+                  context.push<void>(
+                    phrasebookLocation(
+                      collectionId: PhraseCollection.favoritesId,
+                    ),
+                  ),
+                ),
+              ),
             if (state.favoritesOnly && visible.isNotEmpty)
               Builder(
                 builder: (context) => IconButton(
@@ -868,6 +891,11 @@ class _HistoryViewState extends State<HistoryView>
       onShowDetails: () => _showDetails(entry, wide: wide),
       onToggleFavorite: () => _toggleFavorite(entry),
       onDelete: () => _delete(entry),
+      onAddToPhrasebook: maybePhrasebookRepository(context) == null
+          ? null
+          : () => unawaited(
+              showAddToPhrasebook(context, PhraseDraft.fromHistory(entry)),
+            ),
     );
   }
 

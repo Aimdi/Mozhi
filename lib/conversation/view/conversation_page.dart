@@ -7,9 +7,13 @@ import 'package:mozhi/conversation/cubit/conversation_cubit.dart';
 import 'package:mozhi/conversation/models/conversation_mic.dart';
 import 'package:mozhi/conversation/models/conversation_turn.dart';
 import 'package:mozhi/conversation/recognizer/speech_input_conversation_recognizer.dart';
+import 'package:mozhi/conversation/share/cubit/conversation_share_cubit.dart';
+import 'package:mozhi/conversation/share/widgets/conversation_share_banner.dart';
+import 'package:mozhi/conversation/share/widgets/conversation_share_guard.dart';
 import 'package:mozhi/conversation/widgets/widgets.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/platform/android_device.dart';
 import 'package:mozhi/speech/speech_service.dart';
 import 'package:mozhi/speech/widgets/speech_error_snack_bar.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
@@ -34,11 +38,15 @@ import 'package:translation_repository/translation_repository.dart';
 /// With voice input ([micBuilder]) and a recogniser from [recognizer]
 /// (default: the app-wide `SpeechInputService`), the large microphone runs
 /// a hands-free conversation ([ConversationCubit.toggleSession]).
+///
+/// With [networkShare] (the Android app) the conversation can also be
+/// shared on the local network ([ConversationShareCubit], from the menu).
 class ConversationPage extends StatelessWidget {
   const new({
     this.micBuilder,
     this.share = shareConversationText,
     this.recognizer = speechInputConversationRecognizer,
+    this.networkShare,
     super.key,
   });
 
@@ -52,6 +60,10 @@ class ConversationPage extends StatelessWidget {
   /// Creates the hands-free conversation's recogniser (owned by the
   /// cubit); null from it means no hands-free conversation.
   final ConversationRecognizerBuilder recognizer;
+
+  /// Whether the conversation can be shared on the local network
+  /// (default: on Android, [runsOnAndroid]).
+  final bool? networkShare;
 
   @override
   Widget build(BuildContext context) {
@@ -78,7 +90,17 @@ class ConversationPage extends StatelessWidget {
           recognizer: micBuilder == null ? null : recognizer(context),
         );
       },
-      child: ConversationView(micBuilder: micBuilder, share: share),
+      child: (networkShare ?? runsOnAndroid)
+          ? BlocProvider(
+              create: (context) => ConversationShareCubit.withTranslate(
+                conversation: context.read<ConversationCubit>(),
+                translate: context.read<TranslateCubit>(),
+                repository: context.read<TranslationRepository>(),
+                usageTracker: _usageTracker(context),
+              ),
+              child: ConversationView(micBuilder: micBuilder, share: share),
+            )
+          : ConversationView(micBuilder: micBuilder, share: share),
     );
   }
 }
@@ -214,7 +236,7 @@ class ConversationView extends StatelessWidget {
           child: _FaceToFacePresenter(
             micBuilder: micBuilder,
             share: share,
-            child: scaffold,
+            child: ConversationShareGuard(child: scaffold),
           ),
         ),
       ),
@@ -410,14 +432,23 @@ class _FaceToFacePresenterState extends State<_FaceToFacePresenter> {
   void _show() {
     if (!mounted || _route != null) return;
     final cubit = context.read<ConversationCubit>();
+    final shareCubit = maybeConversationShare(context);
     final route = _route = MaterialPageRoute<void>(
-      builder: (_) => BlocProvider<ConversationCubit>.value(
-        value: cubit,
-        child: ConversationFaceToFaceView(
-          micBuilder: widget.micBuilder,
-          share: widget.share,
-        ),
-      ),
+      builder: (_) {
+        final view = BlocProvider<ConversationCubit>.value(
+          value: cubit,
+          child: ConversationFaceToFaceView(
+            micBuilder: widget.micBuilder,
+            share: widget.share,
+          ),
+        );
+        return shareCubit == null
+            ? view
+            : BlocProvider<ConversationShareCubit>.value(
+                value: shareCubit,
+                child: view,
+              );
+      },
     );
     unawaited(
       Navigator.of(context, rootNavigator: true).push(route).then((_) {
@@ -467,8 +498,11 @@ class ConversationFaceToFaceView extends StatelessWidget {
         body: const NoEnginesView(),
       );
     }
-    return Scaffold(
-      body: _FaceToFaceLayout(micBuilder: micBuilder, share: share),
+    // Sharing on the local network goes on in face-to-face mode.
+    return ConversationShareGuard(
+      child: Scaffold(
+        body: _FaceToFaceLayout(micBuilder: micBuilder, share: share),
+      ),
     );
   }
 }
@@ -576,6 +610,7 @@ class _StandardLayoutState extends State<_StandardLayout> {
               );
               return Column(
                 children: [
+                  const ConversationShareBanner(),
                   Expanded(
                     child: empty
                         ? ConversationHero(micBuilder: micBuilder)

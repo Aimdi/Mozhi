@@ -27,14 +27,20 @@ enum EgressPurpose {
   /// A web page the user asked the web page translator to fetch.
   webPage,
 
+  /// The user's data synced with their own WebDAV folder (`lib/sync`):
+  /// encrypted on the device, so the server only stores what it cannot
+  /// read.
+  sync,
+
   /// Anything else.
   other;
 
   /// Whether requests of this purpose carry the user's text or photo to
-  /// the destination.
+  /// the destination in a form it can read (a [sync] is encrypted before
+  /// it leaves the device).
   bool get carriesContent => switch (this) {
     translation || aiModel || speech || image => true,
-    catalog || modelDownload || webPage || other => false,
+    catalog || modelDownload || webPage || sync || other => false,
   };
 }
 

@@ -511,6 +511,22 @@ class TranslationRepository {
     );
   }
 
+  /// Withdraws what [allowOnce] let through for [consent] (the same kind
+  /// of consent, engine, destination and language pair) and no request
+  /// has used yet: a job the user approved as a whole that ended early
+  /// (cancelled, or fewer requests than counted) leaves nothing behind
+  /// that would let a later, unrelated request through without asking.
+  void revokeOnce(ConsentRequiredException consent) {
+    final pair = pairKey(consent.source ?? 'auto', consent.target ?? 'auto');
+    _grants.removeWhere(
+      (grant) =>
+          grant.kind == consent.kind &&
+          grant.engineId == consent.engineId &&
+          grant.destination == consent.destination &&
+          grant.pair == pair,
+    );
+  }
+
   /// Where the text of engine [engineId] goes: [OnDeviceDestination] for
   /// the offline engine; for Mozhi engines (`mozhi:<engine>`) the active
   /// instance ([activeInstance]; [SelfHostedDestination] for private

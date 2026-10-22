@@ -351,4 +351,50 @@ void main() {
       );
     });
   });
+
+  group('Glossary change time', () {
+    final at = DateTime.utc(2026, 10, 20, 9, 30);
+    final stamped = Glossary(
+      id: 'g',
+      name: 'Tech',
+      terms: const [GlossaryTerm(source: 'cloud', target: 'Cloud')],
+      updatedAt: at,
+    );
+
+    test('is written (UTC) only when there is one', () {
+      expect(const Glossary(id: 'g').toJson(), isNot(contains('updatedAt')));
+      expect(
+        Glossary(id: 'g', updatedAt: at.toLocal()).toJson()['updatedAt'],
+        '2026-10-20T09:30:00.000Z',
+      );
+    });
+
+    test('is read back; invalid or missing ones are none', () {
+      expect(Glossary.fromJson(stamped.toJson()).updatedAt, at);
+      expect(
+        Glossary.fromJson(const {'id': 'g', 'updatedAt': 'x'}).updatedAt,
+        isNull,
+      );
+      expect(Glossary.fromJson(const {'id': 'g'}).updatedAt, isNull);
+    });
+
+    test('modifiedAt falls back to the epoch', () {
+      expect(stamped.modifiedAt, at);
+      expect(const Glossary(id: 'g').modifiedAt, DateTime.utc(1970));
+    });
+
+    test('is not part of equality', () {
+      expect(stamped, stamped.withoutChangeTime());
+      expect(stamped.withoutChangeTime().updatedAt, isNull);
+      expect(stamped.withoutChangeTime().terms, stamped.terms);
+      const plain = Glossary(id: 'g');
+      expect(identical(plain.withoutChangeTime(), plain), isTrue);
+    });
+
+    test('copyWith keeps or sets it', () {
+      final later = at.add(const Duration(days: 1));
+      expect(stamped.copyWith(name: 'x').updatedAt, at);
+      expect(stamped.copyWith(updatedAt: later).updatedAt, later);
+    });
+  });
 }

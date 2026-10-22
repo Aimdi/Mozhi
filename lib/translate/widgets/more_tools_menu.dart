@@ -7,6 +7,10 @@ import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/router.dart' show AppRoutes;
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/phrasebook/widgets/phrasebook_labels.dart'
+    show maybePhrasebookRepository;
+import 'package:mozhi/practice/widgets/practice_entry_points.dart'
+    show PracticeMenuLabel, maybePracticeRepository;
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/widgets/recent_pairs_sheet.dart';
 import 'package:mozhi/translate/widgets/shortcuts_help.dart';
@@ -25,6 +29,8 @@ enum TranslateTool {
   documents(AppRoutes.documents, Icons.description_outlined),
   webPage(AppRoutes.web, Icons.language),
   transcribe(AppRoutes.transcribe, Icons.subtitles_outlined),
+  phrasebook(AppRoutes.phrasebook, Icons.collections_bookmark_outlined),
+  practice(AppRoutes.practice, Icons.school_outlined),
   recentPairs(null, Icons.history),
   shortcuts(null, Icons.keyboard_outlined);
 
@@ -40,6 +46,8 @@ enum TranslateTool {
     TranslateTool.documents => l10n.translateToolDocuments,
     TranslateTool.webPage => l10n.translateToolWebPage,
     TranslateTool.transcribe => l10n.translateToolTranscribe,
+    TranslateTool.phrasebook => l10n.translateToolPhrasebook,
+    TranslateTool.practice => l10n.practiceTitle,
     TranslateTool.recentPairs => l10n.translateRecentPairsTitle,
     TranslateTool.shortcuts => l10n.translateKeyboardShortcuts,
   };
@@ -134,7 +142,9 @@ class _MoreToolsButtonState extends State<MoreToolsButton> {
       case TranslateTool.image ||
           TranslateTool.documents ||
           TranslateTool.webPage ||
-          TranslateTool.transcribe:
+          TranslateTool.transcribe ||
+          TranslateTool.phrasebook ||
+          TranslateTool.practice:
         unawaited(context.push<void>(tool.route!));
     }
   }
@@ -166,10 +176,15 @@ class _MoreToolsButtonState extends State<MoreToolsButton> {
         final state = context.read<TranslateCubit>().state;
         final hasEngines = state.engines.isNotEmpty;
         final shortcuts = _offersShortcuts();
+        final hasPhrasebook = maybePhrasebookRepository(context) != null;
+        final practice = maybePracticeRepository(context);
         bool offered(TranslateTool tool) => switch (tool) {
           TranslateTool.image => !hasEngines,
           TranslateTool.recentPairs => hasEngines,
           TranslateTool.shortcuts => shortcuts,
+          // Where the app provides one.
+          TranslateTool.phrasebook => hasPhrasebook,
+          TranslateTool.practice => practice != null,
           TranslateTool.documents ||
           TranslateTool.webPage ||
           TranslateTool.transcribe => true,
@@ -193,7 +208,12 @@ class _MoreToolsButtonState extends State<MoreToolsButton> {
                 children: [
                   Icon(tool.icon),
                   const SizedBox(width: 12),
-                  Flexible(child: Text(tool.label(l10n))),
+                  Flexible(
+                    // Practice counts the cards due in a badge.
+                    child: tool == TranslateTool.practice
+                        ? PracticeMenuLabel(repository: practice)
+                        : Text(tool.label(l10n)),
+                  ),
                 ],
               ),
             ),

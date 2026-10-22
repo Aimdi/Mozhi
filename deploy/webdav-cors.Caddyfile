@@ -1,0 +1,36 @@
+# CORS in front of a WebDAV server, so that the Mozhi web app can sync with
+# it (docs/sync.md, "The web app and CORS"). Native apps don't need this.
+#
+# Caddy gets a certificate for SYNC_DOMAIN (a DNS name pointing at this
+# host, ports 80 and 443 reachable) and passes everything to your WebDAV
+# server at WEBDAV_UPSTREAM: `rclone serve webdav`, Apache, a NAS, or
+# Nextcloud (for Nextcloud, point the app at
+# https://<SYNC_DOMAIN>/remote.php/dav/files/<user>/ and add SYNC_DOMAIN to
+# its trusted_domains).
+#
+# MOZHI_APP_ORIGIN is where you open the web app: scheme, host and port
+# only, for example https://app.example.org. Run it with
+#   SYNC_DOMAIN=dav.example.org WEBDAV_UPSTREAM=localhost:8080 \
+#   MOZHI_APP_ORIGIN=https://app.example.org caddy run --config webdav-cors.Caddyfile
+{$SYNC_DOMAIN:dav.localhost} {
+	# The browser's preflight carries no credentials: answer it here,
+	# before the WebDAV server asks for a password.
+	@preflight method OPTIONS
+	respond @preflight 204
+
+	header {
+		# After the WebDAV server's own headers, so these win.
+		defer
+		Access-Control-Allow-Origin "{$MOZHI_APP_ORIGIN}"
+		Access-Control-Allow-Methods "GET, PUT, DELETE, PROPFIND, MKCOL, OPTIONS"
+		Access-Control-Allow-Headers "Authorization, Content-Type, Depth, If-Match, If-None-Match"
+		# Lets the app read the ETag of a download (it falls back to
+		# PROPFIND without it).
+		Access-Control-Expose-Headers "ETag"
+		Access-Control-Max-Age "600"
+		Vary "Origin"
+		-Server
+	}
+
+	reverse_proxy {$WEBDAV_UPSTREAM:localhost:8080}
+}

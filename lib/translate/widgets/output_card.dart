@@ -12,6 +12,10 @@ import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/history/models/history_entry.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/offline/offline.dart' show OfflineEngineBadge;
+import 'package:mozhi/phrasebook/widgets/add_to_phrasebook.dart'
+    show AddToPhrasebookButton, translationPhraseDraft;
+import 'package:mozhi/phrasebook/widgets/phrasebook_labels.dart'
+    show maybePhrasebookRepository;
 import 'package:mozhi/platform/android_device.dart';
 import 'package:mozhi/platform/clipboard_service.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
@@ -1364,6 +1368,12 @@ class _OutputCardState extends State<OutputCard>
             );
           },
         ),
+        // Beside the heart: into a phrasebook collection (where the app
+        // has one).
+        if (maybePhrasebookRepository(context) != null)
+          AddToPhrasebookButton(
+            draft: complete ? translationPhraseDraft(state) : null,
+          ),
         Builder(
           builder: (buttonContext) => XActionButton(
             key: const Key('translate_share_button'),

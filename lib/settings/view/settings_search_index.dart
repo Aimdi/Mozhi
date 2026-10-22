@@ -1,16 +1,21 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/pairing/view/pairing_entries.dart' show PairingAnchors;
+import 'package:mozhi/pairing/view/pairing_unavailable.dart'
+    show isPairingSupported;
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/settings/models/settings_category.dart';
 import 'package:mozhi/settings/view/about_page.dart';
 import 'package:mozhi/settings/view/categories/ai_settings.dart';
 import 'package:mozhi/settings/view/categories/appearance_settings.dart';
+import 'package:mozhi/settings/view/categories/backup_settings.dart';
 import 'package:mozhi/settings/view/categories/engine_settings.dart';
 import 'package:mozhi/settings/view/categories/general_settings.dart';
 import 'package:mozhi/settings/view/categories/speech_settings.dart';
 import 'package:mozhi/settings/view/widgets/model_source_dialog.dart';
 import 'package:mozhi/settings/view/widgets/privacy_settings_section.dart';
 import 'package:mozhi/settings/view/widgets/settings_search.dart';
+import 'package:mozhi/sync/view/sync_settings_section.dart';
 
 /// Every row the settings search finds, in the settings' order: what each
 /// category page shows here ([settings], the platform and the services
@@ -38,6 +43,7 @@ List<SettingsSearchEntry> settingsSearchIndex(
   );
   const general = SettingsCategory.general;
   const privacy = SettingsCategory.privacy;
+  const backup = SettingsCategory.backup;
   const engines = SettingsCategory.engines;
   const ai = SettingsCategory.ai;
   const appearance = SettingsCategory.appearance;
@@ -119,13 +125,27 @@ List<SettingsSearchEntry> settingsSearchIndex(
       privacy,
       PrivacyAnchors.exportHistory,
       l10n.settingsExportHistory,
-      subtitle: l10n.settingsExportHistorySubtitle,
+      subtitle: l10n.settingsExportHistoryPlainSubtitle,
     ),
     entry(
       privacy,
       PrivacyAnchors.importHistory,
       l10n.settingsImportHistory,
       subtitle: l10n.settingsImportHistorySubtitle,
+    ),
+    entry(
+      privacy,
+      PrivacyAnchors.phrasebook,
+      l10n.settingsPhrasebook,
+      subtitle: l10n.settingsPhrasebookSubtitle,
+      keywords: [l10n.phrasebookStarterTitle],
+    ),
+    entry(
+      privacy,
+      PrivacyAnchors.practice,
+      l10n.practiceTitle,
+      subtitle: l10n.practiceSettingsTileSubtitle,
+      keywords: [l10n.practiceSearchKeywords],
     ),
     entry(privacy, PrivacyAnchors.recentPairs, l10n.settingsClearRecentPairs),
     entry(privacy, PrivacyAnchors.networkPairs, l10n.settingsNetworkPairs),
@@ -158,6 +178,55 @@ List<SettingsSearchEntry> settingsSearchIndex(
       l10n.settingsDeleteAllData,
       subtitle: l10n.settingsDeleteAllDataSubtitle,
     ),
+    entry(
+      backup,
+      BackupAnchors.backUp,
+      l10n.settingsBackupCreate,
+      keywords: [
+        l10n.settingsCategoryBackup,
+        l10n.settingsBackupKeywords,
+        l10n.backupIncludeSecrets,
+      ],
+    ),
+    entry(
+      backup,
+      BackupAnchors.restore,
+      l10n.settingsBackupRestore,
+      subtitle: l10n.settingsBackupRestoreSubtitle,
+      keywords: [l10n.settingsCategoryBackup, l10n.settingsBackupKeywords],
+    ),
+    if (SyncSettingsSection.serviceOf(context) != null)
+      entry(
+        backup,
+        SyncAnchors.sync,
+        l10n.syncTitle,
+        subtitle: l10n.syncSetUpSubtitle,
+        keywords: [
+          l10n.syncSetUp,
+          l10n.syncNow,
+          l10n.syncWhatToSync,
+          l10n.syncWifiOnly,
+          l10n.syncChangePassphrase,
+          l10n.syncTurnOff,
+          ...SyncAnchors.keywords,
+        ],
+      ),
+    if (isPairingSupported) ...[
+      entry(
+        backup,
+        PairingAnchors.receive,
+        l10n.pairingReceiveAction,
+        subtitle: l10n.pairingReceiveSubtitle,
+        keywords: [l10n.pairingSectionTitle],
+      ),
+      entry(
+        backup,
+        PairingAnchors.send,
+        l10n.pairingSendAction,
+        subtitle: l10n.pairingSendSubtitle,
+        keywords: [l10n.pairingSectionTitle, l10n.pairingSharePacksAction],
+      ),
+    ],
     if (EngineSettings.offlineSupported)
       entry(
         engines,

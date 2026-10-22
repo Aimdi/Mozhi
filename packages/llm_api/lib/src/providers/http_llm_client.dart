@@ -47,6 +47,14 @@ abstract class HttpLlmClient implements LlmClient {
     return key == null || key.isEmpty ? null : key;
   }
 
+  /// The headers (lower case) that carry an API key: [send] never lets
+  /// [LlmEndpoint.headers] replace them.
+  static const _authHeaderNames = {
+    'authorization',
+    'x-api-key',
+    'x-goog-api-key',
+  };
+
   @override
   Future<String> chat(LlmRequest request) => streamChat(request).join();
 
@@ -77,10 +85,16 @@ abstract class HttpLlmClient implements LlmClient {
   /// Sends a request and returns the streamed response once a 2xx status
   /// arrives.
   ///
-  /// [json] is encoded as the request body. [LlmEndpoint.headers] are added
-  /// after [headers]. Completing [abortTrigger] aborts the request. Throws
-  /// [LlmApiException] when no response headers arrive within [timeout] or
-  /// the status is not 2xx (with the message extracted from the body).
+  /// [json] is encoded as the request body. [LlmEndpoint.headers] (the
+  /// user's custom headers) are added after [headers], so they can replace
+  /// the client's own (`Accept`, ...), but never its authentication: the
+  /// API key's header in [headers] (`Authorization`, `x-api-key` or
+  /// `x-goog-api-key`, which the clients only send when a key is set) is
+  /// added after them again. Without a key, a custom `Authorization` (a
+  /// gateway's) is sent as it is. Completing [abortTrigger] aborts the
+  /// request. Throws [LlmApiException] when no response headers arrive
+  /// within [timeout] or the status is not 2xx (with the message extracted
+  /// from the body).
   ///
   /// Redirects are never followed: dart:io copies every header except
   /// `Authorization` / `Cookie` to the new host, which would leak
@@ -102,7 +116,12 @@ abstract class HttpLlmClient implements LlmClient {
           ..maxRedirects = 0;
     request.headers
       ..addAll(headers)
-      ..addAll(endpoint.headers);
+      ..addAll(endpoint.headers)
+      ..addEntries(
+        headers.entries.where(
+          (header) => _authHeaderNames.contains(header.key.toLowerCase()),
+        ),
+      );
     if (json != null) request.body = jsonEncode(json);
 
     final http.StreamedResponse response;

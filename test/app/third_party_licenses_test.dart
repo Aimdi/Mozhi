@@ -181,4 +181,17 @@ void main() {
       );
     });
   });
+
+  test('lists the practice scheduler with the py-fsrs notice', () async {
+    registerThirdPartyLicenses();
+
+    expect(
+      _text(await _entries(), fsrsLicensePackage),
+      allOf(
+        contains('https://github.com/open-spaced-repetition/py-fsrs'),
+        contains('Copyright (c) 2022 Open Spaced Repetition'),
+        contains('The above copyright notice and this permission'),
+      ),
+    );
+  });
 }

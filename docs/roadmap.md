@@ -43,12 +43,13 @@ gaps that matter:
   app, no camera overlay, no continuous transcription (all but a live
   camera overlay closed in waves 1 to 3).
 - **Continuity:** no encrypted backup or sync, favorites aren't a
-  phrasebook, no learning tools.
+  phrasebook, no learning tools (all closed in wave 4).
 
-## Done: waves 1 to 3
+## Done: waves 1 to 4
 
-Wave 1 (trust, speed and transparency), wave 2 (feel like the best app)
-and wave 3 (offline everywhere) are built; the
+Wave 1 (trust, speed and transparency), wave 2 (feel like the best app),
+wave 3 (offline everywhere) and wave 4 (continuity and learning) are
+built; the
 [changelog](../CHANGELOG.md) lists what changed (Unreleased). Wave 3
 brought offline translation to the web app (Bergamot and CLD2 as
 WebAssembly in a worker, models in the browser's private storage), a model
@@ -62,6 +63,21 @@ A security review of the new code led to stricter redirects (a Mozhi
 instance can't move your text to another server; downloads never follow a
 redirect into your network or around your proxy), whole-word glossary
 matching and better personal data detection.
+
+Wave 4 brought continuity and learning without an account or a server:
+an encrypted backup file (Argon2id and AES-256-GCM) that every feature
+plugs its data into, with deletion records so merges don't bring deleted
+entries back; end-to-end-encrypted sync through the user's own WebDAV
+folder, merged per entry; phone-to-phone transfer of data and offline
+models over the local network (QR code, X25519, a six-digit number on both
+phones); a phrasebook of named collections with Wikivoyage starter
+phrasebooks; FSRS flashcards with speaking practice on Whisper and Anki
+export; and a shared conversation that guests follow in their own
+language from their phone's browser. A security review of the new code
+led to transfers that restore only what was offered, merges that never
+add a translation server and keep API keys with their own server, limits
+on what guests can make the host's engine do, and stricter limits on
+backup files.
 
 Carried over to later waves:
 
@@ -97,21 +113,37 @@ Carried over to later waves:
   the success path) to the Dart SDK; a connection given up during the TLS
   handshake through the proxy stays open until the server closes it;
   Documents' own placeholder tokens are still limited to four digits.
+- **Backup and sync:** Unicode normalisation of passphrases (a passphrase
+  typed with another keyboard's composed characters doesn't match); the
+  web app's Argon2id uses lighter settings (19 MiB, 2 passes) than
+  Android's (64 MiB, 3); sync not yet tried against real Nextcloud,
+  ownCloud, Synology and rclone servers; presets and glossaries saved
+  before wave 4 have no change time, so two devices that already differ
+  keep their own copy until one is edited; devices with different
+  **Delete history automatically** settings keep re-uploading what the
+  other drops; a sync merge racing a local edit is undone locally until
+  the next sync.
+- **Phone to phone:** check the LAN address choice on real Android 11+
+  phones and hotspots, and the local-network permission of newer Android
+  versions; an in-app QR scanner (the camera app opens the link today);
+  encryption off the UI isolate; offline language packs are sent
+  decompressed; a device flooding connections from many addresses can
+  still delay pairing.
+- **Phrasebook and practice:** the Wikivoyage parser was built on
+  fixtures (check the first release run); **Add to phrasebook** for
+  Transcribe segments; number words of more than one word ("twenty one")
+  in speaking practice; FSRS weights fitted to the user's own reviews.
+- **Settings merge:** a preset that names a deleted AI provider could pick
+  up a merged provider with the same id.
+- **Shared conversation:** the page is plain `http` (a phone has no
+  certificate browsers trust), so others on the same Wi-Fi can read
+  along; guests' devices are told apart by IP address, so someone who
+  keeps changing addresses is held back only by the room-wide limits;
+  a guest microphone needs a recogniser that doesn't send speech to the
+  browser's maker.
 - **Not done on purpose:** measuring instance speed automatically during
   setup. It contacts every listed volunteer server, so it stays a button
   ("Find the fastest server").
-
-## Wave 4: continuity and learning
-
-- **Encrypted backup** (Argon2id + AES-256-GCM, with no account), then
-  end-to-end-encrypted sync to the user's own WebDAV/Nextcloud folder,
-  then device-to-device pairing on the local network (QR code, X25519).
-- **Phrasebook:** collections built from favorites, history and the
-  dictionary; offline starter phrasebooks (Wikivoyage, CC BY-SA).
-- **Practice:** spaced-repetition flashcards (FSRS), CSV/Anki export, and
-  pronunciation practice with on-device Whisper.
-- **Shared conversations without a server:** the host phone serves a
-  LAN page that guests join by QR code.
 
 ## Wave 5: offline AI
 

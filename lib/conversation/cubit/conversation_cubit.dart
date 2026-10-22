@@ -313,20 +313,53 @@ class ConversationCubit extends Cubit<ConversationState> {
     return _translate(turn, engine);
   }
 
-  /// A new turn of [side] saying [text] and the engine to translate it
+  /// Adds what [guest] of a conversation shared on the local network
+  /// (`ConversationShareCubit`) typed in [language] as a turn of side B,
+  /// translated into side A's language (side B's when the guest writes
+  /// side A's language), and translates it like [submit]: read aloud with
+  /// [ConversationState.autoSpeak]. A hands-free conversation goes on as
+  /// it was (a reading aloud closes its microphone meanwhile). Blank text
+  /// is ignored.
+  Future<void> submitGuest(
+    String text, {
+    required Language language,
+    required int guest,
+  }) {
+    if (text.trim().isEmpty || isClosed) return Future.value();
+    final target =
+        _primaryLanguage(language) == _primaryLanguage(state.languageA)
+        ? state.languageB
+        : state.languageA;
+    final (turn, engine) = _newTurn(
+      ConversationSide.b,
+      text,
+      source: language,
+      target: target,
+      guest: guest,
+    );
+    emit(state.copyWith(turns: [...state.turns, turn]));
+    if (engine == null) return Future.value();
+    return _translate(turn, engine);
+  }
+
+  /// A new turn of [side] saying [text] (in [source], for [target]: by
+  /// default the two sides' languages) and the engine to translate it
   /// with (none: the turn failed with [ConversationNoEngineException]).
   (ConversationTurn, TranslationEngine?) _newTurn(
     ConversationSide side,
-    String text,
-  ) {
+    String text, {
+    Language? source,
+    Language? target,
+    int? guest,
+  }) {
     final original = text.trim();
     final engine = _engine();
     final turn = ConversationTurn(
       id: _nextId++,
       side: side,
       original: original,
-      source: state.languageOf(side),
-      target: state.languageOf(side.other),
+      source: source ?? state.languageOf(side),
+      target: target ?? state.languageOf(side.other),
       createdAt: _clock(),
       engineId: engine?.id,
       engineName: engine?.name,
@@ -334,6 +367,7 @@ class ConversationCubit extends Cubit<ConversationState> {
           ? ConversationTurnStatus.failed
           : ConversationTurnStatus.translating,
       error: engine == null ? const ConversationNoEngineException() : null,
+      guest: guest,
     );
     return (turn, engine);
   }

@@ -9,6 +9,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:mozhi/app/app_dependencies.dart';
 import 'package:mozhi/app/fallback_key_value_store.dart';
 import 'package:mozhi/app/third_party_licenses.dart';
+import 'package:mozhi/backup/sections/app_backup_sections.dart';
 import 'package:mozhi/core/key_value_metadata_store.dart';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/core/network/network_session.dart';
@@ -18,12 +19,17 @@ import 'package:mozhi/dictionary/data/default_dictionary_packs.dart';
 import 'package:mozhi/dictionary/data/dictionary_packs.dart';
 import 'package:mozhi/history/data/history_repository.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/phrasebook/data/default_phrasebook.dart';
+import 'package:mozhi/phrasebook/data/phrasebook_backup_section.dart';
 import 'package:mozhi/platform/offline_engine.dart';
 import 'package:mozhi/platform/offline_speech.dart';
 import 'package:mozhi/platform/shared_text_service.dart';
+import 'package:mozhi/practice/data/practice_backup_section.dart';
+import 'package:mozhi/practice/data/practice_repository.dart';
 import 'package:mozhi/settings/data/settings_repository.dart';
 import 'package:mozhi/settings/models/app_languages.dart';
 import 'package:mozhi/speech/speech_service.dart';
+import 'package:mozhi/sync/data/sync_service.dart';
 import 'package:mozhi/usage/data/usage_tracker.dart';
 import 'package:mozhi/voice/offline/offline_speech.dart';
 import 'package:mozhi/voice/offline/whisper_speech_recognizer_adapter.dart';
@@ -190,11 +196,39 @@ Future<AppDependencies> createDependencies({
         instances: settings.instances,
         providers: settings.providers,
       );
+  final historyRepository = HistoryRepository(store: preferences);
+  // The app gives it the history's favourites (App).
+  final phrasebook = createPhrasebookRepository(preferences: preferences);
+  // Flashcards of the phrasebook (encrypted like the history).
+  final practice = PracticeRepository(
+    phrasebook: phrasebook,
+    store: preferences,
+  );
+  // What backups, sync and pairing carry (docs/backup.md).
+  final backupRegistry =
+      createAppBackupRegistry(
+          settings: settingsRepository,
+          history: historyRepository,
+          preferences: preferences,
+        )
+        ..register(PhrasebookBackupSection(phrasebook))
+        ..register(PracticeBackupSection(practice));
 
   return AppDependencies(
     translationRepository: translationRepository,
     settingsRepository: settingsRepository,
-    historyRepository: HistoryRepository(store: preferences),
+    historyRepository: historyRepository,
+    backupRegistry: backupRegistry,
+    // Sync with the user's WebDAV folder (docs/sync.md): nothing runs until
+    // it is set up, and never in Offline only.
+    syncService: SyncService(
+      registry: backupRegistry,
+      prefs: preferences,
+      secrets: secretStore,
+      privacyMode: () => translationRepository.privacyMode,
+    ),
+    phrasebookRepository: phrasebook,
+    practiceRepository: practice,
     speechService: SpeechService(
       repository: translationRepository,
       store: preferences,

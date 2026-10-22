@@ -1,13 +1,18 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/core/privacy/ime_learning.dart';
 import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/history/data/history_repository.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/platform/clipboard_service.dart';
+import 'package:mozhi/settings/models/settings_category.dart';
+import 'package:mozhi/settings/view/categories/backup_settings.dart'
+    show BackupAnchors;
 import 'package:share_plus/share_plus.dart';
 
 /// Shares an exported history JSON document.
@@ -40,11 +45,12 @@ abstract final class HistoryShare {
   }
 }
 
-enum _ExportChoice { copy, share }
+enum _ExportChoice { copy, share, backup }
 
 /// Lets the user copy the history JSON to the clipboard (marked sensitive,
 /// see [ClipboardService]) or share it, warning that the export is not
-/// encrypted (unlike the history on the device).
+/// encrypted (unlike the history on the device), or make an encrypted
+/// backup instead (Settings › Backup & sync).
 Future<void> showExportHistorySheet(BuildContext context) async {
   final l10n = context.l10n;
   final cubit = context.read<HistoryCubit>();
@@ -67,12 +73,29 @@ Future<void> showExportHistorySheet(BuildContext context) async {
             title: Text(l10n.settingsExportShare),
             onTap: () => Navigator.of(context).pop(_ExportChoice.share),
           ),
+          ListTile(
+            key: const Key('settings_export_use_backup'),
+            leading: const Icon(Icons.lock_outline),
+            title: Text(l10n.settingsExportUseBackup),
+            onTap: () => Navigator.of(context).pop(_ExportChoice.backup),
+          ),
           const SizedBox(height: 8),
         ],
       ),
     ),
   );
   if (choice == null) return;
+  if (choice == _ExportChoice.backup) {
+    final router = context.mounted ? GoRouter.maybeOf(context) : null;
+    if (router != null) {
+      unawaited(
+        router.push<void>(
+          SettingsCategory.backup.location(row: BackupAnchors.backUp),
+        ),
+      );
+    }
+    return;
+  }
   try {
     final json = await cubit.exportJson();
     switch (choice) {
@@ -87,6 +110,9 @@ Future<void> showExportHistorySheet(BuildContext context) async {
         }
       case _ExportChoice.share:
         await HistoryShare.share(json);
+      case _ExportChoice.backup:
+        // Opened above.
+        break;
     }
   } on Object {
     messenger?.showSnackBar(SnackBar(content: Text(l10n.settingsExportFailed)));

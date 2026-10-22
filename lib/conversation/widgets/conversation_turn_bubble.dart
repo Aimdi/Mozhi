@@ -10,6 +10,11 @@ import 'package:mozhi/conversation/widgets/side_colors.dart';
 import 'package:mozhi/core/widgets/consent_prompt.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/phrasebook/models/phrase.dart';
+import 'package:mozhi/phrasebook/models/phrase_draft.dart';
+import 'package:mozhi/phrasebook/widgets/add_to_phrasebook.dart';
+import 'package:mozhi/phrasebook/widgets/phrasebook_labels.dart'
+    show maybePhrasebookRepository;
 import 'package:mozhi/platform/clipboard_service.dart';
 import 'package:translation_repository/translation_repository.dart'
     show ConsentRequiredException;
@@ -58,9 +63,22 @@ class ConversationTurnBubble extends StatelessWidget {
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
+  /// The phrase this turn makes ("Add to phrasebook…").
+  PhraseDraft get _draft => PhraseDraft(
+    text: turn.original.trim(),
+    translation: turn.translation.trim(),
+    sourceCode: phraseLanguageOf(turn.source),
+    targetCode: phraseLanguageOf(turn.target),
+    origin: PhraseOrigin.history,
+  );
+
   Future<void> _showMore(BuildContext context) async {
     final l10n = context.l10n;
     final cubit = context.read<ConversationCubit>();
+    final canSavePhrase =
+        turn.isComplete &&
+        !_draft.isEmpty &&
+        maybePhrasebookRepository(context) != null;
     final action = await showConversationDialog<_TurnAction>(
       context: context,
       builder: (dialogContext) => SimpleDialog(
@@ -76,6 +94,12 @@ class ConversationTurnBubble extends StatelessWidget {
               label: l10n.conversationCopyTranslation,
               value: _TurnAction.copyTranslation,
             ),
+          if (canSavePhrase)
+            _DialogOption(
+              icon: Icons.bookmark_add_outlined,
+              label: l10n.phrasebookAdd,
+              value: _TurnAction.phrasebook,
+            ),
           _DialogOption(
             icon: Icons.delete_outline,
             label: l10n.conversationDeleteMessage,
@@ -90,6 +114,8 @@ class ConversationTurnBubble extends StatelessWidget {
         await _copy(context, turn.original);
       case _TurnAction.copyTranslation:
         await _copy(context, turn.translation);
+      case _TurnAction.phrasebook:
+        await showAddToPhrasebook(context, _draft);
       case _TurnAction.delete:
         await cubit.removeTurn(turn.id);
     }
@@ -131,7 +157,10 @@ class ConversationTurnBubble extends StatelessWidget {
         : turn.translation.trim().isEmpty
         ? l10n.conversationTranslating
         : turn.translation;
+    final guest = turn.guest;
     final details = [
+      // Written by a guest of the conversation shared on the network.
+      if (guest != null) l10n.conversationShareGuestLabel(guest),
       formatConversationTime(context, turn.createdAt),
       ?turn.engineName,
     ].join(' · ');
@@ -260,15 +289,21 @@ class ConversationTurnBubble extends StatelessWidget {
       ],
     );
 
+    final message = l10n.conversationMessageSemantics(
+      turn.source.name,
+      turn.original,
+      turn.target.name,
+      status,
+    );
     return LayoutBuilder(
       builder: (context, constraints) => Semantics(
         container: true,
-        label: l10n.conversationMessageSemantics(
-          turn.source.name,
-          turn.original,
-          turn.target.name,
-          status,
-        ),
+        label: guest == null
+            ? message
+            : l10n.conversationShareGuestSemantics(
+                l10n.conversationShareGuestLabel(guest),
+                message,
+              ),
         child: Row(
           mainAxisAlignment: alignEnd
               ? MainAxisAlignment.end
@@ -298,7 +333,7 @@ class ConversationTurnBubble extends StatelessWidget {
   }
 }
 
-enum _TurnAction { copyOriginal, copyTranslation, delete }
+enum _TurnAction { copyOriginal, copyTranslation, phrasebook, delete }
 
 class _DialogOption extends StatelessWidget {
   const new({required this.icon, required this.label, required this.value});

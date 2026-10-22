@@ -53,9 +53,9 @@ in `-rc.N`).
   the history on this device, and on Android **Paste and translate**
   appears when you come back with text on the clipboard. The app only
   checks that the clipboard holds text; it reads it when you tap.
-- **Settings search**, and seven categories (General, Privacy & data,
-  Translation engines, AI, Appearance, Read aloud & voice, About), each on
-  its own page. The search finds every setting and jumps to it.
+- **Settings search**, and eight categories (General, Privacy & data,
+  Backup & sync, Translation engines, AI, Appearance, Read aloud & voice,
+  About), each on its own page. The search finds every setting and jumps to it.
 - **Favorites as a phrasebook:** grouped by language pair, with filter
   chips, and **Export favorites** saves or shares them as a CSV file for
   Anki and spreadsheets. The file isn't encrypted and stays on the device
@@ -125,6 +125,45 @@ in `-rc.N`).
   local voices come first, and Mozhi asks once per voice before one reads
   aloud (Settings › Read aloud & voice › Allowed online voices). In
   offline-only mode they are not used.
+- **Encrypted backup** (Settings › Backup & sync, and on the first
+  screen of a new install). One file, encrypted with your passphrase
+  (Argon2id and AES-256-GCM), holds your history and favorites,
+  phrasebook, practice progress, presets, glossaries and settings; API
+  keys and passwords only if you include them. There is no account and no
+  server: you choose where the file goes. Restore **merges** with what is
+  on the device (deleted entries stay deleted) or **replaces** it, and a
+  backup made in the web app restores on Android and the other way round.
+  See [Backup](docs/backup.md).
+- **Sync through your own WebDAV folder** (Nextcloud, ownCloud, a NAS or
+  `rclone serve webdav`): history, favorites, phrasebooks, practice
+  progress, presets and glossaries stay the same on your phone, tablet and
+  the web app. Everything is encrypted on the device with a sync
+  passphrase before it leaves, so the server stores a file it can't read;
+  changes from both sides are merged per entry. See [Sync](docs/sync.md).
+- **Phone to phone** (Android): move your data or your offline languages,
+  voice and text recognition models to another phone over the same Wi-Fi
+  or a hotspot, end-to-end encrypted, with no account, server or internet.
+  The receiving phone shows a QR code; both phones show a six-digit number
+  to compare. See [Phone to phone](docs/pairing.md).
+- **Phrasebook:** your favorites grow into named collections (*Trip to
+  Lisbon*, *Pharmacy*), filled in a tap from a translation, a history
+  entry, a dictionary entry or a conversation message, with notes,
+  pronunciation and topics, CSV export and import, and offline starter
+  phrasebooks for travellers from Wikivoyage (CC BY-SA). Open it from
+  History › Favorites or More tools. See [Phrasebook](docs/phrasebook.md).
+- **Practice:** flashcards of your phrasebook collections, scheduled with
+  FSRS (the spaced-repetition algorithm Anki uses) and asked a few at a
+  time, both ways round. Say the phrase aloud and on-device Whisper checks
+  it, or type it; the app suggests a rating and you decide. Export a
+  collection to Anki. Nothing leaves the device and there are no streaks.
+  Open it from More tools (with the number of cards due), a phrasebook
+  collection or the settings. See [Practice](docs/practice.md).
+- **Shared conversation** (Android, the Conversation tab's menu › Share on
+  this network): everyone in the room follows the conversation on their
+  own phone, in their own language, and can reply by typing. Your phone
+  serves the page on the local network, so there is no app to install and
+  no server; guests scan a QR code and enter a PIN. See
+  [Shared conversation](docs/features.md#shared-conversation).
 
 ### Changed
 
@@ -239,6 +278,9 @@ in `-rc.N`).
 
 ### Fixed
 
+- **Saving in the web app** (exporting favorites, a phrasebook collection
+  or flashcards, saving a document) now says it was saved: the browser's
+  download used to count as cancelled.
 - **Settings and API keys:** keys are no longer rewritten on every
   settings change, and a storage error no longer goes unnoticed: when the
   settings or a key can't be saved, the app says so. The change lasts

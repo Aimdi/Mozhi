@@ -6,6 +6,8 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/router.dart' show AppRoutes;
 import 'package:mozhi/conversation/cubit/conversation_cubit.dart';
 import 'package:mozhi/conversation/models/conversation_transcript.dart';
+import 'package:mozhi/conversation/share/view/conversation_share_page.dart';
+import 'package:mozhi/conversation/share/widgets/conversation_share_guard.dart';
 import 'package:mozhi/conversation/widgets/conversation_turn_bubble.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/platform/clipboard_service.dart';
@@ -75,12 +77,13 @@ class ConversationLayoutButton extends StatelessWidget {
   }
 }
 
-enum _MenuAction { autoSpeak, copy, share, clear, transcribe }
+enum _MenuAction { autoSpeak, copy, share, clear, networkShare, transcribe }
 
 /// Overflow menu: copy or share the transcript, clear the conversation,
-/// open Transcribe (a rolling transcript of a talk; with a [GoRouter]
-/// above); with [showAutoSpeak] (narrow app bars) also the
-/// [ConversationAutoSpeakButton]'s toggle, as a checked item.
+/// share it on the local network (with a `ConversationShareCubit` above:
+/// the Android app), open Transcribe (a rolling transcript of a talk;
+/// with a [GoRouter] above); with [showAutoSpeak] (narrow app bars) also
+/// the [ConversationAutoSpeakButton]'s toggle, as a checked item.
 class ConversationMenuButton extends StatelessWidget {
   const new({
     this.share = shareConversationText,
@@ -172,6 +175,8 @@ class ConversationMenuButton extends StatelessWidget {
             unawaited(_share(context, state));
           case _MenuAction.clear:
             unawaited(_clear(context));
+          case _MenuAction.networkShare:
+            unawaited(openConversationShare(context));
           case _MenuAction.transcribe:
             unawaited(GoRouter.of(context).push<void>(AppRoutes.transcribe));
         }
@@ -213,6 +218,17 @@ class ConversationMenuButton extends StatelessWidget {
             title: Text(l10n.conversationClear),
           ),
         ),
+        if (maybeConversationShare(context) != null) ...[
+          const PopupMenuDivider(),
+          PopupMenuItem(
+            key: const Key('conversation_menu_network_share'),
+            value: _MenuAction.networkShare,
+            child: ListTile(
+              leading: const Icon(Icons.wifi_tethering),
+              title: Text(l10n.conversationShareMenu),
+            ),
+          ),
+        ],
         if (GoRouter.maybeOf(context) != null) ...[
           const PopupMenuDivider(),
           PopupMenuItem(

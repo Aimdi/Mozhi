@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/router.dart' show AppRoutes;
+import 'package:mozhi/backup/data/backup_status_store.dart';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/dictionary/data/default_dictionary_packs.dart'
     show maybeDictionaryPacks;
@@ -13,17 +14,23 @@ import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/history/data/history_repository.dart';
 import 'package:mozhi/image_translate/data/text_recognition_service.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/pairing/view/pairing_environment_of.dart' as pairing;
+import 'package:mozhi/pairing/view/pairing_unavailable.dart'
+    show isPairingSupported;
+import 'package:mozhi/phrasebook/data/phrasebook_repository.dart';
 import 'package:mozhi/platform/mlkit_bindings.dart'
     show createTextRecognitionService;
 import 'package:mozhi/platform/offline_engine.dart'
     show deleteOfflineModelFiles;
 import 'package:mozhi/platform/text_recognition.dart' as text_recognition;
+import 'package:mozhi/practice/data/practice_repository.dart';
 import 'package:mozhi/presets/cubit/glossary_cubit.dart';
 import 'package:mozhi/presets/cubit/presets_cubit.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/data/settings_repository.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/speech/speech_service.dart';
+import 'package:mozhi/sync/data/sync_service.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/usage/data/usage_tracker.dart';
 import 'package:mozhi/voice/offline/offline_speech.dart';
@@ -38,6 +45,8 @@ class LocalDataSummary {
     required this.apiKeys,
     this.historyLength,
     this.offlineModels = 0,
+    this.phrasebookCollections = 0,
+    this.practiceCards = 0,
   });
 
   /// Translations in the history.
@@ -51,16 +60,25 @@ class LocalDataSummary {
 
   /// Downloaded offline languages (not counting built-in English).
   final int offlineModels;
+
+  /// The user's phrasebook collections.
+  final int phrasebookCollections;
+
+  /// Cards with practice progress (reviewed at least once).
+  final int practiceCards;
 }
 
 /// Deletes everything the app keeps on the device: the history (with its
-/// encryption key), the settings and their secrets (API keys, custom
-/// headers, instance passwords), all other preferences (presets,
-/// glossaries, usage counters, speech settings, cached engine lists) and
+/// deletion tombstones and encryption key), the settings and their
+/// secrets (API keys, custom headers, instance passwords), all other
+/// preferences (presets, glossaries, usage counters, speech settings,
+/// cached engine lists, the date of the last backup) and
 /// the offline language models with the whole models folder
 /// ([deleteOfflineFiles]: partial downloads too), the offline speech
 /// models ([offlineSpeech]) and the text recognition data
-/// ([textRecognition], then its folder with [deleteTextRecognitionFiles]).
+/// ([textRecognition], then its folder with [deleteTextRecognitionFiles]);
+/// first of all, the sync setup with its app password and key ([sync];
+/// the server is left alone).
 ///
 /// What the app keeps in memory is reset too, so that nothing deleted is
 /// shown or written back before the next start: [settings] go back to the
@@ -93,6 +111,10 @@ class LocalDataEraser {
     this.dictionaryPacks,
     this.textRecognition,
     this.deleteTextRecognitionFiles,
+    this.phrasebook,
+    this.practice,
+    this.sync,
+    this.deletePairingFiles,
   });
 
   /// Uses what the app provides above [context].
@@ -134,6 +156,13 @@ class LocalDataEraser {
       deleteTextRecognitionFiles: hasOcrData
           ? text_recognition.deleteTextRecognitionFiles
           : null,
+      phrasebook: maybe<PhrasebookRepository>(),
+      practice: maybe<PracticeRepository>(),
+      // What an interrupted phone-to-phone transfer left in the cache.
+      deletePairingFiles: isPairingSupported
+          ? pairing.deletePairingFiles
+          : null,
+      sync: maybe<SyncService>(),
     );
   }
 
@@ -174,6 +203,23 @@ class LocalDataEraser {
   /// `deleteTextRecognitionFiles`): partial downloads too.
   final Future<void> Function()? deleteTextRecognitionFiles;
 
+  /// Deletes what an interrupted phone-to-phone transfer left in the
+  /// cache (see `deletePairingFiles`); pairing stores nothing else.
+  final Future<void> Function()? deletePairingFiles;
+
+  /// The phrasebook (its collections, phrases, notes, key and starter
+  /// phrasebooks: [PhrasebookRepository.deleteAll]).
+  final PhrasebookRepository? phrasebook;
+
+  /// The practice progress and settings, and their key
+  /// ([PracticeRepository.deleteAll]).
+  final PracticeRepository? practice;
+
+  /// Sync: its setup, app password and key are forgotten first
+  /// ([SyncService.forget]; the server is not contacted), so that no sync
+  /// carries what is deleted next to the user's other devices.
+  final SyncService? sync;
+
   /// What [erase] deletes. Never throws: what cannot be found out is left
   /// out (sizes) or counted as nothing.
   Future<LocalDataSummary> summarize() async {
@@ -183,7 +229,25 @@ class LocalDataEraser {
     } on Object {
       historyLength = null;
     }
+    var collections = 0;
+    try {
+      collections =
+          (await phrasebook?.collections())
+              ?.where((c) => c.isEditable)
+              .length ??
+          0;
+    } on Object {
+      collections = 0;
+    }
+    var cards = 0;
+    try {
+      cards = await practice?.reviewedCount() ?? 0;
+    } on Object {
+      cards = 0;
+    }
     return LocalDataSummary(
+      phrasebookCollections: collections,
+      practiceCards: cards,
       historyEntries: history.state.entries.length,
       historyLength: historyLength,
       apiKeys: settings.state.providers
@@ -207,6 +271,7 @@ class LocalDataEraser {
       }
     }
 
+    if (sync case final sync?) await attempt(sync.forget);
     await attempt(history.deleteAll);
     for (final code in await _downloadedModels()) {
       await attempt(() => offline!.deleteLanguage(code));
@@ -230,6 +295,9 @@ class LocalDataEraser {
     if (deleteTextRecognitionFiles case final deleteFiles?) {
       await attempt(deleteFiles);
     }
+    if (phrasebook case final phrasebook?) await attempt(phrasebook.deleteAll);
+    if (practice case final practice?) await attempt(practice.deleteAll);
+    if (deletePairingFiles case final deleteFiles?) await attempt(deleteFiles);
     // Back to the defaults (setup starts again): saving them also deletes
     // the API keys of every provider.
     settings.update((_) => const AppSettings());
@@ -238,6 +306,11 @@ class LocalDataEraser {
       await attempt(() => repository.save(const AppSettings()));
     }
     final preferences = this.preferences;
+    // The date of the last backup (the history's tombstones went with
+    // history.deleteAll above).
+    if (preferences != null) {
+      await attempt(BackupStatusStore(preferences).delete);
+    }
     if (preferences is ClearableKeyValueStore) {
       await attempt(preferences.clear);
     }
@@ -349,6 +422,16 @@ class DeleteLocalDataDialog extends StatelessWidget {
           Icons.download_for_offline_outlined,
           l10n.settingsDeleteAllDataModels(summary.offlineModels),
         ),
+      if (summary.phrasebookCollections > 0)
+        (
+          Icons.collections_bookmark_outlined,
+          l10n.settingsDeleteAllDataPhrasebook(summary.phrasebookCollections),
+        ),
+      if (summary.practiceCards > 0)
+        (
+          Icons.school_outlined,
+          l10n.settingsDeleteAllDataPractice(summary.practiceCards),
+        ),
     ];
     return AlertDialog(
       icon: Icon(Icons.delete_forever_outlined, color: colors.error),
@@ -376,7 +459,7 @@ class DeleteLocalDataDialog extends StatelessWidget {
             ),
           const SizedBox(height: 12),
           Text(
-            l10n.settingsDeleteAllDataIrreversible,
+            l10n.settingsDeleteAllDataIrreversibleBackup,
             style: theme.textTheme.bodyMedium?.copyWith(
               fontWeight: FontWeight.w600,
             ),

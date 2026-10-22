@@ -14,6 +14,7 @@ import 'package:mozhi/settings/models/settings_category.dart';
 import 'package:mozhi/settings/view/about_page.dart' show AboutView;
 import 'package:mozhi/settings/view/categories/ai_settings.dart';
 import 'package:mozhi/settings/view/categories/appearance_settings.dart';
+import 'package:mozhi/settings/view/categories/backup_settings.dart';
 import 'package:mozhi/settings/view/categories/engine_settings.dart';
 import 'package:mozhi/settings/view/categories/general_settings.dart';
 import 'package:mozhi/settings/view/categories/speech_settings.dart';
@@ -28,8 +29,8 @@ export '../models/settings_category.dart';
 export 'widgets/privacy_settings_section.dart' show historyRetentionLabel;
 
 /// The settings (`/settings`): a search field and the list of categories
-/// ([SettingsCategory]: General, Privacy & data, Translation engines, AI,
-/// Appearance, Read aloud & voice, About), each opening its page
+/// ([SettingsCategory]: General, Privacy & data, Backup & sync, Translation
+/// engines, AI, Appearance, Read aloud & voice, About), each opening its page
 /// ([SettingsCategoryPage]); on wide screens the same list beside the
 /// selected category ([SettingsView]).
 ///
@@ -332,6 +333,7 @@ Widget settingsCategoryContent(
 ) => switch (category) {
   SettingsCategory.general => GeneralSettings(settings: settings),
   SettingsCategory.privacy => PrivacySettingsSection(settings: settings),
+  SettingsCategory.backup => BackupSettings(settings: settings),
   SettingsCategory.engines => EngineSettings(settings: settings),
   SettingsCategory.ai => AiSettings(settings: settings),
   SettingsCategory.appearance => AppearanceSettings(settings: settings),

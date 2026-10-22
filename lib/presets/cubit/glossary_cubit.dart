@@ -16,12 +16,21 @@ typedef TermImport = ({int added, int updated, int skipped});
 /// Every change is emitted first and then written through; storage errors
 /// are reported via `addError` and never thrown. The import methods throw
 /// [FormatException] for invalid input (the state is unchanged then).
+///
+/// For backups and sync, every glossary created or changed (renamed,
+/// scoped, turned on or off, its terms added, edited or removed, imported,
+/// put back) is stamped with `clock` (default [DateTime.now]) as its
+/// [Glossary.updatedAt], and the glossaries a change deletes are handed to
+/// [GlossaryRepository.save] for their tombstones (which also stamps a new
+/// order).
 class GlossaryCubit extends Cubit<GlossaryState> {
-  new({GlossaryRepository? repository})
+  new({GlossaryRepository? repository, DateTime Function()? clock})
     : _repository = repository ?? GlossaryRepository(),
+      _clock = clock ?? DateTime.now,
       super(const GlossaryState());
 
   final GlossaryRepository _repository;
+  final DateTime Function() _clock;
 
   Future<void> load() async {
     if (isClosed) return;
@@ -60,6 +69,7 @@ class GlossaryCubit extends Cubit<GlossaryState> {
       sourceCode: LanguageScope.normalize(sourceCode),
       targetCode: LanguageScope.normalize(targetCode),
       terms: mergeTerms(const [], terms).terms,
+      updatedAt: _clock(),
     );
     await _commit([...state.glossaries, glossary]);
     return glossary;
@@ -95,13 +105,18 @@ class GlossaryCubit extends Cubit<GlossaryState> {
     ]);
   }
 
-  /// Puts a deleted [glossary] back at [index] (clamped), e.g. for undo.
+  /// Puts a deleted [glossary] back at [index] (clamped), e.g. for undo. It
+  /// is stamped as changed, so that it also comes back on devices that
+  /// synced the delete.
   Future<void> restore(Glossary glossary, {required int index}) async {
     final glossaries = [
       for (final existing in state.glossaries)
         if (existing.id != glossary.id) existing,
     ];
-    glossaries.insert(index.clamp(0, glossaries.length), glossary);
+    glossaries.insert(
+      index.clamp(0, glossaries.length),
+      glossary.copyWith(updatedAt: _clock()),
+    );
     await _commit(glossaries);
   }
 
@@ -207,7 +222,11 @@ class GlossaryCubit extends Cubit<GlossaryState> {
   Future<int> importJson(String json) async {
     final imported = _repository.parseImport(json);
     if (imported.isEmpty) return 0;
-    await _commit([...state.glossaries, ...imported]);
+    final now = _clock();
+    await _commit([
+      ...state.glossaries,
+      for (final glossary in imported) glossary.copyWith(updatedAt: now),
+    ]);
     return imported.length;
   }
 
@@ -218,16 +237,21 @@ class GlossaryCubit extends Cubit<GlossaryState> {
     final next = change(current);
     if (next == current) return;
     final glossaries = [...state.glossaries];
-    glossaries[index] = next.copyWith(id: id);
+    glossaries[index] = next.copyWith(id: id, updatedAt: _clock());
     await _commit(glossaries);
   }
 
   Future<void> _commit(List<Glossary> glossaries) async {
     if (isClosed) return;
     final next = List<Glossary>.unmodifiable(glossaries);
+    final kept = {for (final glossary in next) glossary.id};
+    final deleted = [
+      for (final glossary in state.glossaries)
+        if (!kept.contains(glossary.id)) glossary.id,
+    ];
     emit(GlossaryState(status: GlossaryStatus.ready, glossaries: next));
     try {
-      await _repository.save(next);
+      await _repository.save(next, deleted: deleted);
     } on Object catch (error, stackTrace) {
       addError(error, stackTrace);
     }

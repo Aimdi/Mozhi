@@ -14,12 +14,20 @@ export 'presets_state.dart';
 /// Every change is emitted first and then written through; storage errors
 /// are reported via `addError` and never thrown (the in-memory state is
 /// kept). [importJson] throws [FormatException] for invalid input.
+///
+/// For backups and sync, every preset created or changed (added, edited,
+/// duplicated, imported, put back) is stamped with `clock` (default
+/// [DateTime.now]) as its [Preset.updatedAt], and the presets a change
+/// deletes are handed to [PresetsRepository.save] for their tombstones
+/// (which also stamps a new order or default).
 class PresetsCubit extends Cubit<PresetsState> {
-  new({PresetsRepository? repository})
+  new({PresetsRepository? repository, DateTime Function()? clock})
     : _repository = repository ?? PresetsRepository(),
+      _clock = clock ?? DateTime.now,
       super(const PresetsState());
 
   final PresetsRepository _repository;
+  final DateTime Function() _clock;
 
   Future<void> load() async {
     if (isClosed) return;
@@ -52,6 +60,7 @@ class PresetsCubit extends Cubit<PresetsState> {
       id: _repository.newId(),
       name: name.trim(),
       options: Preset.settingsOf(options),
+      updatedAt: _clock(),
     );
     await _commit([
       ...state.presets,
@@ -60,15 +69,20 @@ class PresetsCubit extends Cubit<PresetsState> {
     return preset;
   }
 
-  /// Replaces the preset with the same id (no-op when it is unknown).
+  /// Replaces the preset with the same id (no-op when it is unknown),
+  /// stamping it as changed unless it is the same.
   Future<void> update(Preset preset) async {
     final index = _indexOf(preset.id);
     if (index < 0) return;
     final presets = [...state.presets];
-    presets[index] = preset.copyWith(
+    final current = presets[index];
+    final next = preset.copyWith(
       name: preset.name.trim(),
       options: Preset.settingsOf(preset.options),
     );
+    presets[index] = next == current
+        ? current
+        : next.copyWith(updatedAt: _clock());
     await _commit(presets);
   }
 
@@ -81,7 +95,9 @@ class PresetsCubit extends Cubit<PresetsState> {
     ], defaultId: state.defaultId == id ? null : state.defaultId);
   }
 
-  /// Puts a deleted [preset] back at [index] (clamped), e.g. for undo.
+  /// Puts a deleted [preset] back at [index] (clamped), e.g. for undo. It
+  /// is stamped as changed, so that it also comes back on devices that
+  /// synced the delete.
   Future<void> restore(
     Preset preset, {
     required int index,
@@ -91,7 +107,10 @@ class PresetsCubit extends Cubit<PresetsState> {
       for (final existing in state.presets)
         if (existing.id != preset.id) existing,
     ];
-    presets.insert(index.clamp(0, presets.length), preset);
+    presets.insert(
+      index.clamp(0, presets.length),
+      preset.copyWith(updatedAt: _clock()),
+    );
     await _commit(
       presets,
       defaultId: makeDefault ? preset.id : state.defaultId,
@@ -130,6 +149,7 @@ class PresetsCubit extends Cubit<PresetsState> {
       id: _repository.newId(),
       name: (name ?? original.name).trim(),
       options: original.options,
+      updatedAt: _clock(),
     );
     await _commit([...state.presets]..insert(index + 1, copy));
     return copy;
@@ -146,9 +166,11 @@ class PresetsCubit extends Cubit<PresetsState> {
     ];
     if (missing.isEmpty) return 0;
     final ids = {for (final preset in state.presets) preset.id};
+    final now = _clock();
     await _commit([
       ...state.presets,
-      for (final builtIn in missing) _withFreeId(Preset.example(builtIn), ids),
+      for (final builtIn in missing)
+        _withFreeId(Preset.example(builtIn), ids).copyWith(updatedAt: now),
     ]);
     return missing.length;
   }
@@ -167,7 +189,11 @@ class PresetsCubit extends Cubit<PresetsState> {
   Future<int> importJson(String json) async {
     final imported = _repository.parseImport(json);
     if (imported.isEmpty) return 0;
-    await _commit([...state.presets, ...imported]);
+    final now = _clock();
+    await _commit([
+      ...state.presets,
+      for (final preset in imported) preset.copyWith(updatedAt: now),
+    ]);
     return imported.length;
   }
 
@@ -191,9 +217,14 @@ class PresetsCubit extends Cubit<PresetsState> {
       defaultId: presets.any((preset) => preset.id == wanted) ? wanted : null,
     );
     if (isClosed) return;
+    final kept = {for (final preset in presets) preset.id};
+    final deleted = [
+      for (final preset in state.presets)
+        if (!kept.contains(preset.id)) preset.id,
+    ];
     emit(next);
     try {
-      await _repository.save(next.collection);
+      await _repository.save(next.collection, deleted: deleted);
     } on Object catch (error, stackTrace) {
       addError(error, stackTrace);
     }

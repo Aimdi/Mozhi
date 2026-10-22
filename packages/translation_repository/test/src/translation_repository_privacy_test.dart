@@ -1172,6 +1172,26 @@ void main() {
       expect(() => repository.allowOnce(denied, requests: 0), throwsRangeError);
     });
 
+    test('can be withdrawn before it is used', () async {
+      final denied = await denial(googleEngine, englishToGerman);
+      final other = await denial(googleEngine, autoToGerman);
+      repository
+        ..allowOnce(denied, requests: 3)
+        ..allowOnce(denied)
+        ..allowOnce(other)
+        ..revokeOnce(denied)
+        // Nothing left to withdraw.
+        ..revokeOnce(denied);
+      await expectLater(
+        repository.translate(googleEngine, englishToGerman),
+        emitsError(consent(ConsentKind.pair)),
+      );
+      expectNoNetwork();
+      // Another pair's approval stays.
+      stubMozhi(a());
+      expect((await finalResult(googleEngine, autoToGerman)).text, 'Hallo');
+    });
+
     test('expires', () async {
       final denied = await denial(googleEngine, englishToGerman);
       repository.allowOnce(denied);

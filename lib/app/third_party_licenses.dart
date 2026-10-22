@@ -36,6 +36,10 @@ const whisperEngineLicensePackage = 'Whisper speech recognition (whisper.cpp)';
 /// Package name of the notice of the offline speech recognition models.
 const whisperModelsLicensePackage = 'Whisper speech models (OpenAI)';
 
+/// Package name of the notice of the practice scheduler
+/// (`lib/practice/data/fsrs.dart`, a port of py-fsrs).
+const fsrsLicensePackage = 'FSRS spaced repetition scheduler (py-fsrs)';
+
 /// The app's own license (repository `LICENSE`).
 const appLicenseText = '''
 MIT License
@@ -332,12 +336,41 @@ chosen in Settings > Translation engines > Model source, or imported from a
 file, checked against the SHA-256 and SHA-1 checksums bundled with the app
 and kept on this device.''';
 
+/// The notice of py-fsrs, which the practice scheduler is ported from.
+const fsrsLicenseText = '''
+Practice schedules its flashcards with FSRS-5 (Free Spaced Repetition
+Scheduler), ported to Dart from py-fsrs v5.1.3
+(https://github.com/open-spaced-repetition/py-fsrs), with its default
+parameters. It runs on this device.
+
+MIT License
+
+Copyright (c) 2022 Open Spaced Repetition
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.''';
+
 bool _registered = false;
 
 /// Adds the notices Flutter does not collect from pub packages (the app's
 /// own license, the offline translation engine and models, the text
 /// recognition engine and data, the offline speech recognition engine and
-/// models, ML Kit and native platform libraries) to
+/// models, the practice scheduler, ML Kit and native platform libraries) to
 /// the [LicenseRegistry] shown by `showLicensePage`. Safe to call
 /// repeatedly.
 ///
@@ -375,6 +408,7 @@ void registerThirdPartyLicenses({
       const LicenseEntryWithLineBreaks([
         whisperModelsLicensePackage,
       ], whisperModelsLicenseText),
+      const LicenseEntryWithLineBreaks([fsrsLicensePackage], fsrsLicenseText),
       if (includeMlKit)
         const LicenseEntryWithLineBreaks([
           mlKitLicensePackage,

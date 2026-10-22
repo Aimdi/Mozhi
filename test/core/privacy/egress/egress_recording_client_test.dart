@@ -141,7 +141,7 @@ void main() {
       ledger: ledger,
       purpose: EgressPurpose.webPage,
     );
-    await client.send(http.Request('PROPFIND', Uri.parse('https://a.example')));
+    await client.send(http.Request('LOCK', Uri.parse('https://a.example')));
     expect(single().method, 'OTHER');
     expect(single().purpose, EgressPurpose.webPage);
     expect(single().destination.kind, EgressDestinationKind.website);
@@ -330,6 +330,66 @@ void main() {
       );
       await response.stream.drain<void>();
       expect(single().redirectedTo, isNull);
+    });
+  });
+
+  test("names WebDAV's PROPFIND and MKCOL", () async {
+    final client = EgressRecordingClient(
+      MockClient((request) async => http.Response('', 207)),
+      ledger: ledger,
+    );
+    for (final method in ['PROPFIND', 'MKCOL']) {
+      await client.send(http.Request(method, Uri.parse('https://a.example')));
+    }
+    expect(ledger.entries.map((e) => e.method), ['PROPFIND', 'MKCOL']);
+  });
+
+  group('a purpose marked on the request', () {
+    test(
+      'overrides the guess and the client purpose, and is not sent',
+      () async {
+        final sent = <http.BaseRequest>[];
+        final client = EgressRecordingClient(
+          MockClient((request) async {
+            sent.add(request);
+            return http.Response('', 200);
+          }),
+          ledger: ledger,
+          purpose: EgressPurpose.webPage,
+        );
+        await EgressPurposeClient(
+          client,
+          purpose: EgressPurpose.sync,
+        ).get(Uri.parse('https://cloud.example/dav/f.mozhibackup'));
+        expect(single().purpose, EgressPurpose.sync);
+        expect(single().carriedContent, isFalse);
+        expect(
+          sent.single.headers.keys.map((key) => key.toLowerCase()),
+          isNot(contains(EgressRecordingClient.purposeHeader)),
+        );
+      },
+    );
+
+    test('an unknown mark is ignored (and removed)', () async {
+      final sent = <http.BaseRequest>[];
+      final client = EgressRecordingClient(
+        MockClient((request) async {
+          sent.add(request);
+          return http.Response('', 200);
+        }),
+        ledger: ledger,
+      );
+      final request = http.Request('GET', Uri.parse('https://a.example/x'))
+        ..headers['X-Mozhi-Egress-Purpose'] = 'nonsense';
+      await client.send(request);
+      expect(single().purpose, EgressPurpose.other);
+      expect(sent.single.headers, isEmpty);
+    });
+
+    test('EgressPurposeClient leaves the shared client open', () {
+      final inner = _RedirectingClient(Uri.parse('https://a.example'));
+      EgressPurposeClient(inner, purpose: EgressPurpose.sync).close();
+      expect(inner.closed, isFalse);
     });
   });
 

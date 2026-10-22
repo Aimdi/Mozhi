@@ -19,8 +19,9 @@ class HistoryCipherException implements Exception {
 ///
 /// [encrypt] returns `prefix + base64(nonce ‖ ciphertext ‖ tag)`: a random
 /// 96-bit nonce per call and a 128-bit tag over the ciphertext and the
-/// fixed associated data [associatedData] (so a value encrypted for
-/// something else with the same key is rejected).
+/// associated data (by default [associatedData]; another one for each other
+/// kind of value encrypted with the same key, e.g. the history's deletion
+/// records), so a value encrypted for something else is rejected.
 ///
 /// Large values are encrypted and decrypted in a background isolate
 /// (from [isolateThreshold] UTF-16 code units, not on the web, where the
@@ -62,28 +63,39 @@ class HistoryCipher {
       prefix.length +
       4 * ((_nonceLength + plaintextBytes + _macLength + 2) ~/ 3);
 
-  /// Encrypts [plaintext] with [key] ([keyLength] bytes).
-  Future<String> encrypt(String plaintext, List<int> key) {
+  /// Encrypts [plaintext] with [key] ([keyLength] bytes), binding
+  /// [aad] (default [associatedData]) into the tag.
+  Future<String> encrypt(
+    String plaintext,
+    List<int> key, {
+    String aad = associatedData,
+  }) {
     _checkKey(key);
+    final message = (plaintext, key, aad);
     if (_inBackground(plaintext.length)) {
-      return compute(_encryptMessage, (plaintext, key));
+      return compute(_encryptMessage, message);
     }
-    return _encryptMessage((plaintext, key));
+    return _encryptMessage(message);
   }
 
-  /// Decrypts a value written by [encrypt] with [key]. Throws
-  /// [HistoryCipherException] when it is not one (wrong key, damaged or
-  /// not encrypted).
-  Future<String> decrypt(String stored, List<int> key) async {
+  /// Decrypts a value written by [encrypt] with [key] and [aad]. Throws
+  /// [HistoryCipherException] when it is not one (wrong key or associated
+  /// data, damaged or not encrypted).
+  Future<String> decrypt(
+    String stored,
+    List<int> key, {
+    String aad = associatedData,
+  }) async {
     _checkKey(key);
     if (!isEncrypted(stored)) {
       throw const HistoryCipherException('Not an encrypted history');
     }
+    final message = (stored, key, aad);
     final String? plaintext;
     if (_inBackground(stored.length)) {
-      plaintext = await compute(_decryptMessage, (stored, key));
+      plaintext = await compute(_decryptMessage, message);
     } else {
-      plaintext = await _decryptMessage((stored, key));
+      plaintext = await _decryptMessage(message);
     }
     if (plaintext == null) throw const HistoryCipherException();
     return plaintext;
@@ -97,21 +109,23 @@ class HistoryCipher {
     }
   }
 
-  static final List<int> _aad = utf8.encode(associatedData);
-
-  static Future<String> _encryptMessage((String, List<int>) message) async {
-    final (plaintext, key) = message;
+  static Future<String> _encryptMessage(
+    (String, List<int>, String) message,
+  ) async {
+    final (plaintext, key, aad) = message;
     final box = await AesGcm.with256bits().encrypt(
       utf8.encode(plaintext),
       secretKey: SecretKey(key),
-      aad: _aad,
+      aad: utf8.encode(aad),
     );
     return '$prefix${base64Encode(box.concatenation())}';
   }
 
   /// The plaintext, or null when [message] does not decrypt.
-  static Future<String?> _decryptMessage((String, List<int>) message) async {
-    final (stored, key) = message;
+  static Future<String?> _decryptMessage(
+    (String, List<int>, String) message,
+  ) async {
+    final (stored, key, aad) = message;
     try {
       final bytes = base64Decode(stored.substring(prefix.length));
       final box = SecretBox.fromConcatenation(
@@ -123,7 +137,7 @@ class HistoryCipher {
       final clear = await AesGcm.with256bits().decrypt(
         box,
         secretKey: SecretKey(key),
-        aad: _aad,
+        aad: utf8.encode(aad),
       );
       return utf8.decode(clear);
     } on Object {

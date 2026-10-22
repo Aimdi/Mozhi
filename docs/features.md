@@ -20,11 +20,17 @@ alone.
 - [Proofread](#proofread)
 - [Image translation](#image-translation)
 - [Voice](#voice)
+- [Shared conversation](#shared-conversation)
 - [Transcribe](#transcribe)
 - [Documents](#documents)
 - [Web pages](#web-pages)
 - [Offline translation](#offline-translation)
 - [History and favorites](#history-and-favorites)
+- [Phrasebook](#phrasebook)
+- [Practice](#practice)
+- [Backup and restore](#backup-and-restore)
+- [Sync](#sync)
+- [Phone to phone](#phone-to-phone)
 - [Privacy controls](#privacy-controls)
 - [Usage and costs](#usage-and-costs)
 - [Text-to-speech](#text-to-speech)
@@ -736,10 +742,74 @@ reported before anything is uploaded.
   transcribed while the person goes on speaking, so the translation follows
   sooner after they stop; Whisper still tells which of the two languages
   was spoken. The menu's **Transcribe a talk** opens [Transcribe](#transcribe).
+  On Android, the menu's **Share on this network** lets everyone else
+  follow on their own phone, in their own language
+  ([Shared conversation](#shared-conversation)).
 - **Device voices**: besides your Mozhi instance's voices, the app can read
   text aloud with the device's built-in text-to-speech voices, with a speech
   rate and a voice per language of your choice (see
   [Text-to-speech](#text-to-speech)).
+
+## Shared conversation
+
+On Android, **Share on this network** (the Conversation tab's menu) lets
+everyone in the room read the conversation in their own language on their
+own phone, with no app to install and no server: your phone serves a small
+page on the local network, and guests on the same Wi-Fi (or on your phone's
+hotspot) scan its QR code, or open the link, in their browser.
+
+- **Guests** pick their language from your engine's list (and enter the
+  4-digit PIN, which is asked for unless you switch it off). Each message
+  appears in their language in large type, with the original beneath it,
+  light or dark as their phone is set; new messages are announced to
+  screen readers. They can reply by typing: the reply becomes a message of
+  the conversation ("Guest 2"), translated for you and read aloud when
+  **Read translations aloud** is on (switch **Guests can reply** off to
+  stop replies). The page speaks the guest's language when Mozhi does. It
+  has no microphone: browsers send speech to their maker to recognise it.
+- **Translation:** guests reading one of the conversation's two languages
+  see its own translations. Any other language is translated once for all
+  its guests by your engine, under your privacy settings: a pair your
+  settings would ask about is translated on the phone (the offline engine)
+  when it can, and otherwise waits for your OK on the sharing page (one
+  language pair at a time), while its guests read the original. In
+  **Offline only** only the phone translates. A guest can never make your
+  phone send text anywhere you haven't allowed, and a **Once** you give
+  there covers just the messages waiting for it. Each extra language is
+  one more request per message to your engine (counted in
+  [Usage](#usage-and-costs) for your own keys), for the messages guests
+  can see only and only while a guest reads it: when its last guest
+  leaves or switches, what was still to translate is dropped (the
+  finished translations stay for 5 minutes, so coming back costs
+  nothing). Guests can read up to 4 languages besides the conversation's
+  two at a time; a language keeps its place for those 5 minutes, and a
+  guest asking for one more is told which ones they can pick. The sharing
+  page lists each language and how many messages are still to translate.
+- **What guests see:** what is said after you start sharing (the last 100
+  messages), nothing from before, from your history or anywhere else.
+- **The sharing page** shows the QR code, the link (with **Copy link**),
+  the PIN (switch it off and on for a new one), the guests and their
+  languages, and **Stop sharing**; from 840 dp the code sits beside the
+  rest. Back on the conversation, a bar says it is shared and how many
+  guests follow, with **Show code** and Stop. The screen stays on while you
+  share, also in face-to-face mode.
+- **It stops** when you tap **Stop sharing**, leave the conversation
+  (another tab or screen), or the app stays in the background (the phone
+  locked) for 2 minutes. Guests then see *The conversation ended*.
+- **Limits:** 8 guests at a time and 20 joins a minute; 4 other
+  languages at a time; replies of up to 500 characters, at most one every
+  2 seconds and 12 a minute per phone (also after leaving and joining
+  again) and 20 a minute from all guests together; after 20 wrong PINs
+  nobody new can join until you set a new PIN. A guest's page that stops
+  taking in updates for 20 seconds is disconnected and connects again by
+  itself.
+- **Privacy:** only devices on the local network can open the page, but it
+  is plain `http` (a phone has no certificate browsers trust), so other
+  devices on the same Wi-Fi could read along. Avoid public Wi-Fi for
+  sensitive talk; your phone's hotspot is best. See
+  [Privacy](privacy.md#shared-conversation) and
+  [Security](security.md#shared-conversation).
+- Not in the web app: a browser cannot host the page.
 
 ## Transcribe
 
@@ -894,8 +964,10 @@ second on a desktop computer) and **Import from files** isn't available.
   make it a favorite. Long-press the History button to open **Favorites**
   directly. Favorites are never removed automatically; the newest 1,000
   other entries (translations and look-ups together) are kept.
-- **Phrasebook.** The **Favorites** tab groups your favorites by language
-  pair, with chips to show one pair. **Export favorites** writes them to a
+- **Favorites by language pair.** The **Favorites** tab groups your
+  favorites by language pair, with chips to show one pair, and **Open
+  phrasebook** opens them in the [Phrasebook](#phrasebook), where they are
+  its built-in Favorites collection. **Export favorites** writes them to a
   CSV file (**Save as CSV** or **Share CSV**): one row per favorite with
   the text (or the looked-up word), its translation (or the entry's
   summary), the source and target language and the date, in UTF-8, ready
@@ -916,7 +988,167 @@ second on a desktop computer) and **Import from files** isn't available.
   of a word you already have keeps your entry (and becomes a favorite if
   the imported one was).
 - On the device the history is encrypted (AES-256-GCM, with the key in
-  secure storage), and it is never part of a backup or a device transfer.
+  secure storage), and it is never part of Android's cloud backup or
+  device transfer; an encrypted [Mozhi backup](#backup-and-restore) carries
+  it instead. **Export history** says that its JSON is unencrypted and
+  offers **Make an encrypted backup instead**.
+
+## Phrasebook
+
+Collections of phrases, on the device and offline (details in
+[Phrasebook](phrasebook.md)):
+
+- **Open it** from **History > Favorites** (**Open phrasebook**), **More
+  tools > Phrasebook** on the Translate tab, or `/phrasebook`. It lists
+  **Favorites** (your history's hearts, nothing copied), **Your
+  collections** (*Trip to Lisbon*, *Pharmacy*...: **New collection**,
+  rename, reorder by dragging or **Move up**/**Move down**, delete with
+  **Undo**) and your **Starter phrasebooks**. From 840 dp wide the list
+  sits beside the open collection.
+- **Add phrases** with **Add to phrasebook…**: the bookmark button beside
+  the heart under a translation, a History row's menu, and beside the
+  heart of a Dictionary entry (the word and its translation). The last
+  collection you used comes first, collections that have the phrase are
+  ticked, and **New collection** makes one on the spot.
+- **Each phrase**: **Listen to the phrase** and **to the translation** (a
+  long press reads slowly), **Copy translation**, **Show full screen**,
+  and in its menu **Copy phrase**, **Share**, a **note**, **Copy to** or
+  **Move to collection…** and **Remove** (with **Undo**). Search, a
+  language pair filter and **Newest first** / **A to Z** sorting.
+- **CSV.** **Export as CSV** writes a collection for Anki and spreadsheets
+  (as **Export favorites** does, with your notes); **Import CSV** reads a
+  CSV or tab-separated file on the device, with a preview, the choice of
+  the two columns, a header row and the languages.
+- **Starter phrasebooks** for travellers, from Wikivoyage (**From
+  Wikivoyage · CC BY-SA 4.0**): downloaded once on request from your model
+  source and checked against their SHA-256, then offline and read-only,
+  with pronunciations; copy phrases out of them into your own collections.
+  None are available until their first release of data, and the app says
+  so.
+- The phrasebook is encrypted on the device like the history, is part of
+  [backups](#backup-and-restore) (not the starter phrasebooks, which can be
+  downloaded again) and goes with **Delete all local data**.
+
+## Practice
+
+Flashcards of the phrases you keep, on the device (details in
+[Practice](practice.md)):
+
+- **Practice** in the translate screen's **More tools** (with the number
+  of cards due for review), or **Practice** on a phrasebook collection.
+- Your favorites and phrasebook collections become cards, asked one way
+  or both: **Recognize** (see the phrase, recall its meaning) and
+  **Produce** (see your language, say or type the phrase). Cards follow
+  edits to their phrase and go when it is deleted.
+- Short sessions of the cards due, plus up to **New cards per day** (10 by
+  default). Show the answer (Space), listen to it (slowly on a long
+  press), then rate **Again**, **Hard**, **Good** or **Easy** (1 to 4):
+  each button shows when the card comes back. **Undo last rating** (Z)
+  takes a rating back; a summary ends the session. No streaks, no
+  account.
+- Scheduling is **FSRS-5**, the algorithm Anki uses, in pure Dart, with
+  its default weights, learning steps (1 and 10 minutes), interval fuzz
+  and **Desired retention** (90 % by default).
+- **Speaking practice** (Android, with an offline speech model): hold the
+  microphone and say the phrase; Whisper transcribes it on the phone and
+  each word is marked right, nearly right or missed (ignoring case,
+  punctuation and accents), with a suggested rating. The recording is
+  never stored or sent. **Type answers** adds an answer field with the
+  same comparison.
+- **Export to Anki** writes a tab-separated text file (one collection or
+  all) with tags for the collection and the language pair, ready for
+  Anki's **File > Import**.
+- The progress is encrypted on the device like the history, carried by
+  backups and sync, and deleted by **Delete all local data**.
+
+## Backup and restore
+
+One encrypted file holds your data, readable only with your passphrase,
+with no account and no server (details and the file format in
+[Backup](backup.md)):
+
+- **Settings > Backup & sync > Back up now**: choose what to include
+  (history and favorites, presets, glossaries, settings, and in versions
+  that have them the phrasebook and practice progress). **Include API keys
+  and passwords** is off unless you turn it on, with a warning. Enter a
+  passphrase twice; a hint says how strong it is (from its length and word
+  count, on the device). Android saves `mozhi-<date>.mozhibackup` where
+  you choose; the web app downloads it. The row shows when you last backed
+  up.
+- **Restore from a backup**: pick the file (Mozhi shows when it was made
+  and by which version), enter the passphrase, see what it holds (how many
+  items per part, and whether it has API keys), choose the parts, then
+  **Merge with my data** (keeps yours, adds what's only in the backup; the
+  newer copy of an entry wins and deleted entries stay deleted) or
+  **Replace my data**. The result says what changed.
+- Wrong passphrase or a damaged file: one clear error, nothing restored.
+  A backup made on Android opens in the web app and the other way round.
+- Encryption: Argon2id (64 MiB, 3 passes on Android; 19 MiB, 2 passes in
+  the web app) and AES-256-GCM over the compressed data. Offline models
+  and dictionaries aren't included: download them again.
+
+## Sync
+
+Keep your devices in sync through a WebDAV folder on your own server
+(Nextcloud, ownCloud, a Synology or other NAS, Apache, `rclone serve
+webdav`), end-to-end encrypted, with no Mozhi account and no third party
+(details, server setup and CORS for the web app in [Sync](sync.md)):
+
+- **Settings > Backup & sync > Set up sync**: the WebDAV address (for
+  Nextcloud and ownCloud the server's address is enough), user name, an
+  app password and a folder (`Mozhi` by default, created if needed).
+  **Test connection** checks them and says whether another device already
+  syncs there; then enter that device's sync passphrase, or choose a new
+  one (with the same strength hint as backups), and **Turn on sync**. A
+  second device's data is merged in, never replaced.
+- **What to sync**: history and favorites, phrasebooks, practice progress,
+  presets and glossaries by default; the settings only if you choose them,
+  and their API keys and passwords only with **Include API keys and
+  passwords** (with a warning). Each device can choose differently.
+- It syncs at app start, a minute after a change (only when something
+  synced changed), when you leave the app with a change waiting, and on
+  **Sync now**; never in Offline only, and with **Sync on Wi-Fi only**
+  (Android) not automatically over mobile data. There is no background
+  service.
+- The row shows where it syncs and the last sync's time or why it failed,
+  in plain words (wrong app password, folder missing, not a WebDAV server,
+  no connection, certificate, blocked by the browser's CORS, ...).
+  **Unlock sync** asks again for what the device forgot (the web app
+  forgets the app password and the key when its tab closes); a passphrase
+  changed on another device asks for the new one.
+- **Change sync passphrase** re-encrypts the file (other devices then ask
+  for the new passphrase); **Turn off sync** forgets the server, the app
+  password and the key, and can delete the sync file from the server.
+- The server only stores one encrypted file (`mozhi-sync.mozhibackup`, the
+  [backup](backup.md) format): it sees its size and when it changes, never
+  its contents. Requests show as **Encrypted sync** in Network activity.
+
+## Phone to phone
+
+Move your data or your offline languages to another phone nearby, over the
+same Wi-Fi or a phone's hotspot, end-to-end encrypted and without the
+internet (Android; details in [Phone to phone](pairing.md)):
+
+- **Settings > Backup & sync > Receive on this phone** shows a QR code and
+  the same code as text, valid for five minutes (**New code** makes
+  another; with several networks, pick the one both phones are on).
+- On the other phone, scan the QR code with the camera app (it opens Mozhi)
+  or open **Send to another phone** and type or paste the code, then
+  **Connect**. Both phones show the same six-digit number: compare them
+  and confirm on both (the receiving phone can only accept after that).
+- Choose what to send: **Your data** (pick the parts; **Include API keys and
+  passwords** is off unless you turn it on, with a warning) and any
+  translation models, speech models, text recognition languages and
+  dictionaries on the phone. **Offline languages > Share language packs**
+  opens the same screen with the packs selected.
+- The receiving phone lists what it gets (and what it already has or its
+  version can't use), lets you untick items, **Merge with my data** or
+  **Replace my data** as for a backup, and **Accept** or **Decline**. Every
+  file is checked against the receiving phone's own catalogue before it is
+  installed.
+- Both phones show the progress and keep the screen on, then what became of
+  each item. Clear errors say when the phones aren't on the same network,
+  the code expired, the other phone said no, or storage ran out.
 
 ## Privacy controls
 
@@ -1171,12 +1403,13 @@ to the translation.
 ## Settings
 
 **Settings** (the gear button at the top of every tab) starts with a search
-field, then seven categories, each on a page of its own:
+field, then eight categories, each on a page of its own:
 
 | Category | What it holds |
 | --- | --- |
 | **General** | App language, tab order, haptic feedback, multiline input |
-| **Privacy & data** | **Privacy** (privacy mode, incognito, screenshot blocking, hiding personal data), **History** (saving, automatic deletion, export and import, recent language pairs), **Network** (approved pairs and cloud providers, HTTP proxy, network activity) and **Data** (**Clear history** and **Delete all local data**, last and in red) |
+| **Privacy & data** | **Privacy** (privacy mode, incognito, screenshot blocking, hiding personal data), **History** (saving, automatic deletion, export and import, the phrasebook, recent language pairs), **Network** (approved pairs and cloud providers, HTTP proxy, network activity) and **Data** (**Clear history** and **Delete all local data**, last and in red) |
+| **Backup & sync** | **Encrypted backup** ([**Back up now**](#backup-and-restore) with the date of the last backup, **Restore from a backup**), then sync and phone to phone |
 | **Translation engines** | Offline languages, Mozhi instances, translation services (DeepL API, LibreTranslate), quality modes, **Remember quality selection** and **Instant translate** |
 | **AI** (marked **Advanced**) | AI providers, the AI assistant for insights, presets, glossaries, usage & costs |
 | **Appearance** | Theme, dynamic color, dark theme, romanization, accent color |

@@ -25,6 +25,7 @@ import 'package:mozhi/offline/view/ocr_languages_page.dart';
 import 'package:mozhi/offline/widgets/offline_import_summary.dart';
 import 'package:mozhi/offline/widgets/offline_language_tile.dart';
 import 'package:mozhi/offline/widgets/offline_manual_files_sheet.dart';
+import 'package:mozhi/pairing/view/pairing_entries.dart';
 import 'package:mozhi/platform/mlkit_bindings.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart' show ModelSource;
@@ -569,6 +570,8 @@ class _Overview extends StatelessWidget {
           OcrLanguagesEntry(data: data),
         if (maybeDictionaryPacks(context) case final packs?)
           DictionaryPacksEntry(packs: packs),
+        // Phone to phone with the packs selected (Android).
+        const SharePacksEntry(),
         const Hairline(),
       ],
     );
