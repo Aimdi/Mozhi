@@ -1455,8 +1455,10 @@ class TranslationRepository {
   ///   addresses, placeholders; when `TranslationOptions.preserveFormatting`)
   ///   and, with [shield], personal data are replaced by [style] tokens and
   ///   put back afterwards. So are the terms of [glossary] (for engines that
-  ///   cannot apply one: `TranslationPrompts.glossaryOccurrences`, inflected
-  ///   forms included), whose tokens get the terms' renderings instead.
+  ///   cannot apply one: where `TranslationPrompts.glossaryOccurrences`
+  ///   finds them, whole words only and never inside a URL, an e-mail
+  ///   address, a tag or a placeholder), whose tokens get the terms'
+  ///   renderings instead.
   ///   When the engine damages the tokens, the part is sent once more with
   ///   only the personal data masked (and plain when there is none): the
   ///   glossary is then not applied, which the checks report
@@ -3734,9 +3736,9 @@ class _Shield {
     if (pending.isNotEmpty) yield tokens.restore(pending.toString()).text;
   }
 
-  static final _partialToken = RegExp(
-    '[⟨〈]\\s*\\d{0,${TextMasker.maxTokenDigits}}\\s*\$',
-  );
+  /// The start of a token (`TextMasker.bracketToken`, at most
+  /// `TextMasker.maxTokenDigits` digits) at the end of a delta.
+  static final _partialToken = RegExp(r'[⟨〈]\s*\d{0,6}\s*$');
 
   /// Where a token that the next delta may complete starts at the end of
   /// [text] (its length when there is none).

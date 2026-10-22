@@ -251,6 +251,13 @@ in `-rc.N`).
   through a tunnel too, which Tor's HTTP tunnel port requires.
 - **Voice models** are checked against their SHA-256 fingerprint as well
   as their SHA-1 one.
+- **Redirects can't move your text or downloads elsewhere.** A Mozhi
+  instance's redirect is only followed on the same server (or from http to
+  https on it): a redirect to another server, which could have received
+  your text again outside your proxy, now shows an error naming that
+  server. Model and dictionary downloads follow redirects only to public
+  `https` servers: never to plain http, into your network or around your
+  proxy.
 
 ## 0.1.0-rc.2
 

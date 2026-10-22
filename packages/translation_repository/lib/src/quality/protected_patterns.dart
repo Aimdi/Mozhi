@@ -3,13 +3,34 @@
 /// Used by the Documents feature (per format) and, for the main translate
 /// screen, by `TextMasker` (spans masked before a machine translation
 /// engine sees them) and `TranslationQa` (spans that must come back).
+///
+/// The sources need `RegExp(..., unicode: true)` ([email] uses Unicode
+/// property classes); [combine] compiles them so.
 abstract final class ProtectedPatterns {
   /// `http(s)://…`, `ftp://…` and `www.…` URLs (trailing punctuation
   /// excluded).
   static const url =
       r'''(?:(?:https?|ftp)://|www\.)[^\s<>\[\]`"]*[^\s<>\[\]`".,;:!?)']''';
 
-  static const email = r'[\w.+-]+@[\w-]+(?:\.[\w-]+)*\.[A-Za-z]{2,}';
+  /// E-mail addresses, also with letters of any script written with spaces
+  /// (`jürgen@example.de`, `info@müller.de`, `иван@пример.рф`) and
+  /// punycode top-level domains (`xn--p1ai`). Never starts inside a word,
+  /// and never takes in Chinese, Japanese, Korean, Thai, Lao, Khmer,
+  /// Myanmar or Tibetan characters, as text in those scripts runs on
+  /// without spaces around an address (`请发邮件至info@example.com获取`).
+  /// A trailing dot (end of a sentence) is left out. Needs
+  /// `unicode: true`.
+  static const email =
+      '(?<!$_emailChar|[._%+-])(?:$_emailChar|[._%+-])+'
+      '@(?:$_emailChar|-)+(?:\\.(?:$_emailChar|-)+)*'
+      '\\.(?:xn--[A-Za-z0-9-]+|(?:(?!\\p{N})$_emailChar){2,})';
+
+  /// A letter, combining mark or digit of a script written with spaces
+  /// (see [email]).
+  static const _emailChar =
+      r'(?:(?![\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}'
+      r'\p{Script=Hangul}\p{Script=Thai}\p{Script=Lao}\p{Script=Khmer}'
+      r'\p{Script=Myanmar}\p{Script=Tibetan}])[\p{L}\p{M}\p{N}])';
 
   /// HTML/XML tags and comments.
   static const htmlTag =
@@ -37,9 +58,11 @@ abstract final class ProtectedPatterns {
   /// messages such as `{count, plural, ...}`).
   static const braces = r'\{(?:[A-Za-z_][\w.-]*|\d+)\}';
 
-  /// A whole pattern from alternatives.
-  static RegExp combine(List<String> alternatives) =>
-      RegExp(alternatives.map((pattern) => '(?:$pattern)').join('|'));
+  /// A whole pattern from alternatives (compiled with `unicode: true`).
+  static RegExp combine(List<String> alternatives) => RegExp(
+    alternatives.map((pattern) => '(?:$pattern)').join('|'),
+    unicode: true,
+  );
 
   /// Plain text: URLs and e-mail addresses.
   static final RegExp plainText = combine([url, email]);

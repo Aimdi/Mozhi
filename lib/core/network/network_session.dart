@@ -98,7 +98,9 @@ class NetworkSession {
 
   /// The client of the model downloads (offline languages, speech, text
   /// recognition, from the publishers or a mirror): [client]'s rules, with
-  /// every request listed as a model download, whatever its host.
+  /// every request listed as a model download, whatever its host. Their
+  /// redirects (to the publishers' CDNs) are followed hop by hop by the
+  /// [BackendHttpClient], so every hop is checked and listed.
   late final http.Client modelClient = BackendHttpClient(
     EgressRecordingClient(
       _platform,

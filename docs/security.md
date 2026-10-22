@@ -91,7 +91,8 @@ pick ones you trust, or self-host them ([guide](self-hosting-mozhi.md)).
   local network, Tor `.onion` and I2P `.i2p` addresses. The app refuses
   plain `http` to any other host before anything is sent (the network
   policy in `lib/core/network/network_policy.dart` checks every request of
-  the Mozhi, LibreTranslate, DeepL and AI clients, redirects included), and
+  the Mozhi, LibreTranslate, DeepL and AI clients and of the downloads,
+  redirects included), and
   Settings and first-run setup don't accept such an address. Use HTTPS, a
   VPN, Tailscale or Tor for servers outside your home network.
 - **Android platform networking** (Java/Kotlin code and plugins) allows no
@@ -120,8 +121,15 @@ pick ones you trust, or self-host them ([guide](self-hosting-mozhi.md)).
 - **Redirects:** AI, DeepL and LibreTranslate requests never follow
   redirects (a redirect would otherwise carry headers such as `x-api-key`
   to another host); a moved API shows an error asking you to update the
-  address. Mozhi requests follow at most three redirects and never from
-  `https` to `http`.
+  address. Mozhi requests follow at most three redirects, only on the same
+  server (same scheme, host and port, or `http` upgraded to `https` on
+  that host): a redirect to another server is an error naming it, so your
+  text never goes to a host you didn't add as an instance. Downloads
+  (offline models, dictionaries) follow at most five redirects, to other
+  public `https` servers too (download sites hand files to their CDNs),
+  and the network policy checks every hop: never from `https` to `http`,
+  and never from a public server to this device, your local network or a
+  `.onion` or `.i2p` address (which would also go around the proxy).
 - **Timeouts and size limits** on every request. Mozhi failover does not
   resend your text to another instance after a timeout, when the first one
   may already have received it. A connection that can't be set up in time

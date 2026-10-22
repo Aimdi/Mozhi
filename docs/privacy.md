@@ -343,9 +343,11 @@ In the web app, clearing the site's data does the same.
 - **HTTPS for public servers.** Plain `http` is only used for this device,
   your local network and Tor `.onion` or I2P `.i2p` addresses. Anything
   else is refused before a request is sent, and the Mozhi, LibreTranslate,
-  DeepL and AI provider clients never follow a redirect from `https` to
-  `http`. The Android app's platform networking (Java/Kotlin code and
-  plugins) doesn't allow plain `http` at all.
+  DeepL and AI provider clients and the downloads never follow a redirect
+  from `https` to `http`. A Mozhi instance can't redirect your text to
+  another server, and a download can't be redirected from a public server
+  into your local network. The Android app's platform networking
+  (Java/Kotlin code and plugins) doesn't allow plain `http` at all.
 - **HTTP proxy** (**Settings > Privacy & data > Network > HTTP proxy**,
   Android): every request the app makes, including offline model downloads and
   the web page translator, goes through the proxy you set (`host:port`), as a

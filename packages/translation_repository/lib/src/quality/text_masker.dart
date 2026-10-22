@@ -80,14 +80,21 @@ enum MaskStyle {
 /// protection and of the personal data shield. Pure and cheap (one regular
 /// expression pass each way).
 abstract final class TextMasker {
+  /// Most digits of a token number ([bracketToken] and [xmlToken] match
+  /// that many): tokens are numbered from 1 to [maxTokenNumber].
+  static const maxTokenDigits = 6;
+
+  /// The highest token number (see [maxTokenDigits]).
+  static const maxTokenNumber = 999999;
+
   /// `⟨n⟩` tokens as [MaskStyle.brackets] writes them, tolerating spaces
   /// and CJK angle brackets some engines substitute.
-  static final bracketToken = RegExp(r'[⟨〈]\s*(\d{1,4})\s*[⟩〉]');
+  static final bracketToken = RegExp(r'[⟨〈]\s*(\d{1,6})\s*[⟩〉]');
 
   /// `<x i="n"/>` tokens as [MaskStyle.xml] writes them (also
   /// `<x i="n"></x>`, single quotes and extra spaces).
   static final xmlToken = RegExp(
-    r'''<x\s+i\s*=\s*["'](\d{1,4})["']\s*(?:/>|>\s*</x\s*>)''',
+    r'''<x\s+i\s*=\s*["'](\d{1,6})["']\s*(?:/>|>\s*</x\s*>)''',
   );
 
   static final _xmlRestore = RegExp(
@@ -161,15 +168,17 @@ abstract final class TextMasker {
   /// e-mail address is one item (the value of a span with a
   /// [ProtectedSpan.replacement] is that replacement). Token numbers start
   /// above any number a token-like sequence of [text] already uses, so the
-  /// text's own `⟨1⟩` is left alone by [MaskedText.restore]. With
-  /// [MaskStyle.xml] the text between the tokens is XML-escaped.
+  /// text's own `⟨1⟩` is left alone by [MaskedText.restore]; when that
+  /// would go past [maxTokenNumber] (the text has `⟨999999⟩`), they take
+  /// the lowest numbers the text does not use. With [MaskStyle.xml] the
+  /// text between the tokens is XML-escaped.
   static MaskedText mask(
     String text,
     Iterable<ProtectedSpan> spans, {
     MaskStyle style = MaskStyle.brackets,
   }) {
     final merged = merge(spans);
-    final first = _firstFreeNumber(text);
+    final first = _firstFreeNumber(text, merged.length);
     final values = <String>[];
     final originals = <String>[];
     final kinds = <ProtectedKind>[];
@@ -214,16 +223,24 @@ abstract final class TextMasker {
       .replaceAll('<', '&lt;')
       .replaceAll('>', '&gt;');
 
-  /// The first token number above every number [text] already uses in a
-  /// token-like sequence (1 when there is none).
-  static int _firstFreeNumber(String text) {
-    var highest = 0;
-    for (final pattern in [bracketToken, xmlToken]) {
-      for (final match in pattern.allMatches(text)) {
-        highest = math.max(highest, int.parse(match.group(1)!));
-      }
+  /// The first of [count] consecutive token numbers that [text] does not
+  /// already use in a token-like sequence: the one above the highest it
+  /// uses (1 when there is none) while all [count] stay within
+  /// [maxTokenNumber], otherwise the start of the lowest free range.
+  static int _firstFreeNumber(String text, int count) {
+    final used = <int>{
+      for (final pattern in [bracketToken, xmlToken])
+        for (final match in pattern.allMatches(text))
+          int.parse(match.group(1)!),
+    };
+    final highest = used.fold(0, math.max);
+    if (highest + count <= maxTokenNumber) return highest + 1;
+    var first = 1;
+    for (final number in used.toList()..sort()) {
+      if (number >= first + count) break;
+      if (number >= first) first = number + 1;
     }
-    return highest + 1;
+    return first;
   }
 }
 

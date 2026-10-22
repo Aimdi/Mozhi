@@ -299,7 +299,7 @@ abstract final class TranslationQa {
   );
   static final _wordOrDigit = RegExp(r'[\p{L}\p{N}]+', unicode: true);
   static final _url = RegExp(ProtectedPatterns.url);
-  static final _email = RegExp(ProtectedPatterns.email);
+  static final _email = RegExp(ProtectedPatterns.email, unicode: true);
   static final _tag = RegExp(ProtectedPatterns.htmlTag);
   static final _entity = RegExp(ProtectedPatterns.htmlEntity);
   static final _tagName = RegExp(r'^<(/?)([A-Za-z][\w:.-]*)');
