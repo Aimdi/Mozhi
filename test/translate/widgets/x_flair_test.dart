@@ -335,16 +335,16 @@ void main() {
   });
 
   group('TranslatePills', () {
-    testWidgets('outlines chips with a hairline, accent when selected', (
+    testWidgets('outlines chips like controls, accent when selected', (
       tester,
     ) async {
       await tester.pumpWidget(_app(const TranslatePills(child: SizedBox())));
       final context = tester.element(find.byType(SizedBox).last);
       final chips = Theme.of(context).chipTheme;
       final side = chips.side! as WidgetStateBorderSide;
-      final palette = AppPalette.of(context);
       final scheme = Theme.of(context).colorScheme;
-      expect(side.resolve({})?.color, palette.hairline);
+      // The controls' outline (3:1), not a hairline.
+      expect(side.resolve({})?.color, scheme.outline);
       expect(side.resolve({WidgetState.selected})?.color, scheme.primary);
       expect(chips.color?.resolve({}), Colors.transparent);
       expect(chips.shape, const StadiumBorder());
