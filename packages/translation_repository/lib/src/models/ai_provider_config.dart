@@ -132,6 +132,14 @@ class AiProviderConfig {
   /// Whether this is a machine translation service rather than an LLM.
   bool get isMtService => service != MtService.llm;
 
+  /// Whether the model runs inside the app, on this device
+  /// ([LlmProvider.onDevice]): its text never leaves the device. The app
+  /// makes these providers from the installed models (never stored in the
+  /// settings: [AiProviderConfig.fromJson] never reads one); [baseUrl] is
+  /// empty and [model] is the model's id.
+  bool get isOnDevice =>
+      provider == LlmProvider.onDevice && service == MtService.llm;
+
   /// [promptProfile] resolved against [model] (never [PromptProfile.auto]).
   PromptProfile get resolvedPromptProfile => promptProfile.resolve(model);
 
@@ -141,10 +149,20 @@ class AiProviderConfig {
   /// (10/8, 172.16/12, 192.168/16, link-local, IPv6 ULA), the CGNAT range
   /// used by Tailscale (100.64/10), LAN suffixes (`.local`, `.lan`,
   /// `.home.arpa`, `.internal`, `.ts.net`, ...) and bare host names without
-  /// dots (e.g. a Docker service name).
-  bool get isLocal => isLocalHost(_hostOf(baseUrl));
+  /// dots (e.g. a Docker service name). Always true for models on this
+  /// device ([isOnDevice]).
+  bool get isLocal => isOnDevice || isLocalHost(_hostOf(baseUrl));
 
+  /// Where the model is reached. On-device models ([isOnDevice]) get
+  /// `device://<model>` (no key, no headers): the app's client for them
+  /// finds the model by it, and nothing is sent over the network.
   LlmEndpoint toEndpoint() {
+    if (isOnDevice) {
+      return LlmEndpoint(
+        provider: LlmProvider.onDevice,
+        baseUrl: Uri(scheme: onDeviceScheme, host: model.trim()),
+      );
+    }
     final key = apiKey?.trim();
     return LlmEndpoint(
       provider: provider,
@@ -257,6 +275,9 @@ class AiProviderConfig {
       ? 'AiProviderConfig($id, $name, ${provider.name}, $baseUrl, $model)'
       : 'AiProviderConfig($id, $name, ${service.name}, $baseUrl)';
 
+  /// The scheme of the endpoints of on-device models (see [toEndpoint]).
+  static const onDeviceScheme = 'device';
+
   /// Whether [host] (a bare host name or IP literal, as in [Uri.host]) is on
   /// this machine or a private network. See [isLocal].
   static bool isLocalHost(String host) {
@@ -290,11 +311,15 @@ class AiProviderConfig {
 
 String? _string(Object? value) => value is String ? value : null;
 
+/// The provider named [value]. Never [LlmProvider.onDevice]: on-device
+/// providers come from the installed models, not from stored settings, so
+/// a stored or imported one is read as an OpenAI-compatible server (whose
+/// destination is judged by its URL).
 LlmProvider _parseProvider(Object? value) {
   if (value is! String) return LlmProvider.openAiCompatible;
   final key = value.toLowerCase().replaceAll(RegExp('[^a-z]'), '');
   for (final p in LlmProvider.values) {
-    if (p.name.toLowerCase() == key) return p;
+    if (p != LlmProvider.onDevice && p.name.toLowerCase() == key) return p;
   }
   return switch (key) {
     'claude' => LlmProvider.anthropic,

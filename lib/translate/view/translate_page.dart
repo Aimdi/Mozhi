@@ -735,6 +735,8 @@ class _OutputSectionState extends State<_OutputSection> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (widget.memory) const TranslationMemoryCard(),
+        // Typing waits for Enter while the phone is hot or saving battery.
+        const OnDeviceAiStrainNote(),
         if (threaded && widget.avatar)
           TranslateThreadRow(
             key: const Key('translate_output_thread'),

@@ -1,6 +1,8 @@
 // Builds libmozhi_whisper.so (../native/CMakeLists.txt: whisper.cpp with the
 // ggml CPU backend + the C API the Dart code calls through dart:ffi) with
-// the NDK, once per ABI. Flutter packs it into the APK under lib/<abi>/.
+// the NDK, once per ABI, and for arm64-v8a also libmozhi_whisper_dotprod.so
+// and libmozhi_whisper_i8mm.so (the same, with kernels for newer CPUs).
+// Flutter packs them into the APK under lib/<abi>/.
 //
 // Needs the native sources first: ../tool/fetch_native_deps.sh (initialises
 // the pinned submodule; nothing is downloaded during the build).
@@ -50,7 +52,13 @@ android {
 
         externalNativeBuild {
             cmake {
-                targets "mozhi_whisper"
+                // The baseline for every ABI; arm64-v8a also gets the
+                // builds for newer CPUs (dotprod + FP16, and i8mm), which
+                // Dart picks at run time (lib/src/engine/cpu_features.dart).
+                // On the other ABIs those two are empty static stand-ins
+                // (../native/CMakeLists.txt), which are not packaged.
+                targets "mozhi_whisper", "mozhi_whisper_dotprod",
+                        "mozhi_whisper_i8mm"
                 arguments(
                     // Always optimised: a Debug (-O0) engine is unusably
                     // slow, also in debug builds of the app.

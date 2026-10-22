@@ -4,6 +4,7 @@ import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/core/network/network_session.dart';
 import 'package:mozhi/dictionary/data/dictionary_packs.dart';
 import 'package:mozhi/history/data/history_repository.dart';
+import 'package:mozhi/on_device_ai/data/on_device_ai.dart';
 import 'package:mozhi/phrasebook/data/phrasebook_repository.dart';
 import 'package:mozhi/platform/shared_text_service.dart';
 import 'package:mozhi/practice/data/practice_repository.dart';
@@ -32,6 +33,7 @@ class AppDependencies {
     required this.offlineTranslator,
     required this.usageTracker,
     this.offlineSpeech,
+    this.onDeviceAi,
     this.dictionaryPacks,
     this.backupRegistry,
     this.syncService,
@@ -65,6 +67,11 @@ class AppDependencies {
   /// [speechInputService]; null where it cannot run (web, unsupported
   /// CPUs).
   final OfflineSpeech? offlineSpeech;
+
+  /// On-device AI (llama.cpp models as AI providers, also used by
+  /// [translationRepository]); null where it cannot run (web, unsupported
+  /// CPUs).
+  final OnDeviceAi? onDeviceAi;
 
   /// The offline dictionaries (Wiktionary packs) of the Dictionary tab,
   /// the short-query panel and the Offline languages screen; null in tests

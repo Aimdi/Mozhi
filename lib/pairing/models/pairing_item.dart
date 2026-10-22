@@ -17,7 +17,10 @@ enum PairingItemKind {
   ocr,
 
   /// An offline dictionary pack.
-  dictionary;
+  dictionary,
+
+  /// An on-device AI model (a GGUF file of `llama_engine`'s catalogue).
+  onDeviceAi;
 
   /// The kind called [name]; null for any other name.
   static PairingItemKind? tryParse(Object? name) {

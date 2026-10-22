@@ -1,0 +1,155 @@
+{
+  "schemaVersion": 1,
+  "_comment": [
+    "The sources of packages/llama_engine/assets/models.json (the on-device AI models).",
+    "tool/llm_catalog.py resolve turns them into it through Hugging Face's API: the commit of each revision, then the size and SHA-256 (LFS object id) of the file at that commit; the URL is pinned to the commit. Sizes and checksums are never written by hand.",
+    "A model names one repo, revision and file, or several candidates tried in order (the first repo that exists, is not gated and has the file wins). When a repo names its files differently, the one .gguf of the model's quantization is picked; none or several is an error.",
+    "revision: a branch (main) until the catalogue is resolved, then the commit it was resolved at.",
+    "minRamMb / recommendedRamMb: RAM in MiB as Android reports it (ActivityManager totalMem, a little below the nominal size): below the minimum the model is not offered for download (importing it stays possible), below the recommendation the app says it may be slow.",
+    "languages (translation models): the app's language codes (packages/translation_repository language catalogue)."
+  ],
+  "models": [
+    {
+      "id": "hy-mt2-1.8b-q4",
+      "repo": "tencent/Hy-MT2-1.8B-GGUF",
+      "revision": "main",
+      "file": "Hy-MT2-1.8B-Q4_K_M.gguf",
+      "role": "translation",
+      "family": "hunyuan-dense",
+      "promptProfile": "hunyuanMt",
+      "displayName": "Hy-MT2 1.8B",
+      "parameters": "1.8B",
+      "quantization": "Q4_K_M",
+      "contextSize": 4096,
+      "minRamMb": 5000,
+      "recommendedRamMb": 7000,
+      "languages": [
+        "zh-CN",
+        "en",
+        "fr",
+        "pt",
+        "es",
+        "ja",
+        "tr",
+        "ru",
+        "ar",
+        "ko",
+        "th",
+        "it",
+        "de",
+        "vi",
+        "ms",
+        "id",
+        "tl",
+        "hi",
+        "zh-TW",
+        "pl",
+        "cs",
+        "nl",
+        "km",
+        "my",
+        "fa",
+        "gu",
+        "ur",
+        "te",
+        "mr",
+        "he",
+        "bn",
+        "ta",
+        "uk",
+        "bo",
+        "kk",
+        "mn",
+        "ug",
+        "yue"
+      ],
+      "license": "Apache-2.0",
+      "licenseUrl": "https://github.com/Tencent-Hunyuan/Hy-MT2/blob/main/LICENSE.txt",
+      "sourceUrl": "https://github.com/Tencent-Hunyuan/Hy-MT2",
+      "sampling": {
+        "temperature": 0.7,
+        "topP": 0.6,
+        "topK": 20,
+        "repeatPenalty": 1.05
+      }
+    },
+    {
+      "id": "gemma-4-e2b-q4",
+      "note": "The Gemma 4 E2B instruct GGUF: Google's own repo if it publishes one (ungated), else ggml-org's, else Unsloth's.",
+      "candidates": [
+        {
+          "repo": "google/gemma-4-E2B-it-GGUF",
+          "revision": "main",
+          "file": "gemma-4-E2B-it-Q4_K_M.gguf"
+        },
+        {
+          "repo": "ggml-org/gemma-4-E2B-it-GGUF",
+          "revision": "main",
+          "file": "gemma-4-E2B-it-Q4_K_M.gguf"
+        },
+        {
+          "repo": "unsloth/gemma-4-E2B-it-GGUF",
+          "revision": "main",
+          "file": "gemma-4-E2B-it-Q4_K_M.gguf"
+        }
+      ],
+      "role": "assistant",
+      "family": "gemma4",
+      "promptProfile": "general",
+      "displayName": "Gemma 4 E2B",
+      "parameters": "2.3B effective",
+      "quantization": "Q4_K_M",
+      "contextSize": 4096,
+      "minRamMb": 7000,
+      "recommendedRamMb": 11000,
+      "license": "Apache-2.0",
+      "licenseUrl": "https://www.apache.org/licenses/LICENSE-2.0",
+      "sourceUrl": "https://huggingface.co/google/gemma-4-E2B-it",
+      "sampling": {
+        "temperature": 1.0,
+        "topP": 0.95,
+        "topK": 64,
+        "repeatPenalty": 1.0
+      }
+    },
+    {
+      "id": "qwen3-1.7b-q4",
+      "note": "Qwen3 1.7B (the instruct model, thinking and non-thinking): Qwen's own GGUF repo if it has a Q4_K_M file, else ggml-org's, else Unsloth's.",
+      "candidates": [
+        {
+          "repo": "Qwen/Qwen3-1.7B-GGUF",
+          "revision": "main",
+          "file": "Qwen3-1.7B-Q4_K_M.gguf"
+        },
+        {
+          "repo": "ggml-org/Qwen3-1.7B-GGUF",
+          "revision": "main",
+          "file": "Qwen3-1.7B-Q4_K_M.gguf"
+        },
+        {
+          "repo": "unsloth/Qwen3-1.7B-GGUF",
+          "revision": "main",
+          "file": "Qwen3-1.7B-Q4_K_M.gguf"
+        }
+      ],
+      "role": "assistant",
+      "family": "qwen3",
+      "promptProfile": "general",
+      "displayName": "Qwen3 1.7B",
+      "parameters": "1.7B",
+      "quantization": "Q4_K_M",
+      "contextSize": 4096,
+      "minRamMb": 5000,
+      "recommendedRamMb": 7000,
+      "license": "Apache-2.0",
+      "licenseUrl": "https://www.apache.org/licenses/LICENSE-2.0",
+      "sourceUrl": "https://huggingface.co/Qwen/Qwen3-1.7B",
+      "sampling": {
+        "temperature": 0.7,
+        "topP": 0.8,
+        "topK": 20,
+        "minP": 0.0
+      }
+    }
+  ]
+}

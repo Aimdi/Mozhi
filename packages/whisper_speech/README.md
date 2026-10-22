@@ -48,9 +48,9 @@ model.
 | Type | What |
 | --- | --- |
 | `WhisperSpeech` | Facade: `isAvailable`, `installedModels()`, `isReady()`, `modelFor()`, `transcribe()`, `cancel()`, `unload()`, `download()`, `delete()`, `importFiles()`, `cleanUp()`, `dispose()`; with `idleUnloadAfter` the model (75-150 MB) is unloaded once no transcription ran for that long (the app uses 60 s and also unloads in the background and on memory pressure). Voice activity detection: `vadModel`, `installedVad()`, `isVadReady()`, `detectSpeech()`, `resetSpeechDetection()` |
-| `WhisperModelCatalog`, `WhisperCatalogModel`, `loadBundledWhisperCatalog` | `assets/models.json`: `tiny` (Fast) and `base` (Better) with URL, exact size, SHA-1 and SHA-256, and the Silero VAD model (`vad`, the entry with `"kind": "vad"`) |
+| `WhisperModelCatalog`, `WhisperCatalogModel`, `loadBundledWhisperCatalog` | `assets/models.json`: `tiny` (Fast) and `base` (Better) with URL, exact size, SHA-1 and SHA-256, and the Silero VAD model (`vad`, the entry with `"kind": "vad"`); an optional `minRamMb` (`fitsMemory()`: the RAM a device needs for the app to offer the model) |
 | `WhisperModelManager` | Download with `Range` resume (from the catalog's URL or a mirror), size + SHA-1 + SHA-256 verification, atomic install (staging + rename), delete, `importFiles` (by name or, for renamed copies, by size), `cleanUp` |
-| `WhisperEngine`, `createWhisperEngine`, `whisperPlatformSupported` | The native engine in a long-lived background isolate (`IsolateWhisperEngine`); a stub on the web (conditional export: `dart:ffi` never reaches web builds) |
+| `WhisperEngine`, `createWhisperEngine`, `whisperPlatformSupported` | The native engine in a long-lived background isolate (`IsolateWhisperEngine`), with the fastest library build the CPU runs ([CPU variants](#cpu-variants)); a stub on the web (conditional export: `dart:ffi` never reaches web builds) |
 | `WhisperVadEngine`, `createWhisperVadEngine`, `WhisperVadFrames` | Silero VAD in a second isolate (`IsolateWhisperVadEngine`), so it keeps up with the microphone while a phrase is transcribed; it keeps one stream's state (LSTM and leftover samples) between calls |
 | `WhisperTranscription` | `text` and the Whisper code of the language it was transcribed in |
 | `whisperLanguages`, `whisperLanguageFor`, `languageForWhisper` | The 99 languages of tiny/base; app/BCP-47 codes to Whisper codes (`zh-TW` -> `zh`, `jv` -> `jw`, `fil` -> `tl`, `nb` -> `no`) and back |
@@ -79,14 +79,38 @@ size and SHA-256 with Hugging Face (`tool/check_model_downloads.py` reads
 every `models` entry).
 
 The SHA-1s are the ones in whisper.cpp v1.9.5's `models/README.md` (a test
-compares them). Quantized variants (`ggml-tiny-q5_1.bin`,
-`ggml-base-q5_1.bin`, `-q8_0`; 2-3x smaller) run on the existing library
-(ggml has NEON kernels for them) but are not listed yet: their exact sizes
-and SHA-1s must be taken from Hugging Face first (the README lists none). Hugging Face could not be reached when the catalogue was
+compares them). Hugging Face could not be reached when the catalogue was
 written; the byte sizes were checked against the layout
 `convert-pt-to-ggml.py` writes (the tensors of tiny and base differ by
 exactly the 70,259,752 bytes these sizes differ by). If a download ever
 fails with a size mismatch, compare with the file sizes on Hugging Face.
+
+### Quantized models
+
+whisper.cpp also publishes quantized copies of the same weights, 2-3x
+smaller and faster on ARM with the [CPU variants](#cpu-variants): `base`
+and `small` in q5_1, `large-v3-turbo` in q5_0. `tool/whisper_catalog.py
+resolve` (repository root) turns them into catalogue entries: the URL pinned
+to Hugging Face's current commit, size and SHA-256 from its API (the Git
+LFS object), the SHA-1 computed from the downloaded file (Hugging Face
+publishes none; whisper.cpp's README lists only turbo's, compared), and
+`minRamMb`:
+
+| id | File | App name | `minRamMb` |
+| --- | --- | --- | --- |
+| `base-q5_1` | `ggml-base-q5_1.bin` (about 57 MiB) | Better (compact) | none |
+| `small-q5_1` | `ggml-small-q5_1.bin` (about 181 MiB) | Best | 3000 (4 GB phones: about 0.6 GB while it runs) |
+| `large-v3-turbo-q5_0` | `ggml-large-v3-turbo-q5_0.bin` (547 MiB) | Large | 7000 (8 GB phones: about 1 GB, and a fast CPU) |
+
+Only CI reaches Hugging Face: the job "Check model downloads" prints the
+entries (`resolve --print`); a maintainer adds them to `assets/models.json`
+(or runs `resolve --write` where Hugging Face is reachable, which keeps the
+catalogue order: tiny, base-q5_1, base, small-q5_1, large-v3-turbo-q5_0,
+then the VAD model). Below `minRamMb` of RAM (or on a low-RAM device) the
+app does not offer a model; an installed one stays listed.
+`test/fixtures/models_quantized.json` is that catalogue with made-up
+checksums, for tests. `GGML_CPU_REPACK` stays off: ggml repacks Q4/Q8 and
+K-quants, not q5_0/q5_1 (measured: no difference).
 
 ## Native library
 
@@ -105,19 +129,46 @@ KleidiAI), with one portable baseline per ABI:
 
 | ABI | CPU baseline |
 | --- | --- |
-| arm64-v8a | ARMv8.0-A (no dotprod/i8mm/FP16 arithmetic: ggml can only pick those at run time with one library per variant) |
+| arm64-v8a | ARMv8.0-A (no dotprod/i8mm/FP16 arithmetic; the [CPU variants](#cpu-variants) have them) |
 | armeabi-v7a | NEON + VFPv4 (Dart checks `/proc/cpuinfo` first) |
 | x86_64 | SSE4.2 (no AVX/F16C/FMA: emulators, Chromebooks) |
 
+`mozhi_whisper_version()` names the CPU a build is for, e.g.
+`whisper.cpp 1.9.5 (ggml 0.26.0, CPU armv8.2-a+dotprod+fp16)`.
+
+### CPU variants
+
+ggml picks its kernels at compile time, so arm64-v8a gets two more complete
+libraries (the same C API, ABI and objects, except ggml's CPU backend,
+compiled again from ggml's own `ggml-cpu` target with another `-march`):
+
+| Library | `-march` | CPUs | Dart picks it when every core lists |
+| --- | --- | --- | --- |
+| `libmozhi_whisper.so` | `armv8-a` | all (Cortex-A53 and up) | (otherwise) |
+| `libmozhi_whisper_dotprod.so` | `armv8.2-a+dotprod+fp16` | Cortex-A55/A75/A76 and later (2018+) | `asimddp`, `asimdhp`, `fphp` |
+| `libmozhi_whisper_i8mm.so` | `armv8.6-a+dotprod+fp16+i8mm` | ARMv9 cores: Cortex-A510/A710/X2 and later (2022+) | those and `i8mm` |
+
+`ArmCpuFeatures` (`lib/src/engine/cpu_features.dart`, the same class as in
+`llama_engine`) reads `/proc/cpuinfo`; a feature counts only if every core
+lists it (big.LITTLE phones can differ). `WhisperBindings.resolve` picks the
+variant (`WhisperLibraryVariant.forCpu`) and falls back to the baseline when
+it does not open or reports another ABI version; the worker isolate opens
+the library it resolved and reports it, and the main isolate's cancel goes
+to that same library (each has its own cancel state). The variants'
+instructions are real: under `qemu-aarch64 -cpu cortex-a53` the dotprod
+build dies with SIGILL, as does the i8mm one on a Cortex-A76.
+`MOZHI_WHISPER_CPU_VARIANTS` (`<name>=<march>` list; default: these two on
+arm64, none elsewhere) builds others, e.g. `native=native` on a desktop.
+
 | Path | What |
 | --- | --- |
-| `native/CMakeLists.txt` | One shared library from the pinned sources; nothing is downloaded |
+| `native/CMakeLists.txt` | The shared library (and on arm64 its CPU variants) from the pinned sources; nothing is downloaded |
 | `native/third_party/whisper.cpp` | Submodule, tag v1.9.5 (`d1be6fde11ac6e0407606b4e42fe72d34add8037`), unmodified |
-| `native/tool/mozhi_whisper_cli.c` | Smoke test / benchmark: `mozhi_whisper_cli MODEL [WAV\|--silence S] [LANG] [THREADS]`, or `mozhi_whisper_cli --vad VAD_MODEL WAV [CHUNK]` (prints where speech is) |
+| `native/tool/mozhi_whisper_cli.c` | Smoke test / benchmark: `mozhi_whisper_cli MODEL [WAV\|--silence S] [LANG] [THREADS]`, or `mozhi_whisper_cli --vad VAD_MODEL WAV [CHUNK]` (prints where speech is); one per library (`mozhi_whisper_dotprod_cli`, ...) to compare them with `adb shell` |
 | `native/THIRD_PARTY_NOTICES.md` | whisper.cpp, ggml, YaRN (MIT), libc++; the models (MIT, OpenAI) |
-| `android/build.gradle` | `externalNativeBuild` (NDK 28.2.13676358, CMake 3.22.1, arm64-v8a / armeabi-v7a / x86_64, `c++_static`, 16 KB pages) |
+| `android/build.gradle` | `externalNativeBuild` (NDK 28.2.13676358, CMake 3.22.1, arm64-v8a / armeabi-v7a / x86_64, `c++_static`, 16 KB pages; targets `mozhi_whisper`, `mozhi_whisper_dotprod`, `mozhi_whisper_i8mm`: the variants are real on arm64-v8a, empty static stand-ins elsewhere, never packaged) |
 | `tool/fetch_native_deps.sh` | Checks out the pinned submodule (shallow); `tool/fetch_native_deps.sh` at the repository root runs it |
-| `tool/build_native_linux.sh` | Builds `build/native/linux/libmozhi_whisper.so` (+ the CLI) for the tests |
+| `tool/build_native_linux.sh` | Builds `build/native/linux/libmozhi_whisper.so` (+ the CLI) for the tests; `WHISPER_CPU_VARIANTS=native=native` also builds `libmozhi_whisper_native.so` to compare |
 
 ## Building and testing
 
@@ -148,5 +199,21 @@ build/native/linux/mozhi_whisper_cli --vad \
 
 On the x86-64 baseline, the detector takes about 0.6 ms per 32 ms window
 (11 s of audio in 0.2 s, one thread).
+
+To compare the baseline with a build for the machine's own CPU:
+
+```sh
+WHISPER_CPU_VARIANTS=native=native tool/build_native_linux.sh
+for cli in mozhi_whisper_cli mozhi_whisper_native_cli; do
+  build/native/linux/$cli \
+    native/third_party/whisper.cpp/models/for-tests-ggml-tiny.bin \
+    native/third_party/whisper.cpp/samples/jfk.wav en 2
+done
+```
+
+The empty-weight models run the full encoder, so their timings are real;
+a copy with the `ftype` header field (int32 at byte 44) set to 2009 (q5_1)
+or 2008 (q5_0) runs the quantized kernels the same way. The numbers are in
+[docs/voice-input.md](../../docs/voice-input.md#speed).
 
 `WHISPER_LIBRARY_PATH` overrides the library path.

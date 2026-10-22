@@ -149,8 +149,9 @@ void main() {
       test('other pairs use the English template', () {
         expect(
           hy(request()),
-          'Translate the following segment into German, without additional '
-          'explanation.\n\nHello, world!',
+          'Translate the following text into German. Note that you should '
+          'only output the translated result without any additional '
+          'explanation:\n\nHello, world!',
         );
         expect(
           hy(
@@ -161,8 +162,9 @@ void main() {
             ),
           ),
           startsWith(
-            'Translate the following segment into Portuguese (Brazil), '
-            'without additional explanation.\n\n',
+            'Translate the following text into Portuguese (Brazil). Note '
+            'that you should only output the translated result without any '
+            'additional explanation:\n\n',
           ),
         );
       });
@@ -254,7 +256,7 @@ void main() {
               text: '你好',
             ),
           ),
-          startsWith('Translate the following segment into English,'),
+          startsWith('Translate the following text into English.'),
         );
         expect(
           hy(
@@ -262,7 +264,7 @@ void main() {
               target: const Language(code: 'lzh', name: 'Classical'),
             ),
           ),
-          startsWith('Translate the following segment into Classical Chinese,'),
+          startsWith('Translate the following text into Classical Chinese.'),
         );
       });
 
@@ -273,19 +275,19 @@ void main() {
         expect(auto('我爱 Flutter'), startsWith('将以下文本翻译为英语，'));
         expect(
           auto('今日はいい天気ですね。'),
-          startsWith('Translate the following segment into English,'),
+          startsWith('Translate the following text into English.'),
         );
         expect(
           auto('韓國語 한국어'),
-          startsWith('Translate the following segment into English,'),
+          startsWith('Translate the following text into English.'),
         );
         expect(
           auto('I like 饺子 and 包子 a lot'),
-          startsWith('Translate the following segment into English,'),
+          startsWith('Translate the following text into English.'),
         );
         expect(
           auto('Bonjour', german),
-          startsWith('Translate the following segment into German,'),
+          startsWith('Translate the following text into German.'),
         );
         expect(
           auto('${'中' * 1200} plus a lot of English text afterwards'),
@@ -293,10 +295,126 @@ void main() {
         );
       });
 
+      group('terminology', () {
+        const glossary = TranslationOptions(
+          glossary: {'Mozhi': 'Mozhi', 'server': 'Server', 'cat': 'Katze'},
+        );
+
+        test('lists the glossary terms that occur in the text', () {
+          expect(
+            hy(request(text: 'Mozhi runs on my server.', options: glossary)),
+            'Reference the following translations:\n'
+            'Mozhi translates to Mozhi\n'
+            'server translates to Server\n'
+            '\n'
+            'Translate the following text into German. Note that you must '
+            'ONLY output the translated result without any additional '
+            'explanation:\n\n'
+            'Mozhi runs on my server.',
+          );
+        });
+
+        test('uses the Chinese template for Chinese pairs', () {
+          expect(
+            hy(
+              request(
+                text: 'Mozhi runs on my server.',
+                target: const Language(code: 'zh-CN', name: 'Chinese'),
+                options: const TranslationOptions(glossary: {'server': '服务器'}),
+              ),
+            ),
+            '参考下面的翻译：\n'
+            'server 翻译成 服务器\n'
+            '将以下文本翻译为中文，注意只需要输出翻译后的结果，不要额外解释：\n\n'
+            'Mozhi runs on my server.',
+          );
+        });
+
+        test('is the default template when no term occurs', () {
+          expect(
+            hy(request(text: 'Hello there', options: glossary)),
+            hy(request(text: 'Hello there')),
+          );
+        });
+
+        test('honours case-sensitive terms', () {
+          const options = TranslationOptions(
+            glossary: {'Apple': 'Apple Inc.'},
+            caseSensitiveGlossaryTerms: {'Apple'},
+          );
+          expect(
+            hy(request(text: 'an apple a day', options: options)),
+            isNot(contains('Reference')),
+          );
+          expect(
+            hy(request(text: 'Apple shares', options: options)),
+            startsWith(
+              'Reference the following translations:\n'
+              'Apple translates to Apple Inc.\n',
+            ),
+          );
+        });
+      });
+
+      group('delimiters', () {
+        test('keep masked spans for English instructions', () {
+          expect(
+            hy(request(text: 'Mail ⟨1⟩ or call ⟨2⟩.')),
+            'Please accurately translate the following text into German.\n'
+            'You must retain the exact same number of delimiters in the '
+            'translation. Strictly do not omit, escape, or translate these '
+            'symbols, and pay close attention to their placement.\n\n'
+            'Mail ⟨1⟩ or call ⟨2⟩.',
+          );
+        });
+
+        test('keep masked spans for Chinese instructions', () {
+          expect(
+            hy(
+              request(
+                text: 'Mail ⟨1⟩.',
+                target: const Language(code: 'zh-CN', name: 'Chinese'),
+              ),
+            ),
+            '请将以下文本准确翻译为中文。\n'
+            '你必须在译文中保留等量的分隔符，绝对不可遗漏、转义或翻译该符号，并注意分隔符的位置。'
+            '\n\nMail ⟨1⟩.',
+          );
+        });
+
+        test('follow the terms when both apply', () {
+          final prompt = hy(
+            request(
+              text: 'Ask the server admin at ⟨1⟩.',
+              options: const TranslationOptions(glossary: {'server': 'Server'}),
+            ),
+          );
+          expect(
+            prompt,
+            startsWith(
+              'Reference the following translations:\n'
+              'server translates to Server\n\n'
+              'Please accurately translate the following text into German.\n',
+            ),
+          );
+          expect(
+            prompt,
+            endsWith('placement.\n\nAsk the server admin at ⟨1⟩.'),
+          );
+        });
+
+        test('are not used for text without masked spans', () {
+          expect(
+            hy(request(text: 'Angle ⟨ brackets ⟩ alone')),
+            startsWith('Translate the following text into German.'),
+          );
+        });
+      });
+
       test('custom targets are sanitised', () {
         expect(
           hy(request(target: const Language.custom('Pirate\nspeak "x"'))),
-          startsWith('Translate the following segment into Pirate speak x,'),
+          startsWith('Translate the following text into Pirate speak x.'),
         );
       });
 
@@ -312,7 +430,7 @@ void main() {
             ),
           ),
         );
-        expect(prompt, endsWith('explanation.\n\n$text'));
+        expect(prompt, endsWith('explanation:\n\n$text'));
         expect(prompt, isNot(contains('secret')));
       });
     });
@@ -339,7 +457,7 @@ void main() {
       );
       expect(
         single(PromptProfile.auto.resolve('HY-MT1.5-7B'), request()),
-        startsWith('Translate the following segment into German,'),
+        startsWith('Translate the following text into German.'),
       );
     });
   });
@@ -350,6 +468,7 @@ void main() {
         temperature: 0.7,
         topP: 0.6,
         topK: 20,
+        repeatPenalty: 1.05,
       ));
     });
 
@@ -363,6 +482,7 @@ void main() {
           temperature: null,
           topP: null,
           topK: null,
+          repeatPenalty: null,
         ), reason: profile.name);
       }
     });

@@ -20,6 +20,8 @@ import 'package:mozhi/history/view/widgets/history_retention_listener.dart';
 import 'package:mozhi/image_translate/data/lost_image_recovery.dart'
     deferred as lost_image;
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/on_device_ai/data/on_device_ai.dart';
+import 'package:mozhi/on_device_ai/data/on_device_models.dart';
 import 'package:mozhi/onboarding/onboarding_redirect.dart';
 import 'package:mozhi/phrasebook/data/phrasebook_repository.dart';
 import 'package:mozhi/platform/android_device.dart';
@@ -64,6 +66,10 @@ class _AppState extends State<App> {
   late final HistoryCubit _historyCubit;
   late final TranslateCubit _translateCubit;
   late final GoRouter _router;
+
+  /// The on-device models' providers as they change (see
+  /// [_applyEngineConfiguration]).
+  StreamSubscription<List<AiProviderConfig>>? _onDeviceProviders;
   late final SharedTextHandler _sharedText;
   final _navigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
   final _messengerKey = GlobalKey<ScaffoldMessengerState>();
@@ -100,6 +106,11 @@ class _AppState extends State<App> {
     );
     // The engines are needed by the first screen: start right away.
     unawaited(_translateCubit.loadEngines());
+    // Installing, deleting or choosing an on-device model changes its AI
+    // providers (computed locally: nothing to refresh over the network).
+    _onDeviceProviders = _deps.onDeviceAi?.providersChanges.listen(
+      (_) => _applyEngineConfiguration(_settingsCubit.state, refresh: false),
+    );
 
     // `https://host/Mozhi/app/?text=…` (query before the `#/` fragment).
     final webLink = kIsWeb
@@ -169,6 +180,8 @@ class _AppState extends State<App> {
     unawaited(_settingsCubit.close());
     unawaited(_deps.speechInputService.dispose());
     unawaited(_deps.offlineSpeech?.dispose());
+    unawaited(_onDeviceProviders?.cancel());
+    unawaited(_deps.onDeviceAi?.dispose());
     unawaited(_deps.speechService.dispose());
     unawaited(_deps.usageTracker.dispose());
     unawaited(_deps.offlineTranslator.dispose());
@@ -254,12 +267,15 @@ class _AppState extends State<App> {
     if (modeChanged) unawaited(_translateCubit.loadEngines());
   }
 
-  void _applyEngineConfiguration(AppSettings settings) {
+  /// Pushes the instances and providers of [settings] to the repository,
+  /// with the on-device models' providers ([withOnDeviceProviders]), and
+  /// reloads the engines ([refresh]: the lists of the servers too).
+  void _applyEngineConfiguration(AppSettings settings, {bool refresh = true}) {
     _deps.translationRepository.updateConfiguration(
       instances: settings.instances,
-      providers: settings.providers,
+      providers: withOnDeviceProviders(settings.providers, _deps.onDeviceAi),
     );
-    unawaited(_translateCubit.loadEngines(refresh: true));
+    unawaited(_translateCubit.loadEngines(refresh: refresh));
   }
 
   @override
@@ -282,6 +298,12 @@ class _AppState extends State<App> {
         // Only where Whisper runs (the voice settings look for it).
         if (_deps.offlineSpeech case final offlineSpeech?)
           RepositoryProvider<OfflineSpeech>.value(value: offlineSpeech),
+        // Only where on-device AI runs (its settings and the translate
+        // screen look for them).
+        if (_deps.onDeviceAi case final onDeviceAi?) ...[
+          RepositoryProvider<OnDeviceAi>.value(value: onDeviceAi),
+          RepositoryProvider<OnDeviceModels>.value(value: onDeviceAi.models),
+        ],
         // The offline dictionaries (`maybeDictionaryPacks` finds them).
         if (_deps.dictionaryPacks case final dictionaryPacks?)
           RepositoryProvider<DictionaryPacks>.value(value: dictionaryPacks),

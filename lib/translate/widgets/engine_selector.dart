@@ -5,9 +5,12 @@ import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/router.dart' show AppRoutes;
 import 'package:mozhi/app/theme.dart';
+import 'package:mozhi/core/on_device_ai_access.dart';
+import 'package:mozhi/core/on_device_ai_engine.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/offline/offline.dart' show OfflineEngineBadge;
+import 'package:mozhi/on_device_ai/data/on_device_models.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/widgets/quality_toggle.dart';
 import 'package:mozhi/translate/widgets/translate_layout.dart'
@@ -102,14 +105,26 @@ class EngineSelectorButton extends StatelessWidget {
 /// (`TranslateCubit.loadDeferredEngines`).
 Future<void> showEngineSheet(BuildContext context) {
   final cubit = context.read<TranslateCubit>();
+  final onDeviceModels = maybeOnDeviceModels(context);
   unawaited(cubit.loadDeferredEngines());
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
     showDragHandle: true,
-    builder: (_) =>
-        BlocProvider.value(value: cubit, child: const EngineSheet()),
+    builder: (_) {
+      final sheet = BlocProvider.value(
+        value: cubit,
+        child: const EngineSheet(),
+      );
+      // For "Add on-device AI…", wherever the button found them.
+      return onDeviceModels == null
+          ? sheet
+          : RepositoryProvider<OnDeviceModels>.value(
+              value: onDeviceModels,
+              child: sheet,
+            );
+    },
   );
 }
 
@@ -154,15 +169,18 @@ String? translateEngineDescriptor(
 /// (`TranslateCubit.selectEngine`). Otherwise the list is shown right away
 /// and picks the engine.
 ///
-/// The list groups engines by kind: "On this device" (offline engines),
-/// "Mozhi engines (via host)", "Machine translation" (DeepL API,
-/// LibreTranslate) and "AI models". Each engine has a one-line note on
-/// what it is good for ([translateEngineDescriptor]) and its details (an AI
-/// model's id). Where the text goes ([PrivacyBadge]) is shown once in a
-/// section's header when every engine of the section sends it to the same
-/// kind of place (e.g. the Mozhi instance), else on each row. Links to the
-/// provider, instance and quality mode settings follow; the quality modes
-/// entry explains how to get the Fast / Best toggle while it is not set up.
+/// The list groups engines by kind: "On this device" (the offline engine
+/// and on-device AI models, [isOnDeviceEngine]), "Mozhi engines (via
+/// host)", "Machine translation" (DeepL API, LibreTranslate) and "AI
+/// models". Each engine has a one-line note on what it is good for
+/// ([translateEngineDescriptor]) and its details (an AI model's id). Where
+/// the text goes ([PrivacyBadge]) is shown once in a section's header when
+/// every engine of the section sends it to the same kind of place (e.g.
+/// the Mozhi instance), else on each row. Links to the On-device AI
+/// settings ("Add on-device AI…", where a model fits and none is
+/// installed), the provider, instance and quality mode settings follow;
+/// the quality modes entry explains how to get the Fast / Best toggle while
+/// it is not set up.
 class EngineSheet extends StatefulWidget {
   const new({super.key});
 
@@ -282,6 +300,14 @@ class _EngineSheetState extends State<EngineSheet> {
             ...section(l10n.translateAiModelsHeader, ai),
           ],
           const Divider(height: 24),
+          if (_offersOnDeviceAi(context))
+            ListTile(
+              key: const Key('translate_add_on_device_ai'),
+              leading: const Icon(Icons.memory),
+              title: Text(l10n.translateAddOnDeviceAi),
+              subtitle: Text(l10n.translateAddOnDeviceAiSubtitle),
+              onTap: () => open(AppRoutes.onDeviceAi),
+            ),
           ListTile(
             leading: const Icon(Icons.add),
             title: Text(l10n.translateAddAiProvider),
@@ -306,6 +332,15 @@ class _EngineSheetState extends State<EngineSheet> {
         ],
       ),
     );
+  }
+
+  /// Whether the list ends with "Add on-device AI…": where on-device AI
+  /// runs (not on the web), a model fits this phone and none is installed.
+  static bool _offersOnDeviceAi(BuildContext context) {
+    final models = maybeOnDeviceModels(context);
+    return models != null &&
+        !onDeviceAiInstalled(models) &&
+        onDeviceAiModelFits(models);
   }
 
   /// The badge every engine of [engines] shares (the on-device badge, or
@@ -455,15 +490,18 @@ class _EngineTile extends StatelessWidget {
   }
 }
 
-/// Whether [engine] translates on this device: only offline engines
-/// ([EngineKind.offline], ids `offline:<backend>`). Mozhi engines, AI
+/// Whether [engine] translates on this device: offline engines
+/// ([EngineKind.offline], ids `offline:<backend>`) and on-device AI models
+/// ([isOnDeviceAiEngine], ids `ai:device-<model>`). Mozhi engines, other AI
 /// providers and machine translation services ([EngineKind.mt]: DeepL API,
 /// LibreTranslate) are servers, even on the LAN.
 bool isOnDeviceEngine(TranslationEngine engine) =>
-    engine.isOffline || isOfflineEngineId(engine.id);
+    engine.isOffline ||
+    isOfflineEngineId(engine.id) ||
+    isOnDeviceAiEngine(engine);
 
-/// Icon for an engine kind (offline, local AI, cloud AI, Mozhi engine or
-/// machine translation service).
+/// Icon for an engine kind (on-device AI and local AI servers: a memory
+/// chip; offline, cloud AI, Mozhi engine or machine translation service).
 class EngineIcon extends StatelessWidget {
   const new({required this.engine, this.size, super.key});
 
@@ -473,6 +511,7 @@ class EngineIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final icon = switch (engine) {
+      _ when isOnDeviceAiEngine(engine) => Icons.memory,
       _ when isOnDeviceEngine(engine) => OfflineEngineBadge.icon,
       TranslationEngine(isAi: true, isLocal: true) => Icons.memory,
       TranslationEngine(isAi: true) => Icons.auto_awesome_outlined,
@@ -483,10 +522,11 @@ class EngineIcon extends StatelessWidget {
   }
 }
 
-/// Where the engine's text goes, from its [DataDestination]: On device,
-/// Self-hosted (the user's own server, LAN, Tor), Public server (a public
-/// Mozhi or LibreTranslate instance run by someone else) or Cloud (an AI
-/// provider or DeepL).
+/// Where the engine's text goes, from its [DataDestination]: On device
+/// ("On this device" with a memory chip for on-device AI), Self-hosted
+/// (the user's own server, LAN, Tor), Public server (a public Mozhi or
+/// LibreTranslate instance run by someone else) or Cloud (an AI provider
+/// or DeepL).
 ///
 /// [destination] defaults to `TranslationRepository.destinationOf` (when a
 /// repository is provided); without one, local engines count as
@@ -521,6 +561,12 @@ class PrivacyBadge extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final where = destination ?? destinationFor(context, engine);
     final (label, icon, background, foreground) = switch (where) {
+      OnDeviceDestination() when isOnDeviceAiEngine(engine) => (
+        l10n.commonDestinationOnDeviceAi,
+        Icons.memory,
+        scheme.tertiaryContainer,
+        scheme.onTertiaryContainer,
+      ),
       OnDeviceDestination() => (
         l10n.translateBadgeOnDevice,
         Icons.phone_android,

@@ -6,6 +6,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/core/network/network_policy.dart';
+import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/settings/view/provider_editor_page.dart';
 import 'package:mozhi/settings/view/widgets/link_launcher.dart';
@@ -251,6 +252,21 @@ void main() {
         expect(textOf(tester, 'Base URL'), 'https://api.anthropic.com/v1');
         expect(find.text('Temperature'), findsNothing);
         expect(find.text('API key'), findsOneWidget);
+      });
+
+      testWidgets('never offers on-device models as a type', (tester) async {
+        await pump(tester);
+        await tester.tap(find.text('OpenAI-compatible'));
+        await tester.pumpAndSettle();
+        for (final name in [
+          'OpenAI-compatible',
+          'Anthropic',
+          'Google Gemini',
+          'Ollama (native API)',
+        ]) {
+          expect(find.text(name), findsWidgets, reason: name);
+        }
+        expect(find.text('On this device'), findsNothing);
       });
 
       testWidgets('keeps a custom base URL when switching type', (
@@ -1159,6 +1175,19 @@ void main() {
         const Offset(0, -300),
       );
       expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('llmProviderName and defaultBaseUrl', () {
+    test('name on-device models and give them no base URL', () {
+      final l10n = lookupAppLocalizations(const Locale('en'));
+      expect(llmProviderName(l10n, LlmProvider.onDevice), 'On this device');
+      expect(defaultBaseUrl(LlmProvider.onDevice), isEmpty);
+      expect(editableLlmProviders, isNot(contains(LlmProvider.onDevice)));
+      expect(
+        editableLlmProviders.toSet(),
+        {...LlmProvider.values}..remove(LlmProvider.onDevice),
+      );
     });
   });
 }

@@ -106,6 +106,29 @@ void main() {
           'format': 'json',
         });
       });
+
+      test('sends the sampling options and stop strings when set', () async {
+        final server = FakeServer([
+          FakeResponse.text(_ndjson([_line('', done: true)])),
+        ]);
+        await _client(server)
+            .streamChat(
+              _request.copyWith(
+                topP: 0.6,
+                topK: 20,
+                repeatPenalty: 1.05,
+                stop: ['</s>'],
+              ),
+            )
+            .drain<void>();
+        expect((server.lastRequest.json! as Map)['options'], {
+          'top_p': 0.6,
+          'top_k': 20,
+          'repeat_penalty': 1.05,
+          'num_ctx': 8192,
+          'stop': ['</s>'],
+        });
+      });
     });
 
     group('contextWindowFor', () {

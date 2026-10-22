@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/offline/cubit/offline_models_cubit.dart'
     show OfflineModelsCubit;
+import 'package:mozhi/platform/native_memory.dart';
 import 'package:mozhi/settings/models/model_source.dart';
 import 'package:whisper_speech/whisper_speech.dart';
 
@@ -33,12 +34,15 @@ final class VoiceModelMeteredException implements Exception {
 /// * The model in use ([selected]) is stored under [modelKey]; without a
 ///   choice (or when it was deleted) the most accurate installed model is
 ///   used.
+/// * The larger models are only offered where they fit ([fits], the
+///   device's [memory]); an installed one is always listed.
 class OfflineSpeech {
   new({
     required this.whisper,
     required this._store,
     Future<bool> Function()? isMeteredConnection,
     ModelSource Function()? modelSource,
+    this.memory,
   }) : _isMetered = isMeteredConnection ?? _neverMetered,
        _modelSource = modelSource ?? _currentModelSource;
 
@@ -62,6 +66,13 @@ class OfflineSpeech {
 
   /// The downloadable models, fastest first.
   List<WhisperCatalogModel> get models => whisper.catalog.models;
+
+  /// What Android says about the device's memory; null when unknown.
+  final DeviceMemory? memory;
+
+  /// Whether [model] suits this device's memory
+  /// ([voiceModelFitsMemory]).
+  bool fits(WhisperCatalogModel model) => voiceModelFitsMemory(model, memory);
 
   /// The catalog model [id], if listed.
   WhisperCatalogModel? model(String id) => whisper.catalog.model(id);
@@ -262,3 +273,13 @@ class OfflineSpeech {
     }
   }
 }
+
+/// Whether a device with [memory] (null: unknown) has the RAM speech model
+/// [model] needs ([WhisperCatalogModel.fitsMemory]): models without a
+/// minimum fit everywhere; small and large-v3-turbo are not offered on
+/// phones with too little RAM or on low-RAM (Android Go) devices.
+bool voiceModelFitsMemory(WhisperCatalogModel model, DeviceMemory? memory) =>
+    model.fitsMemory(
+      totalBytes: memory?.totalBytes,
+      lowRam: memory?.isLowRam ?? false,
+    );

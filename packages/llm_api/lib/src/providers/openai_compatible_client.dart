@@ -84,7 +84,9 @@ class OpenAiCompatibleClient extends HttpLlmClient {
     'messages': [for (final message in request.messages) _message(message)],
     'stream': true,
     'temperature': ?request.temperature,
+    'top_p': ?request.topP,
     'max_tokens': ?request.maxTokens,
+    if (request.stop.isNotEmpty) 'stop': request.stop,
     if (withOptions) 'reasoning_effort': ?request.effort,
     if (withOptions && request.jsonOutput)
       'response_format': {'type': 'json_object'},

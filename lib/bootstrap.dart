@@ -19,10 +19,12 @@ import 'package:mozhi/dictionary/data/default_dictionary_packs.dart';
 import 'package:mozhi/dictionary/data/dictionary_packs.dart';
 import 'package:mozhi/history/data/history_repository.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/on_device_ai/data/on_device_ai.dart';
 import 'package:mozhi/phrasebook/data/default_phrasebook.dart';
 import 'package:mozhi/phrasebook/data/phrasebook_backup_section.dart';
 import 'package:mozhi/platform/offline_engine.dart';
 import 'package:mozhi/platform/offline_speech.dart';
+import 'package:mozhi/platform/on_device_ai.dart';
 import 'package:mozhi/platform/shared_text_service.dart';
 import 'package:mozhi/practice/data/practice_backup_section.dart';
 import 'package:mozhi/practice/data/practice_repository.dart';
@@ -124,6 +126,10 @@ Future<void> bootstrap(
 /// [NetworkSession.current] (the proxy setting). [offlineSpeech] defaults
 /// to [createOfflineSpeech]: Whisper for offline voice input (Android on a
 /// supported CPU; null elsewhere), behind the [SpeechInputService].
+/// [onDeviceAi] defaults to [createOnDeviceAi]: the on-device AI models
+/// (llama.cpp; Android on arm64 or x86_64, null elsewhere), whose
+/// providers the app adds to the repository's ([withOnDeviceProviders])
+/// and whose clients run in the app ([onDeviceClientFactory]).
 /// [dictionaryPacks] defaults to [defaultDictionaryPacks]: the offline
 /// dictionaries, whose storage opens only when a screen needs it.
 ///
@@ -144,6 +150,7 @@ Future<AppDependencies> createDependencies({
   OfflineTranslator? offlineTranslator,
   NetworkSession Function(String? proxy)? network,
   Future<OfflineSpeech?> Function(KeyValueStore preferences)? offlineSpeech,
+  Future<OnDeviceAi?> Function(KeyValueStore preferences)? onDeviceAi,
   DictionaryPacks? Function()? dictionaryPacks,
 }) async {
   // Started first: loading the model catalogues runs while the stores open.
@@ -153,6 +160,7 @@ Future<AppDependencies> createDependencies({
       : createOfflineTranslator();
   final preferences = prefs ?? PreferencesStore();
   final speechFuture = (offlineSpeech ?? _offlineSpeech)(preferences);
+  final onDeviceFuture = (onDeviceAi ?? _onDeviceAi)(preferences);
   final secretStore =
       secrets ?? FallbackKeyValueStore(SecureStore(appSecureStorage));
 
@@ -182,11 +190,14 @@ Future<AppDependencies> createDependencies({
 
   final offline = await offlineFuture;
   final speech = await speechFuture;
+  final onDevice = await onDeviceFuture;
   await texts;
   final translationRepository =
       TranslationRepository(
         mozhiClientFactory: session.mozhiClient,
-        llmClientFactory: session.llmClient,
+        // On-device models run in the app; every other one over the
+        // session.
+        llmClientFactory: onDeviceClientFactory(onDevice, session.llmClient),
         deeplClientFactory: session.deeplClient,
         libreTranslateClientFactory: session.libreClient,
         offline: offline,
@@ -194,7 +205,7 @@ Future<AppDependencies> createDependencies({
         metadataStore: KeyValueMetadataStore(preferences),
       )..updateConfiguration(
         instances: settings.instances,
-        providers: settings.providers,
+        providers: withOnDeviceProviders(settings.providers, onDevice),
       );
   final historyRepository = HistoryRepository(store: preferences);
   // The app gives it the history's favourites (App).
@@ -247,6 +258,7 @@ Future<AppDependencies> createDependencies({
       privacyMode: () => translationRepository.privacyMode,
     ),
     offlineSpeech: speech,
+    onDeviceAi: onDevice,
     // Nothing is read until a screen asks (the storage opens lazily).
     dictionaryPacks: (dictionaryPacks ?? defaultDictionaryPacks)(),
     offlineTranslator: offline,
@@ -259,6 +271,9 @@ NetworkSession _networkSession(String? proxy) => NetworkSession(proxy: proxy);
 
 Future<OfflineSpeech?> _offlineSpeech(KeyValueStore preferences) =>
     createOfflineSpeech(store: preferences);
+
+Future<OnDeviceAi?> _onDeviceAi(KeyValueStore preferences) =>
+    createOnDeviceAi(store: preferences);
 
 /// Options of the platform secure storage.
 ///

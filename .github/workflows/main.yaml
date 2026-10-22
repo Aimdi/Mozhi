@@ -74,12 +74,43 @@ jobs:
       - name: Bloc lint
         run: dart run bloc_tools:bloc lint lib
 
-      # Every package under packages/ (bergamot_translator, llm_api,
-      # mlkit_translator, mozhi_api, mozhi_cli, mt_api,
+      # packages/llama_engine's native tests run the real engine: the host
+      # build of libmozhi_llama.so (tool/build_native_linux.sh; about a
+      # minute with a warm ccache) and its tiny test models
+      # (tool/make_test_model.py: llama.cpp's gguf-py, which needs numpy).
+      - name: Fetch the on-device AI engine's sources
+        run: bash packages/llama_engine/tool/fetch_native_deps.sh
+
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .ccache-llama
+          key: llama-linux-ccache-${{ github.sha }}
+          restore-keys: |
+            llama-linux-ccache-
+
+      - name: Build the on-device AI engine and its test models
+        env:
+          CCACHE_DIR: ${{ github.workspace }}/.ccache-llama
+          CCACHE_BASEDIR: ${{ github.workspace }}
+          CCACHE_COMPRESS: "true"
+          CCACHE_MAXSIZE: 500M
+        run: |
+          sudo apt-get install -y -q ccache ninja-build > /dev/null
+          bash packages/llama_engine/tool/build_native_linux.sh
+          python3 -m venv "$RUNNER_TEMP/gguf-py"
+          "$RUNNER_TEMP/gguf-py/bin/pip" install --quiet "numpy>=1.26"
+          "$RUNNER_TEMP/gguf-py/bin/python" packages/llama_engine/tool/make_test_model.py \
+            --all packages/llama_engine/build/test_models
+          "$RUNNER_TEMP/gguf-py/bin/python" packages/llama_engine/tool/make_test_model_test.py
+          ccache --show-stats || true
+
+      # Every package under packages/ (bergamot_translator, llama_engine,
+      # llm_api, mlkit_translator, mozhi_api, mozhi_cli, mt_api,
       # translation_repository): pure Dart packages and the CLI use dart
       # test, Flutter packages (bergamot_translator, mlkit_translator)
       # flutter test. bergamot_translator's real-engine tests are skipped
-      # without BERGAMOT_TEST_MODELS=1, so no native library is needed here.
+      # without BERGAMOT_TEST_MODELS=1, so no native library is needed here;
+      # llama_engine's use the library and models built above.
       # Packages without tests are skipped.
       - name: Test packages
         run: bash .github/scripts/packages.sh test
@@ -98,6 +129,8 @@ jobs:
           python3 tool/check_signing_test.py
           python3 tool/check_page_size_test.py
           python3 tool/mirror_models_test.py
+          python3 tool/llm_catalog_test.py
+          python3 tool/whisper_catalog_test.py
           python3 tool/dictionary_packs_test.py
           python3 tool/phrasebooks_test.py
           python3 tool/check_coverage_markers_test.py
@@ -307,6 +340,34 @@ jobs:
               fi
             done
           done
+          # Whisper's builds for newer arm64 CPUs (dotprod + FP16, i8mm).
+          for variant in dotprod i8mm; do
+            if ! grep -q "lib/arm64-v8a/libmozhi_whisper_$variant\.so" <<< "$entries"; then
+              echo "::error::$apk has no lib/arm64-v8a/libmozhi_whisper_$variant.so"
+              failed=1
+            fi
+          done
+          # ...and only there (the other ABIs build empty stand-ins).
+          if grep -qE "lib/(armeabi-v7a|x86_64)/libmozhi_whisper_(dotprod|i8mm)\.so" <<< "$entries"; then
+            echo "::error::$apk has a Whisper CPU variant outside arm64-v8a"
+            failed=1
+          fi
+          # On-device AI (llama.cpp): arm64-v8a has the baseline and two CPU
+          # variants, x86_64 the baseline, armeabi-v7a nothing (64-bit only).
+          for lib in libmozhi_llama libmozhi_llama_dotprod libmozhi_llama_i8mm; do
+            if ! grep -q "lib/arm64-v8a/$lib\.so" <<< "$entries"; then
+              echo "::error::$apk has no lib/arm64-v8a/$lib.so"
+              failed=1
+            fi
+          done
+          if ! grep -q "lib/x86_64/libmozhi_llama\.so" <<< "$entries"; then
+            echo "::error::$apk has no lib/x86_64/libmozhi_llama.so"
+            failed=1
+          fi
+          if grep -qE "lib/(armeabi-v7a/libmozhi_llama|x86_64/libmozhi_llama_)" <<< "$entries"; then
+            echo "::error::$apk has llama libraries for armeabi-v7a or x86_64 CPU variants"
+            failed=1
+          fi
           if grep -q 'libc++_shared\.so' <<< "$entries"; then
             echo "::error::$apk contains libc++_shared.so"
             failed=1
@@ -710,16 +771,39 @@ jobs:
   # The data the app downloads (Whisper models from Hugging Face, Tesseract
   # language data from GitHub) must still be served with the sizes the
   # bundled catalogues pin: the app rejects any other file. HEAD requests
-  # only; nothing is downloaded.
+  # only; nothing is downloaded (except the quantized Whisper models,
+  # hashed once to resolve their catalogue entries, about 0.8 GB).
   check-model-downloads:
     name: Check model downloads
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Compare the served sizes with the catalogues
         run: python3 tool/check_model_downloads.py
+
+      # The on-device AI models (packages/llama_engine/assets/models.json)
+      # come from Hugging Face's API, which only CI can reach: print the
+      # catalogue resolved from tool/llm_catalog.json (commit-pinned URLs,
+      # sizes, SHA-256) for a maintainer to commit, then check the
+      # committed one is still served as it says.
+      - name: Resolve the on-device AI catalogue
+        if: ${{ !cancelled() }}
+        run: python3 tool/llm_catalog.py resolve --print
+
+      - name: Check the on-device AI downloads
+        if: ${{ !cancelled() }}
+        run: python3 tool/llm_catalog.py check
+
+      # The quantized Whisper models (base and small q5_1, large-v3-turbo
+      # q5_0) for packages/whisper_speech/assets/models.json: pinned to
+      # Hugging Face's current commit, size and SHA-256 from its API, SHA-1
+      # from the downloaded files. Printed for a maintainer to commit
+      # (`resolve --write` does it where Hugging Face is reachable).
+      - name: Resolve the quantized Whisper models
+        if: ${{ !cancelled() }}
+        run: python3 tool/whisper_catalog.py resolve --print
 
   # The on-device engines' native libraries for the three release ABIs,
   # built exactly like the plugins' Gradle builds do (same NDK, CMake,
@@ -727,7 +811,12 @@ jobs:
   #   libmozhi_bergamot.so   offline translation (Mozilla's Firefox
   #                          Translations engine)
   #   libmozhi_tesseract.so  text recognition in photos (Tesseract)
-  #   libmozhi_whisper.so    offline voice input (whisper.cpp)
+  #   libmozhi_whisper.so    offline voice input (whisper.cpp; arm64-v8a
+  #                          also libmozhi_whisper_dotprod.so and
+  #                          libmozhi_whisper_i8mm.so for newer CPUs)
+  #   libmozhi_llama.so      on-device AI (llama.cpp; arm64-v8a and x86_64
+  #                          only, arm64-v8a also libmozhi_llama_dotprod.so
+  #                          and libmozhi_llama_i8mm.so for newer CPUs)
   # The APK jobs build them again through Gradle; this job exists for
   # diagnostics: it needs nothing else, so it starts at once, keeps going
   # after compile errors (ninja -k 0, every ABI) so one run lists all of
@@ -763,9 +852,28 @@ jobs:
             package: packages/whisper_speech
             exports: >-
               abi_version version model_load model_free model_is_multilingual
-              transcribe cancel free_string last_error
+              transcribe cancel free_string last_error vad_load vad_free
+              vad_frame_size vad_process vad_reset
             # liblog: assertion messages go to logcat.
             needed: libc.so libm.so libdl.so liblog.so
+            # arm64-v8a also builds libmozhi_whisper_<variant>.so (and its
+            # CLI) for newer CPUs: dotprod + FP16, and i8mm.
+            variants: dotprod i8mm
+          - engine: llama
+            title: llama
+            package: packages/llama_engine
+            exports: >-
+              abi_version version cpu_features json_grammar model_load
+              model_free model_info chat_format tokenize_count generate_begin
+              generate_next generate_end generate_stats cancel free_string
+              last_error
+            # liblog: assertion messages go to logcat.
+            needed: libc.so libm.so libdl.so liblog.so
+            # arm64-v8a also builds libmozhi_llama_<variant>.so (and its CLI)
+            # for newer CPUs: dotprod + FP16, and i8mm.
+            variants: dotprod i8mm
+            # 64-bit only: no armeabi-v7a build.
+            abis: arm64-v8a x86_64
     env:
       ANDROID_PLATFORM: android-24
       CCACHE_DIR: ${{ github.workspace }}/.ccache
@@ -777,6 +885,8 @@ jobs:
       PACKAGE: ${{ matrix.package }}
       EXPORTS: ${{ matrix.exports }}
       NEEDED: ${{ matrix.needed }}
+      VARIANTS: ${{ matrix.variants }}
+      ABIS: ${{ matrix.abis || 'arm64-v8a armeabi-v7a x86_64' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -804,14 +914,13 @@ jobs:
       # Every ABI is configured and built even when another one fails, and
       # ninja keeps going after errors (-k 0), so a single run reports all
       # compile errors. The step fails at the end if any ABI failed.
-      - name: Build arm64-v8a, armeabi-v7a and x86_64
+      - name: Build ${{ env.ABIS }}
         run: |
           # GitHub runs steps with bash -e: turn it off, every ABI must be
           # attempted and the step decides at the end (exit "$failed").
           set +e -uo pipefail
           cmake --version | head -1
           native="$PACKAGE/native"
-          lib="libmozhi_$ENGINE.so"
           logs="$RUNNER_TEMP/$ENGINE-logs"
           mkdir -p "$logs" dist
           : > "$RUNNER_TEMP/$ENGINE-built"
@@ -823,7 +932,7 @@ jobs:
             echo "| ABI | Configure | Build | Compile errors |"
             echo "| --- | --- | --- | ---: |"
           } >> "$GITHUB_STEP_SUMMARY"
-          for abi in arm64-v8a armeabi-v7a x86_64; do
+          for abi in $ABIS; do
             echo "::group::$abi"
             build="$RUNNER_TEMP/$ENGINE-$abi"
             configure=failed
@@ -838,11 +947,23 @@ jobs:
               -DCMAKE_C_COMPILER_LAUNCHER=ccache \
               -DCMAKE_CXX_COMPILER_LAUNCHER=ccache 2>&1 | tee "$logs/$abi-configure.log"; then
               configure=ok
-              if cmake --build "$build" --target "mozhi_$ENGINE" "mozhi_${ENGINE}_cli" \
+              # arm64-v8a: also the CPU variants (libmozhi_<engine>_<variant>.so).
+              targets=("mozhi_$ENGINE" "mozhi_${ENGINE}_cli")
+              if [ "$abi" = arm64-v8a ]; then
+                for variant in $VARIANTS; do
+                  targets+=("mozhi_${ENGINE}_$variant" "mozhi_${ENGINE}_${variant}_cli")
+                done
+              fi
+              if cmake --build "$build" --target "${targets[@]}" \
                 --parallel -- -k 0 2>&1 | tee "$logs/$abi-build.log"; then
                 result=ok
                 mkdir -p "dist/$abi"
-                cp "$build/$lib" "$build/mozhi_${ENGINE}_cli" "dist/$abi/"
+                for target in "${targets[@]}"; do
+                  case "$target" in
+                    *_cli) cp "$build/$target" "dist/$abi/" ;;
+                    *) cp "$build/lib$target.so" "dist/$abi/" ;;
+                  esac
+                done
                 echo "$abi" >> "$RUNNER_TEMP/$ENGINE-built"
               else
                 result=failed
@@ -899,46 +1020,49 @@ jobs:
         run: |
           set -euo pipefail
           bin="$ANDROID_NDK/toolchains/llvm/prebuilt/linux-x86_64/bin"
-          lib_name="libmozhi_$ENGINE.so"
           failed=0
           {
             echo "### $TITLE native libraries"
             echo
-            echo "| ABI | Unstripped | Stripped |"
-            echo "| --- | ---: | ---: |"
+            echo "| ABI | Library | Unstripped | Stripped |"
+            echo "| --- | --- | ---: | ---: |"
           } >> "$GITHUB_STEP_SUMMARY"
           built=$(cat "$RUNNER_TEMP/$ENGINE-built" 2>/dev/null || true)
           [ -n "$built" ] || { echo "No ABI built."; exit 1; }
+          size() { numfmt --to=iec-i --suffix=B --format='%.1f' "$(stat -c %s "$1")"; }
           for abi in $built; do
-            lib="dist/$abi/$lib_name"
-            exports=$("$bin/llvm-nm" -D --defined-only "$lib" | awk '{print $NF}' | sort)
-            unexpected=$(printf '%s\n' "$exports" | grep -v "^mozhi_${ENGINE}_" || true)
-            if [ -n "$unexpected" ]; then
-              echo "::error::$abi exports more than the C API: $unexpected"
-              failed=1
-            fi
-            for name in $EXPORTS; do
-              if ! grep -qx "mozhi_${ENGINE}_$name" <<< "$exports"; then
-                echo "::error::$abi does not export mozhi_${ENGINE}_$name"
+            # libmozhi_<engine>.so and its CPU variants (arm64-v8a).
+            for lib in "dist/$abi/libmozhi_$ENGINE"*.so; do
+              name=$(basename "$lib" .so)
+              case "$name" in *.stripped) continue ;; esac
+              exports=$("$bin/llvm-nm" -D --defined-only "$lib" | awk '{print $NF}' | sort)
+              unexpected=$(printf '%s\n' "$exports" | grep -v "^mozhi_${ENGINE}_" || true)
+              if [ -n "$unexpected" ]; then
+                echo "::error::$abi $name exports more than the C API: $unexpected"
                 failed=1
               fi
-            done
-            for needed in $("$bin/llvm-readelf" -d "$lib" |
-              sed -n 's/.*Shared library: \[\(.*\)\]/\1/p'); do
-              if ! grep -qwF -- "$needed" <<< "$NEEDED"; then
-                echo "::error::$abi needs $needed"
+              for symbol in $EXPORTS; do
+                if ! grep -qx "mozhi_${ENGINE}_$symbol" <<< "$exports"; then
+                  echo "::error::$abi $name does not export mozhi_${ENGINE}_$symbol"
+                  failed=1
+                fi
+              done
+              for needed in $("$bin/llvm-readelf" -d "$lib" |
+                sed -n 's/.*Shared library: \[\(.*\)\]/\1/p'); do
+                if ! grep -qwF -- "$needed" <<< "$NEEDED"; then
+                  echo "::error::$abi $name needs $needed"
+                  failed=1
+                fi
+              done
+              if "$bin/llvm-readelf" -lW "$lib" |
+                awk '$1 == "LOAD" && $NF != "0x4000" { bad = 1 } END { exit !bad }'; then
+                echo "::error::$abi $name has LOAD segments that are not 16 KB aligned"
                 failed=1
               fi
+              "$bin/llvm-strip" --strip-unneeded -o "dist/$abi/$name.stripped.so" "$lib"
+              echo "| $abi | $name | $(size "$lib") | $(size "dist/$abi/$name.stripped.so") |" \
+                >> "$GITHUB_STEP_SUMMARY"
             done
-            if "$bin/llvm-readelf" -lW "$lib" |
-              awk '$1 == "LOAD" && $NF != "0x4000" { bad = 1 } END { exit !bad }'; then
-              echo "::error::$abi has LOAD segments that are not 16 KB aligned"
-              failed=1
-            fi
-            "$bin/llvm-strip" --strip-unneeded -o "dist/$abi/libmozhi_$ENGINE.stripped.so" "$lib"
-            size() { numfmt --to=iec-i --suffix=B --format='%.1f' "$(stat -c %s "$1")"; }
-            echo "| $abi | $(size "$lib") | $(size "dist/$abi/libmozhi_$ENGINE.stripped.so") |" \
-              >> "$GITHUB_STEP_SUMMARY"
           done
           (cd dist && sha256sum -- */*.so > SHA256SUMS.txt)
           [ "$failed" = 0 ] || exit 1

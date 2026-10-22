@@ -14,6 +14,8 @@ import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/history/data/history_repository.dart';
 import 'package:mozhi/image_translate/data/text_recognition_service.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/on_device_ai/data/on_device_models.dart';
+import 'package:mozhi/on_device_ai/view/model_size.dart';
 import 'package:mozhi/pairing/view/pairing_environment_of.dart' as pairing;
 import 'package:mozhi/pairing/view/pairing_unavailable.dart'
     show isPairingSupported;
@@ -47,6 +49,8 @@ class LocalDataSummary {
     this.offlineModels = 0,
     this.phrasebookCollections = 0,
     this.practiceCards = 0,
+    this.onDeviceModels = 0,
+    this.onDeviceModelBytes = 0,
   });
 
   /// Translations in the history.
@@ -66,6 +70,12 @@ class LocalDataSummary {
 
   /// Cards with practice progress (reviewed at least once).
   final int practiceCards;
+
+  /// Installed on-device AI models.
+  final int onDeviceModels;
+
+  /// Bytes of the installed on-device AI models.
+  final int onDeviceModelBytes;
 }
 
 /// Deletes everything the app keeps on the device: the history (with its
@@ -115,6 +125,7 @@ class LocalDataEraser {
     this.practice,
     this.sync,
     this.deletePairingFiles,
+    this.onDeviceModels,
   });
 
   /// Uses what the app provides above [context].
@@ -151,6 +162,7 @@ class LocalDataEraser {
       speech: maybe<SpeechService>(),
       speechInput: maybe<SpeechInputService>(),
       offlineSpeech: maybe<OfflineSpeech>(),
+      onDeviceModels: maybe<OnDeviceModels>(),
       dictionaryPacks: maybeDictionaryPacks(context),
       textRecognition: hasOcrData ? ocr : null,
       deleteTextRecognitionFiles: hasOcrData
@@ -190,6 +202,10 @@ class LocalDataEraser {
   /// The offline speech models (Whisper), deleted with the offline
   /// languages.
   final OfflineSpeech? offlineSpeech;
+
+  /// The on-device AI models and which ones are in use
+  /// ([OnDeviceModels.deleteAll]).
+  final OnDeviceModels? onDeviceModels;
 
   /// The offline dictionaries, deleted pack by pack so that open screens
   /// update.
@@ -239,6 +255,7 @@ class LocalDataEraser {
     } on Object {
       collections = 0;
     }
+    final onDevice = await _onDeviceModelSizes();
     var cards = 0;
     try {
       cards = await practice?.reviewedCount() ?? 0;
@@ -254,6 +271,8 @@ class LocalDataEraser {
           .where((p) => p.apiKey?.isNotEmpty ?? false)
           .length,
       offlineModels: (await _downloadedModels()).length,
+      onDeviceModels: onDevice.length,
+      onDeviceModelBytes: onDevice.fold(0, (sum, model) => sum + model),
     );
   }
 
@@ -278,6 +297,7 @@ class LocalDataEraser {
     }
     if (deleteOfflineFiles case final deleteFiles?) await attempt(deleteFiles);
     if (offlineSpeech case final speech?) await attempt(speech.deleteAll);
+    if (onDeviceModels case final models?) await attempt(models.deleteAll);
     if (dictionaryPacks case final packs?) {
       await attempt(() async {
         for (final pack in await packs.installed()) {
@@ -328,6 +348,19 @@ class LocalDataEraser {
     history.search('');
     if (failure case final error?) {
       Error.throwWithStackTrace(error, failureTrace ?? StackTrace.current);
+    }
+  }
+
+  /// The bytes of each installed on-device AI model (any version: all go).
+  Future<List<int>> _onDeviceModelSizes() async {
+    final models = onDeviceModels;
+    if (models == null) return const [];
+    try {
+      return [
+        for (final model in await models.manager.installed()) model.sizeBytes,
+      ];
+    } on Object {
+      return const [];
     }
   }
 
@@ -421,6 +454,14 @@ class DeleteLocalDataDialog extends StatelessWidget {
         (
           Icons.download_for_offline_outlined,
           l10n.settingsDeleteAllDataModels(summary.offlineModels),
+        ),
+      if (summary.onDeviceModels > 0)
+        (
+          Icons.memory,
+          l10n.settingsDeleteAllDataOnDeviceAi(
+            summary.onDeviceModels,
+            formatModelSize(l10n, summary.onDeviceModelBytes),
+          ),
         ),
       if (summary.phrasebookCollections > 0)
         (

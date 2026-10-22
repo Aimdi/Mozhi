@@ -42,6 +42,7 @@ String llmProviderName(AppLocalizations l10n, LlmProvider provider) =>
       LlmProvider.anthropic => l10n.settingsProviderTypeAnthropic,
       LlmProvider.gemini => l10n.settingsProviderTypeGemini,
       LlmProvider.ollama => l10n.settingsProviderTypeOllama,
+      LlmProvider.onDevice => l10n.settingsProviderTypeOnDevice,
     };
 
 /// Readable name of a machine translation [service]; null for
@@ -78,13 +79,24 @@ UsageTracker? _usageTrackerOf(BuildContext context) {
   }
 }
 
-/// Default API base URL per provider type.
+/// Default API base URL per provider type (none for on-device models,
+/// which the editor never offers: the On-device AI settings manage them).
 String defaultBaseUrl(LlmProvider provider) => switch (provider) {
   LlmProvider.openAiCompatible => 'https://api.openai.com/v1',
   LlmProvider.anthropic => 'https://api.anthropic.com/v1',
   LlmProvider.gemini => 'https://generativelanguage.googleapis.com/v1beta',
   LlmProvider.ollama => 'http://localhost:11434',
+  LlmProvider.onDevice => '',
 };
+
+/// The provider types the editor offers: every one but
+/// [LlmProvider.onDevice].
+const List<LlmProvider> editableLlmProviders = [
+  LlmProvider.openAiCompatible,
+  LlmProvider.anthropic,
+  LlmProvider.gemini,
+  LlmProvider.ollama,
+];
 
 class ProviderEditorView extends StatefulWidget {
   const new({super.key, this.providerId, this.presetId});
@@ -545,7 +557,7 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
                     border: const OutlineInputBorder(),
                   ),
                   items: [
-                    for (final provider in LlmProvider.values)
+                    for (final provider in editableLlmProviders)
                       DropdownMenuItem(
                         value: provider,
                         child: Text(

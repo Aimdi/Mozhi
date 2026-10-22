@@ -10,7 +10,10 @@ import 'package:llm_api/src/retry_policy.dart';
 ///
 /// Implementations (in `src/providers/`): [OpenAiCompatibleClient],
 /// [AnthropicClient], [GeminiClient], [OllamaClient]. Construct through
-/// [LlmClient.new] which dispatches on [LlmEndpoint.provider].
+/// [LlmClient.new] which dispatches on [LlmEndpoint.provider]. Clients of
+/// [LlmProvider.onDevice] endpoints (models running in the app) implement
+/// this interface outside the package; they follow the same contract
+/// without the HTTP parts.
 ///
 /// Contract for every implementation:
 /// * [streamChat] yields *text deltas only* (never reasoning/thinking
@@ -41,7 +44,9 @@ import 'package:llm_api/src/retry_policy.dart';
 /// * Works on web: uses only `package:http` (BrowserClient streams via
 ///   fetch); never `dart:io`.
 abstract class LlmClient {
-  /// Creates the client for [endpoint]'s provider.
+  /// Creates the client for [endpoint]'s provider ([UnsupportedError] for
+  /// [LlmProvider.onDevice]: models on this device run inside the app,
+  /// which supplies their client).
   ///
   /// When [httpClient] is given it is used for all requests and is *not*
   /// closed by [close]; otherwise the client creates (and owns) one.
@@ -82,6 +87,9 @@ abstract class LlmClient {
       timeout: timeout,
       retryPolicy: retryPolicy,
       keepAlive: keepAlive,
+    ),
+    LlmProvider.onDevice => throw UnsupportedError(
+      'On-device models have no HTTP client: the app supplies their client',
     ),
   };
 

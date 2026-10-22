@@ -1,5 +1,6 @@
 import 'package:mason_logger/mason_logger.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:mozhi_cli/src/commands/providers_command.dart';
 import 'package:mozhi_cli/src/config/cli_config.dart';
 import 'package:test/test.dart';
 import 'package:translation_repository/translation_repository.dart';
@@ -303,6 +304,20 @@ void main() {
       h.out.clear();
       expect(await h.run(['config', 'providers', 'models', 'local']), 0);
       expect(h.stdout, contains('did not report any models'));
+    });
+  });
+
+  group('protocolName', () {
+    test('is the --protocol name of every wire protocol', () {
+      for (final MapEntry(key: name, value: provider)
+          in protocolNames.entries) {
+        expect(protocolName(provider), name);
+      }
+    });
+
+    test('is "on-device" for models in the app, which --protocol rejects', () {
+      expect(protocolName(LlmProvider.onDevice), 'on-device');
+      expect(protocolNames.values, isNot(contains(LlmProvider.onDevice)));
     });
   });
 }

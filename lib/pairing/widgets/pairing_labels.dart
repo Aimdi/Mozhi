@@ -27,6 +27,7 @@ String pairingItemTitle(
     PairingItemKind.speech => l10n.pairingItemSpeech('Whisper ${item.key}'),
     PairingItemKind.ocr => l10n.pairingItemOcr(name()),
     PairingItemKind.dictionary => l10n.pairingItemDictionary(name()),
+    PairingItemKind.onDeviceAi => l10n.pairingItemOnDeviceAi(item.key),
   };
 }
 
@@ -37,6 +38,7 @@ IconData pairingItemIcon(PairingItemKind kind) => switch (kind) {
   PairingItemKind.speech => Icons.mic_none,
   PairingItemKind.ocr => Icons.document_scanner_outlined,
   PairingItemKind.dictionary => Icons.menu_book_outlined,
+  PairingItemKind.onDeviceAi => Icons.memory,
 };
 
 /// What became of an item, for the results list.

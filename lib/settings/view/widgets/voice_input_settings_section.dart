@@ -18,11 +18,15 @@ import 'package:translation_repository/translation_repository.dart'
 import 'package:whisper_speech/whisper_speech.dart' show WhisperImportStatus;
 
 /// The display name of speech model [id]: "Fast" (`tiny`), "Better"
-/// (`base`), "Speech detection" (the voice activity model,
-/// `silero-vad`), else the id.
+/// (`base`), "Better (compact)" (`base-q5_1`), "Best" (`small-q5_1`),
+/// "Large" (`large-v3-turbo-q5_0`), "Speech detection" (the voice activity
+/// model, `silero-vad`), else the id.
 String voiceModelName(AppLocalizations l10n, String id) => switch (id) {
   'tiny' => l10n.voiceModelFast,
   'base' => l10n.voiceModelBetter,
+  'base-q5_1' => l10n.voiceModelBetterCompact,
+  'small-q5_1' => l10n.voiceModelBest,
+  'large-v3-turbo-q5_0' => l10n.voiceModelLarge,
   'silero-vad' => l10n.voiceModelVoiceDetection,
   _ => id,
 };
@@ -368,6 +372,9 @@ class _ModelTile extends StatelessWidget {
     final description = switch (model.id) {
       'tiny' => l10n.voiceModelFastDescription,
       'base' => l10n.voiceModelBetterDescription,
+      'base-q5_1' => l10n.voiceModelBetterCompactDescription,
+      'small-q5_1' => l10n.voiceModelBestDescription,
+      'large-v3-turbo-q5_0' => l10n.voiceModelLargeDescription,
       _ => '',
     };
     final size = formatStoredSize(l10n, model.sizeBytes);

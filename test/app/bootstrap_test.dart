@@ -22,12 +22,14 @@ import 'package:mozhi/l10n/bundled_localizations_io.dart';
 import 'package:mozhi/l10n/gen/app_localizations_ja.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/offline/data/unavailable_offline_translator.dart';
+import 'package:mozhi/on_device_ai/data/on_device_ai.dart';
 import 'package:mozhi/settings/data/settings_repository.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/speech/speech_service.dart';
 import 'package:mozhi/usage/data/usage_tracker.dart';
 import 'package:translation_repository/translation_repository.dart';
 
+import '../on_device_ai/data/helpers.dart';
 import 'mocks.dart';
 
 /// A [MemoryStore] whose reads wait for [gate].
@@ -155,6 +157,38 @@ void main() {
       expect(dependencies.translationRepository.instances, const [instance]);
       expect(dependencies.translationRepository.providers, const [provider]);
       await dependencies.settingsRepository.save(dependencies.settings);
+    });
+
+    test('adds on-device AI: its providers and its clients', () async {
+      final engine = FakeLlamaEngine();
+      final onDeviceAi = OnDeviceAi(
+        models: FakeOnDeviceModels(assistantModel: 'gemma'),
+        engine: engine,
+      );
+      addTearDown(onDeviceAi.dispose);
+      final dependencies = await createDependencies(
+        prefs: MemoryStore(),
+        secrets: MemoryStore(),
+        onDeviceAi: (_) async => onDeviceAi,
+      );
+
+      expect(dependencies.onDeviceAi, same(onDeviceAi));
+      final repository = dependencies.translationRepository;
+      expect(repository.providers, onDeviceAi.providers);
+      final engines = await repository.getEngines();
+      final gemma = engines.singleWhere((e) => e.id == 'ai:device-gemma');
+      expect(repository.destinationOf(gemma.id), const OnDeviceDestination());
+      // The repository's client for it runs in the app.
+      expect(await repository.warmUp(gemma), isTrue);
+      expect(engine.loads.single.$1, '/m/gemma');
+    });
+
+    test('has no on-device AI where it cannot run', () async {
+      final dependencies = await createDependencies(
+        prefs: MemoryStore(),
+        secrets: MemoryStore(),
+      );
+      expect(dependencies.onDeviceAi, isNull);
     });
   });
 

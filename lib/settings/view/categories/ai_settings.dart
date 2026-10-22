@@ -3,14 +3,18 @@ import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/router.dart' show AppRoutes;
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/on_device_ai/data/on_device_ai.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/settings/view/widgets/choice_dialog.dart';
+import 'package:mozhi/settings/view/widgets/on_device_ai_tile.dart';
 import 'package:mozhi/settings/view/widgets/settings_search.dart';
 import 'package:mozhi/settings/view/widgets/settings_section.dart';
+import 'package:translation_repository/translation_repository.dart';
 
 /// Anchors ([SettingsAnchor.id]) of the AI settings.
 abstract final class AiAnchors {
+  static const onDeviceAi = 'on_device_ai';
   static const providers = 'ai_providers';
   static const assistant = 'ai_assistant';
   static const presets = 'presets';
@@ -18,8 +22,9 @@ abstract final class AiAnchors {
   static const usage = 'usage';
 }
 
-/// The AI settings (marked as advanced where they are listed): the AI
-/// providers and what uses them (insights, presets, glossaries, usage).
+/// The AI settings (marked as advanced where they are listed): on-device
+/// AI ([OnDeviceAiTile]), the AI providers and what uses them (insights,
+/// presets, glossaries, usage).
 /// Instant translation with AI is one of the choices of "Instant
 /// translate" (Translation engines).
 class AiSettings extends StatelessWidget {
@@ -35,6 +40,10 @@ class AiSettings extends StatelessWidget {
     return SettingsSection(
       divider: false,
       children: [
+        const SettingsAnchor(
+          id: AiAnchors.onDeviceAi,
+          child: OnDeviceAiTile(),
+        ),
         SettingsAnchor(
           id: AiAnchors.providers,
           child: ListTile(
@@ -93,7 +102,8 @@ class AiSettings extends StatelessWidget {
 }
 
 /// The AI provider that writes insights and explanations: "Automatic" or
-/// one of the enabled AI providers (opens the providers without any).
+/// one of the enabled AI providers, the on-device assistant model included
+/// (opens the providers without any).
 class _AssistEngineTile extends StatelessWidget {
   const new({required this.settings});
 
@@ -103,12 +113,28 @@ class _AssistEngineTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final onDeviceAi = _onDeviceAiOf(context);
+    if (onDeviceAi == null) return _tile(context, const []);
+    return StreamBuilder<List<AiProviderConfig>>(
+      stream: onDeviceAi.providersChanges,
+      initialData: onDeviceAi.providers,
+      builder: (context, snapshot) => _tile(context, [
+        // The translation model does no extras.
+        for (final provider in snapshot.data ?? const <AiProviderConfig>[])
+          if (!provider.resolvedPromptProfile.isTranslationOnly) provider,
+      ]),
+    );
+  }
+
+  /// The tile, with the [onDevice] assistant models' providers.
+  Widget _tile(BuildContext context, List<AiProviderConfig> onDevice) {
     final l10n = context.l10n;
     final current = settings.assistEngineId;
-    final selected = settings.providers
+    final selected = [...settings.providers, ...onDevice]
         .where((p) => 'ai:${p.id}' == current)
         .firstOrNull;
-    final hasProviders = settings.providers.any((p) => !p.isMtService);
+    final hasProviders =
+        onDevice.isNotEmpty || settings.providers.any((p) => !p.isMtService);
     return ListTile(
       key: const Key('settings_assist_engine'),
       leading: const SettingsIcon(Icons.lightbulb_outline),
@@ -120,12 +146,24 @@ class _AssistEngineTile extends StatelessWidget {
       ),
       trailing: const Icon(Icons.chevron_right),
       onTap: hasProviders
-          ? () => _pick(context)
+          ? () => _pick(context, onDevice)
           : () => context.push(AppRoutes.providers),
     );
   }
 
-  Future<void> _pick(BuildContext context) async {
+  /// The on-device AI, where it runs.
+  static OnDeviceAi? _onDeviceAiOf(BuildContext context) {
+    try {
+      return context.read<OnDeviceAi>();
+    } on ProviderNotFoundException {
+      return null;
+    }
+  }
+
+  Future<void> _pick(
+    BuildContext context,
+    List<AiProviderConfig> onDevice,
+  ) async {
     final l10n = context.l10n;
     final cubit = context.read<SettingsCubit>();
     final current = settings.assistEngineId ?? _automatic;
@@ -142,13 +180,23 @@ class _AssistEngineTile extends StatelessWidget {
           ChoiceDialogOption(
             value: _automatic,
             title: Text(l10n.settingsAssistEngineAutomatic),
-            subtitle: Text(l10n.settingsAssistEngineAutomaticSubtitle),
+            subtitle: Text(
+              onDevice.isEmpty
+                  ? l10n.settingsAssistEngineAutomaticSubtitle
+                  : l10n.settingsAssistEngineAutomaticOnDeviceSubtitle,
+            ),
           ),
           for (final provider in providers)
             ChoiceDialogOption(
               value: 'ai:${provider.id}',
               title: Text(provider.name),
               subtitle: Text(provider.model),
+            ),
+          for (final provider in onDevice)
+            ChoiceDialogOption(
+              value: 'ai:${provider.id}',
+              title: Text(provider.name),
+              subtitle: Text(l10n.settingsProviderTypeOnDevice),
             ),
         ],
       ),

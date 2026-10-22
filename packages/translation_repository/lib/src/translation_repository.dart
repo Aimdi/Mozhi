@@ -82,9 +82,11 @@ class TranslationRepository {
   ///
   /// AI inputs longer than `aiChunkThreshold` characters
   /// (`localAiChunkThreshold` for providers on this machine or the local
-  /// network, whose models usually have small context windows) are
-  /// translated in parts of at most that size (see [translate]); both must
-  /// be at least 1 ([RangeError] otherwise).
+  /// network, whose models usually have small context windows, and
+  /// `onDeviceAiChunkThreshold` for models on this device
+  /// ([AiProviderConfig.isOnDevice]), which run with a small context to
+  /// spare the phone's memory) are translated in parts of at most that size
+  /// (see [translate]); all must be at least 1 ([RangeError] otherwise).
   ///
   /// `detectionHintTimeout` is how long the final result of a short
   /// auto-detected AI translation may wait for the second language
@@ -108,6 +110,7 @@ class TranslationRepository {
     this._snapshotInterval = const Duration(milliseconds: 50),
     this._aiChunkThreshold = defaultAiChunkThreshold,
     this._localAiChunkThreshold = defaultLocalAiChunkThreshold,
+    this._onDeviceAiChunkThreshold = defaultOnDeviceAiChunkThreshold,
     this._detectionHintTimeout = defaultDetectionHintTimeout,
     MetadataStore? metadataStore,
     Duration metadataMaxAge = defaultMetadataMaxAge,
@@ -134,6 +137,12 @@ class TranslationRepository {
     if (_localAiChunkThreshold < 1) {
       throw RangeError.value(_localAiChunkThreshold, 'localAiChunkThreshold');
     }
+    if (_onDeviceAiChunkThreshold < 1) {
+      throw RangeError.value(
+        _onDeviceAiChunkThreshold,
+        'onDeviceAiChunkThreshold',
+      );
+    }
   }
 
   /// Default `aiChunkThreshold`: AI inputs of cloud providers longer than
@@ -143,6 +152,13 @@ class TranslationRepository {
   /// Default `localAiChunkThreshold`: AI inputs of local providers longer
   /// than this many characters are translated in parts.
   static const defaultLocalAiChunkThreshold = 2500;
+
+  /// Default `onDeviceAiChunkThreshold`: AI inputs of models on this device
+  /// longer than this many characters are translated in parts. Their
+  /// context is about 4096 tokens for the prompt and the reply together,
+  /// and text in scripts without spaces takes up to a token per character:
+  /// a part, its instructions and its translation fit.
+  static const defaultOnDeviceAiChunkThreshold = 1200;
 
   /// Default `detectionHintTimeout`.
   static const defaultDetectionHintTimeout = Duration(seconds: 2);
@@ -168,6 +184,7 @@ class TranslationRepository {
   final Duration _snapshotInterval;
   final int _aiChunkThreshold;
   final int _localAiChunkThreshold;
+  final int _onDeviceAiChunkThreshold;
   final Duration _detectionHintTimeout;
   final DateTime Function() _clock;
   List<AiProviderConfig> _providers = const [];
@@ -533,8 +550,12 @@ class TranslationRepository {
   /// networks, Tor and I2P, else [PublicInstanceDestination] with the
   /// upstream engine); for AI providers [CloudProviderDestination] named
   /// after the provider, or [SelfHostedDestination] for local ones (Ollama,
-  /// LM Studio, ...); DeepL is always `CloudProviderDestination('DeepL')`;
-  /// LibreTranslate is a public instance or self-hosted, by its URL.
+  /// LM Studio, ...), and [OnDeviceDestination] for models on this device
+  /// ([AiProviderConfig.isOnDevice]: no consent is asked, they work in
+  /// [PrivacyMode.offlineOnly], need no approved pairs and get no personal
+  /// data shield, as nothing leaves the device); DeepL is always
+  /// `CloudProviderDestination('DeepL')`; LibreTranslate is a public
+  /// instance or self-hosted, by its URL.
   ///
   /// Results carry the destination that actually answered
   /// ([TranslationResult.destination]). [ArgumentError] for an AI or
@@ -565,6 +586,7 @@ class TranslationRepository {
   }
 
   static DataDestination _providerDestination(AiProviderConfig config) {
+    if (config.isOnDevice) return const OnDeviceDestination();
     final base = config.baseUrl.trim();
     switch (config.service) {
       case MtService.llm:
@@ -796,6 +818,7 @@ class TranslationRepository {
           providerId: provider.id,
           isLocal: provider.isLocal,
           promptProfile: provider.resolvedPromptProfile,
+          onDevice: provider.isOnDevice,
         );
 
   static String _mtSubtitle(AiProviderConfig provider) {
@@ -1161,13 +1184,15 @@ class TranslationRepository {
   /// yet), so a caller can stop early when the source is the target.
   ///
   /// Long AI inputs (more than `aiChunkThreshold` characters, or
-  /// `localAiChunkThreshold` for local providers; see the constructor) are
-  /// translated in parts: split at paragraph boundaries (overlong paragraphs
-  /// at sentence ends, never inside fenced code blocks), two parts at a
-  /// time, each part after the first with the end of the previous one for
-  /// reference (in the user message, as data). With an auto source the
-  /// first part is translated alone and its detected language is used for
-  /// the others (unless it is the target language: then they stay auto).
+  /// `localAiChunkThreshold` for local providers and
+  /// `onDeviceAiChunkThreshold` for models on this device; see the
+  /// constructor) are translated in parts: split at paragraph boundaries
+  /// (overlong paragraphs at sentence ends, never inside fenced code
+  /// blocks), two parts at a time, each part after the first with the end
+  /// of the previous one for reference (in the user message, as data).
+  /// With an auto source the first part is translated alone and its
+  /// detected language is used for the others (unless it is the target
+  /// language: then they stay auto).
   /// Snapshots combine the parts in order, joined with the original
   /// whitespace between them, and carry the first part's `detectedSource`;
   /// the result is complete once every part is. An error in one part
@@ -1959,6 +1984,10 @@ class TranslationRepository {
     jsonOutput: request.jsonOutput,
     effort: request.effort,
     contextWindow: request.contextWindow,
+    topP: request.topP,
+    topK: request.topK,
+    repeatPenalty: request.repeatPenalty,
+    stop: request.stop,
   );
 
   /// The translation of [chunk] streamed from [open] (no extra messages),
@@ -2066,7 +2095,9 @@ class TranslationRepository {
   /// The longest AI input of [engine] with [config] that is sent in one
   /// request (see the constructor).
   int _chunkLimit(TranslationEngine engine, AiProviderConfig config) =>
-      engine.isLocal || config.isLocal
+      config.isOnDevice
+      ? _onDeviceAiChunkThreshold
+      : engine.isLocal || config.isLocal
       ? _localAiChunkThreshold
       : _aiChunkThreshold;
 
@@ -2154,7 +2185,7 @@ class TranslationRepository {
               _llmRequest(
                 config,
                 MtPrompts.translate(profile, chunk),
-                defaultTemperature: sampling.temperature,
+                sampling: sampling,
               ),
             ),
         engine: engine,
@@ -3516,11 +3547,13 @@ class TranslationRepository {
       _mozhi.withClient(instance, (client) => client.ping());
 
   /// Loads the model of a local AI [engine] (Ollama, LM Studio, llama.cpp:
-  /// [TranslationEngine.isLocal] or a local provider) into memory, so that
-  /// the first translation does not wait for it (`LlmClient.warmUp`; no
-  /// user text is sent). Returns whether the server warmed the model up;
-  /// false without a request for other engines, unknown providers and
-  /// providers whose destination the privacy settings keep the device from
+  /// [TranslationEngine.isLocal] or a local provider, and models on this
+  /// device, [AiProviderConfig.isOnDevice], which load in the app, also in
+  /// [PrivacyMode.offlineOnly]) into memory, so that the first translation
+  /// does not wait for it (`LlmClient.warmUp`; no user text is sent).
+  /// Returns whether the server (or the device) warmed the model up; false
+  /// without a request for other engines, unknown providers and providers
+  /// whose destination the privacy settings keep the device from
   /// contacting ([PrivacyMode.offlineOnly]), and false when the request
   /// fails.
   Future<bool> warmUp(TranslationEngine engine) async {
@@ -3597,9 +3630,7 @@ class TranslationRepository {
           translationOnly
               ? MtPrompts.translate(profile, request)
               : TranslationPrompts.translate(request),
-          defaultTemperature: translationOnly
-              ? MtPrompts.sampling(profile).temperature
-              : null,
+          sampling: translationOnly ? MtPrompts.sampling(profile) : null,
         ),
       );
       final text = ResponseParsers.cleanTranslation(
@@ -3698,26 +3729,37 @@ class TranslationRepository {
     }
   }
 
-  /// Anthropic models reject non-default sampling parameters, so the
-  /// temperature is never sent to them. Elsewhere the provider's own
-  /// temperature wins over [defaultTemperature] (a model card's
-  /// recommendation). The provider's reasoning effort is sent unless
-  /// [withEffort] is false (quick best-effort requests).
+  /// Anthropic models reject non-default sampling parameters, so no
+  /// sampling parameter is ever sent to them. Elsewhere the provider's own
+  /// temperature wins over [defaultTemperature] and over the temperature of
+  /// [sampling] (a model card's recommendation: `MtPrompts.sampling` for
+  /// translation-specialised models), whose top-p, top-k and repetition
+  /// penalty are sent as they are (null leaves them to the provider: an
+  /// on-device model then uses its catalogue entry's). The provider's
+  /// reasoning effort is sent unless [withEffort] is false (quick
+  /// best-effort requests).
   static LlmRequest _llmRequest(
     AiProviderConfig config,
     List<LlmMessage> messages, {
     bool jsonOutput = false,
     double? defaultTemperature,
+    MtSampling? sampling,
     bool withEffort = true,
-  }) => LlmRequest(
-    model: config.model,
-    messages: messages,
-    temperature: config.provider == LlmProvider.anthropic
-        ? null
-        : config.temperature ?? defaultTemperature,
-    effort: withEffort ? config.effort : null,
-    jsonOutput: jsonOutput,
-  );
+  }) {
+    final anthropic = config.provider == LlmProvider.anthropic;
+    return LlmRequest(
+      model: config.model,
+      messages: messages,
+      temperature: anthropic
+          ? null
+          : config.temperature ?? defaultTemperature ?? sampling?.temperature,
+      topP: anthropic ? null : sampling?.topP,
+      topK: anthropic ? null : sampling?.topK,
+      repeatPenalty: anthropic ? null : sampling?.repeatPenalty,
+      effort: withEffort ? config.effort : null,
+      jsonOutput: jsonOutput,
+    );
+  }
 
   /// Non-streaming JSON request (for text of the pair [source] > [target],
   /// checked against the privacy settings first); on a [FormatException]

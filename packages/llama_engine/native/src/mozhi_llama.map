@@ -1,0 +1,9 @@
+/* Export only the C API; everything else (llama.cpp, ggml, libc++ when
+ * linked statically) stays local so the linker can drop unused code and
+ * nothing clashes with other native libraries (e.g. whisper.cpp's ggml). */
+{
+  global:
+    mozhi_llama_*;
+  local:
+    *;
+};

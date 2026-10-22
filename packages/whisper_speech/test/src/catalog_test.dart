@@ -30,6 +30,7 @@ void main() {
     Object? sha256,
     Object? multilingual,
     Object? parameters,
+    Object? minRamMb,
   }) => {
     'id': ?id,
     'name': ?name,
@@ -39,6 +40,7 @@ void main() {
     'sha256': ?sha256,
     'multilingual': ?multilingual,
     'parameters': ?parameters,
+    'minRamMb': ?minRamMb,
   };
 
   String catalog(List<Object?> models, {Object schema = 1}) =>
@@ -147,6 +149,72 @@ void main() {
       expect(parsed.model('tiny'), isNot(parsed.model('base')));
     });
 
+    test('the quantized models resolved by tool/whisper_catalog.py fit '
+        'in, fastest first', () {
+      // The catalogue as `resolve --write` leaves it (made-up checksums).
+      final parsed = WhisperModelCatalog.parse(
+        File('test/fixtures/models_quantized.json').readAsStringSync(),
+      );
+      expect(parsed.models.map((m) => m.id), [
+        'tiny',
+        'base-q5_1',
+        'base',
+        'small-q5_1',
+        'large-v3-turbo-q5_0',
+      ]);
+      expect(parsed.vad?.id, 'silero-vad');
+      expect(parsed.model('tiny')!.minRamMb, isNull);
+      expect(parsed.model('base-q5_1')!.minRamMb, isNull);
+      expect(parsed.model('small-q5_1')!.minRamMb, 3000);
+      expect(parsed.model('large-v3-turbo-q5_0')!.minRamMb, 7000);
+      expect(
+        parsed.model('small-q5_1')!.url.path,
+        '/ggerganov/whisper.cpp/resolve/${'0' * 40}/ggml-small-q5_1.bin',
+      );
+    });
+
+    test('reads the RAM a model needs', () {
+      final parsed = WhisperModelCatalog.parse(
+        catalog([
+          entry(minRamMb: 3000),
+          entry(id: 'base', name: 'ggml-base.bin'),
+        ]),
+      );
+      expect(parsed.model('tiny')!.minRamMb, 3000);
+      expect(parsed.model('base')!.minRamMb, isNull);
+      expect(parsed.model('tiny'), isNot(parsed.model('base')));
+    });
+
+    group('fitsMemory', () {
+      const mib = 1024 * 1024;
+      final small = WhisperModelCatalog.parse(catalog([entry(minRamMb: 3000)]))
+          .models
+          .single;
+      final tiny = WhisperModelCatalog.parse(catalog([entry()])).models.single;
+
+      test('a model without a minimum fits every device', () {
+        expect(tiny.fitsMemory(), isTrue);
+        expect(tiny.fitsMemory(totalBytes: 512 * mib, lowRam: true), isTrue);
+      });
+
+      test('compares the RAM in MiB', () {
+        // A "4 GB" phone reports about 3.6 GiB; a "3 GB" one 2.7 GiB.
+        expect(small.fitsMemory(totalBytes: 3686 * mib), isTrue);
+        expect(small.fitsMemory(totalBytes: 3000 * mib), isTrue);
+        expect(small.fitsMemory(totalBytes: 3000 * mib - 1), isFalse);
+        expect(small.fitsMemory(totalBytes: 2765 * mib), isFalse);
+      });
+
+      test('a low-RAM device fits no model with a minimum', () {
+        expect(small.fitsMemory(totalBytes: 8000 * mib, lowRam: true), isFalse);
+        expect(small.fitsMemory(lowRam: true), isFalse);
+      });
+
+      test('unknown RAM fits', () {
+        expect(small.fitsMemory(), isTrue);
+      });
+    });
+
     final invalid = <String, String>{
       'not an object': '[]',
       'unknown schema': catalog([entry()], schema: 2),
@@ -166,6 +234,8 @@ void main() {
       'size not an int': catalog([entry(size: '10')]),
       'bad multilingual': catalog([entry(multilingual: 'yes')]),
       'bad parameters': catalog([entry(parameters: -1)]),
+      'bad minRamMb': catalog([entry(minRamMb: 0)]),
+      'minRamMb not an int': catalog([entry(minRamMb: '3000')]),
       'duplicate id': catalog([entry(), entry(name: 'other.bin')]),
       'duplicate name': catalog([entry(), entry(id: 'other')]),
     };

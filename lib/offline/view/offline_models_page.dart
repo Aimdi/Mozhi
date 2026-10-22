@@ -33,6 +33,7 @@ import 'package:mozhi/settings/view/widgets/delete_local_data.dart'
     show formatStoredSize;
 import 'package:mozhi/settings/view/widgets/empty_state_view.dart';
 import 'package:mozhi/settings/view/widgets/model_source_dialog.dart';
+import 'package:mozhi/settings/view/widgets/on_device_ai_tile.dart';
 import 'package:mozhi/settings/view/widgets/settings_section.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -570,6 +571,8 @@ class _Overview extends StatelessWidget {
           OcrLanguagesEntry(data: data),
         if (maybeDictionaryPacks(context) case final packs?)
           DictionaryPacksEntry(packs: packs),
+        // AI translation and the extras on this phone (Android).
+        const OnDeviceAiOfflineEntry(),
         // Phone to phone with the packs selected (Android).
         const SharePacksEntry(),
         const Hairline(),

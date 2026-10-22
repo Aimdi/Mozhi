@@ -17,8 +17,10 @@ export 'voice_settings_state.dart';
 /// download); a download on a metered network with "Download over Wi-Fi
 /// only" on ends with [VoiceModelErrorKind.metered] and [download] with
 /// `overMeteredNetwork` retries it anyway. [importFromFiles] never goes
-/// online. After every change of the models, the [SpeechInputService] is
-/// told ([SpeechInputService.offlineModelsChanged]). Failures never throw:
+/// online. Models the device has too little memory for are not listed
+/// unless installed ([voiceModelFitsMemory]). After every change of the
+/// models, the [SpeechInputService] is told
+/// ([SpeechInputService.offlineModelsChanged]). Failures never throw:
 /// they are reported as a [VoiceModelOutcome] or [VoiceImportOutcome];
 /// errors other than a metered network also go to `addError`.
 class VoiceSettingsCubit extends Cubit<VoiceSettingsState> {
@@ -40,16 +42,13 @@ class VoiceSettingsCubit extends Cubit<VoiceSettingsState> {
         offline != null &&
         offline.isAvailable &&
         _speechInput.isOfflineSupported;
-    final models = supported
-        ? [
-            for (final model in offline.models)
-              VoiceModel(id: model.id, sizeBytes: model.size, url: model.url),
-          ]
-        : const <VoiceModel>[];
     final vad = supported ? offline.vadModel : null;
     final (installed, selected) = supported
         ? await _readInstalled(offline)
         : (const <String>{}, null);
+    final models = supported
+        ? _listed(offline, installed)
+        : const <VoiceModel>[];
     final vadInstalled = vad != null && await offline!.isVadReady();
     if (isClosed) return;
     emit(
@@ -243,11 +242,26 @@ class VoiceSettingsCubit extends Cubit<VoiceSettingsState> {
     if (isClosed) return;
     emit(
       state.copyWith(
+        models: _listed(offline, installed),
         installed: installed,
         selected: () => selected,
         voiceDetectionInstalled: vadInstalled,
       ),
     );
+  }
+
+  /// The speech models to list: those that fit the device's memory, and
+  /// the [installed] ones (to use or delete them), fastest first.
+  static List<VoiceModel> _listed(
+    OfflineSpeech offline,
+    Set<String> installed,
+  ) {
+    final memory = offline.memory;
+    return [
+      for (final model in offline.models)
+        if (installed.contains(model.id) || voiceModelFitsMemory(model, memory))
+          VoiceModel(id: model.id, sizeBytes: model.size, url: model.url),
+    ];
   }
 
   Future<(Set<String>, String?)> _readInstalled(OfflineSpeech offline) async {

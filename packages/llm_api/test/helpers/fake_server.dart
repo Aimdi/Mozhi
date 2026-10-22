@@ -4,6 +4,15 @@ import 'dart:math';
 
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:llm_api/llm_api.dart';
+
+/// The providers with an HTTP client: every [LlmProvider] but
+/// [LlmProvider.onDevice] (models running in the app, which supplies their
+/// client), so tests that iterate the providers skip it explicitly.
+final List<LlmProvider> httpProviders = [
+  for (final provider in LlmProvider.values)
+    if (provider != LlmProvider.onDevice) provider,
+];
 
 /// A request received by [FakeServer].
 class RecordedRequest {

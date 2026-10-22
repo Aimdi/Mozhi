@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "_provenance": [
+    "Test fixture: the catalogue as tool/whisper_catalog.py resolve --write leaves it, with made-up sizes and checksums for the quantized models (the real ones come from Hugging Face in CI)."
+  ],
+  "source": "https://huggingface.co/ggerganov/whisper.cpp",
+  "license": "OpenAI Whisper model weights: MIT License (Copyright (c) 2022 OpenAI)",
+  "models": [
+    {
+      "id": "tiny",
+      "name": "ggml-tiny.bin",
+      "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin",
+      "size": 77691713,
+      "sha1": "bd577a113a864445d4c299885e0cb97d4ba92b5f",
+      "sha256": "be07e048e1e599ad46341c8d2a135645097a538221678b7acdd1b1919c6e1b21",
+      "multilingual": true,
+      "parameters": 39000000
+    },
+    {
+      "id": "base-q5_1",
+      "name": "ggml-base-q5_1.bin",
+      "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/0000000000000000000000000000000000000000/ggml-base-q5_1.bin",
+      "size": 1000,
+      "sha1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "multilingual": true,
+      "parameters": 74000000
+    },
+    {
+      "id": "base",
+      "name": "ggml-base.bin",
+      "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin",
+      "size": 147951465,
+      "sha1": "465707469ff3a37a2b9b8d8f89f2f99de7299dac",
+      "sha256": "60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe",
+      "multilingual": true,
+      "parameters": 74000000
+    },
+    {
+      "id": "small-q5_1",
+      "name": "ggml-small-q5_1.bin",
+      "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/0000000000000000000000000000000000000000/ggml-small-q5_1.bin",
+      "size": 3000,
+      "sha1": "cccccccccccccccccccccccccccccccccccccccc",
+      "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "multilingual": true,
+      "parameters": 244000000,
+      "minRamMb": 3000
+    },
+    {
+      "id": "large-v3-turbo-q5_0",
+      "name": "ggml-large-v3-turbo-q5_0.bin",
+      "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/0000000000000000000000000000000000000000/ggml-large-v3-turbo-q5_0.bin",
+      "size": 9000,
+      "sha1": "dddddddddddddddddddddddddddddddddddddddd",
+      "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "multilingual": true,
+      "parameters": 809000000,
+      "minRamMb": 7000
+    },
+    {
+      "id": "silero-vad",
+      "kind": "vad",
+      "name": "ggml-silero-v6.2.0.bin",
+      "url": "https://huggingface.co/ggml-org/whisper-vad/resolve/main/ggml-silero-v6.2.0.bin",
+      "size": 885098,
+      "sha1": "470e5d9d094ddba2f0a512cecc3732a252188abd",
+      "sha256": "2aa269b785eeb53a82983a20501ddf7c1d9c48e33ab63a41391ac6c9f7fb6987"
+    }
+  ]
+}

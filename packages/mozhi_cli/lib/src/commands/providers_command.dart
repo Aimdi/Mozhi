@@ -16,8 +16,15 @@ const protocolNames = <String, LlmProvider>{
   'ollama': LlmProvider.ollama,
 };
 
-String protocolName(LlmProvider provider) =>
-    protocolNames.entries.firstWhere((entry) => entry.value == provider).key;
+/// The name [provider] is shown with: its `--protocol` name, or `on-device`
+/// for models running in the Mozhi app (which the CLI cannot add or use).
+String protocolName(LlmProvider provider) => switch (provider) {
+  LlmProvider.onDevice => onDeviceProtocolName,
+  _ => protocolNames.entries.firstWhere((entry) => entry.value == provider).key,
+};
+
+/// [protocolName] of [LlmProvider.onDevice].
+const onDeviceProtocolName = 'on-device';
 
 /// A table of the providers in [config]; the default engine is starred.
 String providersTable(

@@ -36,6 +36,11 @@ const whisperEngineLicensePackage = 'Whisper speech recognition (whisper.cpp)';
 /// Package name of the notice of the offline speech recognition models.
 const whisperModelsLicensePackage = 'Whisper speech models (OpenAI)';
 
+/// Package name of the notice of the on-device AI models
+/// (packages/llama_engine/assets/models.json).
+const onDeviceAiModelsLicensePackage =
+    'On-device AI models (Hy-MT2, Gemma 4, Qwen3)';
+
 /// Package name of the notice of the practice scheduler
 /// (`lib/practice/data/fsrs.dart`, a port of py-fsrs).
 const fsrsLicensePackage = 'FSRS spaced repetition scheduler (py-fsrs)';
@@ -336,6 +341,28 @@ chosen in Settings > Translation engines > Model source, or imported from a
 file, checked against the SHA-256 and SHA-1 checksums bundled with the app
 and kept on this device.''';
 
+/// The notice of the on-device AI models (the catalogue of
+/// packages/llama_engine: GGUF files on Hugging Face).
+const onDeviceAiModelsLicenseText = '''
+On-device AI runs these models on this device, as GGUF files in the
+Q4_K_M quantization:
+- Hy-MT2 1.8B, the translation model: Copyright (C) 2026 Tencent, licensed
+  under the Apache License 2.0
+  (https://github.com/Tencent-Hunyuan/Hy-MT2).
+- Gemma 4 E2B, an assistant model: by Google, licensed under the Apache
+  License 2.0 (https://huggingface.co/google/gemma-4-E2B-it).
+- Qwen3 1.7B, a smaller assistant model: by the Qwen team (Alibaba Cloud),
+  licensed under the Apache License 2.0
+  (https://huggingface.co/Qwen/Qwen3-1.7B).
+
+Apache License 2.0: https://www.apache.org/licenses/LICENSE-2.0
+
+They are not part of the app: a model is downloaded only when you choose
+it, from Hugging Face (huggingface.co, pinned to one commit of its
+repository) or the mirror chosen in Settings > Translation engines > Model
+source, or imported from a file, checked against the size and SHA-256
+checksum bundled with the app and kept on this device.''';
+
 /// The notice of py-fsrs, which the practice scheduler is ported from.
 const fsrsLicenseText = '''
 Practice schedules its flashcards with FSRS-5 (Free Spaced Repetition
@@ -370,7 +397,8 @@ bool _registered = false;
 /// Adds the notices Flutter does not collect from pub packages (the app's
 /// own license, the offline translation engine and models, the text
 /// recognition engine and data, the offline speech recognition engine and
-/// models, the practice scheduler, ML Kit and native platform libraries) to
+/// models, the on-device AI models, the practice scheduler, ML Kit and
+/// native platform libraries) to
 /// the [LicenseRegistry] shown by `showLicensePage`. Safe to call
 /// repeatedly.
 ///
@@ -408,6 +436,9 @@ void registerThirdPartyLicenses({
       const LicenseEntryWithLineBreaks([
         whisperModelsLicensePackage,
       ], whisperModelsLicenseText),
+      const LicenseEntryWithLineBreaks([
+        onDeviceAiModelsLicensePackage,
+      ], onDeviceAiModelsLicenseText),
       const LicenseEntryWithLineBreaks([fsrsLicensePackage], fsrsLicenseText),
       if (includeMlKit)
         const LicenseEntryWithLineBreaks([

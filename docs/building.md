@@ -26,7 +26,7 @@ a CI or release build.
 | --- | --- | --- |
 | Flutter (stable), Dart | 3.47.7, Dart 3.13.5 | `FLUTTER_VERSION` in `.github/workflows/main.yaml` and `release.yaml` |
 | JDK | Temurin 17 | `actions/setup-java` (`java-version: "17"`) in both workflows |
-| Android NDK | 28.2.13676358 (Flutter 3.47's default) | `NDK_VERSION` in both workflows; `ndkVersion` in `packages/bergamot_translator/android/build.gradle`, `packages/tesseract_ocr/android/build.gradle` and `packages/whisper_speech/android/build.gradle` |
+| Android NDK | 28.2.13676358 (Flutter 3.47's default) | `NDK_VERSION` in both workflows; `ndkVersion` in `packages/bergamot_translator/android/build.gradle`, `packages/tesseract_ocr/android/build.gradle`, `packages/whisper_speech/android/build.gradle` and `packages/llama_engine/android/build.gradle` |
 | CMake (Android SDK package) | 3.22.1 | `CMAKE_VERSION` in both workflows; `externalNativeBuild.cmake.version` in the same `build.gradle` |
 | Android Gradle Plugin | 9.4.1 | `android/settings.gradle.kts`; the plugin's `build.gradle` (`classpath`) |
 | Kotlin | 2.4.21 | `android/settings.gradle.kts`; `kotlin-stdlib` in `android/app/build.gradle.kts` |
@@ -74,12 +74,41 @@ flutter pub get --enforce-lockfile        # fails if pubspec.lock would change
   (`packages/tesseract_ocr`) checks out Tesseract 5.5.3 and Leptonica
   1.87.0, without Tesseract's own test submodules; the offline voice
   input's one (`packages/whisper_speech`) checks out whisper.cpp v1.9.5,
-  which has no submodules. The commits are listed in
+  and the on-device AI's one (`packages/llama_engine`) llama.cpp v0.6.0;
+  neither has submodules. The commits are listed in
   [Dependencies](dependencies.md#tables). Nothing is downloaded while
   CMake configures or builds.
 - **Gradle dependencies** are resolved from Google's Maven and Maven
   Central at the versions the plugins declare. There is no Gradle lock or
   dependency verification file.
+
+## On-device AI engine
+
+`packages/llama_engine` builds llama.cpp v0.6.0 (CPU only) into one
+library per CPU variant; Dart picks the fastest one the phone's CPU runs
+from `/proc/cpuinfo` and falls back to the baseline:
+
+| ABI | Libraries |
+| --- | --- |
+| arm64-v8a | `libmozhi_llama.so` (ARMv8.0-A), `libmozhi_llama_dotprod.so` (ARMv8.2-A + dotprod + fp16), `libmozhi_llama_i8mm.so` (ARMv8.6-A + dotprod + fp16 + i8mm) |
+| x86_64 | `libmozhi_llama.so` (SSE4.2) |
+| armeabi-v7a | none (64-bit only: on-device AI is unavailable there) |
+
+The Gradle build lists the three targets for every ABI; on x86_64 the
+variant names are empty static stand-ins, which are not packaged. CI checks
+the APKs carry exactly these libraries, and the job *Build llama native
+(Android)* builds them with the NDK directly (exports, dependencies,
+16 KB alignment). On a Linux host:
+
+```sh
+packages/llama_engine/tool/build_native_linux.sh      # build/native/linux
+python3 packages/llama_engine/tool/make_test_model.py \
+  --all packages/llama_engine/build/test_models        # needs numpy
+```
+
+The package tests then run the real engine (CI's *Analyze and test* job
+does both before the package tests); see
+[`packages/llama_engine/README.md`](../packages/llama_engine/README.md).
 
 ## Variants
 
@@ -183,7 +212,7 @@ python3 tool/check_page_size.py path/to/app.apk      # or an .aab, or a .so
 ```
 
 - **What it checks**: every `lib/<abi>/*.so` of the 64-bit ABIs
-  (arm64-v8a, x86_64): the three engines and also Flutter's and the
+  (arm64-v8a, x86_64): the on-device engines and also Flutter's and the
   plugins' libraries. More than 16 KB is fine (`libflutter.so` is aligned
   to 64 KB). 32-bit libraries are listed but never fail, since 16 KB
   phones are 64-bit. In an app bundle only the ELF alignment counts:

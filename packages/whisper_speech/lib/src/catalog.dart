@@ -17,6 +17,7 @@ final class WhisperCatalogModel {
     this.sha256,
     this.multilingual = true,
     this.parameters,
+    this.minRamMb,
   });
 
   factory fromJson(Map<String, Object?> json) {
@@ -51,6 +52,10 @@ final class WhisperCatalogModel {
     if (parameters != null && (parameters is! int || parameters <= 0)) {
       throw FormatException('Invalid parameter count', parameters);
     }
+    final minRamMb = json['minRamMb'];
+    if (minRamMb != null && (minRamMb is! int || minRamMb <= 0)) {
+      throw FormatException('Invalid minRamMb', minRamMb);
+    }
     return WhisperCatalogModel(
       id: id,
       name: name,
@@ -60,6 +65,7 @@ final class WhisperCatalogModel {
       sha256: sha256 as String?,
       multilingual: multilingual,
       parameters: parameters as int?,
+      minRamMb: minRamMb as int?,
     );
   }
 
@@ -90,6 +96,25 @@ final class WhisperCatalogModel {
   /// Approximate number of parameters, when known.
   final int? parameters;
 
+  /// The RAM (MiB of `ActivityManager.MemoryInfo.totalMem`) a device needs
+  /// for the app to offer this model ([fitsMemory]): the larger models
+  /// (small, large-v3-turbo) take 0.6-1 GB while they run, and a phone
+  /// with less memory would close other apps or this one. Null: every
+  /// device.
+  final int? minRamMb;
+
+  /// Whether a device with [totalBytes] of RAM ([lowRam]: an Android Go
+  /// or other low-RAM device) has enough memory for this model
+  /// ([minRamMb]). Unknown RAM fits (the user decides); a low-RAM device
+  /// fits only the models without a minimum.
+  bool fitsMemory({int? totalBytes, bool lowRam = false}) {
+    final minimum = minRamMb;
+    if (minimum == null) return true;
+    if (lowRam) return false;
+    if (totalBytes == null) return true;
+    return totalBytes ~/ (1024 * 1024) >= minimum;
+  }
+
   static final _safeId = RegExp(r'^[a-z0-9][a-z0-9_.-]{0,31}$');
   static final _safeName = RegExp(r'^[A-Za-z0-9._-]+$');
   static final _sha1Pattern = RegExp(r'^[0-9a-f]{40}$');
@@ -113,11 +138,21 @@ final class WhisperCatalogModel {
       other.sha1 == sha1 &&
       other.sha256 == sha256 &&
       other.multilingual == multilingual &&
-      other.parameters == parameters;
+      other.parameters == parameters &&
+      other.minRamMb == minRamMb;
 
   @override
-  int get hashCode =>
-      Object.hash(id, name, url, size, sha1, sha256, multilingual, parameters);
+  int get hashCode => Object.hash(
+    id,
+    name,
+    url,
+    size,
+    sha1,
+    sha256,
+    multilingual,
+    parameters,
+    minRamMb,
+  );
 
   @override
   String toString() => 'WhisperCatalogModel($id, $name)';

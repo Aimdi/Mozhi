@@ -13,6 +13,7 @@ import 'package:mozhi/settings/view/categories/engine_settings.dart';
 import 'package:mozhi/settings/view/categories/general_settings.dart';
 import 'package:mozhi/settings/view/categories/speech_settings.dart';
 import 'package:mozhi/settings/view/widgets/model_source_dialog.dart';
+import 'package:mozhi/settings/view/widgets/on_device_ai_tile.dart';
 import 'package:mozhi/settings/view/widgets/privacy_settings_section.dart';
 import 'package:mozhi/settings/view/widgets/settings_search.dart';
 import 'package:mozhi/sync/view/sync_settings_section.dart';
@@ -242,6 +243,14 @@ List<SettingsSearchEntry> settingsSearchIndex(
         l10n.offlineTitle,
         subtitle: l10n.settingsOfflineUnavailableSubtitle,
       ),
+    if (onDeviceAiOffered(context))
+      entry(
+        engines,
+        EngineAnchors.onDeviceAi,
+        l10n.settingsOnDeviceAi,
+        subtitle: l10n.settingsOnDeviceAiSubtitle,
+        keywords: [l10n.settingsOnDeviceAiKeywords],
+      ),
     entry(
       engines,
       EngineAnchors.modelSource,
@@ -276,6 +285,15 @@ List<SettingsSearchEntry> settingsSearchIndex(
         l10n.settingsInstantTranslateDialogBody,
         l10n.settingsInstantEnginesAndAi,
       ],
+    ),
+    entry(
+      ai,
+      AiAnchors.onDeviceAi,
+      l10n.settingsOnDeviceAi,
+      subtitle: onDeviceAiOffered(context)
+          ? l10n.settingsOnDeviceAiSubtitle
+          : l10n.settingsOnDeviceAiUnavailable,
+      keywords: [l10n.settingsOnDeviceAiKeywords],
     ),
     entry(ai, AiAnchors.providers, l10n.settingsProvidersTitle),
     entry(ai, AiAnchors.assistant, l10n.settingsAssistEngine),

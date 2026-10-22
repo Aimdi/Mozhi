@@ -3,9 +3,11 @@ import 'dart:math' as math;
 import 'dart:ui' show PlatformDispatcher;
 
 import 'package:bloc/bloc.dart';
+import 'package:mozhi/core/on_device_ai_engine.dart';
 import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/history/data/translation_memory.dart';
 import 'package:mozhi/history/models/history_entry.dart';
+import 'package:mozhi/platform/device_conditions.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/cubit/translate_state.dart';
@@ -41,7 +43,10 @@ typedef _Languages = ({List<Language> sources, List<Language> targets});
 ///   sentence, short after a word, longer within one), during which
 ///   [TranslateState.queued] is set; the previous result stays meanwhile.
 ///   Any new translation cancels the in-flight one (stream subscription
-///   cancel).
+///   cancel). Typing does not start on-device AI while the phone is hot
+///   or battery saver is on (`deviceConditions`, see [DeviceConditions]),
+///   nor an on-device assistant's automatic romanization; Enter (also a
+///   new line) and Translate still do.
 /// * Text from outside the app ([setExternalInput]) is length-capped and
 ///   only auto-translated when that costs nothing (see there).
 /// * Completed translations are added to `history` when `saveHistory` (and
@@ -128,7 +133,9 @@ class TranslateCubit extends Cubit<TranslateState> {
     List<String> Function()? deviceLanguages,
     this._usageTracker,
     TranslationMemory? memory,
+    DeviceConditions? deviceConditions,
   }) : _settings = settings,
+       _deviceConditions = deviceConditions ?? DeviceConditions.instance,
        offlineDebounce = _atMost(
          offlineDebounce ?? defaultOfflineDebounce,
          debounce,
@@ -248,6 +255,10 @@ class TranslateCubit extends Cubit<TranslateState> {
 
   /// Finds earlier translations of the input in the history.
   final TranslationMemory _memory;
+
+  /// The phone's heat and battery saver: typing does not start on-device
+  /// AI while it is strained ([_sparesDevice]).
+  final DeviceConditions _deviceConditions;
 
   /// Ids of the history entries recorded since the input was last empty or
   /// replaced as a whole: they are translations of earlier versions of the
@@ -1139,17 +1150,52 @@ class TranslateCubit extends Cubit<TranslateState> {
     return (engine: candidates.first, languages: null, error: firstError);
   }
 
+  /// The engine of the AI extras for [engine] out of [engines]: [engine]
+  /// itself when it is an AI engine with extras (the text goes there
+  /// anyway); else the configured assist engine
+  /// ([AppSettings.assistEngineId]) when it has extras, unless Offline
+  /// only keeps its text from leaving the device; else, when [engine]
+  /// keeps the text on the device or the privacy mode is not online, the
+  /// first engine with extras that does so too (an on-device assistant
+  /// model); else the first AI engine with extras. Without any AI engine
+  /// with extras: [engine] if it is an AI engine, the configured one or
+  /// the first AI engine.
   TranslationEngine? _pickAssistEngine(
     TranslationEngine engine,
     List<TranslationEngine> engines,
   ) {
-    if (engine.isAi) return engine;
+    if (engine.isAi && engine.supportsExtras) return engine;
     final ai = engines.where((e) => e.isAi).toList();
     final configured = _settings.state.assistEngineId;
+    final mode = _settings.state.privacyMode;
+    final capable = ai.where((e) => e.supportsExtras).toList();
+    for (final candidate in capable) {
+      if (candidate.id != configured) continue;
+      if (mode != PrivacyMode.offlineOnly || _staysOnDevice(candidate)) {
+        return candidate;
+      }
+    }
+    if (_staysOnDevice(engine) || mode != PrivacyMode.online) {
+      final onDevice = capable.where(_staysOnDevice).firstOrNull;
+      if (onDevice != null) return onDevice;
+    }
+    if (capable.isNotEmpty) return capable.first;
+    if (engine.isAi) return engine;
     for (final candidate in ai) {
       if (candidate.id == configured) return candidate;
     }
-    return ai.isEmpty ? null : ai.first;
+    return ai.firstOrNull;
+  }
+
+  /// Whether the text of [engine] stays on this device (the offline
+  /// engine, on-device AI models).
+  bool _staysOnDevice(TranslationEngine engine) {
+    try {
+      return _repository.destinationOf(engine.id).isOnDevice;
+    } on Object {
+      // Unknown (or a repository test double): judge by the engine.
+      return engine.isOnDevice || isOnDeviceAiEngine(engine);
+    }
   }
 
   Future<_Languages> _loadLanguages(TranslationEngine engine) async {
@@ -1393,13 +1439,17 @@ class TranslateCubit extends Cubit<TranslateState> {
     final covered = _coveredText(previous);
     final same = covered != null && covered.trimRight() == text.trimRight();
     final engine = state.engine;
+    // A new line is the Enter key: it translates even while typing spares
+    // the device.
+    late final enter = _insertion(previous.input, text) == '\n';
     if (instant &&
         !same &&
         engine != null &&
         !state.compareMode &&
         (engine.isAi
             ? _settings.state.instantTranslateAi
-            : _settings.state.instantTranslate)) {
+            : _settings.state.instantTranslate) &&
+        (!_sparesDevice(engine) || enter)) {
       // Scheduled before the input is emitted, so that it is queued.
       _debounceTimer = Timer(
         instantDelay(
@@ -1409,7 +1459,7 @@ class TranslateCubit extends Cubit<TranslateState> {
           pasted: pasted,
           dictated: dictated,
         ),
-        _translateInstantly,
+        () => _translateInstantly(enter: enter),
       );
     }
     emit(
@@ -1438,13 +1488,26 @@ class TranslateCubit extends Cubit<TranslateState> {
     return state.resultInput ?? state.input;
   }
 
-  /// The instant translation [_applyInput] scheduled is due.
-  void _translateInstantly() {
+  /// The instant translation [_applyInput] scheduled is due ([enter]: for
+  /// a new line, the Enter key).
+  void _translateInstantly({required bool enter}) {
+    // The phone got hot, or battery saver came on, while it waited.
+    final engine = state.engine;
+    if (!enter && engine != null && _sparesDevice(engine)) {
+      if (state.queued) emit(state);
+      return;
+    }
     final translation = _translate(auto: true);
     // Nothing started (no engine any more): nothing is queued either.
     if (state.queued) emit(state);
     unawaited(translation);
   }
+
+  /// Whether typing does not start [engine], to spare the device:
+  /// on-device AI while the phone is hot or battery saver is on
+  /// ([DeviceConditions]). The Enter key and the go button still translate.
+  bool _sparesDevice(TranslationEngine engine) =>
+      isOnDeviceAiEngine(engine) && _deviceConditions.latest.strain != null;
 
   /// How long an instant translation of [next] (the input after
   /// [previous]) waits with [engine]:
@@ -3910,8 +3973,9 @@ class TranslateCubit extends Cubit<TranslateState> {
   /// Called automatically after each new result when
   /// `AppSettings.showTransliteration` is on and that costs nothing: the
   /// result has a transliteration, or the extras engine runs locally
-  /// (`TranslationEngine.isLocal`). The romanization is reset whenever the
-  /// result changes.
+  /// (`TranslationEngine.isLocal`; on-device AI not after an instant
+  /// translation while the device is strained). The romanization is reset
+  /// whenever the result changes.
   Future<void> loadRomanization() async {
     if (!state.canRomanize ||
         state.romanizationStatus == ExtraStatus.loading ||
@@ -3971,9 +4035,14 @@ class TranslateCubit extends Cubit<TranslateState> {
   void _autoRomanize() {
     final result = state.result;
     if (result == null || !_settings.state.showTransliteration) return;
+    final assist = state.assistEngine;
     final free =
         result.targetTransliteration.trim().isNotEmpty ||
-        (state.assistEngine?.isLocal ?? false);
+        (assist != null &&
+            assist.isLocal &&
+            // Typing doesn't start on-device AI while the device is
+            // strained, nor its extras.
+            !(state.instantResult && _sparesDevice(assist)));
     if (free && state.canRomanize) unawaited(loadRomanization());
   }
 

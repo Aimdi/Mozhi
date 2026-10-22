@@ -57,8 +57,9 @@ typedef struct MozhiWhisperModel MozhiWhisperModel;
 /* MOZHI_WHISPER_ABI_VERSION of the loaded library. */
 MOZHI_WHISPER_EXPORT int32_t mozhi_whisper_abi_version(void);
 
-/* Engine version, e.g. "whisper.cpp 1.9.5 (ggml 0.26.0, CPU)". Static
- * storage: do not free. */
+/* Engine version and the CPU the library is compiled for, e.g.
+ * "whisper.cpp 1.9.5 (ggml 0.26.0, CPU armv8.2-a+dotprod+fp16)" (the
+ * baseline of arm64-v8a is "armv8-a"). Static storage: do not free. */
 MOZHI_WHISPER_EXPORT const char* mozhi_whisper_version(void);
 
 /* Loads a ggml Whisper model file (e.g. ggml-tiny.bin) for the CPU.

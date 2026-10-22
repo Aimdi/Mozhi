@@ -4,6 +4,7 @@ import 'dart:ffi';
 import 'dart:io';
 
 import 'package:ffi/ffi.dart';
+import 'package:whisper_speech/src/engine/cpu_features.dart';
 
 /// Opaque `MozhiWhisperModel`.
 final class NativeWhisperModel extends Opaque;
@@ -118,7 +119,8 @@ final class WhisperBindings {
   /// MOZHI_WHISPER_ABI_VERSION these bindings were written for.
   static const expectedAbiVersion = 2;
 
-  /// File name of the library (Android packs it into the APK per ABI).
+  /// File name of the baseline library (Android packs it into the APK per
+  /// ABI; arm64-v8a also has the [WhisperLibraryVariant]s).
   static const libraryName = 'libmozhi_whisper.so';
 
   /// Environment variable with an explicit library path (desktop tests).
@@ -149,4 +151,69 @@ final class WhisperBindings {
   static DynamicLibrary open([String? path]) => DynamicLibrary.open(
     path ?? Platform.environment[libraryPathVariable] ?? libraryName,
   );
+
+  /// The library the engine should open: [path], else
+  /// `$WHISPER_LIBRARY_PATH` ([environment]), else the fastest
+  /// [WhisperLibraryVariant] for the CPU ([cpuFeatures], default
+  /// [ArmCpuFeatures.current]) when it opens with [expectedAbiVersion]
+  /// ([probe] returns the ABI version of a library, or throws when it
+  /// cannot open it), else [libraryName] (the engine reports why it
+  /// cannot open that one).
+  ///
+  /// Deterministic for a device, so every isolate that resolves it opens
+  /// the same library.
+  static String resolve({
+    String? path,
+    Map<String, String>? environment,
+    ArmCpuFeatures? Function() cpuFeatures = ArmCpuFeatures.current,
+    int Function(String library) probe = _abiVersionOf,
+  }) {
+    final explicit =
+        path ?? (environment ?? Platform.environment)[libraryPathVariable];
+    if (explicit != null) return explicit;
+    final variant = WhisperLibraryVariant.forCpu(cpuFeatures());
+    if (variant != WhisperLibraryVariant.baseline) {
+      try {
+        if (probe(variant.fileName) == expectedAbiVersion) {
+          return variant.fileName;
+        }
+      } on Object {
+        // Missing from this build, or it does not load: the baseline runs.
+      }
+    }
+    return libraryName;
+  }
+
+  static int _abiVersionOf(String library) =>
+      WhisperBindings(DynamicLibrary.open(library)).abiVersion();
+}
+
+/// The builds of `libmozhi_whisper` (native/CMakeLists.txt): the baseline
+/// for every CPU of the ABI and, on arm64-v8a, two with ggml's kernels for
+/// newer CPUs, chosen by [WhisperBindings.resolve].
+enum WhisperLibraryVariant {
+  /// ARMv8.0-A on arm64-v8a (and the only build of armeabi-v7a and
+  /// x86_64).
+  baseline(WhisperBindings.libraryName),
+
+  /// ARMv8.2-A with the int8 dot product and FP16 arithmetic.
+  dotprod('libmozhi_whisper_dotprod.so'),
+
+  /// ARMv8.6-A with those and the int8 matrix multiply.
+  i8mm('libmozhi_whisper_i8mm.so');
+
+  new(this.fileName);
+
+  /// The fastest variant a CPU with [features] runs (contract §4): [i8mm]
+  /// with i8mm, dotprod and FP16, [dotprod] with dotprod and FP16, else
+  /// (or without features: not Android arm64) the [baseline].
+  static WhisperLibraryVariant forCpu(ArmCpuFeatures? features) {
+    if (features == null || !features.dotprod || !features.fp16) {
+      return baseline;
+    }
+    return features.i8mm ? i8mm : dotprod;
+  }
+
+  /// File name of the library in the APK.
+  final String fileName;
 }

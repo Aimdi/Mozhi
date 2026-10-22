@@ -97,6 +97,32 @@ void main() {
         });
       });
 
+      test(
+        'sends top_p and stop, but not top_k or the repeat penalty',
+        () async {
+          final server = FakeServer([
+            FakeResponse.text(sse(['[DONE]'])),
+          ]);
+          await _client(server)
+              .streamChat(
+                _request.copyWith(
+                  topP: 0.6,
+                  topK: 20,
+                  repeatPenalty: 1.05,
+                  stop: ['\n\n'],
+                ),
+              )
+              .drain<void>();
+          expect(server.lastRequest.json, {
+            'model': 'gpt-test',
+            'messages': hasLength(4),
+            'stream': true,
+            'top_p': 0.6,
+            'stop': ['\n\n'],
+          });
+        },
+      );
+
       test('omits Authorization without a key', () async {
         for (final key in [null, '', '  ']) {
           final server = FakeServer([

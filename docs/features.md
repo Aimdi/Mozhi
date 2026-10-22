@@ -1,8 +1,8 @@
 # Feature tour
 
 Everything Mozhi can do, screen by screen. Features marked **AI** need an
-[AI provider](ai-providers.md); everything else works with a Mozhi instance
-alone.
+[AI provider](ai-providers.md) or [on-device AI](#on-device-ai); everything
+else works with a Mozhi instance alone.
 
 - [Translate](#translate)
 - [Languages and detection](#languages-and-detection)
@@ -25,6 +25,7 @@ alone.
 - [Documents](#documents)
 - [Web pages](#web-pages)
 - [Offline translation](#offline-translation)
+- [On-device AI](#on-device-ai)
 - [History and favorites](#history-and-favorites)
 - [Phrasebook](#phrasebook)
 - [Practice](#practice)
@@ -297,7 +298,10 @@ closed.
 The engine button lists:
 
 - **On this device**: [offline translation](#offline-translation), once you
-  downloaded a language.
+  downloaded a language, and the [on-device AI](#on-device-ai) translation
+  model (a memory chip icon), once installed. Without one, **Add on-device
+  AI…** at the bottom of the list opens its settings on phones that can
+  run it.
 - **Mozhi engines** of your preferred instance: Google, DeepL, Reverso,
   Yandex, LibreTranslate, DuckDuckGo and MyMemory, whichever it offers.
 - **AI models**: every enabled AI provider, with its model name.
@@ -308,7 +312,8 @@ for (for example **Good for European languages** for DeepL); an AI model's
 id is shown there, not on the engine button.
 
 A badge tells you who receives your text: **On device** (offline
-translation), **Self-hosted** (a server on this device, your network, or a
+translation; **On this device** with a memory chip for on-device AI),
+**Self-hosted** (a server on this device, your network, or a
 Tor or I2P address), **Public server** (a public Mozhi or LibreTranslate
 instance run by someone else) or **Cloud** (an AI provider or DeepL's API).
 When every engine of a section sends text to the same kind of place, the
@@ -920,6 +925,38 @@ later), `https` (or `localhost`) and the site's storage (Firefox's private
 windows have none); the Offline languages screen says what is missing. It is slower than on Android (about 120 to 150 words a
 second on a desktop computer) and **Import from files** isn't available.
 
+## On-device AI
+
+On Android, AI models can run on the phone itself: AI translation and
+every AI extra without a network, and your text never leaves the device
+(details: [On-device AI](on-device-ai.md)).
+
+- **Models** (**Settings > AI > On-device AI**, also linked from
+  **Translation engines** and **Offline languages**): **Hy-MT2 1.8B**
+  (Tencent, Apache-2.0) translates between 33 languages; **Gemma 4 E2B**
+  or the smaller **Qwen3 1.7B** (both Apache-2.0) write the extras
+  (refine, alternatives, insights, dictionary, explain, proofread, meaning
+  check). Each shows its size (about 1 to 3 GB), licence, languages and
+  whether it fits your phone (**Fits this phone**, **May be slow on this
+  phone**, **Needs more memory**). Downloads only start when you tap one,
+  over Wi-Fi unless you allow mobile data, from your
+  [model source](#offline-translation), and are checked before use; or
+  **Import from a file** without any network.
+- **Using it:** the translation model is an engine under **On this
+  device**; results show **On this device** with a memory chip, no
+  consent is asked, and it works in **Offline only**. The first request
+  after a pause loads the model: **Loading the on-device model…** with
+  **Cancel**, then the text streams in. A sentence takes a few seconds on
+  a mid-range phone, about a second or two on a flagship.
+- **Battery and heat:** while the phone is hot or battery saver is on,
+  typing doesn't start on-device AI; a line under the text says why, and
+  **Enter** or **Translate** still translate. The model is freed after 2
+  minutes without use, in the background and when memory runs low.
+- **First run:** on a phone that can run a model and has no AI provider,
+  the translate screen offers it once (**See models**, **Not now**,
+  **Don't show again**); it never downloads by itself.
+- Not in the web app yet (shown as unavailable there).
+
 ## History and favorites
 
 - Every translation is saved on the device (unless you turn off
@@ -1410,8 +1447,8 @@ field, then eight categories, each on a page of its own:
 | **General** | App language, tab order, haptic feedback, multiline input |
 | **Privacy & data** | **Privacy** (privacy mode, incognito, screenshot blocking, hiding personal data), **History** (saving, automatic deletion, export and import, the phrasebook, recent language pairs), **Network** (approved pairs and cloud providers, HTTP proxy, network activity) and **Data** (**Clear history** and **Delete all local data**, last and in red) |
 | **Backup & sync** | **Encrypted backup** ([**Back up now**](#backup-and-restore) with the date of the last backup, **Restore from a backup**), then sync and phone to phone |
-| **Translation engines** | Offline languages, Mozhi instances, translation services (DeepL API, LibreTranslate), quality modes, **Remember quality selection** and **Instant translate** |
-| **AI** (marked **Advanced**) | AI providers, the AI assistant for insights, presets, glossaries, usage & costs |
+| **Translation engines** | Offline languages, on-device AI, Mozhi instances, translation services (DeepL API, LibreTranslate), quality modes, **Remember quality selection** and **Instant translate** |
+| **AI** (marked **Advanced**) | On-device AI, AI providers, the AI assistant for insights, presets, glossaries, usage & costs |
 | **Appearance** | Theme, dynamic color, dark theme, romanization, accent color |
 | **Read aloud & voice** | Read aloud and voice input |
 | **About** | Version, privacy, source code, the Mozhi project, open-source licenses and **Run setup again** |
@@ -1464,6 +1501,7 @@ unprotected.**).
 | Text selection menu and share target | ✓ | |
 | `mozhi://` links | ✓ | |
 | Offline translation | ✓ | |
+| On-device AI | ✓ (64-bit phones with enough memory) | |
 | On-device text recognition | ✓ (Tesseract; ML Kit in the Play variant) | |
 | Privacy screen, sensitive clipboard, HTTP proxy | ✓ | |
 | Dynamic color from wallpaper | ✓ (12+) | |

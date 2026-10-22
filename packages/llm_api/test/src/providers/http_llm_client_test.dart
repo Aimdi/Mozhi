@@ -104,7 +104,7 @@ void main() {
       });
 
       test('are never followed, so keys never reach another host', () async {
-        for (final provider in LlmProvider.values) {
+        for (final provider in httpProviders) {
           final server = _RedirectingServer();
           final client = LlmClient(
             LlmEndpoint(
@@ -284,7 +284,7 @@ void main() {
         };
 
         test('covers every provider', () {
-          expect(keyHeaders.keys, unorderedEquals(LlmProvider.values));
+          expect(keyHeaders.keys, unorderedEquals(httpProviders));
         });
 
         for (final MapEntry(key: provider, value: (name, value))
@@ -334,7 +334,7 @@ void main() {
 
       test('without a key, a custom Authorization header is sent (a '
           'gateway)', () async {
-        for (final provider in LlmProvider.values) {
+        for (final provider in httpProviders) {
           final server = FakeServer([FakeResponse.json({}, statusCode: 401)]);
           final client = LlmClient(
             LlmEndpoint(

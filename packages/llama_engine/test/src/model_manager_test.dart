@@ -1,0 +1,788 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:llama_engine/llama_engine.dart';
+import 'package:path/path.dart' as p;
+
+import '../helpers/fake_llama_models.dart';
+
+/// Serves [files] by URL path, honouring `Range: bytes=N-` unless
+/// [ignoreRange]. [failAfter] cuts a response after that many bytes;
+/// [stallAfter] stops sending after that many bytes (until [release]);
+/// [status] replaces the status code; [corrupt] flips the last byte.
+class _Server {
+  new(this.files);
+
+  final Map<String, Uint8List> files;
+  final List<http.BaseRequest> requests = [];
+  bool ignoreRange = false;
+  int? failAfter;
+  int? stallAfter;
+  int? status;
+  bool corrupt = false;
+  List<int> extra = const [];
+  Completer<void>? gate;
+  final release = Completer<void>();
+
+  late final MockClient client = MockClient.streaming((request, _) async {
+    requests.add(request);
+    if (gate case final gate?) await gate.future;
+    final body = files[request.url.path];
+    if (status case final status?) {
+      return http.StreamedResponse(Stream.value(utf8.encode('error')), status);
+    }
+    if (body == null) {
+      return http.StreamedResponse(Stream.value(utf8.encode('missing')), 404);
+    }
+    var bytes = Uint8List.fromList([...body, ...extra]);
+    if (corrupt) bytes[bytes.length - 1] ^= 0xff;
+    var code = 200;
+    final range = request.headers['Range'];
+    if (range != null && !ignoreRange) {
+      final start = int.parse(RegExp(r'bytes=(\d+)-').firstMatch(range)![1]!);
+      bytes = bytes.sublist(start);
+      code = 206;
+    }
+    final cut = failAfter;
+    final stall = stallAfter;
+    Stream<List<int>> stream() async* {
+      if (stall != null) {
+        yield bytes.sublist(0, stall.clamp(0, bytes.length));
+        await release.future;
+        yield bytes.sublist(stall.clamp(0, bytes.length));
+        return;
+      }
+      if (cut == null) {
+        yield bytes;
+        return;
+      }
+      yield bytes.sublist(0, cut.clamp(0, bytes.length));
+      throw const SocketException('connection reset');
+    }
+
+    return http.StreamedResponse(stream(), code);
+  });
+}
+
+void main() {
+  late Directory root;
+  late Uint8List hyBytes;
+  late Uint8List qwenBytes;
+  late LlamaCatalogModel hy;
+  late LlamaCatalogModel qwen;
+  late LlamaModelCatalog catalog;
+  late _Server server;
+  late LlamaModelManager manager;
+
+  setUp(() {
+    root = Directory.systemTemp.createTempSync('llama_models_');
+    hyBytes = fakeModelBytes(5000);
+    qwenBytes = fakeModelBytes(9000, seed: 2);
+    hy = fakeLlamaModel(
+      'hy-mt2-1.8b-q4',
+      hyBytes,
+      name: 'Hy-MT2-1.8B-Q4_K_M.gguf',
+      role: LlamaModelRole.translation,
+    );
+    qwen = fakeLlamaModel(
+      'qwen3-1.7b-q4',
+      qwenBytes,
+      name: 'Qwen3-1.7B-Q4_K_M.gguf',
+    );
+    catalog = LlamaModelCatalog(models: [hy, qwen]);
+    server = _Server({
+      '/repo/resolve/abc/Hy-MT2-1.8B-Q4_K_M.gguf': hyBytes,
+      '/repo/resolve/abc/Qwen3-1.7B-Q4_K_M.gguf': qwenBytes,
+    });
+    manager = LlamaModelManager(root: root, httpClient: server.client);
+  });
+
+  tearDown(() {
+    manager.close();
+    if (!server.release.isCompleted) server.release.complete();
+    if (root.existsSync()) root.deleteSync(recursive: true);
+  });
+
+  File part(LlamaCatalogModel model) => File(
+    p.join(root.path, 'models', '.downloads', model.id, '${model.name}.part'),
+  );
+
+  String hyPath() => '/repo/resolve/abc/Hy-MT2-1.8B-Q4_K_M.gguf';
+
+  group('install', () {
+    test('downloads, verifies and installs a model atomically', () async {
+      final progress = <LlamaDownloadProgress>[];
+      final installed = await manager.install(hy, onProgress: progress.add);
+
+      expect(installed.id, hy.id);
+      expect(installed.sizeBytes, hyBytes.length);
+      expect(installed.sha256, hy.sha256);
+      expect(installed.matches(hy), isTrue);
+      expect(installed.matches(qwen), isFalse);
+      expect(File(installed.path).readAsBytesSync(), hyBytes);
+      expect(
+        installed.path,
+        p.join(root.path, 'models', hy.id, 'Hy-MT2-1.8B-Q4_K_M.gguf'),
+      );
+      expect(await manager.pathOf(hy.id), installed.path);
+      expect(await manager.pathOf(qwen.id), isNull);
+      expect(progress.first.receivedBytes, 0);
+      expect(progress.last.receivedBytes, hyBytes.length);
+      expect(progress.last.totalBytes, hyBytes.length);
+      expect(progress.last.fraction, 1);
+      expect(progress.last.model, hy);
+      expect(await manager.isInstalled(hy), isTrue);
+      expect(await manager.installed(), [installed]);
+      expect(installed.toString(), 'InstalledLlamaModel(${hy.id})');
+      expect(
+        installed.hashCode,
+        (await manager.installedModel(hy.id)).hashCode,
+      );
+      expect(part(hy).existsSync(), isFalse);
+      expect(
+        Directory(p.join(root.path, 'models', '.staging')).listSync().isEmpty,
+        isTrue,
+      );
+      final manifest = jsonDecode(
+        File(p.join(root.path, 'models', hy.id, 'manifest.json'))
+            .readAsStringSync(),
+      ) as Map<String, Object?>;
+      expect(manifest['sha256'], hy.sha256);
+      expect(server.requests.single.headers, isNot(contains('Range')));
+      expect(manager.isInstalling(hy.id), isFalse);
+    });
+
+    test('a zero-byte progress reports a fraction of 1', () {
+      expect(
+        LlamaDownloadProgress(
+          model: hy,
+          receivedBytes: 0,
+          totalBytes: 0,
+        ).fraction,
+        1,
+      );
+    });
+
+    test('returns at once when the model is installed', () async {
+      await manager.install(hy);
+      await manager.install(hy);
+      expect(server.requests, hasLength(1));
+    });
+
+    test('shares one download between concurrent calls', () async {
+      server.gate = Completer();
+      final first = manager.install(hy);
+      final second = manager.install(hy);
+      expect(manager.isInstalling(hy.id), isTrue);
+      server.gate!.complete();
+      expect(await first, await second);
+      expect(server.requests, hasLength(1));
+    });
+
+    test('keeps an interrupted download and resumes it with Range', () async {
+      server.failAfter = 1200;
+      await expectLater(
+        manager.install(hy),
+        throwsA(isA<LlamaDownloadException>()),
+      );
+      expect(part(hy).lengthSync(), 1200);
+      expect(await manager.partialBytes(hy), 1200);
+      expect(await manager.isInstalled(hy), isFalse);
+
+      server.failAfter = null;
+      final progress = <int>[];
+      final installed = await manager.install(
+        hy,
+        onProgress: (event) => progress.add(event.receivedBytes),
+      );
+      expect(server.requests.last.headers['Range'], 'bytes=1200-');
+      expect(progress.first, 1200);
+      expect(File(installed.path).readAsBytesSync(), hyBytes);
+      expect(await manager.partialBytes(hy), 0);
+    });
+
+    test('starts over when the server ignores Range', () async {
+      part(hy)
+        ..parent.createSync(recursive: true)
+        ..writeAsBytesSync(hyBytes.sublist(0, 100));
+      server.ignoreRange = true;
+      final installed = await manager.install(hy);
+      expect(File(installed.path).readAsBytesSync(), hyBytes);
+    });
+
+    test('installs a complete partial download without a request', () async {
+      part(hy)
+        ..parent.createSync(recursive: true)
+        ..writeAsBytesSync(hyBytes);
+      await manager.install(hy);
+      expect(server.requests, isEmpty);
+      expect(await manager.isInstalled(hy), isTrue);
+    });
+
+    test('discards a partial download longer than the model', () async {
+      part(hy)
+        ..parent.createSync(recursive: true)
+        ..writeAsBytesSync(Uint8List(hyBytes.length + 1));
+      await manager.install(hy);
+      expect(server.requests.single.headers, isNot(contains('Range')));
+    });
+
+    test('rejects and discards a corrupt download', () async {
+      server.corrupt = true;
+      await expectLater(
+        manager.install(hy),
+        throwsA(
+          isA<LlamaChecksumException>()
+              .having(
+                (error) => error.toString(),
+                'toString',
+                startsWith('LlamaChecksumException(${hy.id}: '),
+              )
+              .having((e) => e.message, 'message', contains('SHA-256'))
+              .having((e) => e.mirror, 'mirror', isNull),
+        ),
+      );
+      expect(part(hy).existsSync(), isFalse);
+      expect(await manager.installed(), isEmpty);
+    });
+
+    test('rejects a download with too many bytes', () async {
+      server.extra = [1, 2, 3];
+      await expectLater(
+        manager.install(hy),
+        throwsA(isA<LlamaChecksumException>()),
+      );
+      expect(part(hy).existsSync(), isFalse);
+    });
+
+    test('reports HTTP errors with their status', () async {
+      server.status = 503;
+      await expectLater(
+        manager.install(hy),
+        throwsA(
+          isA<LlamaDownloadException>()
+              .having((error) => error.statusCode, 'statusCode', 503)
+              .having(
+                (error) => error.toString(),
+                'toString',
+                contains('LlamaDownloadException(${hy.id}: HTTP 503'),
+              ),
+        ),
+      );
+    });
+
+    test('reports connection failures', () async {
+      final failing = LlamaModelManager(
+        root: root,
+        httpClient: MockClient((_) async => throw const SocketException('x')),
+      );
+      await expectLater(
+        failing.install(hy),
+        throwsA(isA<LlamaDownloadException>()),
+      );
+    });
+
+    test('times out a stalled server', () async {
+      final stalled = LlamaModelManager(
+        root: root,
+        httpClient: MockClient.streaming(
+          (_, _) => Completer<http.StreamedResponse>().future,
+        ),
+        requestTimeout: const Duration(milliseconds: 10),
+      );
+      await expectLater(
+        stalled.install(hy),
+        throwsA(isA<LlamaDownloadException>()),
+      );
+    });
+
+    test('replaces another file installed under the same id', () async {
+      await manager.install(hy);
+      final newer = fakeLlamaModel(
+        hy.id,
+        qwenBytes,
+        name: hy.name,
+        role: LlamaModelRole.translation,
+      );
+      server.files[hyPath()] = qwenBytes;
+      final installed = await manager.install(newer);
+      expect(installed.matches(newer), isTrue);
+      expect(await manager.isInstalled(hy), isFalse);
+      expect(File(installed.path).readAsBytesSync(), qwenBytes);
+      expect(
+        Directory(p.join(root.path, 'models', '.trash')).listSync(),
+        isEmpty,
+      );
+    });
+
+    test('rejects unsafe ids', () async {
+      final unsafe = LlamaCatalogModel(
+        id: '..',
+        name: 'x.gguf',
+        url: Uri.parse('https://models.example/x.gguf'),
+        size: 1,
+        sha256: 'a' * 64,
+        role: LlamaModelRole.assistant,
+        family: 'qwen3',
+        promptProfile: 'general',
+        displayName: 'X',
+        license: 'MIT',
+        licenseUrl: hy.licenseUrl,
+        sourceUrl: hy.sourceUrl,
+      );
+      await expectLater(manager.install(unsafe), throwsArgumentError);
+      expect(() => manager.delete('../x'), throwsArgumentError);
+      expect(() => manager.partialBytes(unsafe), throwsArgumentError);
+    });
+  });
+
+  group('cancel', () {
+    test('stops a running download and keeps it for resuming', () async {
+      server.stallAfter = 700;
+      final received = <int>[];
+      final download = manager.install(
+        hy,
+        onProgress: (event) => received.add(event.receivedBytes),
+      );
+      // Wait for the first bytes.
+      while (!received.contains(700)) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      manager.cancel(hy.id);
+      await expectLater(
+        download,
+        throwsA(
+          isA<LlamaDownloadCancelledException>().having(
+            (e) => e.toString(),
+            'toString',
+            startsWith('LlamaDownloadCancelledException(${hy.id}: '),
+          ),
+        ),
+      );
+      expect(await manager.partialBytes(hy), 700);
+      expect(manager.isInstalling(hy.id), isFalse);
+
+      server
+        ..stallAfter = null
+        ..release.complete();
+      final installed = await manager.install(hy);
+      expect(server.requests.last.headers['Range'], 'bytes=700-');
+      expect(File(installed.path).readAsBytesSync(), hyBytes);
+    });
+
+    test('stops a download that waits for the server', () async {
+      server.gate = Completer();
+      final download = manager.install(hy);
+      await Future<void>.delayed(Duration.zero);
+      manager.cancel(hy.id);
+      await expectLater(
+        download,
+        throwsA(isA<LlamaDownloadCancelledException>()),
+      );
+      server.gate!.complete();
+      expect(await manager.isInstalled(hy), isFalse);
+    });
+
+    test('names the mirror of a cancelled download', () async {
+      final mirror = Uri.parse('https://mirror.example/models/');
+      server
+        ..files['/models/llm/Hy-MT2-1.8B-Q4_K_M.gguf'] = hyBytes
+        ..stallAfter = 10;
+      manager.mirror = mirror;
+      var started = false;
+      final download = manager.install(hy, onProgress: (_) => started = true);
+      while (!started) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      manager.cancel(hy.id);
+      await expectLater(
+        download,
+        throwsA(
+          isA<LlamaDownloadCancelledException>().having(
+            (e) => e.mirror,
+            'mirror',
+            mirror,
+          ),
+        ),
+      );
+    });
+
+    test('does nothing without a running download', () async {
+      manager
+        ..cancel(hy.id)
+        ..cancel('unknown');
+      expect(await manager.install(hy), isNotNull);
+    });
+  });
+
+  group('mirror', () {
+    final mirror = Uri.parse('https://mirror.example/models/');
+
+    List<String> paths() => [
+      for (final request in server.requests) request.url.path,
+    ];
+
+    test('downloads from <mirror>/llm/<name>', () async {
+      server.files['/models/llm/Hy-MT2-1.8B-Q4_K_M.gguf'] = hyBytes;
+      manager.mirror = mirror;
+      final installed = await manager.install(hy);
+      expect(installed.matches(hy), isTrue);
+      expect(paths(), ['/models/llm/Hy-MT2-1.8B-Q4_K_M.gguf']);
+      expect(server.requests.single.url.host, 'mirror.example');
+    });
+
+    test('a model the mirror lacks fails, naming the mirror', () async {
+      manager.mirror = mirror;
+      await expectLater(
+        manager.install(hy),
+        throwsA(
+          isA<LlamaDownloadException>()
+              .having((e) => e.statusCode, 'statusCode', 404)
+              .having((e) => e.mirror, 'mirror', mirror)
+              .having((e) => e.message, 'message', contains('mirror.example')),
+        ),
+      );
+      expect(paths(), ['/models/llm/Hy-MT2-1.8B-Q4_K_M.gguf']);
+    });
+
+    test('falls back to the catalog URL when allowed', () async {
+      manager
+        ..mirror = mirror
+        ..fallbackToDefault = true;
+      await manager.install(hy);
+      expect(paths(), ['/models/llm/Hy-MT2-1.8B-Q4_K_M.gguf', hyPath()]);
+      expect(server.requests.last.url.host, 'models.example');
+    });
+
+    test('falls back when the mirror cannot be reached', () async {
+      final client = _MirrorDownClient(server.client);
+      final fallback = LlamaModelManager(root: root, httpClient: client)
+        ..mirror = mirror
+        ..fallbackToDefault = true;
+      await fallback.install(hy);
+      expect(paths(), [hyPath()]);
+    });
+
+    test('reports a mirror that cannot be reached', () async {
+      final failing = LlamaModelManager(
+        root: root,
+        httpClient: MockClient((_) async => throw const SocketException('x')),
+      )..mirror = mirror;
+      await expectLater(
+        failing.install(hy),
+        throwsA(
+          isA<LlamaDownloadException>()
+              .having((e) => e.mirror, 'mirror', mirror)
+              .having((e) => e.message, 'message', contains('mirror.example')),
+        ),
+      );
+    });
+
+    test('rejects another file from the mirror, naming it', () async {
+      server.files['/models/llm/Hy-MT2-1.8B-Q4_K_M.gguf'] = qwenBytes.sublist(
+        0,
+        hyBytes.length,
+      );
+      manager
+        ..mirror = mirror
+        ..fallbackToDefault = true;
+      await expectLater(
+        manager.install(hy),
+        throwsA(
+          isA<LlamaChecksumException>()
+              .having((e) => e.mirror, 'mirror', mirror)
+              .having(
+                (e) => e.message,
+                'message',
+                contains('from the mirror https://mirror.example/models/'),
+              ),
+        ),
+      );
+      // A mismatch is not a missing file: no fallback.
+      expect(paths(), ['/models/llm/Hy-MT2-1.8B-Q4_K_M.gguf']);
+      expect(part(hy).existsSync(), isFalse);
+    });
+
+    test('an interrupted mirror download names the mirror', () async {
+      server
+        ..files['/models/llm/Hy-MT2-1.8B-Q4_K_M.gguf'] = hyBytes
+        ..failAfter = 100;
+      manager.mirror = mirror;
+      await expectLater(
+        manager.install(hy),
+        throwsA(
+          isA<LlamaDownloadException>().having(
+            (e) => e.mirror,
+            'mirror',
+            mirror,
+          ),
+        ),
+      );
+      expect(await manager.partialBytes(hy), 100);
+    });
+  });
+
+  group('installed', () {
+    test('is empty without a models directory', () async {
+      expect(await manager.installed(), isEmpty);
+      expect(await manager.installedModel(hy.id), isNull);
+      expect(await manager.isInstalled(hy), isFalse);
+      expect(await manager.partialBytes(hy), 0);
+    });
+
+    test('ignores incomplete or foreign installs', () async {
+      await manager.install(hy);
+      await manager.install(qwen);
+      final models = Directory(p.join(root.path, 'models'));
+      // A truncated file.
+      File(p.join(models.path, qwen.id, qwen.name)).writeAsBytesSync([1, 2, 3]);
+      // A folder without a manifest, one with a bad manifest, one with
+      // another schema and one whose manifest names another id.
+      Directory(p.join(models.path, 'gemma')).createSync();
+      Directory(p.join(models.path, 'bad')).createSync();
+      File(p.join(models.path, 'bad', 'manifest.json')).writeAsStringSync('[');
+      Directory(p.join(models.path, 'future')).createSync();
+      File(p.join(models.path, 'future', 'manifest.json'))
+          .writeAsStringSync(jsonEncode({'schemaVersion': 2}));
+      Directory(p.join(models.path, 'other')).createSync();
+      File(p.join(models.path, 'other', 'manifest.json')).writeAsStringSync(
+        jsonEncode({
+          'schemaVersion': 1,
+          'id': hy.id,
+          'name': hy.name,
+          'size': 1,
+          'sha256': 'a' * 64,
+        }),
+      );
+      File(p.join(models.path, 'stray.txt')).writeAsStringSync('x');
+
+      final fresh = LlamaModelManager(root: root, httpClient: server.client);
+      expect((await fresh.installed()).map((m) => m.id), [hy.id]);
+    });
+  });
+
+  group('delete, deleteAll and cleanUp', () {
+    test('delete removes the model and its partial download', () async {
+      await manager.install(hy);
+      server.failAfter = 10;
+      await expectLater(manager.install(qwen), throwsA(anything));
+      expect(part(qwen).existsSync(), isTrue);
+
+      await manager.delete(hy.id);
+      await manager.delete(qwen.id);
+      expect(await manager.installed(), isEmpty);
+      expect(part(qwen).existsSync(), isFalse);
+      // Deleting what is not there is fine.
+      await manager.delete(hy.id);
+    });
+
+    test('deleteAll removes the models folder, cancelling downloads', () async {
+      await manager.install(hy);
+      server.stallAfter = 10;
+      var started = false;
+      final running = manager.install(qwen, onProgress: (_) => started = true);
+      while (!started) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      await manager.deleteAll();
+      await expectLater(
+        running,
+        throwsA(isA<LlamaDownloadCancelledException>()),
+      );
+      expect(manager.modelsDirectory.existsSync(), isFalse);
+      expect(await manager.installed(), isEmpty);
+      // Nothing to delete is fine too.
+      await manager.deleteAll();
+    });
+
+    test('cleanUp removes staging and trash but keeps downloads', () async {
+      final models = p.join(root.path, 'models');
+      Directory(p.join(models, '.staging', 'x-1')).createSync(recursive: true);
+      Directory(p.join(models, '.trash', '1')).createSync(recursive: true);
+      part(hy)
+        ..parent.createSync(recursive: true)
+        ..writeAsBytesSync([1]);
+      await manager.cleanUp();
+      expect(Directory(p.join(models, '.staging')).existsSync(), isFalse);
+      expect(Directory(p.join(models, '.trash')).existsSync(), isFalse);
+      expect(part(hy).existsSync(), isTrue);
+    });
+
+    test('close leaves an injected client open', () async {
+      manager.close();
+      expect(await manager.install(hy), isNotNull);
+      LlamaModelManager(root: root).close();
+    });
+  });
+
+  group('importFiles', () {
+    late Directory picked;
+
+    setUp(() {
+      picked = Directory(p.join(root.path, 'picked'))..createSync();
+    });
+
+    File write(String name, List<int> bytes) =>
+        File(p.join(picked.path, name))..writeAsBytesSync(bytes);
+
+    test('installs files named like the catalog, ignoring case', () async {
+      final file = write('hy-mt2-1.8b-q4_k_m.GGUF', hyBytes);
+      final result = await manager.importFiles([file], catalog: catalog);
+
+      expect(result.models.single.status, LlamaImportStatus.installed);
+      expect(result.installed, [hy]);
+      expect(result.unmatched, isEmpty);
+      expect(await manager.isInstalled(hy), isTrue);
+      expect(file.existsSync(), isTrue, reason: 'imported files are kept');
+      expect(server.requests, isEmpty);
+      expect(
+        result.models.single.toString(),
+        'LlamaImportOutcome(${hy.id}, installed)',
+      );
+    });
+
+    test('recognises a renamed copy by size and SHA-256', () async {
+      final result = await manager.importFiles([
+        write('model (1).gguf', qwenBytes),
+      ], catalog: catalog);
+      expect(result.installed, [qwen]);
+    });
+
+    test('moves a verified file when asked', () async {
+      final file = write('copy.gguf', hyBytes);
+      final result = await manager.importFiles(
+        [file],
+        catalog: catalog,
+        move: true,
+      );
+      expect(result.installed, [hy]);
+      expect(file.existsSync(), isFalse, reason: 'moved into place');
+      expect(File((await manager.pathOf(hy.id))!).readAsBytesSync(), hyBytes);
+    });
+
+    test('does not move a file that is not the model', () async {
+      final damaged = Uint8List.fromList(hyBytes)..[0] ^= 1;
+      final file = write(hy.name, damaged);
+      final result = await manager.importFiles(
+        [file],
+        catalog: catalog,
+        move: true,
+      );
+      expect(result.models.single.status, LlamaImportStatus.checksumMismatch);
+      expect(file.existsSync(), isTrue);
+    });
+
+    test('reports a damaged file named like a model', () async {
+      final damaged = Uint8List.fromList(hyBytes)..[0] ^= 1;
+      final file = write(hy.name, damaged);
+      final short = write('${hy.name}.bak', [1, 2]);
+      final result = await manager.importFiles([file, short], catalog: catalog);
+      final outcome = result.models.single;
+      expect(outcome.status, LlamaImportStatus.checksumMismatch);
+      expect(outcome.damaged, [file]);
+      expect(result.unmatched, [short]);
+      expect(await manager.installed(), isEmpty);
+    });
+
+    test('reports a named file of the wrong size as damaged', () async {
+      final file = write(hy.name, [1, 2, 3]);
+      final result = await manager.importFiles([file], catalog: catalog);
+      expect(result.models.single.status, LlamaImportStatus.checksumMismatch);
+      expect(result.models.single.damaged, [file]);
+    });
+
+    test('a same-size file that is something else is unmatched', () async {
+      final other = Uint8List.fromList(hyBytes)..[10] ^= 1;
+      final file = write('notes.gguf', other);
+      final result = await manager.importFiles([file], catalog: catalog);
+      expect(result.unmatched, [file]);
+      expect(result.models, isEmpty);
+    });
+
+    test('uses the first verified candidate', () async {
+      final damaged = Uint8List.fromList(hyBytes)..[0] ^= 1;
+      final result = await manager.importFiles([
+        write(hy.name, damaged),
+        write('copy.gguf', hyBytes),
+      ], catalog: catalog);
+      expect(result.models.single.status, LlamaImportStatus.installed);
+    });
+
+    test('skips models that are installed already', () async {
+      await manager.install(hy);
+      final result = await manager.importFiles([
+        write(hy.name, hyBytes),
+      ], catalog: catalog);
+      expect(result.models.single.status, LlamaImportStatus.alreadyInstalled);
+      expect(result.installed, isEmpty);
+    });
+
+    test('lists unreadable and unknown files as unmatched', () async {
+      final missing = File(p.join(picked.path, 'gone.gguf'));
+      final unknown = write('notes.txt', [1, 2, 3]);
+      final result = await manager.importFiles([
+        missing,
+        unknown,
+      ], catalog: catalog);
+      expect(result.models, isEmpty);
+      expect(result.unmatched, [missing, unknown]);
+    });
+
+    test('waits for a running download of the same model', () async {
+      server.gate = Completer();
+      final download = manager.install(hy);
+      final import = manager.importFiles([
+        write(hy.name, hyBytes),
+      ], catalog: catalog);
+      server.gate!.complete();
+      await download;
+      final result = await import;
+      expect(result.models.single.status, LlamaImportStatus.alreadyInstalled);
+    });
+
+    test('installs the file when a running download fails', () async {
+      server
+        ..gate = Completer()
+        ..status = 500;
+      final download = manager.install(hy);
+      final import = manager.importFiles([
+        write(hy.name, hyBytes),
+      ], catalog: catalog);
+      server.gate!.complete();
+      await expectLater(download, throwsA(isA<LlamaDownloadException>()));
+      expect((await import).installed, [hy]);
+    });
+
+    test('reports a failed install', () async {
+      // A file where the models directory should be: staging fails.
+      File(p.join(root.path, 'models')).writeAsStringSync('x');
+      final result = await manager.importFiles([
+        write(hy.name, hyBytes),
+      ], catalog: catalog);
+      final outcome = result.models.single;
+      expect(outcome.status, LlamaImportStatus.failed);
+      expect(outcome.error, isA<FileSystemException>());
+    });
+  });
+}
+
+/// Refuses every request to `mirror.example` as an unreachable host
+/// would; others go to [_inner].
+class _MirrorDownClient extends http.BaseClient {
+  new(this._inner);
+
+  final http.Client _inner;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) {
+    if (request.url.host == 'mirror.example') {
+      return Future.error(const SocketException('Connection refused'));
+    }
+    return _inner.send(request);
+  }
+}

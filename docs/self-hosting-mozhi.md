@@ -254,11 +254,12 @@ such an address fails the **Test**, the tunnel isn't routing the app.
 ## Mirror the on-device models
 
 The app's on-device models (offline languages, voice input, text
-recognition) come from their publishers by default: Mozilla's Firefox
-Translations bucket on Google Cloud Storage, the Whisper models on Hugging
-Face and Tesseract's language data on GitHub. Each of them sees the IP
-address and which files, so which languages, a user downloads. A mirror on
-your server keeps that between your users and you.
+recognition, on-device AI) come from their publishers by default: Mozilla's
+Firefox Translations bucket on Google Cloud Storage, the Whisper models and
+the on-device AI models on Hugging Face and Tesseract's language data on
+GitHub. Each of them sees the IP address and which files, so which
+languages, a user downloads. A mirror on your server keeps that between
+your users and you.
 
 **A mirror needs no trust.** Every file is pinned in the app's catalogues
 by size and SHA-256 (Whisper also by SHA-1) and checked before it is
@@ -276,14 +277,17 @@ models/
 ├── whisper/<name>                                   e.g. whisper/ggml-tiny.bin, whisper/ggml-silero-v6.2.0.bin
 ├── tesseract/<code>.traineddata                     e.g. tesseract/deu.traineddata
 ├── dictionary/<id>.mzd                              e.g. dictionary/es.mzd (offline dictionaries; `--only dictionary`, `--dictionaries es`)
-└── phrasebooks/<id>.json.gz                         e.g. phrasebooks/pt.json.gz (starter phrasebooks; `--only phrasebook`, `--phrasebooks pt`)
+├── phrasebooks/<id>.json.gz                         e.g. phrasebooks/pt.json.gz (starter phrasebooks; `--only phrasebook`, `--phrasebooks pt`)
+└── llm/<name>.gguf                                  e.g. llm/Hy-MT2-1.8B-Q4_K_M.gguf (on-device AI models, 1-3 GB each; `--only llm`, `--llm hy-mt2-1.8b-q4`)
 ```
 
 The app asks for `<mirror>/bergamot/…`, `<mirror>/whisper/…`,
-`<mirror>/tesseract/…`, `<mirror>/dictionary/…` and
-`<mirror>/phrasebooks/…` (plain `GET`, with `Range` to resume; no cookies,
-nothing else). The web app needs the mirror for dictionaries and starter
-phrasebooks: GitHub release downloads send no CORS headers.
+`<mirror>/tesseract/…`, `<mirror>/dictionary/…`, `<mirror>/phrasebooks/…`
+and `<mirror>/llm/…` (plain `GET`, with `Range` to resume; no cookies,
+nothing else). The on-device AI models are pinned by size and SHA-256 like
+the others; only the Android app downloads them. The web app needs the
+mirror for dictionaries and starter phrasebooks: GitHub release downloads
+send no CORS headers.
 
 ### Fill it
 
@@ -295,7 +299,7 @@ app versions):
 
 ```sh
 python3 tool/mirror_models.py /srv/mozhi/models --list    # files and total size
-python3 tool/mirror_models.py /srv/mozhi/models           # everything, about 3 GB
+python3 tool/mirror_models.py /srv/mozhi/models           # everything: about 3 GB, plus 1-3 GB per on-device AI model
 python3 tool/mirror_models.py /srv/mozhi/models \
     --languages de,fr,ja --whisper tiny,silero-vad        # what your users need
 python3 tool/mirror_models.py /srv/mozhi/models --verify  # check, no network
@@ -305,7 +309,9 @@ Filters: `--only bergamot,whisper,tesseract`, `--languages` (translation in
 both directions with English, and the text recognition data of those
 languages), `--pairs en-de,de-en`, `--whisper tiny,base,silero-vad` (the
 voice activity model `silero-vad` comes with every speech model download),
-`--tesseract deu,chi_sim`. With the Compose file:
+`--tesseract deu,chi_sim`, `--llm hy-mt2-1.8b-q4,qwen3-1.7b-q4` (the
+on-device AI models; `--only bergamot,whisper,tesseract` leaves them out).
+With the Compose file:
 
 ```sh
 cd deploy
