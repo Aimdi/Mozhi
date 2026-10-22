@@ -252,6 +252,9 @@ void main() {
           {'iterations': BackupKdf.maxIterations + 1},
           {'parallelism': 0},
           {'parallelism': BackupKdf.maxParallelism + 1},
+          // Each within its bound, but too much work together.
+          {'memoryKiB': BackupKdf.maxMemory, 'iterations': 5},
+          {'memoryKiB': 65537, 'iterations': BackupKdf.maxIterations},
         ]) {
           expect(
             () => _codec.readHeader(
@@ -262,6 +265,72 @@ void main() {
             ),
             _formatError(),
             reason: '$change',
+          );
+        }
+      });
+    });
+
+    group('KDF bounds', () {
+      Map<String, Object?> json(int memory, int iterations, int lanes) =>
+          BackupKdf(
+            memory: memory,
+            iterations: iterations,
+            parallelism: lanes,
+          ).toJson();
+
+      test('leave room above the platform defaults, but not much', () {
+        expect(BackupKdf.maxMemory, 128 * 1024);
+        expect(BackupKdf.maxIterations, 8);
+        expect(BackupKdf.maxParallelism, 4);
+        // Under three times the work of Android's parameters.
+        const standard = BackupKdf.standard;
+        expect(
+          BackupKdf.maxWork,
+          lessThan(3 * standard.memory * standard.iterations),
+        );
+        for (final kdf in [BackupKdf.standard, BackupKdf.browser]) {
+          expect(
+            BackupKdf.fromJson(kdf.toJson()),
+            kdf,
+            reason: 'a file made on Android opens in the web app and back',
+          );
+        }
+      });
+
+      test('accept parameters at the bounds', () {
+        for (final (memory, iterations, lanes) in [
+          (BackupKdf.maxMemory, 4, BackupKdf.maxParallelism),
+          (65536, BackupKdf.maxIterations, 1),
+          (8 * BackupKdf.maxParallelism, 1, BackupKdf.maxParallelism),
+        ]) {
+          expect(
+            BackupKdf.fromJson(json(memory, iterations, lanes)),
+            BackupKdf(
+              memory: memory,
+              iterations: iterations,
+              parallelism: lanes,
+            ),
+            reason: '$memory KiB, $iterations passes, $lanes lanes',
+          );
+        }
+      });
+
+      test('refuse parameters just beyond them', () {
+        for (final (memory, iterations, lanes) in [
+          (BackupKdf.maxMemory + 1, 1, 1),
+          (65536, BackupKdf.maxIterations + 1, 1),
+          (65536, 1, BackupKdf.maxParallelism + 1),
+          (BackupKdf.maxMemory, 5, 1),
+          (BackupKdf.maxWork ~/ 8 + 1, 8, 1),
+          // Old bounds (256 MiB, 16 passes, 8 lanes) no longer pass.
+          (262144, 3, 1),
+          (65536, 16, 1),
+          (65536, 3, 8),
+        ]) {
+          expect(
+            () => BackupKdf.fromJson(json(memory, iterations, lanes)),
+            _formatError(),
+            reason: '$memory KiB, $iterations passes, $lanes lanes',
           );
         }
       });

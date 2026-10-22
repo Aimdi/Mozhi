@@ -189,8 +189,7 @@ class SettingsBackupSection implements BackupSection {
       onboardingComplete: local.onboardingComplete || backup.onboardingComplete,
       providers: List.unmodifiable([
         for (final provider in backup.providers)
-          if (mine[provider.id] case final own?
-              when sameServer(own, provider))
+          if (mine[provider.id] case final own? when sameServer(own, provider))
             _filled(
               secrets.applyTo(provider),
               apiKey: own.apiKey,

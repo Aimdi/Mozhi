@@ -42,14 +42,23 @@ bool get shareServerSupported => true;
 /// `no-referrer`, and no cookies.
 /// Limits: [maxRequestsPerMinute] requests and [maxJoinsPerMinute] joins
 /// (of which [maxWrongPinsPerMinute] wrong PINs) per address, request
-/// bodies of [maxBodyBytes], one update stream per guest.
+/// bodies of [maxBodyBytes] arriving within [bodyTimeout], one update
+/// stream per guest, and at most `maxConnections` connections at a time
+/// (`maxConnectionsPerAddress` per address; more are closed as soon as
+/// they open). Idle connections close after [idleTimeout]. An update
+/// stream sends one snapshot at a time: while the page has not taken in
+/// the last one, newer changes wait and are sent as one, and a page that
+/// takes in nothing for `maxFlushTime` is disconnected (so a guest that
+/// stops reading can't make the phone hold more and more data).
 class IoShareServer implements ShareServer {
   new _(
     this._server,
+    this._sockets,
     this._room,
     this._strings,
     this._address,
     this._allowPeer,
+    this._maxFlushTime,
     DateTime Function()? clock,
   ) : port = _server.port,
       _requests = ShareRateLimiter(
@@ -71,30 +80,42 @@ class IoShareServer implements ShareServer {
   /// Binds to [address] (a private IPv4 address of the phone) on a random
   /// free port. [allowPeer] decides which clients may connect (default:
   /// private IPv4 addresses, [isPrivateIPv4]); [pingInterval] keeps the
-  /// update streams open through idle timeouts.
+  /// update streams open through idle timeouts. At most [maxConnections]
+  /// connections are open at a time, [maxConnectionsPerAddress] from one
+  /// address; an update stream whose page takes in nothing for
+  /// [maxFlushTime] is closed.
   static Future<IoShareServer> bind({
     required String address,
     required ShareRoom room,
     required ShareStrings strings,
     bool Function(InternetAddress peer)? allowPeer,
     Duration pingInterval = const Duration(seconds: 15),
+    int maxConnections = defaultMaxConnections,
+    int maxConnectionsPerAddress = defaultMaxConnectionsPerAddress,
+    Duration maxFlushTime = defaultMaxFlushTime,
     DateTime Function()? clock,
   }) async {
-    final server = await HttpServer.bind(
-      InternetAddress(address, type: InternetAddressType.IPv4),
-      0,
+    final sockets = _ConnectionGate(
+      await ServerSocket.bind(
+        InternetAddress(address, type: InternetAddressType.IPv4),
+        0,
+      ),
+      maxConnections: maxConnections,
+      maxPerAddress: maxConnectionsPerAddress,
     );
-    server
-      ..idleTimeout = const Duration(seconds: 30)
+    final server = HttpServer.listenOn(sockets)
+      ..idleTimeout = idleTimeout
       ..autoCompress = false
       ..serverHeader = null
       ..defaultResponseHeaders.clear();
     final result = IoShareServer._(
       server,
+      sockets,
       room,
       strings,
       address,
       allowPeer ?? _privatePeer,
+      maxFlushTime,
       clock,
     ).._pingInterval = pingInterval;
     result
@@ -119,6 +140,23 @@ class IoShareServer implements ShareServer {
   /// The largest request body.
   static const maxBodyBytes = 4096;
 
+  /// How long a request body may take to arrive.
+  static const bodyTimeout = Duration(seconds: 10);
+
+  /// After how long without a request a connection is closed (one that
+  /// stays idle is closed between one and two times this).
+  static const idleTimeout = Duration(seconds: 10);
+
+  /// Connections open at a time (guests' pages use a few each).
+  static const defaultMaxConnections = 64;
+
+  /// Connections open at a time from one address.
+  static const defaultMaxConnectionsPerAddress = 16;
+
+  /// How long an update stream may wait for its page to take in what it
+  /// was sent before it is closed (the page then connects again).
+  static const defaultMaxFlushTime = Duration(seconds: 20);
+
   /// How often a guest's page gets at most one new snapshot.
   static const snapshotInterval = Duration(milliseconds: 150);
 
@@ -126,10 +164,12 @@ class IoShareServer implements ShareServer {
   static const _headerKey = 'x-mozhi-key';
 
   final HttpServer _server;
+  final _ConnectionGate _sockets;
   final ShareRoom _room;
   final ShareStrings _strings;
   final String _address;
   final bool Function(InternetAddress peer) _allowPeer;
+  final Duration _maxFlushTime;
   final ShareRateLimiter _requests;
   final ShareRateLimiter _joins;
   final ShareRateLimiter _wrongPins;
@@ -167,6 +207,8 @@ class IoShareServer implements ShareServer {
     await Future.wait([for (final stream in streams) stream.end()]);
     await _requestsSubscription.cancel();
     await _server.close(force: true);
+    // A server listening on a socket of its own does not close it.
+    await _sockets.close();
   }
 
   void _onRoomChanged() {
@@ -307,9 +349,16 @@ class IoShareServer implements ShareServer {
     }
     if (request.contentLength > maxBodyBytes) return null;
     final bytes = BytesBuilder(copy: false);
-    await for (final chunk in request.timeout(const Duration(seconds: 10))) {
-      bytes.add(chunk);
-      if (bytes.length > maxBodyBytes) return null;
+    final elapsed = Stopwatch()..start();
+    try {
+      await for (final chunk in request.timeout(bodyTimeout)) {
+        bytes.add(chunk);
+        if (bytes.length > maxBodyBytes || elapsed.elapsed > bodyTimeout) {
+          return null;
+        }
+      }
+    } on TimeoutException {
+      return null;
     }
     try {
       final json = jsonDecode(utf8.decode(bytes.takeBytes()));
@@ -379,7 +428,11 @@ class IoShareServer implements ShareServer {
     if (language is! String || (pin != null && pin is! String)) {
       return _status(response, HttpStatus.badRequest);
     }
-    final result = _room.join(languageCode: language, pin: pin as String?);
+    final result = _room.join(
+      languageCode: language,
+      pin: pin as String?,
+      client: peer,
+    );
     switch (result) {
       case ShareJoined(:final guest, :final key):
         return _json(response, HttpStatus.ok, {
@@ -388,12 +441,18 @@ class IoShareServer implements ShareServer {
           'language': guest.language.code,
           'strings': _stringsFor(guest, request),
         });
+      case ShareJoinRefused(error: ShareJoinError.languageLimit):
+        return _languageLimit(response);
       case ShareJoinRefused(:final error):
         if (error == ShareJoinError.wrongPin) _wrongPins.allow(peer);
         return _status(response, switch (error) {
           ShareJoinError.wrongPin => HttpStatus.forbidden,
           ShareJoinError.locked => HttpStatus.locked,
           ShareJoinError.full => HttpStatus.conflict,
+          ShareJoinError.tooMany => HttpStatus.tooManyRequests,
+          // Answered above.
+          ShareJoinError.languageLimit => // coverage:ignore-line
+          HttpStatus.conflict, // coverage:ignore-line
           ShareJoinError.unknownLanguage => HttpStatus.badRequest,
           // An ended room answers 404 before this.
           ShareJoinError.ended => HttpStatus.gone, // coverage:ignore-line
@@ -404,15 +463,25 @@ class IoShareServer implements ShareServer {
   Map<String, String> _stringsFor(ShareGuest guest, HttpRequest request) =>
       guestPageStrings(_strings([guest.language.code, ..._accepted(request)]));
 
+  /// No other language can be added ([ShareRoom.canRead]): which ones the
+  /// guest may pick instead.
+  Future<void> _languageLimit(HttpResponse response) =>
+      _json(response, HttpStatus.conflict, {
+        'error': 'languageLimit',
+        'languages': [
+          for (final language in _room.readableLanguages) language.code,
+        ],
+      });
+
   Future<void> _language(HttpRequest request, Map<String, Object?> body) {
     final response = request.response;
     final guest = _guestOf(request);
     if (guest == null) return _status(response, HttpStatus.unauthorized);
     final language = body['language'];
     if (language is! String) return _status(response, HttpStatus.badRequest);
-    if (_room.languageOf(language) == null) {
-      return _status(response, HttpStatus.badRequest);
-    }
+    final wanted = _room.languageOf(language);
+    if (wanted == null) return _status(response, HttpStatus.badRequest);
+    if (!_room.canRead(wanted)) return _languageLimit(response);
     if (!_room.setLanguage(guest, language)) {
       return _status(response, HttpStatus.tooManyRequests);
     }
@@ -477,6 +546,7 @@ class IoShareServer implements ShareServer {
             null => null,
           },
       pingInterval: _pingInterval,
+      maxFlushTime: _maxFlushTime,
       onDone: (stream) {
         if (identical(_streams[guest.id], stream)) {
           _streams.remove(guest.id);
@@ -490,29 +560,45 @@ class IoShareServer implements ShareServer {
   }
 }
 
-/// One guest page's Server-Sent Events stream.
+/// One guest page's Server-Sent Events stream. One write is in flight at
+/// a time: changes while the page has not taken in the last write wait
+/// (and are sent as one snapshot), and a page that takes in nothing for
+/// `maxFlushTime` is disconnected.
 class _EventStream {
   new(
     this._response,
     this.guestId, {
     required this._snapshot,
     required this._pingInterval,
+    required this._maxFlushTime,
     required this._onDone,
   });
+
+  /// How long [end] waits for the last event to go out.
+  static const _endTimeout = Duration(seconds: 2);
 
   final HttpResponse _response;
   final String guestId;
   final Map<String, Object?>? Function() _snapshot;
   final Duration _pingInterval;
+  final Duration _maxFlushTime;
   final void Function(_EventStream stream) _onDone;
   Timer? _ping;
   Timer? _pending;
+
+  /// The page has not taken in the last write yet.
+  bool _flushing = false;
+
+  /// A snapshot is due once it has.
+  bool _behind = false;
+  Timer? _stuck;
   bool _done = false;
 
   void start() {
-    _write('retry: 3000\n\n');
-    _send();
-    _ping = Timer.periodic(_pingInterval, (_) => _write(': ping\n\n'));
+    _send(prefix: 'retry: 3000\n\n');
+    _ping = Timer.periodic(_pingInterval, (_) {
+      if (!_flushing) _write(': ping\n\n');
+    });
     unawaited(
       _response.done
           .then<void>((_) {}, onError: (Object _) {})
@@ -529,34 +615,65 @@ class _EventStream {
     });
   }
 
-  void _send() {
+  void _send({String prefix = ''}) {
+    if (_done) return;
+    if (_flushing) {
+      // Skipped: the page gets the latest snapshot once it caught up.
+      _behind = true;
+      return;
+    }
     final snapshot = _snapshot();
     if (snapshot == null) {
       unawaited(end());
       return;
     }
-    _write('event: snapshot\ndata: ${jsonEncode(snapshot)}\n\n');
+    _write('${prefix}event: snapshot\ndata: ${jsonEncode(snapshot)}\n\n');
   }
 
   void _write(String text) {
-    if (_done) return;
+    if (_done || _flushing) return;
     try {
       _response.write(text);
+      _flushing = true;
+      _stuck = Timer(_maxFlushTime, _drop);
+      unawaited(
+        _response.flush().then<void>((_) {
+          _flushing = false;
+          _stuck?.cancel();
+          _stuck = null;
+          if (_behind) {
+            _behind = false;
+            _send();
+          }
+        }, onError: (Object _) => _drop()),
+      );
     } on Object {
-      _finish(); // coverage:ignore-line
+      _drop(); // coverage:ignore-line
     }
+  }
+
+  /// Disconnects a page that takes in nothing (or whose connection
+  /// broke): what waits for it is dropped with the connection.
+  void _drop() {
+    if (_done) return;
+    _finish();
+    // Closes the connection at once, whatever it still holds.
+    _response.deadline = Duration.zero;
   }
 
   /// Tells the page the conversation ended (unless another page of the
   /// guest [replaced] it) and closes the stream.
   Future<void> end({bool replaced = false}) async {
     if (_done) return;
-    if (!replaced) _write('event: ended\ndata: {}\n\n');
+    if (_flushing) return _drop();
     _finish();
     try {
-      await _response.close();
+      if (!replaced) _response.write('event: ended\ndata: {}\n\n');
+      // A page that does not take it in is disconnected.
+      _response.deadline = _maxFlushTime;
+      await _response.close().timeout(_endTimeout);
     } on Object {
-      // The page is gone already.
+      // The page is gone already, or does not read.
     }
   }
 
@@ -565,6 +682,185 @@ class _EventStream {
     _done = true;
     _ping?.cancel();
     _pending?.cancel();
+    _stuck?.cancel();
     _onDone(this);
   }
+}
+
+/// The server's listening socket, which closes a new connection at once
+/// when [maxConnections] are open, or [maxPerAddress] from its address.
+class _ConnectionGate extends Stream<Socket> implements ServerSocket {
+  new(
+    this._socket, {
+    required this.maxConnections,
+    required this.maxPerAddress,
+  });
+
+  final ServerSocket _socket;
+  final int maxConnections;
+  final int maxPerAddress;
+  final Map<String, int> _open = {};
+  int _total = 0;
+
+  @override
+  StreamSubscription<Socket> listen(
+    void Function(Socket socket)? onData, {
+    Function? onError,
+    void Function()? onDone,
+    bool? cancelOnError,
+  }) => _socket
+      .map(_admit)
+      .where((socket) => socket != null)
+      .cast<Socket>()
+      .listen(
+        onData,
+        onError: onError,
+        onDone: onDone,
+        cancelOnError: cancelOnError,
+      );
+
+  Socket? _admit(Socket socket) {
+    final String address;
+    try {
+      address = socket.remoteAddress.address;
+    } on Object {
+      // Closed already. coverage:ignore-start
+      socket.destroy();
+      return null;
+      // coverage:ignore-end
+    }
+    final open = _open[address] ?? 0;
+    if (_total >= maxConnections || open >= maxPerAddress) {
+      socket.destroy();
+      return null;
+    }
+    _total++;
+    _open[address] = open + 1;
+    return _CountedSocket(socket, () {
+      _total--;
+      final left = (_open[address] ?? 1) - 1;
+      if (left > 0) {
+        _open[address] = left;
+      } else {
+        _open.remove(address);
+      }
+    });
+  }
+
+  @override
+  int get port => _socket.port;
+
+  @override
+  InternetAddress get address => _socket.address;
+
+  @override
+  Future<ServerSocket> close() async {
+    await _socket.close();
+    return this;
+  }
+}
+
+/// A connection that tells [_onClosed] (once) when it closes: the HTTP
+/// server destroys every connection it is done with, and the stream ends
+/// when the client closes it.
+class _CountedSocket extends Stream<Uint8List> implements Socket {
+  new(this._socket, this._onClosed);
+
+  final Socket _socket;
+  final void Function() _onClosed;
+  bool _closed = false;
+
+  void _close() {
+    if (_closed) return;
+    _closed = true;
+    _onClosed();
+  }
+
+  @override
+  StreamSubscription<Uint8List> listen(
+    void Function(Uint8List data)? onData, {
+    Function? onError,
+    void Function()? onDone,
+    bool? cancelOnError,
+  }) => _socket.listen(
+    onData,
+    onError: onError,
+    onDone: () {
+      _close();
+      onDone?.call();
+    },
+    cancelOnError: cancelOnError,
+  );
+
+  @override
+  void destroy() {
+    _close();
+    _socket.destroy();
+  }
+
+  @override
+  Future<void> close() {
+    _close();
+    return _socket.close();
+  }
+
+  @override
+  void add(List<int> data) => _socket.add(data);
+
+  @override
+  Future<void> addStream(Stream<List<int>> stream) => _socket.addStream(stream);
+
+  @override
+  Future<void> flush() => _socket.flush();
+
+  @override
+  Future<void> get done => _socket.done;
+
+  @override
+  InternetAddress get address => _socket.address;
+
+  @override
+  int get port => _socket.port;
+
+  @override
+  InternetAddress get remoteAddress => _socket.remoteAddress;
+
+  @override
+  int get remotePort => _socket.remotePort;
+
+  @override
+  bool setOption(SocketOption option, bool enabled) =>
+      _socket.setOption(option, enabled);
+
+  // The HTTP server uses none of these. coverage:ignore-start
+  @override
+  Encoding get encoding => _socket.encoding;
+
+  @override
+  set encoding(Encoding value) => _socket.encoding = value;
+
+  @override
+  void addError(Object error, [StackTrace? stackTrace]) =>
+      _socket.addError(error, stackTrace);
+
+  @override
+  void write(Object? object) => _socket.write(object);
+
+  @override
+  void writeAll(Iterable<Object?> objects, [String separator = '']) =>
+      _socket.writeAll(objects, separator);
+
+  @override
+  void writeCharCode(int charCode) => _socket.writeCharCode(charCode);
+
+  @override
+  void writeln([Object? object = '']) => _socket.writeln(object);
+
+  @override
+  Uint8List getRawOption(RawSocketOption option) =>
+      _socket.getRawOption(option);
+
+  @override
+  void setRawOption(RawSocketOption option) => _socket.setRawOption(option);
+  // coverage:ignore-end
 }
