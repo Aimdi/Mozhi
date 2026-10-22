@@ -220,8 +220,8 @@ class ShortQueryPanel extends StatelessWidget {
 
 /// Up to [ShortQueryPanel.maxDefinitions] senses of [word] from the
 /// offline [dictionary] (the dictionary of [language], or every installed
-/// one when it is unknown), each with its part of speech and first
-/// example, under [heading], ending with the source and licence of the
+/// one when it is unknown), each with its part of speech, and the entry's
+/// first example, under [heading], ending with the source and licence of the
 /// data. Nothing while it looks or when the dictionaries do not have the
 /// word. Looked up again when the word or a language changes, or
 /// dictionaries are installed or removed.
@@ -315,7 +315,9 @@ class _OfflineDefinitionsState extends State<OfflineDefinitions> {
     if (answer == null || senses.isEmpty) return const SizedBox.shrink();
     final theme = Theme.of(context);
     final muted = AppPalette.of(context).secondaryText;
-    final examples = answer.entry.examples;
+    final example = answer.entry.examples.isEmpty
+        ? ''
+        : answer.entry.examples.first.source.trim();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -324,38 +326,34 @@ class _OfflineDefinitionsState extends State<OfflineDefinitions> {
           Padding(
             key: ValueKey('translate_short_offline_sense:$index'),
             padding: const EdgeInsets.only(bottom: 8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text.rich(
-                  TextSpan(
-                    children: [
-                      if (sense.partOfSpeech.trim().isNotEmpty)
-                        TextSpan(
-                          text: '${sense.partOfSpeech.trim()}  ',
-                          style: TextStyle(
-                            color: muted,
-                            fontStyle: FontStyle.italic,
-                          ),
-                        ),
-                      TextSpan(text: sense.definition.trim()),
-                    ],
-                  ),
-                  style: theme.textTheme.bodyMedium,
-                ),
-                if (index < examples.length &&
-                    examples[index].source.trim().isNotEmpty)
-                  Text.rich(
+            child: Text.rich(
+              TextSpan(
+                children: [
+                  if (sense.partOfSpeech.trim().isNotEmpty)
                     TextSpan(
-                      text: examples[index].source.trim(),
-                      locale: widget.sourceLocale,
+                      text: '${sense.partOfSpeech.trim()}  ',
+                      style: TextStyle(
+                        color: muted,
+                        fontStyle: FontStyle.italic,
+                      ),
                     ),
-                    textDirection: widget.sourceDirection,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      fontStyle: FontStyle.italic,
-                    ),
-                  ),
-              ],
+                  TextSpan(text: sense.definition.trim()),
+                ],
+              ),
+              style: theme.textTheme.bodyMedium,
+            ),
+          ),
+        // The entry's first example (its senses' examples are merged).
+        if (example.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Text.rich(
+              TextSpan(text: example, locale: widget.sourceLocale),
+              key: const Key('translate_short_offline_example'),
+              textDirection: widget.sourceDirection,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontStyle: FontStyle.italic,
+              ),
             ),
           ),
         DictionaryAttributionLink(attribution: answer.attribution),

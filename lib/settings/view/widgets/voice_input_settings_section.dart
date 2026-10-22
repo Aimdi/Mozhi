@@ -18,10 +18,12 @@ import 'package:translation_repository/translation_repository.dart'
 import 'package:whisper_speech/whisper_speech.dart' show WhisperImportStatus;
 
 /// The display name of speech model [id]: "Fast" (`tiny`), "Better"
-/// (`base`), else the id.
+/// (`base`), "Speech detection" (the voice activity model,
+/// `silero-vad`), else the id.
 String voiceModelName(AppLocalizations l10n, String id) => switch (id) {
   'tiny' => l10n.voiceModelFast,
   'base' => l10n.voiceModelBetter,
+  'silero-vad' => l10n.voiceModelVoiceDetection,
   _ => id,
 };
 
@@ -97,8 +99,16 @@ class VoiceInputSettingsView extends StatelessWidget {
             operation: state.pending[model.id],
             progress: state.progress[model.id],
           ),
+        if (state.voiceDetection case final detection?
+            when state.voiceDetectionMissing ||
+                state.pending.containsKey(detection.id))
+          _VoiceDetectionTile(
+            model: detection,
+            downloading: state.pending.containsKey(detection.id),
+            progress: state.progress[detection.id],
+          ),
         _ImportTile(importing: state.importing),
-        _CopyLinksTile(models: state.models),
+        _CopyLinksTile(models: [...state.models, ?state.voiceDetection]),
       ],
       if (!offlineOnly &&
           state.engine == VoiceInputEngine.system &&
@@ -138,7 +148,12 @@ class VoiceInputSettingsView extends StatelessWidget {
     final cubit = context.read<VoiceSettingsCubit>();
     final name = voiceModelName(l10n, outcome.model);
     if (outcome.needsMeteredConsent) {
-      final size = cubit.state.model(outcome.model)?.sizeBytes ?? 0;
+      final detection = cubit.state.voiceDetection;
+      final isDetection = detection != null && outcome.model == detection.id;
+      final size =
+          (isDetection ? detection : cubit.state.model(outcome.model))
+              ?.sizeBytes ??
+          0;
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (context) => _MeteredDialog(
@@ -146,7 +161,9 @@ class VoiceInputSettingsView extends StatelessWidget {
         ),
       );
       if ((confirmed ?? false) && !cubit.isClosed) {
-        await cubit.download(outcome.model, overMeteredNetwork: true);
+        await (isDetection
+            ? cubit.downloadVoiceDetection(overMeteredNetwork: true)
+            : cubit.download(outcome.model, overMeteredNetwork: true));
       }
       return;
     }
@@ -158,13 +175,25 @@ class VoiceInputSettingsView extends StatelessWidget {
       VoiceModelOperation.delete when outcome.succeeded =>
         l10n.voiceModelDeleteDone(name),
       VoiceModelOperation.delete => l10n.voiceModelDeleteFailed(name),
-      VoiceModelOperation.download => switch (error?.kind) {
-        VoiceModelErrorKind.checksum => l10n.voiceModelErrorChecksum(name),
-        VoiceModelErrorKind.server => l10n.voiceModelErrorServer(
+      VoiceModelOperation.download => switch ((error?.kind, error?.mirror)) {
+        (VoiceModelErrorKind.checksum, final String mirror) =>
+          l10n.voiceModelErrorChecksumMirror(name, mirror),
+        (VoiceModelErrorKind.checksum, _) => l10n.voiceModelErrorChecksum(name),
+        (VoiceModelErrorKind.server, final String mirror) =>
+          l10n.voiceModelErrorServerMirror(
+            name,
+            mirror,
+            error?.statusCode ?? 0,
+          ),
+        (VoiceModelErrorKind.server, _) => l10n.voiceModelErrorServer(
           name,
           error?.statusCode ?? 0,
         ),
-        VoiceModelErrorKind.storage => l10n.voiceModelErrorStorage(name),
+        (VoiceModelErrorKind.storage, _) => l10n.voiceModelErrorStorage(name),
+        (_, final String mirror) => l10n.voiceModelErrorNetworkMirror(
+          name,
+          mirror,
+        ),
         _ => l10n.voiceModelErrorNetwork(name),
       },
     };
@@ -426,6 +455,60 @@ class _ModelTile extends StatelessWidget {
       ),
     );
     if ((confirmed ?? false) && !cubit.isClosed) await cubit.delete(model.id);
+  }
+}
+
+/// The voice activity model ("Speech detection") when speech models are
+/// installed without it (they came before the app had one): what it does,
+/// its size and a download button (with progress while it downloads).
+class _VoiceDetectionTile extends StatelessWidget {
+  const new({
+    required this.model,
+    required this.downloading,
+    required this.progress,
+  });
+
+  final VoiceModel model;
+  final bool downloading;
+  final double? progress;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final name = l10n.voiceModelVoiceDetection;
+    final subtitle = downloading
+        ? l10n.voiceModelDownloading(((progress ?? 0) * 100).floor())
+        : l10n.voiceModelVoiceDetectionSubtitle(
+            formatStoredSize(l10n, model.sizeBytes),
+          );
+    return ListTile(
+      key: const Key('voice_model_voice_detection'),
+      leading: const SettingsIcon(Icons.hearing_outlined),
+      title: Text(name),
+      subtitle: Text(subtitle),
+      trailing: downloading
+          ? SizedBox.square(
+              dimension: 48,
+              child: Center(
+                child: SizedBox.square(
+                  dimension: 24,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    value: (progress ?? 0) > 0 ? progress : null,
+                    semanticsLabel: subtitle,
+                  ),
+                ),
+              ),
+            )
+          : IconButton(
+              key: const Key('voice_model_download_voice_detection'),
+              tooltip: l10n.voiceModelDownloadTooltip(name),
+              icon: const Icon(Icons.download_outlined),
+              onPressed: () => unawaited(
+                context.read<VoiceSettingsCubit>().downloadVoiceDetection(),
+              ),
+            ),
+    );
   }
 }
 

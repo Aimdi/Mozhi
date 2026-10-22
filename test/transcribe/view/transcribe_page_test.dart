@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:bloc_test/bloc_test.dart';
@@ -474,5 +475,92 @@ void main() {
     await tester.pump();
     expect(transcriber.cancels, 1);
     expect(awake.calls.last, isFalse);
+  });
+
+  testWidgets('Offline only translates on the device', (tester) async {
+    when(() => repository.privacyMode).thenReturn(PrivacyMode.offlineOnly);
+    when(() => repository.destinationOf(TranslationEngine.offlineId))
+        .thenReturn(const OnDeviceDestination());
+    when(() => translate.state).thenReturn(
+      TranslateState(
+        engines: [deepl, TranslationEngine.offline()],
+        engine: deepl,
+        source: english,
+        target: german,
+      ),
+    );
+    await pump(tester);
+    await tester.tap(find.byKey(const Key('transcribe_translate')));
+    await tester.pump();
+    expect(find.text(l10n.transcribeTranslatedOnDevice), findsOneWidget);
+  });
+
+  testWidgets('a translation shows as it arrives; older entries wait for '
+      'the one consent', (tester) async {
+    final streams = <StreamController<TranslationResult>>[];
+    when(() => repository.translate(any(), any())).thenAnswer((_) {
+      final controller = StreamController<TranslationResult>();
+      streams.add(controller);
+      return controller.stream;
+    });
+    await pump(tester);
+    await startListening(tester);
+    await tester.tap(find.byKey(const Key('transcribe_translate')));
+    await tester.pump();
+    transcriber
+      ..heard('One.', start: 0, end: 1)
+      ..heard('Two.', start: 1, end: 2);
+    await tester.pump();
+    await tester.pump();
+    expect(find.text(l10n.transcribeTranslating), findsNWidgets(2));
+    streams.first.add(
+      const TranslationResult(
+        engineId: 'mozhi:deepl',
+        engineName: 'DeepL',
+        text: 'Ei',
+        isComplete: false,
+      ),
+    );
+    await tester.pump();
+    expect(find.text('Ei'), findsOneWidget);
+    const consent = ConsentRequiredException(
+      kind: ConsentKind.cloudProvider,
+      destination: CloudProviderDestination('DeepL'),
+      engineId: 'mozhi:deepl',
+    );
+    streams.first.addError(consent);
+    await tester.pump();
+    await tester.pump();
+    streams.last.addError(consent);
+    await tester.pump();
+    await tester.pump();
+    expect(find.text(l10n.transcribeTranslationWaiting), findsOneWidget);
+    expect(find.byKey(const Key('transcribe_consent_1')), findsOneWidget);
+  });
+
+  testWidgets('explains Offline only and the missing recogniser', (
+    tester,
+  ) async {
+    for (final mode in [
+      TranscribeMode.offlineOnly,
+      TranscribeMode.unavailable,
+    ]) {
+      await tester.pumpWidget(
+        MaterialApp(
+          localizationsDelegates: appLocalizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(body: TranscribeUnavailable(mode: mode)),
+        ),
+      );
+      expect(
+        find.text(
+          mode == TranscribeMode.offlineOnly
+              ? l10n.transcribeOfflineOnlyTitle
+              : l10n.transcribeUnavailableTitle,
+        ),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('transcribe_download_model')), findsNothing);
+    }
   });
 }

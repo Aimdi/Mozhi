@@ -237,6 +237,15 @@ notices in sync.
   They're downloaded on request, never shipped, and verified against
   `packages/bergamot_translator/assets/catalog.json`
   ([Offline engine](offline-engine.md#models-and-the-catalog)).
+- **Dictionary packs**: Wiktionary data (by Wiktionary contributors,
+  **CC BY-SA 4.0** and GFDL), extracted by wiktextract (MIT) and published
+  by kaikki.org, shortened by `tool/dictionary_packs.py`. Downloaded on
+  request, never shipped, verified against
+  `lib/dictionary/data/dictionary_catalog_data.dart`; every pack carries
+  its attribution, which the app shows with each entry
+  ([Dictionary packs](dictionary-packs.md#data-and-licence)). The pack
+  reader, gzip decoder and SHA-256 are the app's own code (MIT), not new
+  dependencies.
 - **Web build**: the Flutter engine and CanvasKit (Skia, BSD-3-Clause) come
   with the Flutter SDK and are served from the build itself
   (`--no-web-resources-cdn`).

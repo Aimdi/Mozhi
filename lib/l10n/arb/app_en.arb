@@ -9348,10 +9348,6 @@
   "@transcribeFileFailed": {
     "description": "transcribeFileFailed"
   },
-  "transcribeShareUnsupported": "Sharing files isn’t available here",
-  "@transcribeShareUnsupported": {
-    "description": "transcribeShareUnsupported"
-  },
   "transcribeClear": "Clear transcript",
   "@transcribeClear": {
     "description": "transcribeClear"

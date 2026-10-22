@@ -274,7 +274,8 @@ One plain directory of files, under their original names:
 models/
 ├── bergamot/<source>-<target>/<version>/<name>.gz   e.g. bergamot/en-de/retrain_hr_…/model.ende.intgemm.alphas.bin.gz
 ├── whisper/<name>                                   e.g. whisper/ggml-tiny.bin, whisper/ggml-silero-v6.2.0.bin
-└── tesseract/<code>.traineddata                     e.g. tesseract/deu.traineddata
+├── tesseract/<code>.traineddata                     e.g. tesseract/deu.traineddata
+└── dictionary/<id>.mzd                              e.g. dictionary/es.mzd (offline dictionaries; `--only dictionary`, `--dictionaries es`)
 ```
 
 The app asks for `<mirror>/bergamot/…`, `<mirror>/whisper/…` and

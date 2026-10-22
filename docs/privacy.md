@@ -198,6 +198,19 @@ doesn't have fails instead of going to the publisher. No text, voice,
 picture, identifier or cookie is sent with a download. To run a mirror, see
 [self-hosting](self-hosting-mozhi.md#mirror-the-on-device-models).
 
+### Offline dictionaries
+
+Dictionary packs (**Settings > Offline languages > Dictionaries**) are
+downloaded only when you tap **Download**, once, from the same [model
+source](#where-model-files-come-from) (by default the project's GitHub
+release, `github.com` and its download servers, which see your IP address
+and which languages you download), checked against the SHA-256 pinned in
+the app and kept in the app's private storage (in a browser, its private
+storage for the site). Looking a word up in them never leaves the device:
+no request is made, nothing is logged, and only **More detail** (or a word
+the packs don't have, when you have an AI provider) goes to your AI
+provider, as before.
+
 ### On-device translation in the web app
 
 The web app translates without the network too, in browsers that can run
@@ -240,7 +253,7 @@ stores on the device and what the other party may keep.
 | Web page translator | The website you enter, then the translation engine | The page address and your IP address, with a desktop browser `User-Agent` and no cookies | The website's logs. The page text then follows the translation row above. |
 | Offline model download (**Settings > Translation engines > Offline languages**, or a language's download button in the language picker) | The [model source](#where-model-files-come-from); by default `storage.googleapis.com`: Mozilla's Firefox Translations bucket (`moz-fx-translations-data--303e-prod-translations-data`), hosted on Google Cloud Storage | Plain file requests (HTTPS `GET`, `Range` to resume): Google as the host sees your IP address, the time and which model files, so which languages, you download. No text, identifiers or cookies | Google Cloud Storage's logs. The models stay on the device until you delete them. |
 | Text recognition data download (**Download German text recognition**, **Settings > Translation engines > Offline languages > Text recognition**) | The [model source](#where-model-files-come-from); by default `raw.githubusercontent.com`: Tesseract's [tessdata_fast](https://github.com/tesseract-ocr/tessdata_fast) on GitHub (owned by Microsoft), pinned to one commit | Plain file requests (HTTPS `GET`, `Range` to resume): GitHub sees your IP address, the time and which language files you download. No picture, text, identifiers or cookies | GitHub's logs. The data stays on the device until you delete it; **Import from files** contacts nothing. |
-| Offline speech model download (**Settings > Read aloud & voice > Voice input**) | The [model source](#where-model-files-come-from); by default `huggingface.co` (the [whisper.cpp models](https://huggingface.co/ggerganov/whisper.cpp)), which may redirect to its download servers | Plain file requests (HTTPS `GET`, `Range` to resume): Hugging Face sees your IP address, the time and which model (Fast or Better) you download. No voice, text, identifiers or cookies | Hugging Face's logs. The model stays on the device until you delete it; **Import from files** contacts nothing. |
+| Offline speech model download (**Settings > Read aloud & voice > Voice input**) | The [model source](#where-model-files-come-from); by default `huggingface.co` (the [whisper.cpp models](https://huggingface.co/ggerganov/whisper.cpp), and the 0.9 MB speech detector from [ggml-org/whisper-vad](https://huggingface.co/ggml-org/whisper-vad), downloaded with the first model), which may redirect to its download servers | Plain file requests (HTTPS `GET`, `Range` to resume): Hugging Face sees your IP address, the time and which model (Fast or Better, and the speech detector) you download. No voice, text, identifiers or cookies | Hugging Face's logs. The model stays on the device until you delete it; **Import from files** contacts nothing. |
 | Engine and language lists | The Mozhi instances in your list | Nothing about you except your IP address | The instance's logs. Stored on the device as a cache. |
 | **Check instances**, **Find the fastest server** (setup), **Test**, **Test connection**, **Browse models** | Each instance or provider, only when you ask | A version request, or a model list request with your key | The server's logs. |
 | Web app fonts | The server that hosts the web app: the release zip and the CI builds include the fonts for scripts the bundled font lacks (for example Chinese or Devanagari) and emoji. Only a web build made without `tool/web_fallback_fonts.py` ([building](building.md#web-build-self-hosted-fonts-and-deferred-languages)) fetches them from Google's `fonts.gstatic.com` | The font file name, so which scripts you read, and your IP address; not your text | The browser caches the font. |

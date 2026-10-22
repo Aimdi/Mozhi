@@ -102,6 +102,14 @@ void main() {
           .called(1);
     });
 
+    testWidgets('opens Transcribe', (tester) async {
+      final harness = await _open(tester);
+      expect(_tool(TranslateTool.transcribe), findsOneWidget);
+      await tester.tap(_tool(TranslateTool.transcribe));
+      await tester.pumpAndSettle();
+      verify(() => harness.router.push<void>('/transcribe')).called(1);
+    });
+
     testWidgets('opens the recent pairs', (tester) async {
       await _open(tester, state: translatedState());
       await tester.tap(_tool(TranslateTool.recentPairs));

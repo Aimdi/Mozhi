@@ -39,6 +39,14 @@ final _base = WhisperCatalogModel(
   sha1: 'b' * 40,
 );
 
+final _vad = WhisperCatalogModel(
+  id: 'silero-vad',
+  name: 'ggml-silero-v6.2.0.bin',
+  url: Uri.parse('https://models.example/ggml-silero-v6.2.0.bin'),
+  size: 885098,
+  sha1: 'c' * 40,
+);
+
 void main() {
   final l10n = lookupAppLocalizations(const Locale('en'));
   late MemoryStore store;
@@ -551,7 +559,188 @@ void main() {
     test('names the models', () {
       expect(voiceModelName(l10n, 'tiny'), l10n.voiceModelFast);
       expect(voiceModelName(l10n, 'base'), l10n.voiceModelBetter);
+      expect(voiceModelName(l10n, 'silero-vad'), l10n.voiceModelVoiceDetection);
       expect(voiceModelName(l10n, 'small'), 'small');
+    });
+
+    final mirrorFailures = <String, (Object, String Function(String))>{
+      'checksum': (
+        WhisperChecksumException(
+          'tiny',
+          'bad',
+          mirror: Uri.parse('https://mirror.example/models/'),
+        ),
+        (name) => l10n.voiceModelErrorChecksumMirror(name, 'mirror.example'),
+      ),
+      'server': (
+        WhisperDownloadException(
+          'tiny',
+          'x',
+          statusCode: 404,
+          mirror: Uri.parse('https://mirror.example/models/'),
+        ),
+        (name) => l10n.voiceModelErrorServerMirror(name, 'mirror.example', 404),
+      ),
+      'network': (
+        WhisperDownloadException(
+          'tiny',
+          'x',
+          mirror: Uri.parse('https://mirror.example/models/'),
+        ),
+        (name) => l10n.voiceModelErrorNetworkMirror(name, 'mirror.example'),
+      ),
+    };
+    for (final MapEntry(key: name, value: (error, message))
+        in mirrorFailures.entries) {
+      testWidgets('names the mirror of a $name failure', (tester) async {
+        when(
+          () => offline.download(
+            any(),
+            overMeteredNetwork: any(named: 'overMeteredNetwork'),
+            onProgress: any(named: 'onProgress'),
+          ),
+        ).thenThrow(error);
+        await pumpView(tester);
+        await tester.tap(
+          find.byTooltip(l10n.voiceModelDownloadTooltip(l10n.voiceModelFast)),
+        );
+        await tester.pumpAndSettle();
+        expect(find.text(message(l10n.voiceModelFast)), findsOneWidget);
+      });
+    }
+  });
+
+  group('speech detection', () {
+    late bool vadReady;
+
+    setUp(() {
+      vadReady = false;
+      when(() => offline.vadModel).thenReturn(_vad);
+      when(() => offline.isVadReady()).thenAnswer((_) async => vadReady);
+      when(
+        () => offline.downloadVoiceDetection(
+          overMeteredNetwork: any(named: 'overMeteredNetwork'),
+          onProgress: any(named: 'onProgress'),
+        ),
+      ).thenAnswer((_) async => vadReady = true);
+    });
+
+    testWidgets('is offered when speech models came without it', (
+      tester,
+    ) async {
+      installed = {'tiny'};
+      await pumpView(tester);
+      expect(
+        find.byKey(const Key('voice_model_voice_detection')),
+        findsOneWidget,
+      );
+      expect(
+        find.text(
+          l10n.voiceModelVoiceDetectionSubtitle(
+            formatStoredSize(l10n, _vad.size),
+          ),
+        ),
+        findsOneWidget,
+      );
+      await tester.tap(
+        find.byKey(const Key('voice_model_download_voice_detection')),
+      );
+      await tester.pumpAndSettle();
+      verify(
+        () => offline.downloadVoiceDetection(
+          onProgress: any(named: 'onProgress'),
+        ),
+      ).called(1);
+      expect(
+        find.text(l10n.voiceModelDownloadDone(l10n.voiceModelVoiceDetection)),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('voice_model_voice_detection')),
+        findsNothing,
+      );
+    });
+
+    testWidgets('is not offered without speech models', (tester) async {
+      await pumpView(tester);
+      expect(
+        find.byKey(const Key('voice_model_voice_detection')),
+        findsNothing,
+      );
+    });
+
+    testWidgets('is not offered once installed', (tester) async {
+      installed = {'tiny'};
+      vadReady = true;
+      await pumpView(tester);
+      expect(
+        find.byKey(const Key('voice_model_voice_detection')),
+        findsNothing,
+      );
+    });
+
+    testWidgets('asks before downloading it over mobile data', (tester) async {
+      installed = {'tiny'};
+      var calls = 0;
+      when(
+        () => offline.downloadVoiceDetection(
+          overMeteredNetwork: any(named: 'overMeteredNetwork'),
+          onProgress: any(named: 'onProgress'),
+        ),
+      ).thenAnswer((invocation) async {
+        calls++;
+        if (invocation.namedArguments[#overMeteredNetwork] != true) {
+          throw const VoiceModelMeteredException();
+        }
+        vadReady = true;
+      });
+      await pumpView(tester);
+      await tester.tap(
+        find.byKey(const Key('voice_model_download_voice_detection')),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.text(
+          l10n.voiceModelMeteredBody(
+            l10n.voiceModelVoiceDetection,
+            formatStoredSize(l10n, _vad.size),
+          ),
+        ),
+        findsOneWidget,
+      );
+      await tester.tap(find.byKey(const Key('voice_model_metered_confirm')));
+      await tester.pumpAndSettle();
+      expect(calls, 2);
+      verifyNever(
+        () => offline.download(
+          any(),
+          overMeteredNetwork: any(named: 'overMeteredNetwork'),
+          onProgress: any(named: 'onProgress'),
+        ),
+      );
+    });
+
+    testWidgets('copies its download link too', (tester) async {
+      final copied = <String>[];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'Clipboard.setData') {
+            copied.add((call.arguments as Map)['text'] as String);
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+      await pumpView(tester);
+      await tester.tap(find.byKey(const Key('voice_model_copy_links')));
+      await tester.pumpAndSettle();
+      expect(copied, ['${_tiny.url}\n${_base.url}\n${_vad.url}']);
     });
   });
 }

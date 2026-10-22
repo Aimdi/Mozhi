@@ -44,16 +44,29 @@ typedef _RequestBuilder = http.BaseRequest Function(
 /// The exception's `uri` is the last URL that was requested, which differs
 /// from the endpoint after a redirect.
 ///
-/// POST requests (`translate*`) are never redirected by the platform: a
-/// 301, 302, 307 or 308 answer (typically a reverse proxy upgrading `http`
-/// to `https`) is followed here by re-sending the same form to `Location`,
-/// at most [maxRedirects] times and never from `https` to `http`. On the web
-/// a redirected POST therefore fails as a transport error, because `fetch`
-/// can only follow it as a GET without the form. On native platforms GET
-/// redirects (also 303) are followed here too, under the same rules, so
-/// that every hop goes through the [http.Client] (and whatever policy it
+/// Redirects are followed here, at most [maxRedirects] times, and only
+/// within the instance: to the same origin (scheme, host and port), or from
+/// `http` to `https` on the same host and the default ports (80 to 443,
+/// typically a reverse proxy upgrading the connection). POST requests
+/// (`translate*`, [translateImage]) are never redirected by the platform: a
+/// 301, 302, 307 or 308 answer re-sends the same form to `Location`. On
+/// native platforms GET requests also follow a 303, under the same rules,
+/// so that every hop goes through the [http.Client] (and whatever policy it
 /// enforces) and a GET carrying the user's text (`/api/tts`) is never
-/// downgraded to plain `http`; `fetch` follows them itself on the web.
+/// downgraded to plain `http`.
+///
+/// A redirect to any other server (another host or port, another scheme,
+/// `https` to `http`) is not followed: it fails with a [MozhiApiException]
+/// that keeps the 3xx status and names that server's origin only (the path
+/// and query may carry the user's text). The text goes only to the instance
+/// the user chose: another host could even be on their private network,
+/// which the app reaches around the HTTP proxy. Adding that address as an
+/// instance is the way to use it.
+///
+/// On the web `fetch` follows GET redirects itself and cannot hand them
+/// over, so these rules do not apply to them there; a redirected POST fails
+/// as a transport error, because `fetch` can only follow it as a GET
+/// without the form.
 ///
 /// Requests that carry the user's content ([translate],
 /// [translateWithEngines], [textToSpeech], [translateImage]) take an
@@ -465,7 +478,8 @@ class MozhiApiClient {
 
   /// GET requests follow redirects natively only on the web (`fetch`
   /// cannot hand them over); elsewhere [_send] follows them, so that no hop
-  /// bypasses the [http.Client] or downgrades to plain `http`.
+  /// bypasses the [http.Client], leaves the instance or downgrades to plain
+  /// `http`.
   static http.BaseRequest _get(Uri url, Future<void> abortTrigger) =>
       http.AbortableRequest('GET', url, abortTrigger: abortTrigger)
         ..followRedirects = _isWeb;
@@ -563,7 +577,7 @@ class MozhiApiClient {
     final status = response.statusCode;
     if (status < 200 || status > 299) {
       throw MozhiApiException(
-        _errorMessage(response),
+        _errorMessage(response, url),
         statusCode: status,
         uri: url,
       );
@@ -572,27 +586,66 @@ class MozhiApiClient {
   }
 
   /// Where to re-send a [method] request that got [response] from [url], or
-  /// `null` when [response] is not a redirect that is safe to follow:
-  /// unknown status (303 is only followed for GET), no usable `Location`, a
-  /// scheme other than http(s), or a downgrade from `https` to `http`.
-  /// Credentials in `Location` are dropped; only [baseUrl]'s are ever sent,
-  /// as a header.
+  /// `null` when [response] is not a redirect that is followed: unknown
+  /// status (303 is only followed for GET), no usable `Location`, or a
+  /// target on another server ([_staysOnInstance]), which includes other
+  /// schemes and a downgrade from `https` to `http`. Credentials in
+  /// `Location` are dropped; only [baseUrl]'s are ever sent, as a header.
   static Uri? _redirectTarget(Uri url, http.Response response, String method) {
     final statuses = method == 'GET' ? _getRedirectStatuses : _redirectStatuses;
     if (!statuses.contains(response.statusCode)) return null;
-    final location = response.headers['location']?.trim() ?? '';
-    final reference = location.isEmpty ? null : Uri.tryParse(location);
+    final target = _resolveLocation(url, response.headers['location']);
+    return target != null && _staysOnInstance(url, target) ? target : null;
+  }
+
+  /// [location] resolved against [url], without fragment and user info, or
+  /// `null` when it is blank or not a URL.
+  static Uri? _resolveLocation(Uri url, String? location) {
+    final trimmed = location?.trim() ?? '';
+    final reference = trimmed.isEmpty ? null : Uri.tryParse(trimmed);
     if (reference == null) return null;
     final target = url.resolveUri(reference).removeFragment();
-    final allowed =
-        target.isScheme('https') ||
-        (target.isScheme('http') && url.isScheme('http'));
-    if (!allowed) return null;
     return target.userInfo.isEmpty ? target : target.replace(userInfo: '');
   }
 
+  /// Whether a redirect from [url] to [target] stays on the same server:
+  /// the same origin, or `http` upgraded to `https` on the same host and the
+  /// default ports (80 to 443).
+  static bool _staysOnInstance(Uri url, Uri target) =>
+      _isSameOrigin(url, target) ||
+      (url.isScheme('http') &&
+          url.port == 80 &&
+          target.isScheme('https') &&
+          target.port == 443 &&
+          target.host == url.host);
+
   static bool _isSameOrigin(Uri a, Uri b) =>
       a.scheme == b.scheme && a.host == b.host && a.port == b.port;
+
+  /// `scheme://host[:port]` of [url]: no user info, path, query or fragment.
+  static Uri _origin(Uri url) => Uri(
+    scheme: url.scheme,
+    host: url.host,
+    port: url.hasPort ? url.port : null,
+  );
+
+  /// Describes a redirect from [url] to [location] that was not followed,
+  /// never with the target's query or fragment (they may carry the user's
+  /// text). Another server is named by its origin only.
+  static String _redirectMessage(Uri url, String location) {
+    final target = _resolveLocation(url, location);
+    if (target == null) {
+      return 'Redirected to ${location.split(_queryOrFragment).first}';
+    }
+    if ((target.isScheme('http') || target.isScheme('https')) &&
+        !_staysOnInstance(url, target)) {
+      return 'Redirected to ${_origin(target)}, a different server. '
+          'Add that address as an instance to use it.';
+    }
+    return 'Redirected to ${_origin(target).replace(path: target.path)}';
+  }
+
+  static final _queryOrFragment = RegExp('[?#]');
 
   /// `Basic base64(user:password)` for percent-encoded [userInfo], which
   /// `dart:io` would otherwise send without decoding (and `fetch` rejects).
@@ -650,16 +703,17 @@ class MozhiApiClient {
     ),
   };
 
-  /// The most useful description of a non-2xx [response]: the plain-text
-  /// body Fiber sends, the message of a JSON error body, the target of a
-  /// redirect that was not followed, or else the reason phrase.
-  static String _errorMessage(http.Response response) {
+  /// The most useful description of a non-2xx [response] from [url]: the
+  /// plain-text body Fiber sends, the message of a JSON error body, the
+  /// target of a redirect that was not followed ([_redirectMessage]), or
+  /// else the reason phrase.
+  static String _errorMessage(http.Response response, Uri url) {
     final status = response.statusCode;
     final reason = response.reasonPhrase?.trim() ?? '';
     final fallback = reason.isEmpty ? 'HTTP $status' : reason;
     final location = response.headers['location']?.trim() ?? '';
     if (status >= 300 && status < 400 && location.isNotEmpty) {
-      return 'Redirected to $location';
+      return _redirectMessage(url, location);
     }
     final body = _decodeBody(response).trim();
     final contentType = response.headers['content-type'] ?? '';

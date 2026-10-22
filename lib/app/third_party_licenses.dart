@@ -320,6 +320,12 @@ The offline speech models are OpenAI's Whisper tiny and base models
 whisper.cpp project, licensed under the MIT License, Copyright (c) 2022
 OpenAI.
 
+The speech detector, which tells speech from noise so that text appears
+phrase by phrase, is Silero VAD v6.2.0
+(https://github.com/snakers4/silero-vad), converted to the ggml format by
+the whisper.cpp project, licensed under the MIT License, Copyright (c)
+2020-present Silero Team.
+
 They are not part of the app: a model is downloaded only when you choose
 it, from Hugging Face (huggingface.co/ggerganov/whisper.cpp) or the mirror
 chosen in Settings > Translation engines > Model source, or imported from a

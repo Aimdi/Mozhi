@@ -160,6 +160,22 @@ class MirrorModelsTest(unittest.TestCase):
                 }
             )
         self.tesseract = {"schemaVersion": 1, "languages": languages}
+
+        packs = []
+        for pack_id, language in (("es", "es"), ("pt", "pt-BR")):
+            data = b"MOZHIDCT" + f"pack {pack_id}".encode() * 300
+            packs.append(
+                {
+                    "id": pack_id,
+                    "language": language,
+                    "name": pack_id,
+                    "file": f"{pack_id}.mzd",
+                    "url": publish(f"/releases/download/r/{pack_id}.mzd", data),
+                    "size": len(data),
+                    "sha256": _sha256(data),
+                }
+            )
+        self.dictionary = {"schemaVersion": 1, "release": "r", "packs": packs}
         self.write_catalogs()
 
     def write_catalogs(self) -> None:
@@ -167,6 +183,7 @@ class MirrorModelsTest(unittest.TestCase):
             ("bergamot", self.bergamot),
             ("whisper", self.whisper),
             ("tesseract", self.tesseract),
+            ("dictionary", self.dictionary),
         ):
             (self.tmp / f"{name}.json").write_text(json.dumps(catalog))
 
@@ -182,6 +199,8 @@ class MirrorModelsTest(unittest.TestCase):
                     str(self.tmp / "whisper.json"),
                     "--tesseract-catalog",
                     str(self.tmp / "tesseract.json"),
+                    "--dictionary-catalog",
+                    str(self.tmp / "dictionary.json"),
                     "--jobs",
                     "2",
                     *args,
@@ -200,18 +219,19 @@ class MirrorModelsTest(unittest.TestCase):
         code, output = self.run_tool()
         self.assertEqual(code, 0, output)
         files = self.mirrored()
-        self.assertEqual(len(files), 12 + 2 + 3)
+        self.assertEqual(len(files), 12 + 2 + 3 + 2)
         # The layout of bergamotMirrorUrl, whisperMirrorUrl, tessdataMirrorUrl.
         self.assertIn("bergamot/en-de/run_ende/model.ende.intgemm.alphas.bin.gz", files)
         self.assertIn("bergamot/de-en/run_de/vocab.deen.spm.gz", files)
         self.assertIn("whisper/ggml-tiny.bin", files)
         self.assertIn("tesseract/chi_tra.traineddata", files)
+        self.assertIn("dictionary/es.mzd", files)
         self.assertEqual(
             (self.out / "tesseract/deu.traineddata").read_bytes(),
             self.server.files["/tessdata/abc123/deu.traineddata"],
         )
         self.assertFalse([name for name in files if name.endswith(".part")])
-        self.assertIn("17 downloaded, 0 already in place, 0 failed", output)
+        self.assertIn("19 downloaded, 0 already in place, 0 failed", output)
 
     def test_filters_by_language_pair_id_and_kind(self) -> None:
         code, _ = self.run_tool("--languages", "de", "--whisper", "tiny")
@@ -244,6 +264,69 @@ class MirrorModelsTest(unittest.TestCase):
         code, _ = self.run_tool("--only", "bergamot", "--languages", "en")
         self.assertEqual(code, 0)
         self.assertEqual(self.mirrored(), set())
+
+    def test_mirrors_dictionary_packs(self) -> None:
+        code, output = self.run_tool("--only", "dictionary")
+        self.assertEqual(code, 0, output)
+        self.assertEqual(self.mirrored(), {"dictionary/es.mzd", "dictionary/pt.mzd"})
+        self.assertEqual(
+            (self.out / "dictionary/pt.mzd").read_bytes(),
+            self.server.files["/releases/download/r/pt.mzd"],
+        )
+
+        self.out = self.tmp / "by-language"
+        code, _ = self.run_tool("--only", "dictionary", "--languages", "pt-PT")
+        self.assertEqual(code, 0)
+        self.assertEqual(self.mirrored(), {"dictionary/pt.mzd"})
+
+        self.out = self.tmp / "by-id"
+        code, _ = self.run_tool("--only", "dictionary", "--dictionaries", "es")
+        self.assertEqual(code, 0)
+        self.assertEqual(self.mirrored(), {"dictionary/es.mzd"})
+
+        # Resumes, and keeps files the catalogue does not list.
+        self.out = self.tmp / "resume"
+        old = self.out / "dictionary/fr.mzd"
+        old.parent.mkdir(parents=True)
+        old.write_bytes(b"an older release")
+        self.server.cut["/releases/download/r/es.mzd"] = 100
+        code, output = self.run_tool("--dictionaries", "es", "--only", "dictionary")
+        self.assertEqual(code, 0, output)
+        self.assertTrue(old.exists())
+        self.assertEqual(
+            (self.out / "dictionary/es.mzd").read_bytes(),
+            self.server.files["/releases/download/r/es.mzd"],
+        )
+
+    def test_a_damaged_pack_is_not_mirrored(self) -> None:
+        path = "/releases/download/r/es.mzd"
+        self.server.files[path] = b"x" + self.server.files[path][1:]
+        code, output = self.run_tool("--only", "dictionary")
+        self.assertEqual(code, 1)
+        self.assertIn("FAILED dictionary/es.mzd", output)
+        self.assertEqual(self.mirrored(), {"dictionary/pt.mzd"})
+
+    def test_reads_the_dart_dictionary_catalogue(self) -> None:
+        catalog = {
+            "schemaVersion": 1,
+            "release": "a\\b$c",
+            "packs": self.dictionary["packs"],
+        }
+        text = json.dumps(catalog, indent=2)
+        dart = self.tmp / "dictionary_catalog_data.dart"
+        dart.write_text(
+            "// Generated.\nconst dictionaryCatalogJson = '''\n"
+            + text.replace("\\", "\\\\").replace("$", "\\$")
+            + "\n''';\n"
+        )
+        self.assertEqual(mirror.read_dictionary_catalog(dart), catalog)
+        (self.tmp / "broken.dart").write_text("const x = 1;")
+        with self.assertRaises(ValueError):
+            mirror.read_dictionary_catalog(self.tmp / "broken.dart")
+        # The app's own file (empty until the first release) parses too.
+        bundled = mirror.read_dictionary_catalog(mirror.DICTIONARY)
+        self.assertEqual(bundled["schemaVersion"], 1)
+        self.assertIsInstance(bundled["packs"], list)
 
     def test_skips_verified_files_and_never_deletes_unknown_ones(self) -> None:
         self.assertEqual(self.run_tool("--only", "whisper")[0], 0)
@@ -362,15 +445,21 @@ class MirrorModelsTest(unittest.TestCase):
             "whisper name": lambda: self.whisper["models"][0].update(name=".hidden"),
             "whisper sha256": lambda: self.whisper["models"][0].pop("sha256"),
             "size": lambda: self.whisper["models"][0].update(size=0),
+            "pack id": lambda: self.dictionary["packs"][0].update(id="../x"),
+            "pack url": lambda: self.dictionary["packs"][0].update(
+                url=self.server.base + "/other.mzd"
+            ),
+            "pack sha": lambda: self.dictionary["packs"][0].update(sha256="0"),
         }
         originals = (
             json.dumps(self.bergamot),
             json.dumps(self.whisper),
             json.dumps(self.tesseract),
+            json.dumps(self.dictionary),
         )
         for name, change in cases.items():
             with self.subTest(name):
-                self.bergamot, self.whisper, self.tesseract = (
+                self.bergamot, self.whisper, self.tesseract, self.dictionary = (
                     json.loads(text) for text in originals
                 )
                 change()
@@ -379,12 +468,15 @@ class MirrorModelsTest(unittest.TestCase):
                 self.assertEqual(code, 2, output)
                 self.assertIn("error:", output)
 
-        self.bergamot, self.whisper, self.tesseract = (
+        self.bergamot, self.whisper, self.tesseract, self.dictionary = (
             json.loads(text) for text in originals
         )
         self.write_catalogs()
         self.assertEqual(self.run_tool("--only", "fonts")[0], 2)
         (self.tmp / "whisper.json").write_text("{not json")
+        self.assertEqual(self.run_tool("--list")[0], 2)
+        self.write_catalogs()
+        (self.tmp / "dictionary.json").write_text("{not json")
         self.assertEqual(self.run_tool("--list")[0], 2)
 
     def test_reads_the_bundled_catalogues(self) -> None:

@@ -195,7 +195,7 @@ abstract final class TranslationPrompts {
     final translated = precedingTranslation.trim();
     final terms = _earlierTermLines(
       earlierTerms,
-      _relevantGlossary(request.options.glossary, request.text),
+      _relevantGlossary(request.options, request.text),
     );
     return [
       LlmMessage.system(
@@ -224,16 +224,23 @@ abstract final class TranslationPrompts {
     ];
   }
 
-  /// The entries of [glossary] whose term occurs in [text], each reduced to
-  /// one line (entries with a blank term or rendering are dropped), in the
-  /// glossary's order.
+  /// The entries of [glossary] whose term may occur in [text], each reduced
+  /// to one line (entries with a blank term or rendering are dropped), in
+  /// the glossary's order: which entries of a long glossary a prompt
+  /// sends. Tuned to find rather than to miss (an extra entry only adds a
+  /// line to the prompt; see [glossaryOccurrences] for the strict matching
+  /// that decides what a term replaces or what the checks require).
   ///
-  /// Matching ignores case and common diacritics (`Häuser` matches
-  /// `Hauser`). A term that contains Chinese, Japanese, Korean, Thai, Lao,
-  /// Khmer, Myanmar or Tibetan characters (scripts written without spaces
-  /// between words, or with particles attached to them) matches anywhere
-  /// in the text. Any other term matches whole words only, so `cat` does
-  /// not match `category`; its last word may also be inflected:
+  /// Matching ignores common diacritics (`Häuser` matches `Hauser`) and
+  /// case, except for terms that must match their exact capitalisation:
+  /// those in [caseSensitive] (`TranslationOptions
+  /// .caseSensitiveGlossaryTerms`) and acronyms (two or more letters, all
+  /// upper case: `IT` does not match `it`, `US` not `us`). A term that
+  /// contains Chinese, Japanese, Korean, Thai, Lao, Khmer, Myanmar or
+  /// Tibetan characters (scripts written without spaces between words, or
+  /// with particles attached to them) matches anywhere in the text. Any
+  /// other term matches whole words only, so `cat` does not match
+  /// `category`; its last word may also be inflected:
   /// * with at most 3 letters: a plural `s` or `es` (`cat`: `cats`);
   /// * with 4 letters: words it begins, up to 4 letters longer (`Haus`:
   ///   `Häuser`, `Hauses`);
@@ -247,35 +254,76 @@ abstract final class TranslationPrompts {
   /// A term ending in a digit or symbol (`C++`, `4K`) must match exactly.
   static Map<String, String> glossaryMatches(
     Map<String, String> glossary,
-    String text,
-  ) {
-    final matcher = _GlossaryMatcher(text);
+    String text, {
+    Set<String> caseSensitive = const {},
+  }) {
+    final locator = _GlossaryLocator(text);
+    final exact = _singleLines(caseSensitive);
     return {
       for (final MapEntry(:key, :value) in _glossaryEntries(glossary).entries)
-        if (matcher.matches(key)) key: value,
+        if (locator
+            .find(_GlossaryTerm(key, caseSensitive: exact.contains(key)))
+            .isNotEmpty)
+          key: value,
     };
   }
 
-  /// Where the terms of [glossary] occur in [text], matched like
-  /// [glossaryMatches] (inflected forms included), as ranges of [text]
+  /// Where the terms of [glossary] occur in [text], as ranges of [text]
   /// (`text.substring(start, end)` is the occurrence) with the entry's
-  /// term and rendering (each reduced to one line), in text order.
+  /// term and rendering (each reduced to one line), in text order: what
+  /// engines that cannot apply a glossary themselves get as placeholders
+  /// (see `TranslationRepository.translate`), and the terms whose
+  /// renderings the checks require (`TranslationQa
+  /// .missingGlossaryTargets`).
+  ///
+  /// Matching is strict, as an occurrence is replaced by the rendering:
+  /// * whole words only (no letter, combining mark or digit of any script
+  ///   right before or after: `Mail` does not match `Mailand`, `Bank` not
+  ///   `Bankett`, `Paris` not `parish`), the words of a phrase separated
+  ///   by any whitespace; a term ending in a digit or symbol (`C++`,
+  ///   `Node.js`) matches as written (`C++` not in `C++11`). Terms in a
+  ///   script written without spaces (see [glossaryMatches]) match
+  ///   anywhere.
+  /// * Case is ignored (`glossary` matches `Glossary`), except for the
+  ///   terms in [caseSensitive] (`TranslationOptions
+  ///   .caseSensitiveGlossaryTerms`) and acronyms (two or more letters,
+  ///   all upper case), which match their exact capitalisation: `IT`
+  ///   matches `IT department` but not `Is it ready?`, `US` not `Tell us`.
+  /// * Accents must agree, as a word with an accent is often another word
+  ///   (`té`, tea, is not `te`; `résumé` is not `resume`; `año` is not
+  ///   `ano`): only decomposed accents (`e` + U+0301) compare equal to
+  ///   precomposed ones, and Russian `ё` to `е` (it is often written
+  ///   without its dots).
+  /// * The only inflection is a plural or genitive `s` or `es` after a
+  ///   last word of four or more letters that is written in lower case or
+  ///   capitalised (`server`: `servers`; `Haus`: `Hauses`; `box` is too
+  ///   short for `boxes`, so `car` never matches `cares`; acronyms and
+  ///   mixed case like `iPhone` get none). A possessive needs none, as the
+  ///   apostrophe ends the word (`Mozhi` in `Mozhi's`).
   ///
   /// Occurrences never overlap: longer terms are placed first (`New York
   /// Times` before `New York`), and an occurrence that overlaps one placed
-  /// before is left out. For engines that cannot apply a glossary
-  /// themselves, which get the occurrences as placeholders instead (see
-  /// `TranslationRepository.translate`).
+  /// before is left out.
   static List<({int start, int end, String term, String rendering})>
-  glossaryOccurrences(Map<String, String> glossary, String text) {
+  glossaryOccurrences(
+    Map<String, String> glossary,
+    String text, {
+    Set<String> caseSensitive = const {},
+  }) {
     final entries = _glossaryEntries(glossary);
     if (entries.isEmpty || text.isEmpty) return const [];
     final locator = _GlossaryLocator(text);
+    final exact = _singleLines(caseSensitive);
     final terms = entries.keys.toList()
       ..sort((a, b) => foldForMatching(b).length - foldForMatching(a).length);
     final found = <({int start, int end, String term, String rendering})>[];
     for (final term in terms) {
-      for (final (start, end) in locator.find(term)) {
+      final candidate = _GlossaryTerm(
+        term,
+        caseSensitive: exact.contains(term),
+        strict: true,
+      );
+      for (final (start, end) in locator.find(candidate)) {
         if (found.any((o) => start < o.end && o.start < end)) continue;
         found.add((
           start: start,
@@ -287,6 +335,12 @@ abstract final class TranslationPrompts {
     }
     return found..sort((a, b) => a.start - b.start);
   }
+
+  /// [terms] reduced to one line each, as [_glossaryEntries] reduces the
+  /// terms of a glossary.
+  static Set<String> _singleLines(Set<String> terms) => {
+    for (final term in terms) PromptSanitizer.singleLine(term),
+  };
 
   /// [text] in lower case, without combining marks and with common
   /// accented Latin letters (and Cyrillic `ё`) replaced by their base
@@ -1490,7 +1544,7 @@ abstract final class TranslationPrompts {
       prompt.add(_readingLevelSection(options.readingLevel));
     }
     _addGenderSection(prompt, options);
-    final glossary = _relevantGlossary(options.glossary, glossaryText);
+    final glossary = _relevantGlossary(options, glossaryText);
     if (glossary.isNotEmpty) {
       prompt.add(
         'Glossary: always translate these terms as given, inflecting them as '
@@ -1710,25 +1764,25 @@ abstract final class TranslationPrompts {
           'where the language allows; otherwise avoid gendered constructions.',
   };
 
-  /// The glossary entries to send with [text], each term and rendering
-  /// reduced to one line (glossaries can be imported): every entry when
-  /// there are at most [maxWholeGlossaryEntries] or when [text] is empty
-  /// (image translation), otherwise only those whose term occurs in [text]
-  /// (see [glossaryMatches]), so long glossaries do not distract small
-  /// models.
+  /// The entries of `options.glossary` to send with [text], each term and
+  /// rendering reduced to one line (glossaries can be imported): every
+  /// entry when there are at most [maxWholeGlossaryEntries] or when [text]
+  /// is empty (image translation), otherwise only those whose term may
+  /// occur in [text] (see [glossaryMatches]), so long glossaries do not
+  /// distract small models.
   static Map<String, String> _relevantGlossary(
-    Map<String, String> glossary,
+    TranslationOptions options,
     String text,
   ) {
-    final entries = _glossaryEntries(glossary);
+    final entries = _glossaryEntries(options.glossary);
     if (text.isEmpty || entries.length <= maxWholeGlossaryEntries) {
       return entries;
     }
-    final matcher = _GlossaryMatcher(text);
-    return {
-      for (final MapEntry(:key, :value) in entries.entries)
-        if (matcher.matches(key)) key: value,
-    };
+    return glossaryMatches(
+      entries,
+      text,
+      caseSensitive: options.caseSensitiveGlossaryTerms,
+    );
   }
 
   /// [glossary] with every term and rendering reduced to one line, without
@@ -1764,7 +1818,7 @@ abstract final class TranslationPrompts {
         '- Addressee: ${_genderWord[options.addresseeGender]}',
       if (tagged.contains('context')) _contextSetting,
       for (final MapEntry(:key, :value) in _relevantGlossary(
-        options.glossary,
+        options,
         text,
       ).entries)
         '- Always translate "$key" as "$value"',

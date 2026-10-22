@@ -200,4 +200,42 @@ void main() {
       await cubit.close();
     });
   });
+
+  test('download errors name the mirror they came from', () {
+    final mirror = Uri.parse('https://models.example.org/models/');
+    expect(
+      VoiceModelError.of(
+        WhisperChecksumException('tiny', 'bad', mirror: mirror),
+      ),
+      const VoiceModelError(
+        VoiceModelErrorKind.checksum,
+        mirror: 'models.example.org',
+      ),
+    );
+    expect(
+      VoiceModelError.of(
+        WhisperDownloadException(
+          'tiny',
+          'gone',
+          statusCode: 404,
+          mirror: mirror,
+        ),
+      ),
+      const VoiceModelError(
+        VoiceModelErrorKind.server,
+        statusCode: 404,
+        mirror: 'models.example.org',
+      ),
+    );
+    expect(
+      VoiceModelError.of(
+        WhisperDownloadException('tiny', 'off', mirror: mirror),
+      ).mirror,
+      'models.example.org',
+    );
+    expect(
+      VoiceModelError.of(const WhisperDownloadException('tiny', 'off')).mirror,
+      isNull,
+    );
+  });
 }

@@ -18,14 +18,18 @@ It reads the catalogues the app ships (exactly the files it can ask for):
   bergamot   packages/bergamot_translator/assets/catalog.json (Mozilla)
   whisper    packages/whisper_speech/assets/models.json (Hugging Face)
   tesseract  packages/tesseract_ocr/assets/catalog.json (GitHub)
+  dictionary lib/dictionary/data/dictionary_catalog_data.dart (the
+             dictionary packs of a GitHub release; empty until the first
+             one, see docs/dictionary-packs.md)
 
 and writes the layout the app downloads from (`bergamotMirrorUrl`,
-`whisperMirrorUrl`, `tessdataMirrorUrl` in the packages), each file as
-published under its original name:
+`whisperMirrorUrl`, `tessdataMirrorUrl`, `dictionaryPackDownloadUrls` in
+the packages), each file as published under its original name:
 
   OUT/bergamot/<source>-<target>/<version>/<name>.gz
   OUT/whisper/<name>
   OUT/tesseract/<code>.traineddata
+  OUT/dictionary/<id>.mzd
 
 Point the app at the directory's URL (Settings > Translation engines >
 Model source > Custom mirror, e.g. https://example.org/models/; the web
@@ -41,16 +45,19 @@ can serve several app versions.
 
 Filters (combined: a file is mirrored when its kind is selected and it
 matches the filters of its kind):
-  --only KINDS        bergamot,whisper,tesseract (default: all three)
+  --only KINDS        bergamot,whisper,tesseract,dictionary (default: all)
   --languages CODES   Bergamot: the directions to and from English of
                       these languages (Mozilla codes, e.g. de, zh_hant;
                       `en` alone selects nothing); Tesseract: the data
                       reading these app languages (de, zh-TW, sr-Latn; a
-                      language matches its primary subtag too)
+                      language matches its primary subtag too);
+                      dictionary: the packs of these app languages (by
+                      primary subtag: pt-BR selects pt)
   --pairs PAIRS       Bergamot directions, e.g. en-de,de-en
   --whisper IDS       Whisper model ids (tiny, base, silero-vad); the
                       models are multilingual, so --languages keeps them
   --tesseract CODES   Tesseract codes (deu, chi_sim)
+  --dictionaries IDS  dictionary pack ids (es, en)
 
 Modes: --list prints the selected files and their total size without
 downloading; --verify checks the files already in OUT (no network).
@@ -81,7 +88,8 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 BERGAMOT = REPO_ROOT / "packages/bergamot_translator/assets/catalog.json"
 WHISPER = REPO_ROOT / "packages/whisper_speech/assets/models.json"
 TESSERACT = REPO_ROOT / "packages/tesseract_ocr/assets/catalog.json"
-KINDS = ("bergamot", "whisper", "tesseract")
+DICTIONARY = REPO_ROOT / "lib/dictionary/data/dictionary_catalog_data.dart"
+KINDS = ("bergamot", "whisper", "tesseract", "dictionary")
 USER_AGENT = "Mozhi model mirror (+https://github.com/Aimdi/Mozhi)"
 ATTEMPTS = 3
 RETRY_DELAY = 1.0
@@ -91,6 +99,7 @@ CHUNK = 1 << 16
 _SAFE_NAME = re.compile(r"^[A-Za-z0-9._-]{1,200}$")
 _MODEL_LANGUAGE = re.compile(r"^[a-z]{2,3}(_[a-z]{2,8})?$")
 _TESSERACT_CODE = re.compile(r"^[a-z]{3}(_[a-z]{3,4})?$")
+_PACK_ID = re.compile(r"^[a-z]{2,3}(-[a-z0-9]{2,8})*$")
 _HEX = re.compile(r"^[0-9a-f]+$")
 
 
@@ -211,6 +220,43 @@ def tesseract_files(catalog: dict) -> list[MirrorFile]:
     return files
 
 
+def dictionary_files(catalog: dict) -> list[MirrorFile]:
+    """The packs of the dictionary catalogue (`dictionaryPackDownloadUrls`
+    layout: `dictionary/<id>.mzd`)."""
+    files = []
+    for pack in catalog.get("packs", []):
+        pack_id = pack.get("id")
+        if not isinstance(pack_id, str) or not _PACK_ID.match(pack_id):
+            raise CatalogError(f"invalid dictionary pack id: {pack_id!r}")
+        name = f"{pack_id}.mzd"
+        if _last_segment(pack.get("url", "")) != name:
+            raise CatalogError(f"the URL of dictionary {pack_id} must name {name}")
+        files.append(
+            MirrorFile(
+                kind="dictionary",
+                path=f"dictionary/{name}",
+                url=pack["url"],
+                size=_size(pack.get("size"), name),
+                sha256=_hex(pack.get("sha256"), 64, f"SHA-256 of {name}"),
+                label=pack_id,
+            )
+        )
+    return files
+
+
+def read_dictionary_catalog(path: Path) -> dict:
+    """The dictionary catalogue: `dictionary_catalog.json` itself, or the
+    Dart file the app bundles it in (`dictionaryCatalogJson = '''...'''`,
+    with `\\` and `\\$` escaped, written by tool/dictionary_packs.py)."""
+    text = path.read_text(encoding="utf-8")
+    if path.suffix != ".dart":
+        return json.loads(text)
+    parts = text.split("'''")
+    if len(parts) < 3:
+        raise ValueError("no catalogue string")
+    return json.loads(re.sub(r"\\(.)", r"\1", parts[1], flags=re.S))
+
+
 def _codes(text: str | None) -> set[str] | None:
     if text is None:
         return None
@@ -264,6 +310,17 @@ def select(args: argparse.Namespace, catalogs: dict[str, dict]) -> list[MirrorFi
                 if not (by_code or (languages is not None and by_language)):
                     continue
             selected += tesseract_files({"languages": [language]})
+
+    if "dictionary" in kinds:
+        dictionaries = _codes(args.dictionaries)
+        app = {_app_key(code).split("-")[0] for code in languages or ()}
+        for pack in catalogs["dictionary"].get("packs", []):
+            if dictionaries is not None or languages is not None:
+                by_id = dictionaries is not None and pack.get("id") in dictionaries
+                primary = _app_key(str(pack.get("language", ""))).split("-")[0]
+                if not (by_id or primary in app):
+                    continue
+            selected += dictionary_files({"packs": [pack]})
 
     paths = [file.path for file in selected]
     if len(paths) != len(set(paths)):
@@ -387,6 +444,12 @@ def load_catalogs(args: argparse.Namespace) -> dict[str, dict]:
             catalogs[kind] = json.loads(Path(path).read_text(encoding="utf-8"))
         except (OSError, ValueError) as error:
             raise CatalogError(f"cannot read {path}: {error}") from error
+    try:
+        catalogs["dictionary"] = read_dictionary_catalog(Path(args.dictionary_catalog))
+    except (OSError, ValueError) as error:
+        raise CatalogError(
+            f"cannot read {args.dictionary_catalog}: {error}"
+        ) from error
     return catalogs
 
 
@@ -397,11 +460,14 @@ def parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     result.add_argument("out", type=Path, help="the mirror directory")
-    result.add_argument("--only", help="kinds: bergamot,whisper,tesseract")
+    result.add_argument(
+        "--only", help="kinds: bergamot,whisper,tesseract,dictionary"
+    )
     result.add_argument("--languages", help="language codes, e.g. de,fr,ja")
     result.add_argument("--pairs", help="Bergamot directions, e.g. en-de,de-en")
     result.add_argument("--whisper", help="Whisper ids, e.g. tiny,silero-vad")
     result.add_argument("--tesseract", help="Tesseract codes, e.g. deu,chi_sim")
+    result.add_argument("--dictionaries", help="dictionary pack ids, e.g. es,en")
     mode = result.add_mutually_exclusive_group()
     mode.add_argument("--list", action="store_true", help="only list the files")
     mode.add_argument(
@@ -411,6 +477,11 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--bergamot-catalog", default=str(BERGAMOT))
     result.add_argument("--whisper-catalog", default=str(WHISPER))
     result.add_argument("--tesseract-catalog", default=str(TESSERACT))
+    result.add_argument(
+        "--dictionary-catalog",
+        default=str(DICTIONARY),
+        help="dictionary_catalog.json or the app's Dart file",
+    )
     return result
 
 

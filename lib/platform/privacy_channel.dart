@@ -13,6 +13,8 @@ import 'package:flutter/services.dart';
 ///   network or the app may not ask; see `MeteredNetwork`).
 /// * `sdkInt()` -> `Int`: `Build.VERSION.SDK_INT`, the Android API level
 ///   (see `androidSdkInt`; the system bars depend on it).
+/// * `setKeepScreenOn(on: Boolean)` sets or clears the window's
+///   `FLAG_KEEP_SCREEN_ON` (see `ScreenAwake`: while Transcribe listens).
 const privacyChannelName = 'io.github.aimdi.mozhi/privacy';
 
 /// The [MethodChannel] named [privacyChannelName] on [messenger] (the

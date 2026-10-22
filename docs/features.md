@@ -584,6 +584,22 @@ words** (tap one to look it up). For a misspelled word the entry offers
 AI model (the one under **Settings > AI > AI assistant for insights** when
 you translate with a Mozhi engine) and are marked **AI-generated**.
 
+**Offline.** With dictionaries downloaded under **Settings > Offline
+languages > Dictionaries** (Wiktionary packs, one per language, checked
+against the app's SHA-256), the Dictionary tab answers from them first,
+without a network or an AI provider: definitions, part of speech,
+pronunciation, examples, synonyms, related words, a short etymology and
+translations, labelled **From Wiktionary · CC BY-SA 4.0** (tap it for the
+attribution and the licence) instead of **AI-generated**. Case and accents
+don't matter (`cafe` finds *café*), and an inflected form finds its lemma
+(*“went” is a form of “go”*). **More detail** under such an entry asks your
+AI provider for its fuller entry; a word the dictionaries don't have goes to
+the AI provider as before. Without one, the tab suggests similar words of
+the dictionaries, or says how to get a dictionary for the word's language.
+The panel under a short translation shows the dictionaries' definitions
+when the engine returned none. Details: [Offline dictionary
+packs](dictionary-packs.md).
+
 A link such as `/dictionary?word=gato&from=es&to=en` opens the Dictionary tab
 with the word filled in, but never looks it up on its own: press **Look up**.
 

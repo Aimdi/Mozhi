@@ -41,9 +41,9 @@ Whisper recognises speech on the phone, phrase by phrase:
 Phrases are found by a **speech detector**: Silero VAD (MIT License), a
 small neural network that whisper.cpp runs on the phone and that hears
 speech, not loudness, so a fan, traffic or music do not count as talking.
-It is downloaded with the speech model (0.9 MB). Without it (models
-installed before it existed: **Transcribe** offers it, or download a model
-again), loudness decides when you stopped, recording ends after 30 seconds
+It is downloaded with the speech model (0.9 MB). Without it (a model
+installed before the detector existed: **Transcribe** offers to download
+it), loudness decides when you stopped, recording ends after 30 seconds
 at most (the length Whisper reads at once) and everything is transcribed
 in one go after you stop.
 
