@@ -130,4 +130,38 @@ void main() {
       );
     });
   });
+
+  group('online voices', () {
+    const google = DeviceVoice(
+      name: 'Google français',
+      locale: 'fr-FR',
+      networkRequired: true,
+    );
+
+    test('are allowed one by one and saved', () {
+      const settings = SpeechSettings();
+      expect(settings.allowsOnlineVoice(google), isFalse);
+      expect(settings.toJson(), isNot(contains('onlineVoices')));
+
+      final allowed = settings.withOnlineVoice(google);
+      expect(allowed.allowsOnlineVoice(google), isTrue);
+      expect(allowed.toJson()['onlineVoices'], [google.id]);
+      expect(SpeechSettings.fromJson(allowed.toJson()), allowed);
+      expect(allowed, isNot(settings));
+      expect(allowed.copyWith(rate: 1.2).onlineVoices, {google.id});
+    });
+
+    test('skip ids that are not strings', () {
+      expect(
+        SpeechSettings.fromJson(const {
+          'onlineVoices': ['a', 1, '', null],
+        }).onlineVoices,
+        {'a'},
+      );
+      expect(
+        SpeechSettings.fromJson(const {'onlineVoices': 'a'}).onlineVoices,
+        isEmpty,
+      );
+    });
+  });
 }

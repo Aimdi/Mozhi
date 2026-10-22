@@ -11,11 +11,13 @@
 #include <cstdlib>
 #include <cstring>
 #include <exception>
+#include <fstream>
 #include <mutex>
 #include <new>
 #include <string>
 #include <thread>
 #include <utility>
+#include <vector>
 
 #include "ggml.h"
 #include "whisper.h"
@@ -110,7 +112,44 @@ bool ShouldAbort(void* data) {
          state->generation;
 }
 
+// The window a Silero VAD model file declares (whisper.cpp's format, see
+// models/convert-silero-vad-to-ggml.py: magic, type, version, window,
+// context, ...), or 0 when the file is no Silero model. Checked before
+// whisper.cpp reads the file, which trusts the header (a Whisper model's
+// would make it allocate and read nonsense).
+int32_t SileroWindow(const char* path) {
+  std::ifstream file(path, std::ios::binary);
+  uint32_t magic = 0;
+  int32_t type_length = 0;
+  if (!file.read(reinterpret_cast<char*>(&magic), sizeof(magic)) ||
+      magic != 0x67676d6c ||
+      !file.read(reinterpret_cast<char*>(&type_length), sizeof(type_length)) ||
+      type_length < 6 || type_length > 64) {
+    return 0;
+  }
+  std::string type(static_cast<size_t>(type_length), '\0');
+  if (!file.read(&type[0], type_length) || type.compare(0, 6, "silero") != 0) {
+    return 0;
+  }
+  int32_t version[3] = {0, 0, 0};
+  int32_t window = 0;
+  if (!file.read(reinterpret_cast<char*>(version), sizeof(version)) ||
+      !file.read(reinterpret_cast<char*>(&window), sizeof(window)) ||
+      window < 64 || window > 8192) {
+    return 0;
+  }
+  return window;
+}
+
 }  // namespace
+
+struct MozhiWhisperVad {
+  whisper_vad_context* context = nullptr;
+  int32_t window = 0;
+  // Samples of the stream that do not fill a window yet.
+  std::vector<float> pending;
+  std::mutex mutex;
+};
 
 struct MozhiWhisperModel {
   whisper_context* context = nullptr;
@@ -287,6 +326,120 @@ void mozhi_whisper_cancel(void) {
 }
 
 void mozhi_whisper_free_string(char* text) { std::free(text); }
+
+MozhiWhisperVad* mozhi_whisper_vad_load(const char* path, int32_t n_threads) {
+  ClearError();
+  if (path == nullptr || *path == '\0') {
+    SetError("path is required");
+    return nullptr;
+  }
+  try {
+    Setup();
+    const int32_t window = SileroWindow(path);
+    if (window == 0) {
+      SetError(std::string("not a Silero VAD model: ") + path);
+      return nullptr;
+    }
+    whisper_vad_context_params params = whisper_vad_default_context_params();
+    params.n_threads = n_threads > 0 ? n_threads : 1;
+    params.use_gpu = false;  // Only the CPU backend is compiled in.
+    whisper_vad_context* context =
+        whisper_vad_init_from_file_with_params(path, params);
+    if (context == nullptr) {
+      SetError(std::string("cannot load the VAD model ") + path);
+      return nullptr;
+    }
+    auto* vad = new (std::nothrow) MozhiWhisperVad();
+    if (vad == nullptr) {
+      whisper_vad_free(context);
+      SetError("out of memory");
+      return nullptr;
+    }
+    vad->context = context;
+    vad->window = window;
+    // The LSTM state is not cleared when the model is loaded.
+    whisper_vad_reset_state(context);
+    return vad;
+  } catch (const std::bad_alloc&) {
+    SetError("out of memory");
+  } catch (const std::exception& error) {
+    SetError(error.what());
+  } catch (...) {
+    SetError("unknown engine error");
+  }
+  return nullptr;
+}
+
+void mozhi_whisper_vad_free(MozhiWhisperVad* vad) {
+  ClearError();
+  if (vad == nullptr) return;
+  {
+    std::lock_guard<std::mutex> lock(vad->mutex);
+    whisper_vad_free(vad->context);
+    vad->context = nullptr;
+  }
+  delete vad;
+}
+
+int32_t mozhi_whisper_vad_frame_size(MozhiWhisperVad* vad) {
+  ClearError();
+  if (vad == nullptr) {
+    SetError("detector is required");
+    return 0;
+  }
+  return vad->window;
+}
+
+int32_t mozhi_whisper_vad_process(MozhiWhisperVad* vad, const float* samples,
+                                  int32_t n_samples, float* probs,
+                                  int32_t max_probs) {
+  ClearError();
+  if (vad == nullptr || n_samples < 0 || max_probs < 0 ||
+      (samples == nullptr && n_samples > 0) ||
+      (probs == nullptr && max_probs > 0)) {
+    SetError("detector, samples and probabilities are required");
+    return -1;
+  }
+  try {
+    std::lock_guard<std::mutex> lock(vad->mutex);
+    std::vector<float>& pending = vad->pending;
+    pending.insert(pending.end(), samples, samples + n_samples);
+    const size_t window = static_cast<size_t>(vad->window);
+    const int32_t frames = static_cast<int32_t>(
+        std::min<size_t>(pending.size() / window,
+                         static_cast<size_t>(max_probs)));
+    if (frames == 0) return 0;
+    const size_t used = static_cast<size_t>(frames) * window;
+    // Keeps the LSTM state between calls ("for streaming").
+    if (!whisper_vad_detect_speech_no_reset(vad->context, pending.data(),
+                                            static_cast<int>(used))) {
+      SetError("voice activity detection failed");
+      return -1;
+    }
+    const int32_t written =
+        std::min<int32_t>(whisper_vad_n_probs(vad->context), frames);
+    const float* computed = whisper_vad_probs(vad->context);
+    std::copy(computed, computed + written, probs);
+    pending.erase(pending.begin(),
+                  pending.begin() + static_cast<std::ptrdiff_t>(used));
+    return written;
+  } catch (const std::bad_alloc&) {
+    SetError("out of memory");
+  } catch (const std::exception& error) {
+    SetError(error.what());
+  } catch (...) {
+    SetError("unknown engine error");
+  }
+  return -1;
+}
+
+void mozhi_whisper_vad_reset(MozhiWhisperVad* vad) {
+  ClearError();
+  if (vad == nullptr) return;
+  std::lock_guard<std::mutex> lock(vad->mutex);
+  vad->pending.clear();
+  whisper_vad_reset_state(vad->context);
+}
 
 const char* mozhi_whisper_last_error(void) {
   return tls_has_error ? tls_error.c_str() : nullptr;

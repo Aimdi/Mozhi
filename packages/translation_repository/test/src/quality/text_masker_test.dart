@@ -208,5 +208,81 @@ void main() {
         'ProtectedSpan(1-2, format)',
       );
     });
+
+    group('glossary spans', () {
+      const term = ProtectedSpan(
+        4,
+        8,
+        kind: ProtectedKind.glossary,
+        replacement: 'house',
+      );
+
+      test('are dropped where they overlap other spans', () {
+        expect(
+          TextMasker.merge(const [
+            ProtectedSpan(0, 6),
+            ProtectedSpan(4, 9, kind: ProtectedKind.glossary, replacement: 'x'),
+          ]),
+          const [ProtectedSpan(0, 6)],
+        );
+        expect(
+          TextMasker.merge(const [
+            term,
+            ProtectedSpan(6, 12, kind: ProtectedKind.personal),
+          ]),
+          const [ProtectedSpan(6, 12, kind: ProtectedKind.personal)],
+        );
+        expect(
+          TextMasker.merge(const [
+            term,
+            ProtectedSpan(5, 7, kind: ProtectedKind.glossary, replacement: 'y'),
+          ]),
+          const [term],
+        );
+      });
+
+      test('are masked and restored as their rendering', () {
+        const text = 'Ein Haus, ein Hauses';
+        final masked = TextMasker.mask(text, const [
+          term,
+          ProtectedSpan(
+            14,
+            20,
+            kind: ProtectedKind.glossary,
+            replacement: 'house',
+          ),
+        ]);
+        expect(masked.text, 'Ein ⟨1⟩, ein ⟨1⟩');
+        expect(masked.values, ['house']);
+        expect(masked.originals, ['Haus']);
+        expect(masked.glossaryCount, 1);
+        expect(masked.formatCount, 0);
+        expect(masked.personalCount, 0);
+        expect(masked.restore('A ⟨1⟩, a ⟨1⟩').text, 'A house, a house');
+        expect(masked.restore('a ⟨1⟩', original: true).text, 'a Haus');
+        expect(masked.restore('A house').missing, {0});
+      });
+
+      test('start with a capital at the start of a sentence', () {
+        final masked = TextMasker.mask('Haus. Ein Haus', const [
+          ProtectedSpan(
+            0,
+            4,
+            kind: ProtectedKind.glossary,
+            replacement: 'house',
+          ),
+          ProtectedSpan(
+            10,
+            14,
+            kind: ProtectedKind.glossary,
+            replacement: 'iPhone',
+          ),
+        ]);
+        expect(
+          masked.restore('⟨1⟩ is big. A ⟨1⟩!\n"⟨1⟩" ⟨2⟩. ⟨2⟩').text,
+          'House is big. A house!\n"House" iPhone. iPhone',
+        );
+      });
+    });
   });
 }

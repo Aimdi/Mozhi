@@ -75,3 +75,54 @@ abstract interface class WhisperEngine {
   /// usable; the next call starts it again.
   Future<void> dispose();
 }
+
+/// Speech probabilities of consecutive windows of an audio stream, as
+/// [WhisperVadEngine.detect] returns them.
+@immutable
+final class WhisperVadFrames {
+  const new(this.probabilities, {required this.frameSize});
+
+  /// No complete window yet.
+  static final empty = WhisperVadFrames(Float32List(0), frameSize: 512);
+
+  /// The speech probability (`0..1`) of each window, oldest first.
+  final Float32List probabilities;
+
+  /// Samples per window: 512 (32 ms at 16 kHz) for Silero v5 and v6.
+  final int frameSize;
+
+  /// Number of windows.
+  int get length => probabilities.length;
+
+  @override
+  String toString() => 'WhisperVadFrames($length x $frameSize)';
+}
+
+/// Runs whisper.cpp's Silero voice activity detection (`libmozhi_whisper`)
+/// on an audio stream, off the UI isolate and apart from [WhisperEngine]
+/// (it keeps up with the microphone while a recording is transcribed).
+///
+/// The detector keeps the state of one stream between calls: feed it the
+/// recording chunk by chunk with [detect] and [reset] it before the next
+/// recording.
+abstract interface class WhisperVadEngine {
+  /// Feeds [samples] (16 kHz mono, `-1..1`) of the stream to the detector
+  /// with the model file at [modelPath] (loaded on first use) and returns
+  /// the speech probability of every window they complete. Samples that do
+  /// not fill a window yet are kept for the next call.
+  ///
+  /// Throws [WhisperEngineException] when the model cannot be loaded or
+  /// detection fails.
+  Future<WhisperVadFrames> detect(String modelPath, Float32List samples);
+
+  /// Forgets the stream: the next [detect] starts a new one.
+  Future<void> reset();
+
+  /// Unloads the model at [modelPath] if it is loaded (e.g. before deleting
+  /// the file).
+  Future<void> release(String modelPath);
+
+  /// Unloads the model and stops the background isolate. The engine stays
+  /// usable; the next call starts it again.
+  Future<void> dispose();
+}

@@ -113,6 +113,31 @@ abstract final class TranslationPrompts {
   /// (characters; longer ones are cut).
   static const maxEarlierTermLength = 80;
 
+  /// What a model is told when the personal data shield
+  /// (`TranslationRepository.maskPersonalData`) replaced parts of its input
+  /// by tokens (see [withMaskedPersonalDataNote]).
+  static const maskedPersonalDataNote =
+      'Tokens such as ⟨1⟩ in the input stand for personal data (e-mail '
+      'addresses, phone numbers, account or card numbers, IP addresses) '
+      "that stays on the user's device. Keep each token exactly as written "
+      'wherever what it stands for belongs in your reply, treat it as the '
+      'name or number it replaces, and never comment on the tokens.';
+
+  /// [messages] with [maskedPersonalDataNote] as a system message after
+  /// their leading system messages: for the AI extras, whose input was
+  /// masked by the personal data shield.
+  static List<LlmMessage> withMaskedPersonalDataNote(
+    List<LlmMessage> messages,
+  ) {
+    final at = messages.indexWhere((m) => m.role != LlmRole.system);
+    final index = at < 0 ? messages.length : at;
+    return [
+      ...messages.take(index),
+      const LlmMessage.system(maskedPersonalDataNote),
+      ...messages.skip(index),
+    ];
+  }
+
   /// Makes a free-form (custom) language or style name safe to interpolate
   /// into a prompt: control and invisible characters, double quotes,
   /// guillemets, backticks and `<`/`>` are removed, whitespace (including
@@ -229,6 +254,38 @@ abstract final class TranslationPrompts {
       for (final MapEntry(:key, :value) in _glossaryEntries(glossary).entries)
         if (matcher.matches(key)) key: value,
     };
+  }
+
+  /// Where the terms of [glossary] occur in [text], matched like
+  /// [glossaryMatches] (inflected forms included), as ranges of [text]
+  /// (`text.substring(start, end)` is the occurrence) with the entry's
+  /// term and rendering (each reduced to one line), in text order.
+  ///
+  /// Occurrences never overlap: longer terms are placed first (`New York
+  /// Times` before `New York`), and an occurrence that overlaps one placed
+  /// before is left out. For engines that cannot apply a glossary
+  /// themselves, which get the occurrences as placeholders instead (see
+  /// `TranslationRepository.translate`).
+  static List<({int start, int end, String term, String rendering})>
+  glossaryOccurrences(Map<String, String> glossary, String text) {
+    final entries = _glossaryEntries(glossary);
+    if (entries.isEmpty || text.isEmpty) return const [];
+    final locator = _GlossaryLocator(text);
+    final terms = entries.keys.toList()
+      ..sort((a, b) => foldForMatching(b).length - foldForMatching(a).length);
+    final found = <({int start, int end, String term, String rendering})>[];
+    for (final term in terms) {
+      for (final (start, end) in locator.find(term)) {
+        if (found.any((o) => start < o.end && o.start < end)) continue;
+        found.add((
+          start: start,
+          end: end,
+          term: term,
+          rendering: entries[term]!,
+        ));
+      }
+    }
+    return found..sort((a, b) => a.start - b.start);
   }
 
   /// [text] in lower case, without combining marks and with common
@@ -2031,6 +2088,57 @@ final class _Prompt {
   void bullet(String text) => line('- $text');
 
   String build() => _sections.join('\n\n');
+}
+
+/// Finds where glossary terms occur in one text (see `TranslationPrompts
+/// .glossaryOccurrences`): the text is folded like `TranslationPrompts
+/// .foldForMatching`, character by character, remembering where each
+/// folded character came from.
+final class _GlossaryLocator {
+  new(String text) {
+    final buffer = StringBuffer();
+    final origin = <int>[];
+    var index = 0;
+    for (final rune in text.runes) {
+      for (final lower in String.fromCharCode(rune).toLowerCase().runes) {
+        if (lower >= 0x300 && lower <= 0x36F) continue;
+        final folded = TranslationPrompts._folds[lower] ?? lower;
+        buffer.writeCharCode(folded);
+        origin.addAll(List.filled(folded > 0xFFFF ? 2 : 1, index));
+      }
+      index += rune > 0xFFFF ? 2 : 1;
+    }
+    _folded = buffer.toString();
+    _origin = [...origin, text.length];
+  }
+
+  late final String _folded;
+
+  /// The index in the text of each code unit of [_folded], and the text's
+  /// length after the last one.
+  late final List<int> _origin;
+
+  /// The ranges of the text where [term] occurs.
+  Iterable<(int, int)> find(String term) sync* {
+    final folded = TranslationPrompts.foldForMatching(term).trim();
+    if (folded.isEmpty) return;
+    if (_GlossaryMatcher._unspaced.hasMatch(folded)) {
+      var from = 0;
+      while (true) {
+        final at = _folded.indexOf(folded, from);
+        if (at < 0) return;
+        yield (_origin[at], _origin[at + folded.length]);
+        from = at + folded.length;
+      }
+    }
+    for (final match in _GlossaryMatcher._patternFor(
+      folded,
+    ).allMatches(_folded)) {
+      if (match.end > match.start) {
+        yield (_origin[match.start], _origin[match.end]);
+      }
+    }
+  }
 }
 
 /// Finds glossary terms in one text (see `TranslationPrompts

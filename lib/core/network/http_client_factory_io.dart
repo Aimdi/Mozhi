@@ -21,13 +21,14 @@ http.Client createPlatformHttpClient({String? proxy}) {
 
 /// The `dart:io` [HttpClient] under the client of `createHttpClient`, with
 /// [proxy] if any. [connectionTimeout] replaces [connectTimeout] or
-/// [proxyConnectTimeout] (tests).
+/// [proxyConnectTimeout], and [context] the system's TLS trust (tests).
 @visibleForTesting
 HttpClient createIoHttpClient({
   ProxyAddress? proxy,
   Duration? connectionTimeout,
+  SecurityContext? context,
 }) {
-  final client = HttpClient()
+  final client = HttpClient(context: context)
     ..userAgent = appUserAgent
     ..connectionTimeout =
         connectionTimeout ??
@@ -36,7 +37,7 @@ HttpClient createIoHttpClient({
     // Never the environment's or the system's proxy.
     ..findProxy = (_) => 'DIRECT';
   if (proxy != null) {
-    routeThroughProxy(client, proxy, bypass: bypassesProxy);
+    routeThroughProxy(client, proxy, bypass: bypassesProxy, context: context);
   }
   return client;
 }

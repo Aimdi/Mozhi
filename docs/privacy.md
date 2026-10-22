@@ -25,7 +25,8 @@ goes anywhere else.
   service, or nowhere at all with the offline engine and local models.
 - **Personal data stays behind.** E-mail addresses, phone numbers, IBANs,
   card numbers and IP addresses are [replaced before text goes
-  online](#personal-data-shield) and put back into the translation.
+  online](#personal-data-shield), also for the AI extras, and put back
+  into the translation.
 - **You can check what left the device.** [Network
   activity](#network-activity) lists every request of this session, without
   its text.
@@ -103,10 +104,60 @@ device. Language detection and back-translation for the meaning check are
 covered too. If an engine damages a placeholder, the text is **not** sent
 again unmasked: the result is marked instead.
 
-It doesn't apply to the on-device engine, which never sends anything. Not
-yet covered: the AI extras (alternatives, word insights, explanations,
-dictionary, alignment, proofreading, romanization) and text-to-speech,
-which receive the text as written. Names and addresses aren't detected.
+The AI extras are covered as well: alternatives, word insights,
+refinement suggestions, explanations (your question included), refining a
+translation (its instruction included), dictionary look-ups (the word and
+its context), alignment, romanization, **Check meaning** and **Proofread**.
+So are the translation options you type (context, tone notes,
+instructions), which go to AI models and DeepL masked like the text; the
+same e-mail address in the text and in the context gets the same
+placeholder. The model is told that the placeholders stand for personal
+data it should keep, and its answer gets the values back on the device.
+When a model changes a placeholder so that it can't be put back (for
+example an explanation that writes about "the token"), the placeholder
+stays as the model wrote it: the value is never sent to fill the gap.
+Dictionary entries and proofreading results say how many items stayed on
+the device.
+
+It doesn't apply to the on-device engine, which never sends anything. It
+can't apply to what isn't text: a photo sent to an AI model with **Supports
+images** or to a Mozhi instance goes as it is (the options sent with it are
+masked), and so does text read aloud, by an online voice or a Mozhi
+instance, since the voice would read the placeholders. Names and addresses
+aren't detected.
+
+### Glossaries with Mozhi and LibreTranslate
+
+Mozhi engines and LibreTranslate can't use a glossary, so the app applies
+it on the device: each glossary term in the text (inflected forms
+included, such as *Häuser* for *Haus*) goes to the engine as a placeholder
+like `⟨1⟩`, which engines keep, and the app writes your translation of the
+term in its place. The engine never receives the glossary, and doesn't see
+the terms. When an engine damages a placeholder, the text is translated
+again without the glossary (personal data stays masked) and the result
+says which terms couldn't be placed. AI models and DeepL get the glossary
+as before; the on-device engine and translation-only AI models don't apply
+it.
+
+### Online voices
+
+Some voices of the device's text-to-speech are online voices: the text
+they read goes to a speech service. In the web app these are the browser
+voices that aren't a local service, such as Chrome's "Google …" voices
+(the text goes to Google) and Edge's "Microsoft … Online" voices; on
+Android, voices that need a network connection, and the voices of a
+language whose voice data isn't on the phone. The voice picker
+(**Settings > Read aloud & voice > Read aloud**) labels them **Online
+voice** and says where the text goes.
+
+When the language has a voice on the device, it reads, even if the
+browser or the phone would pick an online voice by default. Before an
+online voice reads for the first time, the app asks (**Listen online**);
+your answer is kept per voice, and **Allowed online voices > Forget**
+asks again. In **Offline only** online voices never read, not even a
+preview. Personal data can't be hidden from an online voice: it would
+read the placeholders aloud. Previews in the voice picker read a sample
+(the language's name and a few numbers), never your text.
 
 ### Network activity
 
@@ -125,6 +176,28 @@ Network use outside the app's own connections isn't listed: the system's
 speech recognition and text-to-speech, links you open in the browser, and
 in the web app the browser's own loading of the app's files.
 
+### Where model files come from
+
+The on-device models (offline languages, voice input, text recognition)
+are downloaded only when you ask, from the source in **Settings >
+Translation engines > Model source** (also on the **Offline languages**
+page):
+
+| Model source | Who serves the files | What that server sees |
+| --- | --- | --- |
+| **Original publishers** (default on Android) | Mozilla's bucket on Google Cloud Storage (`storage.googleapis.com`, translation models), Hugging Face (`huggingface.co` and its download servers, Whisper), GitHub (`raw.githubusercontent.com`, Tesseract data) | Your IP address, the time and which files, so which languages, you download |
+| **This web server** (web app only, its default) | The server the web app comes from, at `models/` next to it | The same, but only whoever hosts the web app sees it; nothing goes to Google, GitHub or Hugging Face |
+| **Custom mirror…** | The server you enter: your own, one on your LAN, a `.onion` address (`https`; plain `http` only for this device, the local network and `.onion` / `.i2p`) | The same, only that server (and, through Tor, not even your IP address) |
+
+A mirror can't change what you install: every file is pinned in the app by
+its size and SHA-256 (the Whisper models by their SHA-1 as well) and checked
+before it is used, whichever server sent it. A file that doesn't match is
+discarded with an error that names the mirror. **Use the original publishers
+when the mirror lacks a file** is off by default; then a file the mirror
+doesn't have fails instead of going to the publisher. No text, voice,
+picture, identifier or cookie is sent with a download. To run a mirror, see
+[self-hosting](self-hosting-mozhi.md#mirror-the-on-device-models).
+
 ## What is sent, to whom, and how long it is kept
 
 Mozhi itself keeps nothing off the device. "Kept" below means what Mozhi
@@ -139,13 +212,13 @@ stores on the device and what the other party may keep.
 | Offline translation | Nowhere | Nothing | History as above. |
 | Language detection (**Detect language**, an "auto" source with a translation-only AI model) | The device first; if it is unsure, the AI provider itself or, for translation-only models, your Mozhi instance's Google engine, when the privacy rules allow that destination | The text | As for that destination. |
 | Kagi-style extras, **Check meaning**, **Proofread** | The AI model for extras (**Settings > AI > AI assistant for insights**) or the model you selected; **Check meaning** without one: the engine you translate with, to translate back | Source text, translation or both (the first 4,000 characters for **Check meaning**; the word for the dictionary) | The provider's policy. Results stay in memory only, except Dictionary tab look-ups: on the device, the word, its languages, the model's name, the detail level and a one-line summary go to the history unless incognito or **Save history** is off (or when you heart the entry). |
-| **Listen** (read aloud) | The device's text-to-speech voice. A Mozhi instance only when the device has no voice for the language: never in Offline only or with **Device voice only**, and in Offline first only after you agree (**Listen online**) | Device voice: the text to the system's speech engine (voices marked **Needs internet** use its online service). Mozhi: the text **in the request address** (`GET /api/tts?text=…`, up to 200 characters per part) | Mozhi: the address can end up in the server's and any reverse proxy's access logs. The app keeps the last 20 clips in memory until it closes. |
+| **Listen** (read aloud) | The device's text-to-speech voice, one on the device whenever the language has one. An [online voice](#online-voices) only after you agree, once per voice. A Mozhi instance only when the device has no voice for the language: never in Offline only or with **Device voice only**, and in Offline first only after you agree (**Listen online**) | Device voice on the device: nothing leaves it. Online voice: the text to the voice's speech service (for example Google). Mozhi: the text **in the request address** (`GET /api/tts?text=…`, up to 200 characters per part). The [personal data shield](#personal-data-shield) can't apply to speech | Online voice: its service's policy. Mozhi: the address can end up in the server's and any reverse proxy's access logs. The app keeps the last 20 clips in memory until it closes. |
 | Image translation | **On-device text recognition** (Android, the default) sends the image nowhere: Tesseract reads it on the phone ([text recognition](text-recognition.md); ML Kit in the [Play variant](#google-code)), and only the recognised text follows the translation rows above. The AI model with **Supports images** gets the image itself; so does your Mozhi instance (experimental), which passes it to Google Translate (at most two instances are tried) | AI vision and Mozhi: the image, re-encoded first (no EXIF data such as the GPS location). On-device: nothing | The provider's or instance's policy. The app doesn't store the image. |
 | Dictation, conversation | **System speech recognition** (the default): the system's recogniser (Google or the phone maker on Android; the browser's maker in the web app). **Offline (Whisper)** (Android, **Settings > Read aloud & voice > Voice input**): nobody, it runs on the phone. In **Offline only** always Whisper, never the system recogniser ([voice input](voice-input.md)) | System: your voice. Whisper: nothing leaves the phone | System: the recogniser's policy; **Prefer on-device speech recognition** (Android 12+) only asks to keep it on the phone. Whisper: the recording stays in memory until it is transcribed, and is never stored. |
 | Web page translator | The website you enter, then the translation engine | The page address and your IP address, with a desktop browser `User-Agent` and no cookies | The website's logs. The page text then follows the translation row above. |
-| Offline model download (**Settings > Translation engines > Offline languages**, or a language's download button in the language picker) | `storage.googleapis.com`: Mozilla's Firefox Translations bucket (`moz-fx-translations-data--303e-prod-translations-data`), hosted on Google Cloud Storage | Plain file requests (HTTPS `GET`, `Range` to resume): Google as the host sees your IP address, the time and which model files, so which languages, you download. No text, identifiers or cookies | Google Cloud Storage's logs. The models stay on the device until you delete them. |
-| Text recognition data download (**Download German text recognition**, **Settings > Translation engines > Offline languages > Text recognition**) | `raw.githubusercontent.com`: Tesseract's [tessdata_fast](https://github.com/tesseract-ocr/tessdata_fast) on GitHub (owned by Microsoft), pinned to one commit | Plain file requests (HTTPS `GET`, `Range` to resume): GitHub sees your IP address, the time and which language files you download. No picture, text, identifiers or cookies | GitHub's logs. The data stays on the device until you delete it; **Import from files** contacts nothing. |
-| Offline speech model download (**Settings > Read aloud & voice > Voice input**) | `huggingface.co` (the [whisper.cpp models](https://huggingface.co/ggerganov/whisper.cpp)), which may redirect to its download servers | Plain file requests (HTTPS `GET`, `Range` to resume): Hugging Face sees your IP address, the time and which model (Fast or Better) you download. No voice, text, identifiers or cookies | Hugging Face's logs. The model stays on the device until you delete it; **Import from files** contacts nothing. |
+| Offline model download (**Settings > Translation engines > Offline languages**, or a language's download button in the language picker) | The [model source](#where-model-files-come-from); by default `storage.googleapis.com`: Mozilla's Firefox Translations bucket (`moz-fx-translations-data--303e-prod-translations-data`), hosted on Google Cloud Storage | Plain file requests (HTTPS `GET`, `Range` to resume): Google as the host sees your IP address, the time and which model files, so which languages, you download. No text, identifiers or cookies | Google Cloud Storage's logs. The models stay on the device until you delete them. |
+| Text recognition data download (**Download German text recognition**, **Settings > Translation engines > Offline languages > Text recognition**) | The [model source](#where-model-files-come-from); by default `raw.githubusercontent.com`: Tesseract's [tessdata_fast](https://github.com/tesseract-ocr/tessdata_fast) on GitHub (owned by Microsoft), pinned to one commit | Plain file requests (HTTPS `GET`, `Range` to resume): GitHub sees your IP address, the time and which language files you download. No picture, text, identifiers or cookies | GitHub's logs. The data stays on the device until you delete it; **Import from files** contacts nothing. |
+| Offline speech model download (**Settings > Read aloud & voice > Voice input**) | The [model source](#where-model-files-come-from); by default `huggingface.co` (the [whisper.cpp models](https://huggingface.co/ggerganov/whisper.cpp)), which may redirect to its download servers | Plain file requests (HTTPS `GET`, `Range` to resume): Hugging Face sees your IP address, the time and which model (Fast or Better) you download. No voice, text, identifiers or cookies | Hugging Face's logs. The model stays on the device until you delete it; **Import from files** contacts nothing. |
 | Engine and language lists | The Mozhi instances in your list | Nothing about you except your IP address | The instance's logs. Stored on the device as a cache. |
 | **Check instances**, **Find the fastest server** (setup), **Test**, **Test connection**, **Browse models** | Each instance or provider, only when you ask | A version request, or a model list request with your key | The server's logs. |
 | Web app fonts | The server that hosts the web app: the release zip and the CI builds include the fonts for scripts the bundled font lacks (for example Chinese or Devanagari) and emoji. Only a web build made without `tool/web_fallback_fonts.py` ([building](building.md#web-build-self-hosted-fonts-and-deferred-languages)) fetches them from Google's `fonts.gstatic.com` | The font file name, so which scripts you read, and your IP address; not your text | The browser caches the font. |
@@ -244,7 +317,11 @@ In the web app, clearing the site's data does the same.
   `CONNECT` tunnel, plain `http` included. For Tor, use Orbot's HTTP proxy,
   `127.0.0.1:8118`. Requests to this device and your local network go direct,
   since a proxy such as Tor couldn't reach them. A change applies after
-  restarting the app. Without a proxy, `.onion` and `.i2p` addresses are
+  restarting the app. A server that doesn't answer through the proxy
+  within 20 seconds (the tunnel and, for `https`, the encrypted connection
+  through it) counts as unreachable, so a Mozhi translation moves on to the
+  next instance in your list, as it does without a proxy; nothing was sent
+  to the slow server. Without a proxy, `.onion` and `.i2p` addresses are
   refused before they are looked up, so their names don't leak to your DNS
   resolver. SOCKS isn't supported. The web app uses the browser's proxy.
 - **Little to identify the app.** Requests send `User-Agent: Mozhi`
@@ -301,10 +378,14 @@ For translations that never leave hardware you control, use any of:
   instances from your list;
 - a local AI model ([guide](ai-providers.md#local-models)).
 
+To download the offline models without Google, GitHub or Hugging Face
+learning your languages, use a [model mirror](#where-model-files-come-from)
+on your own server.
+
 Add **Incognito**, **Device voice only** (**Settings > Read aloud & voice >
-Read aloud**) and **Offline (Whisper)** voice input (**Settings > Read aloud &
-voice > Voice input**) to keep history, speech and dictation on the device
-too. See [Security](security.md) for how the app protects keys and handles
+Read aloud**, with voices that aren't [online voices](#online-voices)) and
+**Offline (Whisper)** voice input (**Settings > Read aloud & voice > Voice
+input**) to keep history, speech and dictation on the device too. See [Security](security.md) for how the app protects keys and handles
 text from other apps and links.
 
 The app is open source (MIT); you can check all of the above in the code.

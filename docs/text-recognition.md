@@ -15,8 +15,9 @@ uses Google ML Kit instead. The web app has no on-device recognition.
 1. You pick or take a photo. With **On-device text recognition** selected
    (the recommended method and the first choice when it is available;
    Mozhi's image translation through Google Translate is experimental and
-   offered last), the photo is decoded on the phone, scaled to at most
-   2500 px on its long side and read by Tesseract in a background thread.
+   offered last), the photo is decoded on the phone, turned upright by its
+   EXIF orientation (as the photo is shown), scaled to at most 2500 px on
+   its long side and read by Tesseract in a background thread.
 2. Tesseract reads with the data of the **source language** chosen above
    the image (German: `deu`). For **Detect language** it reads with the
    languages whose data is on the phone, at most three: your recent source
@@ -25,11 +26,45 @@ uses Google ML Kit instead. The web app has no on-device recognition.
    so pick the language when you know it. When Tesseract is unsure of what
    it read (a mean confidence below 50 of 100), the result asks **Wrong
    language?** with **Choose the language of the text**.
-3. You can correct the recognised text and translate it again.
+3. Tesseract also says where the text is: its blocks, paragraphs, lines
+   and words with their boxes, and for each paragraph the colours of the
+   text and of the ground around it. A wrapped paragraph's lines are
+   joined into running text (a word hyphenated at a line end is joined
+   again; Chinese, Japanese or Thai lines are joined without a space; a
+   line ending a sentence or starting a list item keeps its break), so a
+   sentence is translated as one. Specks read as text (no letter or digit,
+   or a very unsure one or two characters) are left out.
+4. All the paragraphs are translated in **one request** with the engine
+   you translate with, separated by blank lines, which every engine keeps
+   (the on-device engine copies the whitespace between sentences exactly;
+   AI models are asked to keep the formatting). The translation is split
+   at the blank lines again, one part per paragraph. If an engine merged
+   or split paragraphs anyway, the on-device engine translates each
+   paragraph on its own (on the phone); a network engine gets no extra
+   request: its translation is spread over the paragraphs by length.
+5. The translation is drawn over the photo (**Overlay**, the default): each
+   paragraph's box is filled with its ground colour (softened at the
+   edges) and the translation is written in it at the largest size that
+   fits, at most the original line height, wrapped within the box and
+   never overflowing it (text that cannot fit ends with "…"), in the
+   original text's colour when it contrasts enough (3:1) and else in black
+   or white, aligned like the original, in the target language's direction
+   and script. Tap a paragraph for the original and the translation with
+   copy buttons; hold **Original** to compare; **Share image** and **Save
+   image** render the photo with the overlay to a PNG at its resolution
+   (at most 4096 px) on the phone. Screen readers find each paragraph as a
+   button read as its translation, with the original as hint, in reading
+   order. The overlay fades unless animations are turned off.
+6. **Text** shows the plain photo with the recognised text below it: you
+   can correct it and translate it again (the overlay stays while the text
+   keeps its paragraphs, separated by blank lines).
 
 Tesseract reads printed text: signs, menus, labels, documents and
 screenshots. Handwriting, very stylised fonts, strongly curved or rotated
-text and tiny print are read poorly or not at all. It reads with global
+text and tiny print are read poorly or not at all. A slightly skewed photo
+is fine (layout analysis straightens it and reports the angle), but text
+turned sideways or upside down within the photo is not read: that needs
+orientation detection (`osd`), which is not included. It reads with global
 (Otsu) thresholding first and, when that finds little confident text (for
 example a shadow across the photo or uneven light), tries Sauvola's
 adaptive thresholding and keeps the better result.
@@ -130,8 +165,19 @@ The engine is `packages/tesseract_ocr` (see its
   left out). Run `tool/fetch_native_deps.sh` (or the repository's
   `tool/fetch_native_deps.sh`) before an Android build. About 2-3 MB per
   ABI.
+- **Layout:** `mozhi_tesseract_recognize_layout()` runs the same passes as
+  `mozhi_tesseract_recognize()` and returns the text with its blocks,
+  paragraphs, lines and words (boxes, confidences, baselines, paragraph
+  direction and alignment, block orientation and deskew angle) as JSON,
+  from Tesseract's `ResultIterator`. Each paragraph's `background` and
+  `foreground` are the median colours of the pixels in its box that
+  Tesseract's thresholded image counts as ground and as text (the larger
+  share is the ground, so light text on a dark sign works too). C API
+  version 2 (`MOZHI_TESSERACT_ABI_VERSION`); `mozhi_tesseract_cli --layout`
+  prints the JSON.
 - **Dart:** `TesseractOcr` (recognition in a background isolate over
-  `dart:ffi`, behind a conditional import so the web build has none),
+  `dart:ffi`, behind a conditional import so the web build has none;
+  `layout: true` adds an `OcrLayout`),
   `TessdataManager` (download with `Range` resume, SHA-256 verification,
   atomic install, delete, import), `TessdataCatalog`
   (`assets/catalog.json`, generated by `tool/tessdata_catalog.py`; maps the
@@ -139,7 +185,15 @@ The engine is `packages/tesseract_ocr` (see its
 - **App:** `lib/platform/text_recognition*.dart` creates the shared
   `TesseractTextRecognitionService`
   (`lib/image_translate/data/`), which `lib/platform/mlkit_bindings.dart`
-  returns in the default build. `planTextRecognition` picks the languages;
+  returns in the default build. It turns the `OcrLayout` into a
+  `TextLayout` (`lib/image_translate/models/text_layout.dart`: joined
+  lines, paragraph texts, the one-request text and how a translation is
+  split back); `ImageTranslateCubit` translates it and
+  `TranslatedImageOverlay`, `overlay_painting.dart` (text fitting,
+  colours) and `overlay_export.dart` (PNG through the document
+  translator's save and share helpers) draw it. A recognizer without
+  language data can report a layout through `TextRecognitionLayout` (meant
+  for the Play variant's ML Kit, which does not implement it yet). `planTextRecognition` picks the languages;
   missing data becomes an `OcrDataMissingException`, shown as the inline
   offer (`OcrLanguageOffer`, `OcrOfferCubit`). The management screen is
   `lib/offline/view/ocr_languages_page.dart`.

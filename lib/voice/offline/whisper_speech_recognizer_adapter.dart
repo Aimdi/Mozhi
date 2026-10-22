@@ -4,6 +4,9 @@ import 'dart:typed_data';
 
 import 'package:mozhi/voice/offline/offline_speech.dart';
 import 'package:mozhi/voice/offline/pcm_recorder.dart';
+import 'package:mozhi/voice/offline/phrase_transcriber.dart';
+import 'package:mozhi/voice/offline/speech_frames.dart';
+import 'package:mozhi/voice/offline/utterance_segmenter.dart';
 import 'package:mozhi/voice/offline/voice_activity.dart';
 import 'package:mozhi/voice/speech_recognizer_adapter.dart';
 import 'package:whisper_speech/whisper_speech.dart';
@@ -30,8 +33,19 @@ import 'package:whisper_speech/whisper_speech.dart';
 ///   final result, followed by [SpeechRecognizerStatus.done]. A recording
 ///   without speech is not transcribed: it fails with `error_no_match`,
 ///   like an empty transcription.
+/// * With the voice activity model installed ([OfflineSpeech.isVadReady])
+///   the recording is cut into phrases at pauses of [phrasePause]
+///   (Silero VAD tells speech from noise; [PhraseTranscriber]) and each
+///   phrase is transcribed as soon as it is over: the text so far arrives
+///   as partial results while the user speaks, the final result is all of
+///   it (sooner: only the last phrase is left to transcribe after the
+///   pause), and a session may last [SpeechListenRequest.listenFor], as
+///   no phrase exceeds Whisper's window. Without it, loudness
+///   ([VoiceActivityDetector]) ends the recording and it is transcribed
+///   in one pass, as described above.
 /// * [detectedLanguage] is the language Whisper transcribed the final
-///   result in (the detected one when no locale id was given).
+///   result in (the detected one when no locale id was given; with
+///   phrases, the language of most of the speech).
 /// * [cancel] drops the recording or stops the transcription.
 class WhisperSpeechRecognizerAdapter
     implements
@@ -42,24 +56,33 @@ class WhisperSpeechRecognizerAdapter
     required this._speech,
     PcmRecorder? recorder,
     this.maxDuration = whisperWindow,
+    this.phrasePause = const Duration(milliseconds: 400),
   }) : _recorder = recorder ?? RecordPcmRecorder();
 
   final OfflineSpeech _speech;
   final PcmRecorder _recorder;
 
-  /// The longest recording (Whisper reads 30 s at a time).
+  /// The longest recording transcribed in one pass (Whisper reads 30 s at
+  /// a time), without the voice activity model.
   final Duration maxDuration;
+
+  /// The pause that ends a phrase (with the voice activity model).
+  final Duration phrasePause;
 
   void Function(SpeechRecognizerError error)? _onError;
   void Function(SpeechRecognizerStatus status)? _onStatus;
   _Session? _session;
   String? _detectedLanguage;
 
+  /// Bumped by [cancel]: a [listen] still checking for the voice activity
+  /// model gives up.
+  int _generation = 0;
+
   @override
   String? get detectedLanguage => _detectedLanguage;
 
   @override
-  bool get heardSpeech => _session?.voice.heardSpeech ?? false;
+  bool get heardSpeech => _session?.heardSpeech ?? false;
 
   @override
   Future<bool> isReady() async {
@@ -113,21 +136,50 @@ class WhisperSpeechRecognizerAdapter
     required void Function(double level) onSoundLevel,
   }) async {
     await cancel();
-    final limit = request.listenFor < maxDuration
+    final generation = _generation;
+    final language = whisperLanguageFor(request.localeId);
+    final phrases = await _isVadReady();
+    if (generation != _generation) return;
+    final classifier = phrases ? SileroSpeechClassifier(_speech) : null;
+    if (classifier != null) {
+      try {
+        await classifier.reset();
+      } on Object {
+        // Loudness takes over if the detector fails.
+      }
+      if (generation != _generation) return;
+    }
+    final limit = phrases || request.listenFor < maxDuration
         ? request.listenFor
         : maxDuration;
     final session = _Session(
-      language: whisperLanguageFor(request.localeId),
+      language: language,
       onResult: onResult,
       onSoundLevel: onSoundLevel,
-      buffer: Pcm16Buffer(
-        maxSamples: math.max(
-          1,
-          limit.inMilliseconds * whisperSampleRate ~/ 1000,
-        ),
-      ),
-      voice: VoiceActivityDetector(pause: request.pauseFor),
+      pause: request.pauseFor,
+      limit: limit,
+      buffer: phrases
+          ? null
+          : Pcm16Buffer(
+              maxSamples: math.max(
+                1,
+                limit.inMilliseconds * whisperSampleRate ~/ 1000,
+              ),
+            ),
+      voice: phrases ? null : VoiceActivityDetector(pause: request.pauseFor),
     );
+    if (classifier != null) {
+      session.phrases = PhraseTranscriber(
+        transcribe: _speech.transcribe,
+        classifier: classifier,
+        fallback: LoudnessSpeechClassifier(),
+        segmenter: UtteranceSegmenter(pause: phrasePause),
+        language: language,
+        cancelEngine: _speech.cancel,
+        onPhrase: (_) => _onPhrase(session),
+        onActivity: () => _onActivity(session),
+      );
+    }
     _session = session;
     final Stream<Uint8List> stream;
     try {
@@ -159,6 +211,7 @@ class WhisperSpeechRecognizerAdapter
 
   @override
   Future<void> cancel() async {
+    _generation++;
     final session = _session;
     _session = null;
     if (session == null) return;
@@ -170,13 +223,15 @@ class WhisperSpeechRecognizerAdapter
         await subscription.cancel();
         await _stopRecorder();
       }
-    } else {
+    } else if (session.phrases == null) {
       try {
         await _speech.cancel();
       } on Object {
         // The transcription is dropped either way.
       }
     }
+    // Stops the phrase being transcribed, while recording too.
+    await session.phrases?.cancel();
   }
 
   /// Releases the microphone (app shutdown).
@@ -187,12 +242,50 @@ class WhisperSpeechRecognizerAdapter
 
   void _onChunk(_Session session, Uint8List chunk) {
     if (!identical(_session, session) || !session.recording) return;
-    final added = session.buffer.add(chunk);
-    final level = session.buffer.lastLevel;
-    session.voice.add(level, added);
+    if (session.phrases case final phrases?) {
+      phrases.add(chunk);
+      session.onSoundLevel(phrases.level);
+      return;
+    }
+    final buffer = session.buffer!;
+    final voice = session.voice!;
+    final added = buffer.add(chunk);
+    final level = buffer.lastLevel;
+    voice.add(level, added);
     session.onSoundLevel(level);
-    if (session.buffer.isFull || session.voice.pausedAfterSpeech) {
+    if (buffer.isFull || voice.pausedAfterSpeech) {
       unawaited(_finish(session));
+    }
+  }
+
+  /// A chunk was classified: the recording ends after the pause (or at
+  /// its limit).
+  void _onActivity(_Session session) {
+    final phrases = session.phrases;
+    if (phrases == null || !identical(_session, session)) return;
+    if ((phrases.heardSpeech && phrases.silenceAfterSpeech >= session.pause) ||
+        phrases.recorded >= session.limit) {
+      unawaited(_finish(session));
+    }
+  }
+
+  /// A phrase was transcribed: the text so far is a partial result (but
+  /// for the last one after recording: the final result follows at once).
+  void _onPhrase(_Session session) {
+    final phrases = session.phrases;
+    if (phrases == null || !identical(_session, session)) return;
+    if (!session.recording && phrases.pending == 0) return;
+    final text = phrases.text;
+    if (text.isEmpty || text == session.partial) return;
+    session.partial = text;
+    session.onResult(text, isFinal: false);
+  }
+
+  Future<bool> _isVadReady() async {
+    try {
+      return await _speech.isVadReady();
+    } on Object {
+      return false;
     }
   }
 
@@ -211,12 +304,21 @@ class WhisperSpeechRecognizerAdapter
     String? failure;
     String? language;
     var text = '';
-    if (!session.voice.heardSpeech) {
+    if (session.phrases case final phrases?) {
+      final heard = await phrases.finish();
+      text = phrases.text;
+      language = phrases.heardLanguage;
+      if (text.isEmpty) {
+        failure = heard.any((phrase) => phrase.status == PhraseStatus.failed)
+            ? OfflineSpeechRecognizerAdapter.engineErrorCode
+            : 'error_no_match';
+      }
+    } else if (!session.voice!.heardSpeech) {
       failure = 'error_no_match';
     } else {
       try {
         final result = await _speech.transcribe(
-          session.buffer.toFloat32List(),
+          session.buffer!.toFloat32List(),
           language: session.language,
         );
         text = result.text;
@@ -268,22 +370,37 @@ class WhisperSpeechRecognizerAdapter
   }
 }
 
-/// One recording and its transcription.
+/// One recording and its transcription: in one pass ([buffer] and
+/// [voice]) or phrase by phrase ([phrases]).
 final class _Session {
   new({
     required this.language,
     required this.onResult,
     required this.onSoundLevel,
-    required this.buffer,
-    required this.voice,
+    required this.pause,
+    required this.limit,
+    this.buffer,
+    this.voice,
   });
 
   /// Whisper code, or null to detect it.
   final String? language;
   final SpeechRecognizerResultListener onResult;
   final void Function(double level) onSoundLevel;
-  final Pcm16Buffer buffer;
-  final VoiceActivityDetector voice;
+
+  /// Silence after speech that ends the recording.
+  final Duration pause;
+
+  /// The longest recording.
+  final Duration limit;
+  final Pcm16Buffer? buffer;
+  final VoiceActivityDetector? voice;
+  PhraseTranscriber? phrases;
+
+  /// The last partial result.
+  String partial = '';
+
+  bool get heardSpeech => phrases?.heardSpeech ?? voice?.heardSpeech ?? false;
 
   /// The microphone stream; the adapter cancels it when the recording ends
   /// (`_finish`, `_fail`, `cancel`).

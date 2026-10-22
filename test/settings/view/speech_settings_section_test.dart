@@ -354,6 +354,47 @@ void main() {
       });
     });
 
+    group('online voices', () {
+      testWidgets('say which were allowed and can be forgotten', (
+        tester,
+      ) async {
+        final allowed = const SpeechSettings().withOnlineVoice(_thomas);
+        when(speech.loadSettings).thenAnswer((_) async => allowed);
+        when(speech.forgetOnlineVoices).thenAnswer((_) async {});
+        await pump(tester);
+
+        expect(find.text('Allowed online voices'), findsOneWidget);
+        expect(
+          find.textContaining('1 online voice may read aloud'),
+          findsOneWidget,
+        );
+
+        await tester.tap(find.text('French voice'));
+        await tester.pumpAndSettle();
+        expect(
+          find.text(
+            'fr-FR · Online voice: the text goes to its speech service · '
+            'Allowed',
+          ),
+          findsOneWidget,
+        );
+        await tester.tapAt(Offset.zero);
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byKey(const Key('speech_online_voices_forget')));
+        await tester.pumpAndSettle();
+
+        verify(speech.forgetOnlineVoices).called(1);
+        expect(find.text('Allowed online voices'), findsNothing);
+      });
+
+      testWidgets('are not listed while none was allowed', (tester) async {
+        await pump(tester);
+
+        expect(find.byKey(const Key('speech_online_voices')), findsNothing);
+      });
+    });
+
     group('voice picker', () {
       Future<void> open(WidgetTester tester) async {
         await tester.tap(find.text('French voice'));
@@ -371,7 +412,12 @@ void main() {
           findsOneWidget,
         );
         expect(find.text('fr-CA · High quality'), findsOneWidget);
-        expect(find.text('fr-FR · Needs internet'), findsOneWidget);
+        expect(
+          find.text(
+            'fr-FR · Online voice: the text goes to its speech service',
+          ),
+          findsOneWidget,
+        );
         expect(find.byTooltip('Play Amélie'), findsOneWidget);
         expect(find.byTooltip('Play System default'), findsOneWidget);
         verify(() => speech.deviceVoices('fr')).called(1);
@@ -691,7 +737,10 @@ void main() {
           expect(find.text('Voice 1'), findsOneWidget);
           expect(find.text('Voice 2'), findsOneWidget);
           expect(find.text('Voice 3'), findsOneWidget);
-          expect(find.text('fr-FR · Needs internet'), findsOneWidget);
+          expect(
+            find.text('fr-FR · Online voice: the text goes to Google'),
+            findsOneWidget,
+          );
           expect(find.text('Amélie'), findsOneWidget);
           expect(find.byTooltip('Play Voice 3'), findsOneWidget);
         });

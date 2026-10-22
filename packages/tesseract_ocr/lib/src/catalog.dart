@@ -2,6 +2,9 @@ import 'dart:convert';
 
 import 'package:meta/meta.dart';
 
+// Where the language data is downloaded from (GitHub or a mirror).
+export 'package:tesseract_ocr/src/model_source.dart';
+
 /// The language data of one Tesseract language: `<code>.traineddata` from
 /// tessdata_fast.
 @immutable
@@ -53,7 +56,8 @@ final class TessdataLanguage {
   /// app's language catalogue), best first, e.g. `[zh-TW, yue, lzh]`.
   final List<String> languages;
 
-  /// Where the file is downloaded from (pinned to a tessdata_fast commit).
+  /// Where the file is downloaded from by default (pinned to a
+  /// tessdata_fast commit; see `tessdataDownloadUrls` for mirrors).
   final Uri url;
 
   /// Bytes of the file (download and on disk: it is not compressed).

@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:bergamot_translator/bergamot_translator.dart'
+    show BergamotWebRequirement;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
@@ -20,9 +22,12 @@ import 'package:mozhi/offline/widgets/offline_import_summary.dart';
 import 'package:mozhi/offline/widgets/offline_language_tile.dart';
 import 'package:mozhi/offline/widgets/offline_manual_files_sheet.dart';
 import 'package:mozhi/platform/mlkit_bindings.dart';
+import 'package:mozhi/settings/cubit/settings_cubit.dart';
+import 'package:mozhi/settings/models/app_settings.dart' show ModelSource;
 import 'package:mozhi/settings/view/widgets/delete_local_data.dart'
     show formatStoredSize;
 import 'package:mozhi/settings/view/widgets/empty_state_view.dart';
+import 'package:mozhi/settings/view/widgets/model_source_dialog.dart';
 import 'package:mozhi/settings/view/widgets/settings_section.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -78,6 +83,12 @@ class OfflineModelsPage extends StatelessWidget {
         textRecognition:
             textRecognition ??
             textRecognitionLanguageDataOf(createTextRecognitionService()),
+        webRequirement: switch (translator ??
+            _maybeRead<OfflineTranslator>(context)) {
+          final UnavailableOfflineTranslator unavailable =>
+            unavailable.webRequirement,
+          _ => null,
+        },
       ),
     );
   }
@@ -92,10 +103,14 @@ class OfflineModelsPage extends StatelessWidget {
 }
 
 class OfflineModelsView extends StatelessWidget {
-  const new({super.key, this.textRecognition});
+  const new({super.key, this.textRecognition, this.webRequirement});
 
   /// The text recognition languages to link to, if any.
   final TextRecognitionLanguageData? textRecognition;
+
+  /// In the web app without an on-device engine: what the browser lacks
+  /// (the banner says so).
+  final BergamotWebRequirement? webRequirement;
 
   Future<void> _onOutcome(
     BuildContext context,
@@ -168,6 +183,7 @@ class OfflineModelsView extends StatelessWidget {
             OfflineModelsStatus.failure => const _LoadFailure(),
             OfflineModelsStatus.ready => _ModelsList(
               textRecognition: textRecognition,
+              webRequirement: webRequirement,
             ),
           },
         ),
@@ -197,8 +213,13 @@ String offlineOutcomeMessage(
       (OfflineModelOperation.delete, false) => l10n.offlineDeleteFailed(name),
     };
   }
+  final mirror = error.mirror;
   return switch (error.kind) {
+    OfflineModelErrorKind.checksum when mirror != null =>
+      l10n.offlineErrorChecksumMirror(name, mirror),
     OfflineModelErrorKind.checksum => l10n.offlineErrorChecksum(name),
+    OfflineModelErrorKind.server when mirror != null =>
+      l10n.offlineErrorServerMirror(name, mirror, error.statusCode ?? 0),
     OfflineModelErrorKind.server => l10n.offlineErrorServer(
       name,
       error.statusCode ?? 0,
@@ -207,6 +228,7 @@ String offlineOutcomeMessage(
       NetworkPolicyError.cleartext => l10n.commonErrorCleartextRefused,
       NetworkPolicyError.proxyRequired => l10n.commonErrorProxyRequired,
       NetworkPolicyError.invalidProxy => l10n.commonErrorInvalidProxy,
+      null when mirror != null => l10n.offlineErrorNetworkMirror(name, mirror),
       null => l10n.offlineErrorNetwork(name),
     },
     OfflineModelErrorKind.storage => l10n.offlineErrorStorage(name),
@@ -286,9 +308,10 @@ class _LoadFailure extends StatelessWidget {
 }
 
 class _ModelsList extends StatelessWidget {
-  const new({this.textRecognition});
+  const new({this.textRecognition, this.webRequirement});
 
   final TextRecognitionLanguageData? textRecognition;
+  final BergamotWebRequirement? webRequirement;
 
   Future<void> _delete(BuildContext context, OfflineLanguage language) async {
     final cubit = context.read<OfflineModelsCubit>();
@@ -348,7 +371,8 @@ class _ModelsList extends StatelessWidget {
             .subtract(const EdgeInsets.symmetric(horizontal: 16))
             .resolve(TextDirection.ltr),
         children: [
-          if (!state.isAvailable) const _UnavailableBanner(),
+          if (!state.isAvailable)
+            _UnavailableBanner(webRequirement: webRequirement),
           _Overview(state: state, textRecognition: textRecognition),
           const Padding(
             padding: EdgeInsets.fromLTRB(16, 8, 16, 8),
@@ -363,7 +387,8 @@ class _ModelsList extends StatelessWidget {
             _SectionHeading(title: l10n.offlineSectionAvailable),
             ...rows(available),
           ],
-          // An engine without languages (web, desktop) only shows the banner.
+          // An engine without languages (a browser without the engine's
+          // needs, desktop) only shows the banner.
           if (downloaded.isEmpty &&
               available.isEmpty &&
               state.languages.isNotEmpty)
@@ -401,15 +426,38 @@ class _SectionHeading extends StatelessWidget {
 }
 
 class _UnavailableBanner extends StatelessWidget {
-  const new();
+  const new({this.webRequirement});
+
+  /// What the browser lacks, in the web app.
+  final BergamotWebRequirement? webRequirement;
+
+  /// Why on-device translation does not work here.
+  static String message(
+    AppLocalizations l10n,
+    BergamotWebRequirement? webRequirement,
+  ) {
+    if (webRequirement != null) {
+      return switch (webRequirement) {
+        BergamotWebRequirement.engineFiles =>
+          l10n.offlineUnavailableWebEngineMissing,
+        BergamotWebRequirement.secureContext =>
+          l10n.offlineUnavailableWebInsecure,
+        BergamotWebRequirement.storage => l10n.offlineUnavailableWebStorage,
+        BergamotWebRequirement.wasmSimd ||
+        BergamotWebRequirement.decompression ||
+        BergamotWebRequirement.segmenter => l10n.offlineUnavailableWebOutdated,
+      };
+    }
+    // In the Android app the engine is always built in, so only the CPU can
+    // be the reason; elsewhere (desktop) the platform is.
+    final android = !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+    return android ? l10n.offlineUnavailableDevice : l10n.offlineUnavailableApp;
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final palette = AppPalette.of(context);
-    // In the Android app the engine is always built in, so only the CPU can
-    // be the reason; elsewhere (web, desktop) the platform is.
-    final android = !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
       child: DecoratedBox(
@@ -426,9 +474,7 @@ class _UnavailableBanner extends StatelessWidget {
               Icon(Icons.info_outline, color: theme.colorScheme.primary),
               Expanded(
                 child: Text(
-                  android
-                      ? context.l10n.offlineUnavailableDevice
-                      : context.l10n.offlineUnavailableApp,
+                  message(context.l10n, webRequirement),
                   style: theme.textTheme.bodyMedium,
                 ),
               ),
@@ -483,7 +529,15 @@ class _Overview extends StatelessWidget {
         ),
         if (state.hasDetails) ...[
           _Note(icon: Icons.alt_route, text: l10n.offlineViaEnglish),
-          _Note(icon: Icons.verified_outlined, text: l10n.offlineModelSource),
+          _Note(
+            icon: Icons.verified_outlined,
+            text: switch (modelSourceHost(_modelSource(context))) {
+              final host? => l10n.offlineModelSourceMirror(host),
+              null => l10n.offlineModelSource,
+            },
+          ),
+          if (kIsWeb && state.isAvailable)
+            _Note(icon: Icons.web_outlined, text: l10n.offlineWebStorageNote),
         ],
         const SizedBox(height: 8),
         SwitchListTile(
@@ -502,12 +556,26 @@ class _Overview extends StatelessWidget {
                 )
               : null,
         ),
+        // Where this page's (and voice input's) models come from.
+        const ModelSourceTile(),
         if (state.canImport) _ImportTile(importing: state.importing),
         if (textRecognition case final data? when data.isSupported)
           OcrLanguagesEntry(data: data),
         const Hairline(),
       ],
     );
+  }
+}
+
+/// The model source in use: the settings' (rebuilding when it changes),
+/// else [ModelSource.current].
+ModelSource _modelSource(BuildContext context) {
+  try {
+    return context.select<SettingsCubit, ModelSource>(
+      (cubit) => cubit.state.modelSource,
+    );
+  } on ProviderNotFoundException {
+    return ModelSource.current;
   }
 }
 

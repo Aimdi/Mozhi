@@ -8,6 +8,26 @@ import 'package:ffi/ffi.dart';
 /// Opaque `MozhiWhisperModel`.
 final class NativeWhisperModel extends Opaque;
 
+/// Opaque `MozhiWhisperVad`.
+final class NativeWhisperVad extends Opaque;
+
+typedef _VadProcessNative = Int32 Function(
+  Pointer<NativeWhisperVad> vad,
+  Pointer<Float> samples,
+  Int32 count,
+  Pointer<Float> probabilities,
+  Int32 maxProbabilities,
+);
+
+/// `mozhi_whisper_vad_process`.
+typedef VadProcessFunction = int Function(
+  Pointer<NativeWhisperVad> vad,
+  Pointer<Float> samples,
+  int count,
+  Pointer<Float> probabilities,
+  int maxProbabilities,
+);
+
 typedef _TranscribeNative = Pointer<Utf8> Function(
   Pointer<NativeWhisperModel> model,
   Pointer<Float> samples,
@@ -69,10 +89,34 @@ final class WhisperBindings {
       lastError = library
           .lookupFunction<Pointer<Utf8> Function(), Pointer<Utf8> Function()>(
             'mozhi_whisper_last_error',
-          );
+          ),
+      vadLoad = library
+          .lookupFunction<
+            Pointer<NativeWhisperVad> Function(Pointer<Utf8>, Int32),
+            Pointer<NativeWhisperVad> Function(Pointer<Utf8>, int)
+          >('mozhi_whisper_vad_load'),
+      vadFree = library
+          .lookupFunction<
+            Void Function(Pointer<NativeWhisperVad>),
+            void Function(Pointer<NativeWhisperVad>)
+          >('mozhi_whisper_vad_free'),
+      vadFrameSize = library
+          .lookupFunction<
+            Int32 Function(Pointer<NativeWhisperVad>),
+            int Function(Pointer<NativeWhisperVad>)
+          >('mozhi_whisper_vad_frame_size'),
+      vadProcess = library
+          .lookupFunction<_VadProcessNative, VadProcessFunction>(
+            'mozhi_whisper_vad_process',
+          ),
+      vadReset = library
+          .lookupFunction<
+            Void Function(Pointer<NativeWhisperVad>),
+            void Function(Pointer<NativeWhisperVad>)
+          >('mozhi_whisper_vad_reset');
 
   /// MOZHI_WHISPER_ABI_VERSION these bindings were written for.
-  static const expectedAbiVersion = 1;
+  static const expectedAbiVersion = 2;
 
   /// File name of the library (Android packs it into the APK per ABI).
   static const libraryName = 'libmozhi_whisper.so';
@@ -93,6 +137,12 @@ final class WhisperBindings {
   final void Function() cancel;
   final void Function(Pointer<Utf8> text) freeString;
   final Pointer<Utf8> Function() lastError;
+  final Pointer<NativeWhisperVad> Function(Pointer<Utf8> path, int threads)
+  vadLoad;
+  final void Function(Pointer<NativeWhisperVad> vad) vadFree;
+  final int Function(Pointer<NativeWhisperVad> vad) vadFrameSize;
+  final VadProcessFunction vadProcess;
+  final void Function(Pointer<NativeWhisperVad> vad) vadReset;
 
   /// Opens the library: [path], else `$WHISPER_LIBRARY_PATH`, else
   /// [libraryName] from the system search path (the APK on Android).

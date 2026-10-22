@@ -428,20 +428,6 @@ void main() {
     });
   });
 
-  group('proxyDirective', () {
-    const proxy = ProxyAddress('127.0.0.1', 8118);
-
-    test('https goes through the proxy, the rest is direct', () {
-      String directive(String url) =>
-          proxyDirective(Uri.parse(url), proxy, bypass: bypassesProxy);
-
-      expect(directive('https://mozhi.example/'), 'PROXY 127.0.0.1:8118');
-      expect(directive('https://abc.onion/'), 'PROXY 127.0.0.1:8118');
-      expect(directive('http://abc.onion/'), 'DIRECT');
-      expect(directive('https://192.168.1.2/'), 'DIRECT');
-    });
-  });
-
   test('bypassesProxy', () {
     expect(bypassesProxy('localhost'), isTrue);
     expect(bypassesProxy('192.168.1.2'), isTrue);
@@ -598,6 +584,434 @@ void main() {
 
       expect(socket.destroyed, isTrue);
       expect(latin1.decode(socket.written), startsWith('CONNECT abc.onion:80'));
+    });
+  });
+
+  group('https through a proxy', () {
+    // A certificate for the test servers' names, made for this run (never
+    // stored in the repository); the client trusts it through [trust].
+    late SecurityContext serverContext;
+    late SecurityContext trust;
+    String? skip;
+
+    setUpAll(() async {
+      final dir = await Directory.systemTemp.createTemp('mozhi_tls');
+      final key = '${dir.path}/key.pem';
+      final cert = '${dir.path}/cert.pem';
+      ProcessResult made;
+      try {
+        made = await Process.run('openssl', [
+          'req',
+          '-x509',
+          '-newkey',
+          'ec',
+          '-pkeyopt',
+          'ec_paramgen_curve:prime256v1',
+          '-nodes',
+          '-keyout',
+          key,
+          '-out',
+          cert,
+          '-days',
+          '2',
+          '-subj',
+          '/CN=mozhi.example',
+          '-addext',
+          'subjectAltName=DNS:mozhi.example,DNS:b.example',
+        ]);
+      } on ProcessException {
+        skip = 'openssl is not installed';
+        return;
+      }
+      if (made.exitCode != 0) {
+        skip = 'openssl failed: ${made.stderr}';
+        return;
+      }
+      serverContext = SecurityContext()
+        ..useCertificateChain(cert)
+        ..usePrivateKey(key);
+      trust = SecurityContext()..setTrustedCertificates(cert);
+      await dir.delete(recursive: true);
+    });
+
+    /// An https server answering `ok` (or the Mozhi translation "Hallo"
+    /// for `/api/translate`).
+    Future<HttpServer> tlsServer() async {
+      final server = await HttpServer.bindSecure(
+        InternetAddress.loopbackIPv4,
+        0,
+        serverContext,
+      );
+      servers.add(server);
+      server.listen((request) async {
+        await request.drain<void>();
+        request.response
+          ..headers.contentType = ContentType.json
+          ..write(
+            request.uri.path.endsWith('/translate')
+                ? '{"engine":"google","translated-text":"Hallo"}'
+                : '{"ok":true}',
+          );
+        await request.response.close();
+      });
+      return server;
+    }
+
+    /// A server that accepts connections and never answers.
+    Future<ServerSocket> silentServer() async {
+      final silent = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+      servers.add(silent);
+      final sockets = <Socket>[];
+      silent.listen((socket) {
+        sockets.add(socket);
+        socket.listen((_) {}, onError: (_) {});
+      });
+      addTearDown(() {
+        for (final socket in sockets) {
+          socket.destroy();
+        }
+      });
+      return silent;
+    }
+
+    /// A CONNECT proxy that tunnels each host to the loopback port
+    /// [targets] names, logging the first line of each request.
+    Future<(ServerSocket, _ProxyLog)> routingProxy(
+      Map<String, int> targets,
+    ) async {
+      final log = <String>[];
+      final proxy = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+      servers.add(proxy);
+      proxy.listen((client) {
+        final buffer = <int>[];
+        late StreamSubscription<Uint8List> subscription;
+        subscription = client.listen((data) async {
+          buffer.addAll(data);
+          final text = latin1.decode(buffer);
+          final end = text.indexOf('\r\n\r\n');
+          if (end < 0) return;
+          final line = text.split('\r\n').first;
+          log.add(line);
+          subscription.pause();
+          final host = line.split(' ')[1].split(':').first;
+          final upstream = await Socket.connect(
+            InternetAddress.loopbackIPv4,
+            targets[host]!,
+          );
+          client.add(
+            latin1.encode('HTTP/1.1 200 Connection established\r\n\r\n'),
+          );
+          subscription
+            ..onData(upstream.add)
+            ..onDone(() {
+              upstream.destroy();
+              unawaited(subscription.cancel());
+            })
+            ..resume();
+          upstream.listen(
+            client.add,
+            onDone: client.destroy,
+            onError: (_) => client.destroy(),
+          );
+        });
+      });
+      return (proxy, log);
+    }
+
+    test('runs TLS through the tunnel and keeps it open', () async {
+      if (skip != null) return markTestSkipped(skip!);
+      final server = await tlsServer();
+      final (proxy, log) = await connectProxy(target: server.port);
+
+      final bodies = await real(() async {
+        final client = IOClient(
+          createIoHttpClient(
+            proxy: ProxyAddress('127.0.0.1', proxy.port),
+            context: trust,
+          ),
+        );
+        addTearDown(client.close);
+        return [
+          for (var i = 0; i < 2; i++)
+            (await client.get(Uri.parse('https://mozhi.example/api/x'))).body,
+        ];
+      });
+
+      expect(bodies, ['{"ok":true}', '{"ok":true}']);
+      // One tunnel for both requests: the connection is kept alive.
+      expect(log, ['CONNECT mozhi.example:443 HTTP/1.1']);
+    });
+
+    test('refuses a certificate the system does not trust', () async {
+      if (skip != null) return markTestSkipped(skip!);
+      final server = await tlsServer();
+      final (proxy, _) = await connectProxy(target: server.port);
+
+      await expectLater(
+        real(() async {
+          final client = createHttpClient(proxy: '127.0.0.1:${proxy.port}');
+          addTearDown(client.close);
+          return await client.get(Uri.parse('https://mozhi.example/'));
+        }),
+        // As for a direct connection: TLS errors are not wrapped.
+        throwsA(isA<HandshakeException>()),
+      );
+    });
+
+    for (final (name, answers) in [
+      ('the server never answers TLS through the tunnel', true),
+      ('the proxy never answers CONNECT', false),
+    ]) {
+      test('gives up after the connect timeout when $name', () async {
+        final silent = await silentServer();
+        final ServerSocket proxy;
+        if (answers) {
+          (proxy, _) = await connectProxy(target: silent.port);
+        } else {
+          proxy = silent;
+        }
+        final stopwatch = Stopwatch()..start();
+
+        await expectLater(
+          real(() async {
+            final client = IOClient(
+              createIoHttpClient(
+                proxy: ProxyAddress('127.0.0.1', proxy.port),
+                connectionTimeout: const Duration(milliseconds: 300),
+              ),
+            );
+            addTearDown(client.close);
+            return await client.get(Uri.parse('https://mozhi.example/'));
+          }),
+          throwsA(
+            isA<http.ClientException>().having(
+              (e) => e.message,
+              'message',
+              contains('timed out'),
+            ),
+          ),
+        );
+        expect(stopwatch.elapsed, lessThan(const Duration(seconds: 10)));
+      });
+    }
+
+    test('a server that never answers through the proxy fails over to the '
+        'next instance, also for a translation', () async {
+      if (skip != null) return markTestSkipped(skip!);
+      final silent = await silentServer();
+      final answering = await tlsServer();
+      final (proxy, log) = await routingProxy({
+        'mozhi.example': silent.port,
+        'b.example': answering.port,
+      });
+      final repository =
+          TranslationRepository(
+              mozhiClientFactory: (baseUrl) => MozhiApiClient(
+                baseUrl: baseUrl,
+                httpClient: IOClient(
+                  createIoHttpClient(
+                    proxy: ProxyAddress('127.0.0.1', proxy.port),
+                    connectionTimeout: const Duration(milliseconds: 300),
+                    context: trust,
+                  ),
+                ),
+              ),
+            )
+            ..updatePrivacy(mode: PrivacyMode.online)
+            ..updateConfiguration(
+              instances: const [
+                MozhiInstance(url: 'https://mozhi.example'),
+                MozhiInstance(url: 'https://b.example'),
+              ],
+              providers: const [],
+            );
+      addTearDown(repository.dispose);
+
+      final results = await real(
+        () => repository
+            .translate(
+              TranslationEngine.mozhi('google', 'Google'),
+              const TranslationRequest(
+                text: 'Hello',
+                source: Language(code: 'en', name: 'English'),
+                target: Language(code: 'de', name: 'German'),
+              ),
+            )
+            .toList(),
+      );
+
+      expect(results.last.text, 'Hallo');
+      expect(log, [
+        'CONNECT mozhi.example:443 HTTP/1.1',
+        'CONNECT b.example:443 HTTP/1.1',
+      ]);
+      expect(repository.activeInstance?.url, 'https://b.example');
+    });
+
+    test('reports a proxy that refuses the tunnel', () async {
+      final (proxy, _) = await connectProxy(
+        refuse: 'HTTP/1.1 403 Forbidden\r\n\r\n',
+      );
+
+      await expectLater(
+        real(() async {
+          final client = createHttpClient(proxy: '127.0.0.1:${proxy.port}');
+          addTearDown(client.close);
+          return await client.get(Uri.parse('https://mozhi.example/'));
+        }),
+        throwsA(
+          isA<http.ClientException>().having(
+            (e) => e.message,
+            'message',
+            contains('refused the connection to mozhi.example:443 (HTTP 403)'),
+          ),
+        ),
+      );
+    });
+
+    for (final (name, answer, message) in [
+      (
+        'data before TLS',
+        'HTTP/1.1 200 OK\r\n\r\nhello',
+        'The proxy sent an invalid answer',
+      ),
+      (
+        'garbage',
+        'SSH-2.0-OpenSSH\r\n\r\n',
+        'The proxy sent an invalid answer',
+      ),
+    ]) {
+      test('reports $name from the proxy', () async {
+        final (proxy, _) = await connectProxy(answer: answer);
+
+        await expectLater(
+          real(() async {
+            final client = createHttpClient(proxy: '127.0.0.1:${proxy.port}');
+            addTearDown(client.close);
+            return await client.get(Uri.parse('https://mozhi.example/'));
+          }),
+          throwsA(
+            isA<http.ClientException>().having(
+              (e) => e.message,
+              'message',
+              contains(message),
+            ),
+          ),
+        );
+      });
+    }
+
+    test('reports a proxy that hangs up or answers endlessly', () async {
+      final (closing, _) = await connectProxy(refuse: '');
+      final endless = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+      servers.add(endless);
+      endless.listen((client) {
+        client
+          ..add(Uint8List(20 * 1024))
+          ..listen((_) {});
+      });
+
+      for (final (port, message) in [
+        (closing.port, 'The proxy closed the connection'),
+        (endless.port, 'The proxy sent an invalid answer'),
+      ]) {
+        await expectLater(
+          real(() async {
+            final client = createHttpClient(proxy: '127.0.0.1:$port');
+            addTearDown(client.close);
+            return await client.get(Uri.parse('https://mozhi.example/'));
+          }),
+          throwsA(
+            isA<http.ClientException>().having(
+              (e) => e.message,
+              'message',
+              contains(message),
+            ),
+          ),
+        );
+      }
+    });
+
+    test('a connection error before the answer is reported', () async {
+      final proxy = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+      servers.add(proxy);
+      proxy.listen((client) => client.listen((_) => client.destroy()));
+
+      await expectLater(
+        real(() async {
+          final client = createHttpClient(proxy: '127.0.0.1:${proxy.port}');
+          addTearDown(client.close);
+          return await client.get(Uri.parse('https://mozhi.example/'));
+        }),
+        throwsA(isA<http.ClientException>()),
+      );
+    });
+  });
+
+  group('connectSecureTunnel with a fake proxy connection', () {
+    const proxy = ProxyAddress('proxy.lan', 8118);
+
+    test('drops a connection that opens after the cancellation', () async {
+      final socket = _FakeSocket();
+      final opening = Completer<Socket>();
+      final task = await connectSecureTunnel(
+        proxy,
+        'mozhi.example',
+        443,
+        connect: (host, port) async {
+          expect((host, port), ('proxy.lan', 8118));
+          return ConnectionTask.fromSocket(opening.future, () {});
+        },
+      );
+
+      task.cancel();
+      opening.complete(socket);
+
+      await expectLater(task.socket, throwsA(isA<SocketException>()));
+      expect(socket.destroyed, isTrue);
+      expect(socket.written, isEmpty);
+    });
+
+    test('cancelling closes an open connection', () async {
+      final socket = _FakeSocket();
+      final task = await connectSecureTunnel(
+        proxy,
+        'mozhi.example',
+        443,
+        connect: (_, _) async =>
+            ConnectionTask.fromSocket(Future.value(socket), () {}),
+      );
+      await pumpEventQueue();
+
+      task.cancel();
+      socket.incoming.addError(const SocketException('closed'));
+
+      await expectLater(task.socket, throwsA(isA<SocketException>()));
+      expect(socket.destroyed, isTrue);
+      expect(
+        latin1.decode(socket.written),
+        startsWith('CONNECT mozhi.example:443'),
+      );
+    });
+
+    test('a tunnel opened after the cancellation is dropped', () async {
+      final socket = _FakeSocket();
+      late final ConnectionTask<Socket> task;
+      task = await connectSecureTunnel(
+        proxy,
+        'mozhi.example',
+        443,
+        connect: (_, _) async =>
+            ConnectionTask.fromSocket(Future.value(socket), () {}),
+      );
+      await pumpEventQueue();
+      task.cancel();
+      // The proxy answers after the cancellation; TLS needs a real socket,
+      // so the attempt fails either way, without leaking the connection.
+      socket.incoming.add(latin1.encode('HTTP/1.1 200 OK\r\n\r\n'));
+
+      await expectLater(task.socket, throwsA(anything));
+      expect(socket.destroyed, isTrue);
     });
   });
 

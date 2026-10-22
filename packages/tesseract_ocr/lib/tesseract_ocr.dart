@@ -9,5 +9,6 @@ export 'src/catalog.dart';
 export 'src/catalog_asset.dart';
 export 'src/engine/engine_factory.dart';
 export 'src/engine/ocr_engine.dart';
+export 'src/engine/ocr_layout.dart';
 export 'src/model_manager.dart';
 export 'src/tesseract_ocr.dart';

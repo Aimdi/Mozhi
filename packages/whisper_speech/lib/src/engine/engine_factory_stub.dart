@@ -9,6 +9,10 @@ bool get whisperPlatformSupported => false;
 WhisperEngine createWhisperEngine({String? libraryPath}) =>
     const UnsupportedWhisperEngine();
 
+/// A voice activity detector that is not available on this platform.
+WhisperVadEngine createWhisperVadEngine({String? libraryPath}) =>
+    const UnsupportedWhisperVadEngine();
+
 /// The engine on platforms without `dart:ffi` (web): every call fails.
 final class UnsupportedWhisperEngine implements WhisperEngine {
   const new();
@@ -27,6 +31,29 @@ final class UnsupportedWhisperEngine implements WhisperEngine {
 
   @override
   Future<void> cancel() async {}
+
+  @override
+  Future<void> release(String modelPath) async {}
+
+  @override
+  Future<void> dispose() async {}
+}
+
+/// The voice activity detector on platforms without `dart:ffi` (web):
+/// detection fails.
+final class UnsupportedWhisperVadEngine implements WhisperVadEngine {
+  const new();
+
+  @override
+  Future<WhisperVadFrames> detect(String modelPath, Float32List samples) =>
+      Future.error(
+        const WhisperEngineException(
+          'Voice activity detection is not available on the web',
+        ),
+      );
+
+  @override
+  Future<void> reset() async {}
 
   @override
   Future<void> release(String modelPath) async {}

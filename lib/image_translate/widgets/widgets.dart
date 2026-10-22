@@ -10,3 +10,6 @@ export 'image_translate_preview.dart';
 export 'image_translate_progress.dart';
 export 'image_translate_result_section.dart';
 export 'ocr_language_offer.dart';
+export 'overlay_export.dart';
+export 'overlay_painting.dart';
+export 'translated_image_overlay.dart';

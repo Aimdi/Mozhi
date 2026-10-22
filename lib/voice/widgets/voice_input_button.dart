@@ -94,7 +94,9 @@ class VoiceInputButton extends StatefulWidget {
   /// Overrides the stored "Prefer on-device speech recognition" setting.
   final bool? preferOnDevice;
 
-  /// Called when this button starts or stops listening.
+  /// Called when this button starts listening (true) and when its session
+  /// is over (false): after an offline engine transcribed the recording,
+  /// so partial results of that time still belong to the session.
   final ValueChanged<bool>? onListeningChanged;
 
   /// A large filled accent circle ([prominentSize]) instead of an icon.
@@ -172,12 +174,13 @@ class _VoiceInputButtonState extends State<VoiceInputButton> {
 
   void _onState(SpeechInputState state) {
     if (!mounted) return;
-    final wasListening = _listening;
+    final wasActive = _listening || _transcribing;
     setState(() {
       _state = state;
       if (_listening) _startingSession = null;
     });
-    if (wasListening != _listening) widget.onListeningChanged?.call(_listening);
+    final active = _listening || _transcribing;
+    if (wasActive != active) widget.onListeningChanged?.call(active);
     // Failures to start are explained once `listen` returns (_toggle).
     if (state is SpeechInputError && state.isOwnedBy(this) && !_starting) {
       _showError(state.failure);

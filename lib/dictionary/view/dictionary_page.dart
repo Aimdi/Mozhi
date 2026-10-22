@@ -8,6 +8,8 @@ import 'package:mozhi/app/view/top_level_actions.dart';
 import 'package:mozhi/core/widgets/composer_card.dart';
 import 'package:mozhi/core/widgets/tab_hero.dart';
 import 'package:mozhi/dictionary/cubit/dictionary_cubit.dart';
+import 'package:mozhi/dictionary/data/default_dictionary_packs.dart'
+    show maybeDictionaryPacks;
 import 'package:mozhi/dictionary/view/dictionary_request.dart';
 import 'package:mozhi/dictionary/widgets/widgets.dart';
 import 'package:mozhi/history/cubit/history_cubit.dart';
@@ -62,6 +64,10 @@ enum DictionaryLaunch { lookUp }
 /// The language of an entry looked up with "Detect language" is
 /// identified on the device ([OfflineTranslator.identifyLanguage], when
 /// the device has an on-device engine) so Listen can read it.
+///
+/// With the app's offline dictionaries (`DictionaryPacks` provided above,
+/// see `maybeDictionaryPacks`), words are looked up in the installed ones
+/// first, without a network or AI (see [DictionaryCubit]).
 class DictionaryPage extends StatelessWidget {
   const new({
     this.word,
@@ -107,6 +113,7 @@ class DictionaryPage extends StatelessWidget {
           history: context.read<HistoryCubit?>(),
           settings: context.read<SettingsCubit?>(),
           identifyLanguage: _identifier(context),
+          offlineDictionary: maybeDictionaryPacks(context),
         );
         if (autoLookUp || request != null) unawaited(cubit.lookUp());
         return cubit;

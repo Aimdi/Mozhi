@@ -2,9 +2,11 @@ import 'package:equatable/equatable.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/core/network/url_credentials.dart';
 import 'package:mozhi/settings/models/language_pair.dart';
+import 'package:mozhi/settings/models/model_source.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 export 'language_pair.dart';
+export 'model_source.dart';
 
 /// How long non-favourite history entries are kept before they are
 /// deleted automatically. Favourites are always kept.
@@ -92,6 +94,7 @@ class AppSettings extends Equatable {
     this.rememberQuality = true,
     this.multilineInput = true,
     this.maskPersonalData = true,
+    this.modelSource = ModelSource.platformDefault,
   });
 
   /// Tolerant counterpart of [toJson]: missing or invalid fields fall back to
@@ -173,6 +176,9 @@ class AppSettings extends Equatable {
       multilineInput: _bool(json['multilineInput']) ?? defaults.multilineInput,
       maskPersonalData:
           _bool(json['maskPersonalData']) ?? defaults.maskPersonalData,
+      modelSource:
+          _object(json['modelSource'], ModelSource.fromJson) ??
+          defaults.modelSource,
     );
   }
 
@@ -339,6 +345,12 @@ class AppSettings extends Equatable {
   /// unchanged, and engines translate the text around it as well.
   final bool maskPersonalData;
 
+  /// Where on-device models (offline languages, voice input, text
+  /// recognition) are downloaded from: the original publishers, the web
+  /// server the web app comes from, or a mirror (see [ModelSource]; every
+  /// file is checked against the app's SHA-256 either way).
+  final ModelSource modelSource;
+
   /// The quality mode a start of the app begins in when [rememberQuality]
   /// is off: [QualityMode.fast] when a fast engine is chosen, else
   /// [QualityMode.off] (the usual engine).
@@ -393,6 +405,7 @@ class AppSettings extends Equatable {
     bool? rememberQuality,
     bool? multilineInput,
     bool? maskPersonalData,
+    ModelSource? modelSource,
   }) {
     return AppSettings(
       themeMode: themeMode ?? this.themeMode,
@@ -434,6 +447,7 @@ class AppSettings extends Equatable {
       rememberQuality: rememberQuality ?? this.rememberQuality,
       multilineInput: multilineInput ?? this.multilineInput,
       maskPersonalData: maskPersonalData ?? this.maskPersonalData,
+      modelSource: modelSource ?? this.modelSource,
     );
   }
 
@@ -495,6 +509,7 @@ class AppSettings extends Equatable {
       'rememberQuality': rememberQuality,
       'multilineInput': multilineInput,
       'maskPersonalData': maskPersonalData,
+      'modelSource': modelSource.toJson(),
     };
   }
 
@@ -538,6 +553,7 @@ class AppSettings extends Equatable {
     rememberQuality,
     multilineInput,
     maskPersonalData,
+    modelSource,
   ];
 }
 

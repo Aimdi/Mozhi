@@ -18,7 +18,9 @@ final class WhisperModelMissingException implements Exception {
 }
 
 /// Offline speech recognition: OpenAI's Whisper models on whisper.cpp, in
-/// a background isolate, with verified model downloads and imports.
+/// a background isolate, with verified model downloads and imports, and
+/// whisper.cpp's Silero voice activity detection ([detectSpeech], with the
+/// catalog's [WhisperModelCatalog.vad] model) in another one.
 ///
 /// Nothing here records audio or goes online on its own: the app records
 /// 16 kHz mono PCM (see `Pcm16Buffer`), calls [transcribe], and decides
@@ -27,7 +29,8 @@ final class WhisperModelMissingException implements Exception {
 class WhisperSpeech {
   /// [root] is an app-private directory: models go to
   /// `<root>/models/<id>/`. [httpClient] downloads them (default: a new
-  /// client). [engine] and [isAvailable] replace the platform's (tests).
+  /// client). [engine], [vadEngine] and [isAvailable] replace the
+  /// platform's (tests).
   /// With [idleUnloadAfter] the model is unloaded once no transcription
   /// has run for that long ([unload]).
   new({
@@ -35,6 +38,7 @@ class WhisperSpeech {
     required Directory root,
     http.Client? httpClient,
     WhisperEngine? engine,
+    WhisperVadEngine? vadEngine,
     bool? isAvailable,
     Duration requestTimeout = const Duration(seconds: 60),
     this.idleUnloadAfter,
@@ -44,6 +48,7 @@ class WhisperSpeech {
          requestTimeout: requestTimeout,
        ),
        _engine = engine ?? createWhisperEngine(),
+       _vad = vadEngine ?? createWhisperVadEngine(),
        isAvailable = isAvailable ?? whisperPlatformSupported;
 
   /// The downloadable models, fastest first.
@@ -61,6 +66,7 @@ class WhisperSpeech {
   final Duration? idleUnloadAfter;
 
   final WhisperEngine _engine;
+  final WhisperVadEngine _vad;
   Timer? _idleTimer;
   var _running = 0;
   var _unloadWhenIdle = false;
@@ -78,6 +84,47 @@ class WhisperSpeech {
   /// Whether [isAvailable] and at least one model is installed.
   Future<bool> isReady() async =>
       isAvailable && (await installedModels()).isNotEmpty;
+
+  /// The voice activity detection model ([WhisperModelCatalog.vad]), if
+  /// the catalog has one: [download] or [importFiles] install it like a
+  /// speech model.
+  WhisperCatalogModel? get vadModel => catalog.vad;
+
+  /// The installed [vadModel] (the exact catalog file), if any.
+  Future<InstalledWhisperModel?> installedVad() async {
+    final model = vadModel;
+    if (model == null) return null;
+    final installed = await models.installedModel(model.id);
+    return installed != null && installed.matches(model) ? installed : null;
+  }
+
+  /// Whether [isAvailable] and the [vadModel] is installed, so
+  /// [detectSpeech] works.
+  Future<bool> isVadReady() async =>
+      isAvailable && await installedVad() != null;
+
+  /// Feeds [samples] (16 kHz mono, `-1..1`) of a recording to the voice
+  /// activity detector and returns the speech probability of every window
+  /// (32 ms) they complete; samples that do not fill a window are kept for
+  /// the next call. Call [resetSpeechDetection] before each recording.
+  ///
+  /// Runs in a background isolate of its own, so it keeps up with the
+  /// microphone while [transcribe] runs. Throws
+  /// [WhisperModelMissingException] without the installed [vadModel] and
+  /// [WhisperEngineException] when the engine fails.
+  Future<WhisperVadFrames> detectSpeech(Float32List samples) async {
+    if (!isAvailable) {
+      throw const WhisperEngineException(
+        'Voice activity detection is not available on this device',
+      );
+    }
+    final installed = await installedVad();
+    if (installed == null) throw const WhisperModelMissingException();
+    return await _vad.detect(installed.path, samples);
+  }
+
+  /// Starts a new recording for [detectSpeech] (forgets the last one).
+  Future<void> resetSpeechDetection() => _vad.reset();
 
   /// The installed model [transcribe] uses: [preferred] (a model id) when
   /// it is installed, else the most accurate installed one; null when none
@@ -141,13 +188,14 @@ class WhisperSpeech {
     }
   }
 
-  /// Unloads the model and stops the engine isolate, giving their memory
-  /// back (when the app goes to the background or memory runs low). A
-  /// running transcription finishes first; the next one loads the model
-  /// again (about a second).
+  /// Unloads the model and stops the engine isolates (the voice activity
+  /// detector's too), giving their memory back (when the app goes to the
+  /// background or memory runs low). A running transcription finishes
+  /// first; the next one loads the model again (about a second).
   Future<void> unload() async {
     _idleTimer?.cancel();
     _idleTimer = null;
+    await _vad.dispose();
     if (_running > 0) {
       _unloadWhenIdle = true;
       return;
@@ -180,27 +228,38 @@ class WhisperSpeech {
     void Function(WhisperDownloadProgress progress)? onProgress,
   }) => models.install(model, onProgress: onProgress);
 
-  /// Unloads and deletes the model [id] (and a partial download of it).
+  /// Unloads and deletes the model [id] (a speech model or the
+  /// [vadModel]) and a partial download of it.
   Future<void> delete(String id) async {
     if (await models.installedModel(id) case final installed?) {
       await _engine.release(installed.path);
+      await _vad.release(installed.path);
     }
     await models.delete(id);
   }
 
-  /// Installs models from files copied to the device by hand
-  /// ([WhisperModelManager.importFiles]); never goes online.
+  /// Installs models (speech models and the [vadModel]) from files copied
+  /// to the device by hand ([WhisperModelManager.importFiles]); never goes
+  /// online.
   Future<WhisperImportResult> importFiles(Iterable<File> files) =>
-      models.importFiles(files, catalog: catalog);
+      models.importFiles(
+        files,
+        catalog: WhisperModelCatalog(
+          models: [...catalog.models, ?catalog.vad],
+          source: catalog.source,
+          license: catalog.license,
+        ),
+      );
 
   /// Removes leftovers of interrupted installs (safe at start-up).
   Future<void> cleanUp() => models.cleanUp();
 
-  /// Stops the engine isolate and closes the HTTP client it created.
+  /// Stops the engine isolates and closes the HTTP client it created.
   Future<void> dispose() async {
     _idleTimer?.cancel();
     _idleTimer = null;
     await _engine.dispose();
+    await _vad.dispose();
     models.close();
   }
 }

@@ -92,6 +92,101 @@ void main() {
       expect(again, gray);
     }, skip: realEngineSkip());
 
+    test('reports the layout and the colours of the text', () async {
+      final engine = IsolateTesseractEngine(libraryPath: nativeLibraryPath());
+      addTearDown(engine.dispose);
+      final dataPath = englishTessdataPath()!;
+      // Dark blue text on yellow, from the gray fixture (white -> yellow).
+      final colour = Uint8List(fixture.pixels.length * 3);
+      for (var i = 0; i < fixture.pixels.length; i++) {
+        final light = fixture.pixels[i] / 255;
+        colour
+          ..[i * 3] = (255 * light).round()
+          ..[i * 3 + 1] = (20 + 200 * light).round()
+          ..[i * 3 + 2] = (128 * (1 - light)).round();
+      }
+      final result = await engine.recognize(
+        OcrImage(
+          colour,
+          width: fixture.width,
+          height: fixture.height,
+          bytesPerPixel: 3,
+        ),
+        dataPath: dataPath,
+        languages: const ['eng'],
+        layout: true,
+      );
+      expect(result.text, 'Opening hours\nMonday to Friday');
+      expect(result.meanConfidence, greaterThan(80));
+      final layout = result.layout!;
+      expect((layout.width, layout.height), (fixture.width, fixture.height));
+      final paragraph = layout.paragraphs.single;
+      expect(paragraph.text, 'Opening hours\nMonday to Friday');
+      expect(paragraph.isLeftToRight, isTrue);
+      expect(paragraph.lines.map((line) => line.words.length), [2, 3]);
+      final hours = paragraph.lines.first.words.last;
+      expect(hours.text, 'hours');
+      // The words lie inside their line, the lines inside the paragraph.
+      for (final line in paragraph.lines) {
+        expect(_inside(line.box, paragraph.box), isTrue);
+        for (final word in line.words) {
+          expect(_inside(word.box, line.box), isTrue, reason: word.text);
+        }
+        expect(line.angle.abs(), lessThan(1));
+      }
+      expect(
+        paragraph.lines.first.box.top,
+        lessThan(paragraph.lines.last.box.top),
+      );
+      expect(layout.blocks.single.orientation, 0);
+      expect(layout.blocks.single.deskewAngle.abs(), lessThan(1));
+      expect(
+        _near(paragraph.background!, 0xFFDC00),
+        isTrue,
+        reason: paragraph.background!.toRadixString(16),
+      );
+      expect(
+        _near(paragraph.foreground!, 0x001480),
+        isTrue,
+        reason: paragraph.foreground!.toRadixString(16),
+      );
+
+      // Light text on a dark ground: the larger share is the background.
+      final inverted = Uint8List.fromList([
+        for (final value in fixture.pixels) 255 - value,
+      ]);
+      final dark = await engine.recognize(
+        OcrImage(
+          inverted,
+          width: fixture.width,
+          height: fixture.height,
+          bytesPerPixel: 1,
+        ),
+        dataPath: dataPath,
+        languages: const ['eng'],
+        layout: true,
+      );
+      expect(dark.text, contains('Monday'));
+      final darkParagraph = dark.layout!.paragraphs.first;
+      expect(_near(darkParagraph.background!, 0x000000), isTrue);
+      expect(_near(darkParagraph.foreground!, 0xFFFFFF, tolerance: 80), isTrue);
+
+      // A blank image has no paragraphs.
+      final blank = await engine.recognize(
+        OcrImage(
+          Uint8List(64 * 32)..fillRange(0, 64 * 32, 255),
+          width: 64,
+          height: 32,
+          bytesPerPixel: 1,
+        ),
+        dataPath: dataPath,
+        languages: const ['eng'],
+        layout: true,
+      );
+      expect(blank.text, isEmpty);
+      expect(blank.layout!.isEmpty, isTrue);
+    }, skip: realEngineSkip());
+
     test('reports missing language data and keeps working', () async {
       final engine = IsolateTesseractEngine(libraryPath: nativeLibraryPath());
       addTearDown(engine.dispose);
@@ -245,6 +340,11 @@ void main() {
           nullptr,
         );
         expect(lastError(), contains('required'));
+        expect(
+          bindings.recognizeLayout(nullptr, pixels, 2, 2, 4, 8, 0),
+          nullptr,
+        );
+        expect(lastError(), contains('required'));
         bindings.destroy(nullptr);
         bindings.freeString(nullptr);
         expect(lastError(), isNull);
@@ -299,8 +399,34 @@ void main() {
         expect(text.toDartString(), contains('Opening hours'));
         expect(confidence.value, greaterThan(80));
         expect(lastError(), isNull);
+        bindings.freeString(text);
+
+        expect(
+          bindings.recognizeLayout(engine, pixels, 10, 10, 2, 20, 0),
+          nullptr,
+        );
+        expect(lastError(), contains('bytes_per_pixel'));
+        final json = bindings.recognizeLayout(
+          engine,
+          rgb,
+          fixture.width,
+          fixture.height,
+          3,
+          fixture.width * 3,
+          0,
+        );
+        expect(json, isNot(nullptr));
+        final layout = NativeTesseractEngine.parseLayoutResult(
+          json.toDartString(),
+        );
+        // Without MOZHI_TESSERACT_LAYOUT_WORDS there are no words.
+        expect(layout.layout!.paragraphs.single.lines.first.words, isEmpty);
+        expect(
+          layout.layout!.paragraphs.single.lines.first.text,
+          'Opening hours',
+        );
         bindings
-          ..freeString(text)
+          ..freeString(json)
           ..destroy(engine);
       });
     }, skip: realEngineSkip());
@@ -330,4 +456,21 @@ void main() {
     );
     expect(result.text, 'Opening hours\nMonday to Friday');
   }, skip: realEngineSkip());
+}
+
+bool _inside(OcrBox inner, OcrBox outer) =>
+    inner.left >= outer.left &&
+    inner.top >= outer.top &&
+    inner.right <= outer.right &&
+    inner.bottom <= outer.bottom;
+
+/// Whether the 0xRRGGBB colours [a] and [b] differ by at most [tolerance]
+/// in every channel.
+bool _near(int a, int b, {int tolerance = 40}) {
+  for (final shift in [16, 8, 0]) {
+    if (((a >> shift & 0xFF) - (b >> shift & 0xFF)).abs() > tolerance) {
+      return false;
+    }
+  }
+  return true;
 }

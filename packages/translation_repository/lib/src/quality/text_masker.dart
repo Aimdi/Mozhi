@@ -14,30 +14,48 @@ enum ProtectedKind {
   /// Personal data that must not leave the device (see `PersonalData`):
   /// never sent unmasked.
   personal,
+
+  /// A glossary term (`TranslationOptions.glossary`) for an engine that
+  /// cannot apply glossaries itself: masked so that the engine keeps it,
+  /// and replaced by its rendering ([ProtectedSpan.replacement]) when
+  /// restored. Never merged with other spans: one that overlaps another
+  /// span is dropped.
+  glossary,
 }
 
 /// A span of a text (`text.substring(start, end)`) that must not be
 /// translated.
 @immutable
 class ProtectedSpan {
-  const new(this.start, this.end, {this.kind = ProtectedKind.format})
-    : assert(start <= end, 'start must not be after end');
+  const new(
+    this.start,
+    this.end, {
+    this.kind = ProtectedKind.format,
+    this.replacement,
+  }) : assert(start <= end, 'start must not be after end');
 
   final int start;
   final int end;
   final ProtectedKind kind;
 
+  /// What [MaskedText.restore] puts back instead of the span's own text
+  /// (a glossary term's rendering), or null for the text itself.
+  final String? replacement;
+
   bool get isPersonal => kind == ProtectedKind.personal;
+
+  bool get isGlossary => kind == ProtectedKind.glossary;
 
   @override
   bool operator ==(Object other) =>
       other is ProtectedSpan &&
       other.start == start &&
       other.end == end &&
-      other.kind == kind;
+      other.kind == kind &&
+      other.replacement == replacement;
 
   @override
-  int get hashCode => Object.hash(start, end, kind);
+  int get hashCode => Object.hash(start, end, kind, replacement);
 
   @override
   String toString() => 'ProtectedSpan($start-$end, ${kind.name})';
@@ -103,7 +121,10 @@ abstract final class TextMasker {
 
   /// [spans] sorted and without overlaps: overlapping spans are merged into
   /// one, which is [ProtectedKind.personal] when one of them is (a URL with
-  /// an e-mail address in it is kept on the device as a whole).
+  /// an e-mail address in it is kept on the device as a whole). A
+  /// [ProtectedKind.glossary] span that overlaps another span is dropped
+  /// instead (formatting and personal data win; of two glossary spans, the
+  /// one that starts first, or the longer one).
   static List<ProtectedSpan> merge(Iterable<ProtectedSpan> spans) {
     final sorted = spans.where((s) => s.end > s.start).toList()
       ..sort((a, b) {
@@ -115,6 +136,12 @@ abstract final class TextMasker {
       final last = merged.lastOrNull;
       if (last == null || span.start >= last.end) {
         merged.add(span);
+        continue;
+      }
+      if (span.isGlossary) continue;
+      if (last.isGlossary) {
+        // Nothing before the glossary span reaches into [span].
+        merged[merged.length - 1] = span;
         continue;
       }
       merged[merged.length - 1] = ProtectedSpan(
@@ -131,10 +158,11 @@ abstract final class TextMasker {
   /// [text] with [spans] (see [merge]) replaced by tokens in [style].
   ///
   /// Identical values of the same kind share one token, so a repeated
-  /// e-mail address is one item. Token numbers start above any number a
-  /// token-like sequence of [text] already uses, so the text's own `⟨1⟩`
-  /// is left alone by [MaskedText.restore]. With [MaskStyle.xml] the text
-  /// between the tokens is XML-escaped.
+  /// e-mail address is one item (the value of a span with a
+  /// [ProtectedSpan.replacement] is that replacement). Token numbers start
+  /// above any number a token-like sequence of [text] already uses, so the
+  /// text's own `⟨1⟩` is left alone by [MaskedText.restore]. With
+  /// [MaskStyle.xml] the text between the tokens is XML-escaped.
   static MaskedText mask(
     String text,
     Iterable<ProtectedSpan> spans, {
@@ -143,6 +171,7 @@ abstract final class TextMasker {
     final merged = merge(spans);
     final first = _firstFreeNumber(text);
     final values = <String>[];
+    final originals = <String>[];
     final kinds = <ProtectedKind>[];
     final numbers = <(String, ProtectedKind), int>{};
     final buffer = StringBuffer();
@@ -154,9 +183,11 @@ abstract final class TextMasker {
 
     for (final span in merged) {
       plain(span.start);
-      final value = text.substring(span.start, span.end);
+      final original = text.substring(span.start, span.end);
+      final value = span.replacement ?? original;
       final number = numbers.putIfAbsent((value, span.kind), () {
         values.add(value);
+        originals.add(original);
         kinds.add(span.kind);
         return first + values.length - 1;
       });
@@ -172,6 +203,7 @@ abstract final class TextMasker {
       style: style,
       first: first,
       values: List.unmodifiable(values),
+      originals: List.unmodifiable(originals),
       kinds: List.unmodifiable(kinds),
     );
   }
@@ -204,6 +236,7 @@ class MaskedText {
     required this.style,
     required this.first,
     required this.values,
+    required this.originals,
     required this.kinds,
   });
 
@@ -218,8 +251,13 @@ class MaskedText {
   /// The number of the first token.
   final int first;
 
-  /// The masked values, by token number - [first].
+  /// The masked values, by token number - [first]: what [restore] puts
+  /// back (a glossary term's rendering for [ProtectedKind.glossary]).
   final List<String> values;
+
+  /// The text each of [values] replaced (its first occurrence), by token
+  /// number - [first]: the same as [values] except for glossary terms.
+  final List<String> originals;
 
   /// The kind of each of [values].
   final List<ProtectedKind> kinds;
@@ -235,7 +273,12 @@ class MaskedText {
       kinds.where((kind) => kind == ProtectedKind.personal).length;
 
   /// Number of distinct formatting values ([ProtectedKind.format]).
-  int get formatCount => count - personalCount;
+  int get formatCount =>
+      kinds.where((kind) => kind == ProtectedKind.format).length;
+
+  /// Number of distinct glossary renderings ([ProtectedKind.glossary]).
+  int get glossaryCount =>
+      kinds.where((kind) => kind == ProtectedKind.glossary).length;
 
   /// The value of token [number], or null when it is not one of these
   /// tokens.
@@ -250,7 +293,12 @@ class MaskedText {
   /// again (it may contain text that looks like a token). Token-like text
   /// with a number that is not one of these tokens is left as it is.
   /// [MaskStyle.xml] output is unescaped at the same time.
-  RestoredText restore(String output) {
+  ///
+  /// A glossary rendering ([ProtectedKind.glossary]) written in lower case
+  /// that the engine put at the start of a sentence starts with a capital
+  /// letter there. With [original], every token gets the text it replaced
+  /// ([originals]) instead, e.g. for a transliteration of the source text.
+  RestoredText restore(String output, {bool original = false}) {
     final found = <int>{};
     final pattern = switch (style) {
       MaskStyle.brackets => TextMasker.bracketToken,
@@ -264,8 +312,13 @@ class MaskedText {
       if (number == null) return _unescape(match.group(0)!);
       final value = valueOf(int.parse(number));
       if (value == null) return match.group(0)!;
-      found.add(int.parse(number) - first);
-      return value;
+      final index = int.parse(number) - first;
+      found.add(index);
+      if (original) return originals[index];
+      return kinds[index] == ProtectedKind.glossary &&
+              _startsSentence(output, match.start)
+          ? _capitalized(value)
+          : value;
     });
     return RestoredText._(
       text: text,
@@ -275,6 +328,29 @@ class MaskedText {
       },
       kinds: kinds,
     );
+  }
+
+  /// Whether [offset] of [text] starts a sentence: nothing but spaces (and
+  /// opening quotes or brackets) before it since the start of the text, a
+  /// line break or the end of a sentence.
+  static bool _startsSentence(String text, int offset) {
+    for (var i = offset - 1; i >= 0; i--) {
+      final char = text[i];
+      if (_sentencePrefix.contains(char)) continue;
+      return _sentenceEnd.contains(char);
+    }
+    return true;
+  }
+
+  static const _sentencePrefix = ' \t\u00A0"\'“‘„«‹(¿¡';
+  static const _sentenceEnd = '\n.!?…。！？';
+
+  /// [value] with a capital first letter, when it is all lower case (a
+  /// rendering such as `iPhone` stays as it is).
+  static String _capitalized(String value) {
+    if (value.isEmpty || value != value.toLowerCase()) return value;
+    final first = String.fromCharCode(value.runes.first);
+    return '${first.toUpperCase()}${value.substring(first.length)}';
   }
 
   static String _unescape(String entity) => switch (entity) {

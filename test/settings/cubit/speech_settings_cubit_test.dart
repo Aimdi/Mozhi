@@ -299,6 +299,42 @@ void main() {
       );
     });
 
+    group('forgetOnlineVoices', () {
+      final allowed = ready.copyWith(
+        settings: const SpeechSettings(rate: 1.2, onlineVoices: {'fr-fr/G'}),
+      );
+
+      blocTest<SpeechSettingsCubit, SpeechSettingsState>(
+        'forgets the allowed online voices',
+        setUp: () => when(speech.forgetOnlineVoices).thenAnswer((_) async {}),
+        build: build,
+        seed: () => allowed,
+        act: (cubit) => cubit.forgetOnlineVoices(),
+        expect: () => [ready],
+        verify: (_) => verify(speech.forgetOnlineVoices).called(1),
+      );
+
+      blocTest<SpeechSettingsCubit, SpeechSettingsState>(
+        'does nothing while none is allowed',
+        build: build,
+        seed: () => ready,
+        act: (cubit) => cubit.forgetOnlineVoices(),
+        expect: () => <SpeechSettingsState>[],
+        verify: (_) => verifyNever(speech.forgetOnlineVoices),
+      );
+
+      blocTest<SpeechSettingsCubit, SpeechSettingsState>(
+        'forgets them even when that cannot be saved',
+        setUp: () =>
+            when(speech.forgetOnlineVoices).thenThrow(Exception('disk full')),
+        build: build,
+        seed: () => allowed,
+        act: (cubit) => cubit.forgetOnlineVoices(),
+        expect: () => [ready],
+        errors: () => [isException],
+      );
+    });
+
     group('loadVoices', () {
       blocTest<SpeechSettingsCubit, SpeechSettingsState>(
         'lists the voices by device tag',

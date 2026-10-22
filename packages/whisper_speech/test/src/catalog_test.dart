@@ -27,6 +27,7 @@ void main() {
     Object? url = 'https://models.example/ggml-tiny.bin',
     Object? size = 10,
     Object? sha = 'aa',
+    Object? sha256,
     Object? multilingual,
     Object? parameters,
   }) => {
@@ -35,6 +36,7 @@ void main() {
     'url': ?url,
     'size': ?size,
     'sha1': sha == 'aa' ? 'a' * 40 : sha,
+    'sha256': ?sha256,
     'multilingual': ?multilingual,
     'parameters': ?parameters,
   };
@@ -56,6 +58,15 @@ void main() {
       expect(base.sha1, '465707469ff3a37a2b9b8d8f89f2f99de7299dac');
       expect(tiny.size, 77691713);
       expect(base.size, 147951465);
+      // Hugging Face's SHA-256, checked too (a mirror can't swap files).
+      expect(
+        tiny.sha256,
+        'be07e048e1e599ad46341c8d2a135645097a538221678b7acdd1b1919c6e1b21',
+      );
+      expect(
+        base.sha256,
+        '60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe',
+      );
       expect(
         tiny.url,
         Uri.parse(
@@ -124,6 +135,18 @@ void main() {
       );
     });
 
+    test('reads an optional SHA-256', () {
+      final parsed = WhisperModelCatalog.parse(
+        catalog([
+          entry(sha256: 'b' * 64),
+          entry(id: 'base', name: 'ggml-base.bin'),
+        ]),
+      );
+      expect(parsed.model('tiny')!.sha256, 'b' * 64);
+      expect(parsed.model('base')!.sha256, isNull);
+      expect(parsed.model('tiny'), isNot(parsed.model('base')));
+    });
+
     final invalid = <String, String>{
       'not an object': '[]',
       'unknown schema': catalog([entry()], schema: 2),
@@ -137,6 +160,8 @@ void main() {
       'http url': catalog([entry(url: 'http://models.example/x.bin')]),
       'bad url': catalog([entry(url: 'https://')]),
       'bad sha1': catalog([entry(sha: 'ABC')]),
+      'bad sha256': catalog([entry(sha256: 'B' * 64)]),
+      'sha256 not a string': catalog([entry(sha256: 1)]),
       'bad size': catalog([entry(size: 0)]),
       'size not an int': catalog([entry(size: '10')]),
       'bad multilingual': catalog([entry(multilingual: 'yes')]),

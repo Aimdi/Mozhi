@@ -85,6 +85,69 @@ void main() {
       expect(error.networkPolicy, NetworkPolicyError.invalidProxy);
     });
 
+    test('names the mirror a failed download came from', () {
+      final mirror = Uri.parse('https://mirror.example/models/');
+      final lan = Uri.parse('http://192.168.1.10:8080/');
+      final cases = <Object, OfflineModelError>{
+        ModelChecksumException(
+          'en-de',
+          'bad',
+          mirror: mirror,
+        ): const OfflineModelError(
+          OfflineModelErrorKind.checksum,
+          mirror: 'mirror.example',
+        ),
+        ModelDownloadException(
+          'en-de',
+          'HTTP 404',
+          statusCode: 404,
+          mirror: lan,
+        ): const OfflineModelError(
+          OfflineModelErrorKind.server,
+          statusCode: 404,
+          mirror: '192.168.1.10:8080',
+        ),
+        ModelDownloadException(
+          'en-de',
+          'offline',
+          mirror: mirror,
+        ): const OfflineModelError(
+          OfflineModelErrorKind.network,
+          mirror: 'mirror.example',
+        ),
+        TessdataChecksumException(
+          'deu',
+          'bad',
+          mirror: mirror,
+        ): const OfflineModelError(
+          OfflineModelErrorKind.checksum,
+          mirror: 'mirror.example',
+        ),
+        TessdataDownloadException(
+          'deu',
+          'HTTP 404',
+          statusCode: 404,
+          mirror: mirror,
+        ): const OfflineModelError(
+          OfflineModelErrorKind.server,
+          statusCode: 404,
+          mirror: 'mirror.example',
+        ),
+        TessdataDownloadException(
+          'deu',
+          'offline',
+          mirror: mirror,
+        ): const OfflineModelError(
+          OfflineModelErrorKind.network,
+          mirror: 'mirror.example',
+        ),
+      };
+      for (final MapEntry(key: error, value: expected) in cases.entries) {
+        expect(OfflineModelError.of(error), expected, reason: '$error');
+      }
+      expect(OfflineModelError.mirrorName(null), isNull);
+    });
+
     test('supports value equality', () {
       expect(
         const OfflineModelError(OfflineModelErrorKind.server, statusCode: 404),

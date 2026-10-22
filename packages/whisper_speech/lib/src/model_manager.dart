@@ -11,11 +11,16 @@ import 'package:whisper_speech/src/catalog.dart';
 
 /// A download or install of a Whisper model failed.
 sealed class WhisperModelInstallException implements Exception {
-  const new(this.model, this.message);
+  const new(this.model, this.message, {this.mirror});
 
   /// The model id, e.g. `tiny`.
   final String model;
   final String message;
+
+  /// The mirror ([WhisperModelManager.mirror]) the failed download came
+  /// from; null for the catalog's URL (Hugging Face) and for failures that
+  /// are not a download's.
+  final Uri? mirror;
 
   String get _name;
 
@@ -23,10 +28,10 @@ sealed class WhisperModelInstallException implements Exception {
   String toString() => '$_name($model: $message)';
 }
 
-/// The file did not match the catalog's size or SHA-1 (corrupt, truncated
-/// or tampered download). Nothing was installed.
+/// The file did not match the catalog's size, SHA-1 or SHA-256 (corrupt,
+/// truncated or tampered download). Nothing was installed.
 final class WhisperChecksumException extends WhisperModelInstallException {
-  const new(super.model, super.message);
+  const new(super.model, super.message, {super.mirror});
 
   @override
   String get _name => 'WhisperChecksumException';
@@ -34,7 +39,7 @@ final class WhisperChecksumException extends WhisperModelInstallException {
 
 /// The server answered with an error or the connection failed.
 final class WhisperDownloadException extends WhisperModelInstallException {
-  const new(super.model, super.message, {this.statusCode});
+  const new(super.model, super.message, {this.statusCode, super.mirror});
 
   final int? statusCode;
 
@@ -173,12 +178,15 @@ final class WhisperImportResult {
 /// * `<root>/models/.downloads/<id>/<file>.part`: downloads in progress.
 ///   Kept when a download is interrupted and resumed with an HTTP `Range`
 ///   request next time (the bytes already on disk are hashed again, so the
-///   final SHA-1 check covers the whole file).
+///   final checksums cover the whole file).
 ///
-/// Every download is checked against the catalog's size and SHA-1 before
-/// it is installed. The [http.Client] is injectable (tests use
-/// `MockClient`). Whether a download is allowed (Wi-Fi only, the privacy
-/// settings) is the app's decision: this class downloads when asked.
+/// Every download is checked against the catalog's size and SHA-1 (and
+/// SHA-256 when the catalog has it) before it is installed. The
+/// [http.Client] is injectable (tests use `MockClient`). Files come from
+/// the catalog's URLs (Hugging Face) or from a [mirror] of them
+/// ([whisperDownloadUrls]), which needs no trust: the same checks apply.
+/// Whether a download is allowed (Wi-Fi only, the privacy settings) is the
+/// app's decision: this class downloads when asked.
 /// [importFiles] installs files copied to the device by hand instead,
 /// through the same checks and staging, without any network request.
 class WhisperModelManager {
@@ -194,6 +202,18 @@ class WhisperModelManager {
 
   /// Maximum wait for response headers and between chunks of a download.
   final Duration requestTimeout;
+
+  /// Base URL of a mirror of the model files to download from instead of
+  /// the catalog's URLs, e.g. `https://example.org/models/` (layout: see
+  /// [whisperMirrorUrl]); null downloads from Hugging Face. Read when an
+  /// [install] starts. A file that does not match the catalog fails with
+  /// a [WhisperChecksumException] naming the mirror.
+  Uri? mirror;
+
+  /// Whether a file the [mirror] does not serve (an HTTP error or a failed
+  /// connection) is downloaded from the catalog's URL instead. Without it,
+  /// the install fails with a [WhisperDownloadException] naming the mirror.
+  bool fallbackToDefault = false;
 
   final http.Client _client;
   final bool _ownsClient;
@@ -378,7 +398,12 @@ class WhisperModelManager {
       ),
     );
 
-    final part = await _download(model, report);
+    final part = await _download(
+      model,
+      report,
+      mirror: mirror,
+      fallbackToDefault: fallbackToDefault,
+    );
     return await _installStaged(model, (staging) async {
       await part.rename(p.join(staging.path, model.name));
     });
@@ -429,11 +454,14 @@ class WhisperModelManager {
   }
 
   /// Downloads [model] into its `.part` file (resuming a partial download)
-  /// and verifies its size and SHA-1.
+  /// from [mirror] or the catalog's URL (see [whisperDownloadUrls]) and
+  /// verifies its size, SHA-1 and SHA-256 (when the catalog has it).
   Future<File> _download(
     WhisperCatalogModel model,
-    void Function(int bytes) report,
-  ) async {
+    void Function(int bytes) report, {
+    Uri? mirror,
+    bool fallbackToDefault = false,
+  }) async {
     final part = _partFile(model);
     await part.parent.create(recursive: true);
     var existing = part.existsSync() ? part.lengthSync() : 0;
@@ -442,29 +470,20 @@ class WhisperModelManager {
       existing = 0;
     }
 
-    final digestSink = _DigestSink();
-    final hasher = sha1.startChunkedConversion(digestSink);
+    final hasher = _Hasher(model);
     var received = 0;
+    // The mirror the bytes come from (null: the catalog's URL).
+    Uri? source;
 
     if (existing < model.size) {
-      final request = http.Request('GET', model.url);
-      if (existing > 0) request.headers['Range'] = 'bytes=$existing-';
-      final http.StreamedResponse response;
-      try {
-        response = await _client.send(request).timeout(requestTimeout);
-      } on Object catch (error) {
-        throw WhisperDownloadException(model.id, '$error');
-      }
+      final (response, from) = await _request(
+        model,
+        existing,
+        mirror: mirror,
+        fallbackToDefault: fallbackToDefault,
+      );
+      source = from;
       final resumed = existing > 0 && response.statusCode == 206;
-      if (response.statusCode != 200 && !resumed) {
-        // Drain so the connection can be reused.
-        await response.stream.drain<void>().catchError((_) {});
-        throw WhisperDownloadException(
-          model.id,
-          'HTTP ${response.statusCode} for ${model.url}',
-          statusCode: response.statusCode,
-        );
-      }
       if (resumed) {
         // Hash what is already on disk, then append.
         await for (final chunk in part.openRead()) {
@@ -482,7 +501,8 @@ class WhisperModelManager {
           if (received > model.size) {
             throw WhisperChecksumException(
               model.id,
-              '${model.name}: more than ${model.size} bytes',
+              '${model.name}${_from(source)}: more than ${model.size} bytes',
+              mirror: source,
             );
           }
           hasher.add(chunk);
@@ -496,7 +516,11 @@ class WhisperModelManager {
       } on Object catch (error) {
         // Interrupted: keep the part for resuming.
         await sink.close();
-        throw WhisperDownloadException(model.id, '${model.name}: $error');
+        throw WhisperDownloadException(
+          model.id,
+          '${model.name}${_from(source)}: $error',
+          mirror: source,
+        );
       }
       await sink.flush();
       await sink.close();
@@ -507,19 +531,71 @@ class WhisperModelManager {
       }
       report(received);
     }
-    hasher.close();
 
-    final digest = digestSink.value.toString();
-    if (received != model.size || digest != model.sha1) {
+    if (hasher.close(received) case final mismatch?) {
       await _deleteQuietly(part);
       throw WhisperChecksumException(
         model.id,
-        '${model.name}: got $received bytes with SHA-1 $digest, expected '
-        '${model.size} bytes with SHA-1 ${model.sha1}',
+        '${model.name}${_from(source)}: $mismatch',
+        mirror: source,
       );
     }
     return part;
   }
+
+  /// Sends the request for [model] (from byte [existing] on) to each URL of
+  /// [whisperDownloadUrls] in turn until one answers with its contents
+  /// (200, or 206 when resuming): the response and the mirror it came from
+  /// (null: the catalog's URL). Throws the last URL's
+  /// [WhisperDownloadException].
+  Future<(http.StreamedResponse, Uri?)> _request(
+    WhisperCatalogModel model,
+    int existing, {
+    required Uri? mirror,
+    required bool fallbackToDefault,
+  }) async {
+    final urls = whisperDownloadUrls(
+      model,
+      mirror: mirror,
+      fallbackToDefault: fallbackToDefault,
+    );
+    for (var i = 0; ; i++) {
+      final url = urls[i];
+      final source = i == 0 ? mirror : null;
+      final last = i == urls.length - 1;
+      final request = http.Request('GET', url);
+      if (existing > 0) request.headers['Range'] = 'bytes=$existing-';
+      final http.StreamedResponse response;
+      try {
+        response = await _client.send(request).timeout(requestTimeout);
+      } on Object catch (error) {
+        if (!last) continue;
+        throw WhisperDownloadException(
+          model.id,
+          '${model.name}${_from(source)}: $error',
+          mirror: source,
+        );
+      }
+      final status = response.statusCode;
+      if (status == 200 || (existing > 0 && status == 206)) {
+        return (response, source);
+      }
+      // Drain so the connection can be reused.
+      await response.stream.drain<void>().catchError((_) {});
+      if (last) {
+        throw WhisperDownloadException(
+          model.id,
+          'HTTP $status for $url',
+          statusCode: status,
+          mirror: source,
+        );
+      }
+    }
+  }
+
+  /// ` from the mirror <mirror>` for a download from [mirror], else empty.
+  static String _from(Uri? mirror) =>
+      mirror == null ? '' : ' from the mirror $mirror';
 
   /// Installs [model] from [input] when its size and SHA-1 match; null when
   /// they do not (or it cannot be read).
@@ -569,15 +645,15 @@ class WhisperModelManager {
   }
 
   /// Copies [input] into [staging] as [WhisperCatalogModel.name] while
-  /// hashing it; whether it matched the catalog's size and SHA-1.
+  /// hashing it; whether it matched the catalog's size, SHA-1 and SHA-256
+  /// (when the catalog has it).
   Future<bool> _copyVerified(
     WhisperCatalogModel model,
     File input,
     Directory staging,
   ) async {
     final output = File(p.join(staging.path, model.name));
-    final digestSink = _DigestSink();
-    final hasher = sha1.startChunkedConversion(digestSink);
+    final hasher = _Hasher(model);
     var size = 0;
     final sink = output.openWrite();
     try {
@@ -593,8 +669,7 @@ class WhisperModelManager {
     }
     await sink.flush();
     await sink.close();
-    hasher.close();
-    return size == model.size && digestSink.value.toString() == model.sha1;
+    return hasher.close(size) == null;
   }
 
   /// Moves [staging] to [destination] with a rename (atomic on one file
@@ -700,6 +775,43 @@ class WhisperModelManager {
 /// An imported file did not match the model it was taken for.
 final class _NotTheModel implements Exception {
   const new();
+}
+
+/// The SHA-1 and (when the catalog has one) SHA-256 of a model file, fed
+/// chunk by chunk.
+class _Hasher {
+  new(this.model);
+
+  final WhisperCatalogModel model;
+  final _sha1Sink = _DigestSink();
+  final _sha256Sink = _DigestSink();
+  late final ByteConversionSink _sha1 = sha1.startChunkedConversion(_sha1Sink);
+  late final ByteConversionSink? _sha256 = model.sha256 == null
+      ? null
+      : sha256.startChunkedConversion(_sha256Sink);
+
+  void add(List<int> chunk) {
+    _sha1.add(chunk);
+    _sha256?.add(chunk);
+  }
+
+  /// Finishes hashing [size] bytes: null when they are [model]'s file,
+  /// else what differs.
+  String? close(int size) {
+    _sha1.close();
+    _sha256?.close();
+    final sha1Digest = _sha1Sink.value.toString();
+    final sha256Digest = _sha256 == null ? null : _sha256Sink.value.toString();
+    if (size == model.size &&
+        sha1Digest == model.sha1 &&
+        sha256Digest == model.sha256) {
+      return null;
+    }
+    return 'got $size bytes with SHA-1 $sha1Digest'
+        '${sha256Digest == null ? '' : ' and SHA-256 $sha256Digest'}, '
+        'expected ${model.size} bytes with SHA-1 ${model.sha1}'
+        '${model.sha256 == null ? '' : ' and SHA-256 ${model.sha256}'}';
+  }
 }
 
 class _DigestSink implements Sink<Digest> {

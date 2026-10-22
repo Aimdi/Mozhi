@@ -18,9 +18,10 @@ export 'speech_language.dart';
 export 'speech_settings.dart';
 
 /// Thrown by [SpeechService.toggle] when no backend can read the text aloud:
-/// the device has no voice for [languageCode] (or its voice failed), and
-/// Mozhi is not configured, not allowed or failed. [cause] is the first
-/// underlying failure, if any.
+/// the device has no voice for [languageCode] (or its voice failed, or is
+/// an online voice the user has not allowed yet), and Mozhi is not
+/// configured, not allowed or failed. [cause] is the first underlying
+/// failure, if any.
 class SpeechUnavailableException implements Exception {
   const new(this.languageCode, {this.cause});
 
@@ -29,10 +30,11 @@ class SpeechUnavailableException implements Exception {
 
   /// The consent that lets a Mozhi instance read the text aloud once, when
   /// the privacy settings stopped it ([PrivacyMode.offlineFirst] and the
-  /// language was not approved): pass it as `allowOnline` to
-  /// [SpeechService.toggle] after the user chose "Listen online".
-  /// Null otherwise, also in [PrivacyMode.offlineOnly], which cannot be
-  /// overridden.
+  /// language was not approved), or lets an online device voice read it
+  /// (asked once per voice, see [SpeechService.isOnlineVoiceConsent]): pass
+  /// it as `allowOnline` to [SpeechService.toggle] after the user chose
+  /// "Listen online". Null otherwise, also in [PrivacyMode.offlineOnly],
+  /// which cannot be overridden.
   ConsentRequiredException? get onlineConsent => switch (cause) {
     final ConsentRequiredException consent
         when consent.kind != ConsentKind.offlineOnly =>
@@ -111,6 +113,19 @@ class _MozhiPlayback {
 /// that fails is not replaced by Mozhi, and with [preferDeviceVoice]
 /// ("device voice only") Mozhi is never used.
 ///
+/// Device voices can be online voices too ([DeviceVoice.networkRequired]:
+/// Chrome's "Google …" voices in the web app, Android voices without
+/// voice data on the phone), which send the text to their speech service.
+/// Where the language has a voice on the device, the engine reads with it
+/// ([DeviceTts.setLanguage]). Before an online voice reads for the first
+/// time, [toggle] stops with a [SpeechUnavailableException] whose
+/// [SpeechUnavailableException.onlineConsent] names the voice
+/// ([isOnlineVoiceConsent]); once the user agreed, the voice is remembered
+/// in [SpeechSettings.onlineVoices] and is not asked about again. In
+/// [PrivacyMode.offlineOnly] online voices never read, not even a preview.
+/// The personal data shield cannot apply to speech: a voice would read the
+/// placeholders aloud.
+///
 /// Mozhi's `/api/tts` only accepts GET: the text travels in the request
 /// URL, so it can end up in the instance's (and any reverse proxy's)
 /// access logs. The request line is limited to ~4 KiB, so the text is split
@@ -170,6 +185,41 @@ class SpeechService {
 
   /// [KeyValueStore] key of the [settings] ([SpeechSettings.toJson]).
   static const settingsKey = 'speech.settings';
+
+  /// Prefix of the `engineId` of a consent for an online device voice
+  /// ([isOnlineVoiceConsent]), followed by the voice's [DeviceVoice.id].
+  static const onlineVoicePrefix = 'voice:';
+
+  /// Whether [consent] is about an online device voice rather than a Mozhi
+  /// instance: its `destination` names who receives the text (a
+  /// [CloudProviderDestination], with an empty name when the voice does
+  /// not tell), and [onlineVoiceOf] the voice.
+  static bool isOnlineVoiceConsent(ConsentRequiredException consent) =>
+      consent.engineId.startsWith(onlineVoicePrefix);
+
+  /// The voice (its name and locale) an online voice consent is about
+  /// ([isOnlineVoiceConsent]), or null for other consents.
+  static DeviceVoice? onlineVoiceOf(ConsentRequiredException consent) {
+    if (!isOnlineVoiceConsent(consent)) return null;
+    final id = consent.engineId.substring(onlineVoicePrefix.length);
+    final slash = id.indexOf('/');
+    return DeviceVoice(
+      name: slash < 0 ? id : id.substring(slash + 1),
+      locale: slash < 0 ? '' : id.substring(0, slash),
+      networkRequired: true,
+    );
+  }
+
+  /// The consent asked for before the online [voice] reads (of [kind]
+  /// [ConsentKind.offlineOnly] when it may not).
+  static ConsentRequiredException onlineVoiceConsent(
+    DeviceVoice voice, {
+    ConsentKind kind = ConsentKind.cloudProvider,
+  }) => ConsentRequiredException(
+    kind: kind,
+    destination: CloudProviderDestination(voice.onlineProvider ?? ''),
+    engineId: '$onlineVoicePrefix${voice.id}',
+  );
 
   final TranslationRepository _repository;
   final AudioOutput _output;
@@ -277,6 +327,12 @@ class SpeechService {
   Future<void> setVoice(String languageCode, DeviceVoice? voice) =>
       _updateSettings((settings) => settings.withVoice(languageCode, voice));
 
+  /// Forgets which online voices the user allowed
+  /// ([SpeechSettings.onlineVoices]): each asks again before it reads.
+  /// Throws when the store fails (forgotten until restart anyway).
+  Future<void> forgetOnlineVoices() =>
+      _updateSettings((settings) => settings.copyWith(onlineVoices: const {}));
+
   Future<void> _updateSettings(
     SpeechSettings Function(SpeechSettings settings) update,
   ) async {
@@ -316,7 +372,7 @@ class SpeechService {
   /// [allowOnline] is the [SpeechUnavailableException.onlineConsent] of an
   /// earlier attempt the user then approved ("Listen online"): the
   /// instance may receive this text despite the privacy settings, for this
-  /// playback only.
+  /// playback only; an online device voice is allowed from now on.
   ///
   /// Once playback has started, [text] becomes the [lastUtterance] unless
   /// [remember] is false (e.g. a sample read by a settings preview).
@@ -429,6 +485,9 @@ class SpeechService {
       final consent = allowOnline?.kind == ConsentKind.offlineOnly
           ? null
           : allowOnline;
+      final voiceConsent = consent != null && isOnlineVoiceConsent(consent)
+          ? consent
+          : null;
       Object? cause;
       for (final backend in [
         _Backend.device,
@@ -442,7 +501,7 @@ class SpeechService {
               languageCode,
               slow: slow,
               generation: generation,
-              consent: consent,
+              consent: voiceConsent == null ? consent : null,
             ),
             _Backend.device => await _speakOnDevice(
               trimmed,
@@ -450,6 +509,8 @@ class SpeechService {
               slow: slow,
               generation: generation,
               voice: voice,
+              consent: voiceConsent,
+              preview: preview != null,
             ),
           };
           if (outcome == _Outcome.started && remember) {
@@ -458,7 +519,9 @@ class SpeechService {
               text: trimmed,
               languageCode: languageCode,
             );
-            _lastConsent = backend == _Backend.mozhi ? consent : null;
+            _lastConsent = backend == _Backend.mozhi && voiceConsent == null
+                ? consent
+                : null;
           }
           if (outcome != _Outcome.skipped) return;
         } on Object catch (error) {
@@ -578,17 +641,23 @@ class SpeechService {
   }
 
   /// Speaks [text] on the device with [voice] (null: the default voice).
+  /// An online voice reads only when allowed ([_allowVoice]; previews
+  /// whenever the privacy mode allows the network).
   Future<_Outcome> _speakOnDevice(
     String text,
     String languageCode, {
     required bool slow,
     required int generation,
     required DeviceVoice? voice,
+    required ConsentRequiredException? consent,
+    required bool preview,
   }) async {
     final resolved = await _deviceTag(languageCode);
     if (resolved == null) return _Outcome.skipped;
     if (generation != _generation) return _Outcome.superseded;
     await _device.setLanguage(resolved, voice: voice);
+    if (generation != _generation) return _Outcome.superseded;
+    await _allowVoice(_device.activeVoice, consent, preview: preview);
     if (generation != _generation) return _Outcome.superseded;
     await _device.setSpeechRate(slow: slow, rate: settings.rate);
     if (generation != _generation) return _Outcome.superseded;
@@ -611,6 +680,32 @@ class SpeechService {
       return _Outcome.superseded;
     }
     return _Outcome.started;
+  }
+
+  /// Returns when the device voice [voice] (null: unknown, a voice on the
+  /// device) may read: always when it is on the device; an online voice
+  /// ([DeviceVoice.networkRequired]) never in [PrivacyMode.offlineOnly]
+  /// (a [ConsentRequiredException] of [ConsentKind.offlineOnly]), else when
+  /// the user allowed it before ([SpeechSettings.onlineVoices]), now
+  /// ([consent] for it, which is remembered), or for a [preview]. Otherwise
+  /// throws [onlineVoiceConsent] to ask the user with.
+  Future<void> _allowVoice(
+    DeviceVoice? voice,
+    ConsentRequiredException? consent, {
+    required bool preview,
+  }) async {
+    if (voice == null || !voice.networkRequired) return;
+    if (_repository.privacyMode == PrivacyMode.offlineOnly) {
+      throw onlineVoiceConsent(voice, kind: ConsentKind.offlineOnly);
+    }
+    if (preview || settings.allowsOnlineVoice(voice)) return;
+    final asked = onlineVoiceConsent(voice);
+    if (consent?.engineId != asked.engineId) throw asked;
+    try {
+      await _updateSettings((settings) => settings.withOnlineVoice(voice));
+    } on Object {
+      // Allowed until the app closes; the next start asks again.
+    }
   }
 
   Future<void> stop() async {

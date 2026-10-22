@@ -9,7 +9,9 @@ export 'voice_settings_state.dart';
 /// The "Voice input" settings: which recogniser voice input uses
 /// ([SpeechInputService.engine]) and the offline speech models
 /// ([OfflineSpeech]: download, delete, the model in use, import from
-/// files).
+/// files), with the voice activity model that comes with them
+/// ([VoiceSettingsState.voiceDetection], [downloadVoiceDetection] for
+/// speech models installed before it).
 ///
 /// Nothing is downloaded unless [download] is called (the user tapped
 /// download); a download on a metered network with "Download over Wi-Fi
@@ -44,9 +46,11 @@ class VoiceSettingsCubit extends Cubit<VoiceSettingsState> {
               VoiceModel(id: model.id, sizeBytes: model.size, url: model.url),
           ]
         : const <VoiceModel>[];
+    final vad = supported ? offline.vadModel : null;
     final (installed, selected) = supported
         ? await _readInstalled(offline)
         : (const <String>{}, null);
+    final vadInstalled = vad != null && await offline!.isVadReady();
     if (isClosed) return;
     emit(
       state.copyWith(
@@ -56,6 +60,10 @@ class VoiceSettingsCubit extends Cubit<VoiceSettingsState> {
         models: models,
         installed: installed,
         selected: () => selected,
+        voiceDetection: () => vad == null
+            ? null
+            : VoiceModel(id: vad.id, sizeBytes: vad.size, url: vad.url),
+        voiceDetectionInstalled: vadInstalled,
       ),
     );
   }
@@ -80,6 +88,23 @@ class VoiceSettingsCubit extends Cubit<VoiceSettingsState> {
       VoiceModelOperation.download,
       () => offline!.download(
         id,
+        overMeteredNetwork: overMeteredNetwork,
+        onProgress: (fraction) => _reportProgress(id, fraction),
+      ),
+    );
+  }
+
+  /// Downloads the voice activity model alone (speech models installed
+  /// before the app had it), honouring "Download over Wi-Fi only" unless
+  /// [overMeteredNetwork]. Reported like [download] under its id.
+  Future<void> downloadVoiceDetection({bool overMeteredNetwork = false}) {
+    final offline = _offline;
+    final id = state.voiceDetection?.id;
+    if (id == null) return Future.value();
+    return _run(
+      id,
+      VoiceModelOperation.download,
+      () => offline!.downloadVoiceDetection(
         overMeteredNetwork: overMeteredNetwork,
         onProgress: (fraction) => _reportProgress(id, fraction),
       ),
@@ -132,9 +157,13 @@ class VoiceSettingsCubit extends Cubit<VoiceSettingsState> {
       start();
       try {
         final result = await offline.importFiles(paths);
+        final vadId = state.voiceDetection?.id;
+        final speech = result.models.where((entry) => entry.model.id != vadId);
         outcome = VoiceImportOutcome(
+          // The voice activity model is only reported on its own.
           models: {
-            for (final entry in result.models) entry.model.id: entry.status,
+            for (final entry in speech.isEmpty ? result.models : speech)
+              entry.model.id: entry.status,
           },
           unmatchedFiles: result.unmatched.length,
         );
@@ -156,7 +185,7 @@ class VoiceSettingsCubit extends Cubit<VoiceSettingsState> {
     Future<void> Function() action,
   ) async {
     if (_offline == null ||
-        state.model(id) == null ||
+        (state.model(id) == null && id != state.voiceDetection?.id) ||
         state.pending.containsKey(id)) {
       return;
     }
@@ -196,13 +225,21 @@ class VoiceSettingsCubit extends Cubit<VoiceSettingsState> {
     final offline = _offline;
     if (offline == null) return;
     final (installed, selected) = await _readInstalled(offline);
+    final vadInstalled =
+        state.voiceDetection != null && await offline.isVadReady();
     try {
       await _speechInput.offlineModelsChanged();
     } on Object catch (error, stackTrace) {
       addError(error, stackTrace);
     }
     if (isClosed) return;
-    emit(state.copyWith(installed: installed, selected: () => selected));
+    emit(
+      state.copyWith(
+        installed: installed,
+        selected: () => selected,
+        voiceDetectionInstalled: vadInstalled,
+      ),
+    );
   }
 
   Future<(Set<String>, String?)> _readInstalled(OfflineSpeech offline) async {

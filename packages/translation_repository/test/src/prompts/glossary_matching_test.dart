@@ -165,4 +165,54 @@ void main() {
       expect(TranslationPrompts.foldForMatching('服务器'), '服务器');
     });
   });
+
+  group('TranslationPrompts.glossaryOccurrences', () {
+    /// The occurrences of [glossary] in [text], as `found -> rendering`.
+    List<String> found(Map<String, String> glossary, String text) => [
+      for (final o in TranslationPrompts.glossaryOccurrences(glossary, text))
+        '${text.substring(o.start, o.end)} -> ${o.rendering}',
+    ];
+
+    test('finds every occurrence, inflected forms included', () {
+      expect(found({'Haus': 'house'}, 'Das Haus und die Häuser, HAUS.'), [
+        'Haus -> house',
+        'Häuser -> house',
+        'HAUS -> house',
+      ]);
+      expect(found({'cat': 'Katze'}, 'Cats and a category'), ['Cats -> Katze']);
+    });
+
+    test('places longer terms first and never overlaps', () {
+      final occurrences = TranslationPrompts.glossaryOccurrences({
+        'New York': 'NY',
+        'New York Times': 'NYT',
+        'York': 'Y',
+      }, 'The New York Times in New  York.');
+      expect(
+        [for (final o in occurrences) (o.start, o.end, o.term)],
+        [(4, 18, 'New York Times'), (22, 31, 'New York')],
+      );
+    });
+
+    test('keeps combining marks and astral characters in the range', () {
+      // "Cafe\u0301" folds to "cafe"; the emoji takes two code units.
+      const text = '😀 Cafe\u0301 ok';
+      expect(found({'café': 'coffee shop'}, text), [
+        'Cafe\u0301 -> coffee shop',
+      ]);
+    });
+
+    test('finds terms of scripts without spaces anywhere', () {
+      expect(found({'東京': 'Tokyo'}, '我住在東京，東京很大'), [
+        '東京 -> Tokyo',
+        '東京 -> Tokyo',
+      ]);
+    });
+
+    test('skips blank entries and empty texts', () {
+      expect(found({' ': 'x', 'a': ' '}, 'a b'), isEmpty);
+      expect(found({'cat': 'Katze'}, ''), isEmpty);
+      expect(found(const {}, 'cat'), isEmpty);
+    });
+  });
 }

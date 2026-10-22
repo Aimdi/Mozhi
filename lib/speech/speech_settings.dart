@@ -4,22 +4,28 @@ import 'package:mozhi/speech/speech_language.dart';
 
 export 'device_voice.dart';
 
-/// Read-aloud preferences: the speech rate and a device voice per
-/// language.
+/// Read-aloud preferences: the speech rate, a device voice per language
+/// and the online voices the user allowed to read aloud.
 ///
 /// Persisted as JSON by `SpeechService` in its own store entry
 /// (`SpeechService.settingsKey`), next to `SpeechService.preferDeviceKey`,
 /// so the speech engine owns its settings and needs no `AppSettings`
 /// round trip.
 class SpeechSettings extends Equatable {
-  const new({this.rate = defaultRate, this.voices = const {}});
+  const new({
+    this.rate = defaultRate,
+    this.voices = const {},
+    this.onlineVoices = const {},
+  });
 
   /// Tolerant counterpart of [toJson]: a missing or invalid rate reads as
   /// [defaultRate] (out-of-range rates are clamped), invalid voices and
-  /// keys that are not speakable language codes are skipped. Never throws.
+  /// keys that are not speakable language codes are skipped, and so are
+  /// online voice ids that are not strings. Never throws.
   factory fromJson(Map<String, dynamic> json) {
     final rate = json['rate'];
     final voices = json['voices'];
+    final online = json['onlineVoices'];
     return SpeechSettings(
       rate: rate is num ? normalizeRate(rate.toDouble()) : defaultRate,
       voices: Map.unmodifiable({
@@ -27,6 +33,11 @@ class SpeechSettings extends Equatable {
           for (final MapEntry(:key, :value) in voices.entries)
             if (key is String)
               ?speechLanguageTag(key): ?DeviceVoice.tryParse(value),
+      }),
+      onlineVoices: Set.unmodifiable({
+        if (online is List)
+          for (final id in online)
+            if (id is String && id.isNotEmpty) id,
       }),
     );
   }
@@ -69,6 +80,19 @@ class SpeechSettings extends Equatable {
   /// an entry use the engine's default voice.
   final Map<String, DeviceVoice> voices;
 
+  /// The ids ([DeviceVoice.id]) of the online voices
+  /// ([DeviceVoice.networkRequired]) the user allowed to read aloud: they
+  /// send the text to their speech service, so each one is asked about once
+  /// (`SpeechService.toggle`).
+  final Set<String> onlineVoices;
+
+  /// Whether the user allowed the online [voice] to read aloud.
+  bool allowsOnlineVoice(DeviceVoice voice) => onlineVoices.contains(voice.id);
+
+  /// A copy that allows the online [voice] to read aloud.
+  SpeechSettings withOnlineVoice(DeviceVoice voice) =>
+      copyWith(onlineVoices: Set.unmodifiable({...onlineVoices, voice.id}));
+
   /// The playback speed for normal or [slow] playback.
   double speed({bool slow = false}) => slow ? rate * slowFactor : rate;
 
@@ -95,10 +119,15 @@ class SpeechSettings extends Equatable {
 
   /// Returns a copy with the given fields replaced; [rate] is normalised
   /// ([normalizeRate]).
-  SpeechSettings copyWith({double? rate, Map<String, DeviceVoice>? voices}) {
+  SpeechSettings copyWith({
+    double? rate,
+    Map<String, DeviceVoice>? voices,
+    Set<String>? onlineVoices,
+  }) {
     return SpeechSettings(
       rate: rate == null ? this.rate : normalizeRate(rate),
       voices: voices ?? this.voices,
+      onlineVoices: onlineVoices ?? this.onlineVoices,
     );
   }
 
@@ -108,8 +137,9 @@ class SpeechSettings extends Equatable {
     'voices': {
       for (final MapEntry(:key, :value) in voices.entries) key: value.toJson(),
     },
+    if (onlineVoices.isNotEmpty) 'onlineVoices': [...onlineVoices],
   };
 
   @override
-  List<Object?> get props => [rate, voices];
+  List<Object?> get props => [rate, voices, onlineVoices];
 }

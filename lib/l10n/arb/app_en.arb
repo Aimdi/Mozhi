@@ -5221,10 +5221,6 @@
   "@speechVoiceHighQuality": {
     "description": "Label of a device voice the engine rates as high quality"
   },
-  "speechVoiceNeedsInternet": "Needs internet",
-  "@speechVoiceNeedsInternet": {
-    "description": "Label of a device voice that is synthesised online"
-  },
   "speechRateSubtitle": "How fast text is read aloud.",
   "@speechRateSubtitle": {
     "description": "Subtitle of the speech rate setting"
@@ -8874,5 +8870,668 @@
   "historyPairFilters": "Language pairs",
   "@historyPairFilters": {
     "description": "historyPairFilters"
+  },
+  "imageTranslateModeOverlay": "Overlay",
+  "@imageTranslateModeOverlay": {
+    "description": "imageTranslateModeOverlay"
+  },
+  "imageTranslateModeText": "Text",
+  "@imageTranslateModeText": {
+    "description": "imageTranslateModeText"
+  },
+  "imageTranslateHoldOriginal": "Hold to see the original",
+  "@imageTranslateHoldOriginal": {
+    "description": "imageTranslateHoldOriginal"
+  },
+  "imageTranslateOverlayImageLabel": "Photo with the translation over its text",
+  "@imageTranslateOverlayImageLabel": {
+    "description": "imageTranslateOverlayImageLabel"
+  },
+  "imageTranslateOverlayParagraphAction": "Show the original and the translation",
+  "@imageTranslateOverlayParagraphAction": {
+    "description": "imageTranslateOverlayParagraphAction"
+  },
+  "imageTranslateOverlayHint": "Tap the translation to see the original and copy it.",
+  "@imageTranslateOverlayHint": {
+    "description": "imageTranslateOverlayHint"
+  },
+  "imageTranslateSaveImage": "Save image",
+  "@imageTranslateSaveImage": {
+    "description": "imageTranslateSaveImage"
+  },
+  "imageTranslateShareImage": "Share image",
+  "@imageTranslateShareImage": {
+    "description": "imageTranslateShareImage"
+  },
+  "imageTranslateImageSaved": "Image saved",
+  "@imageTranslateImageSaved": {
+    "description": "imageTranslateImageSaved"
+  },
+  "imageTranslateImageExportFailed": "The translated image couldn’t be created.",
+  "@imageTranslateImageExportFailed": {
+    "description": "imageTranslateImageExportFailed"
+  },
+  "imageTranslateShareUnsupported": "Sharing files isn’t available on this device.",
+  "@imageTranslateShareUnsupported": {
+    "description": "imageTranslateShareUnsupported"
+  },
+  "imageTranslateCopyOriginal": "Copy the original",
+  "@imageTranslateCopyOriginal": {
+    "description": "imageTranslateCopyOriginal"
+  },
+  "imageTranslateCopyTranslation": "Copy the translation",
+  "@imageTranslateCopyTranslation": {
+    "description": "imageTranslateCopyTranslation"
+  },
+  "settingsModelSource": "Model source",
+  "@settingsModelSource": {
+    "description": "settingsModelSource"
+  },
+  "settingsModelSourceDialogBody": "Offline languages, voice input and text recognition download their models from here. Every file is checked against a fingerprint built into Mozhi, so a mirror can’t change it. The server sees your IP address and which languages you download, but none of your text.",
+  "@settingsModelSourceDialogBody": {
+    "description": "settingsModelSourceDialogBody"
+  },
+  "settingsModelSourceDefault": "Original publishers",
+  "@settingsModelSourceDefault": {
+    "description": "settingsModelSourceDefault"
+  },
+  "settingsModelSourceDefaultSubtitle": "Mozilla (on Google Cloud), GitHub and Hugging Face",
+  "@settingsModelSourceDefaultSubtitle": {
+    "description": "settingsModelSourceDefaultSubtitle"
+  },
+  "settingsModelSourceThisServer": "This web server",
+  "@settingsModelSourceThisServer": {
+    "description": "settingsModelSourceThisServer"
+  },
+  "settingsModelSourceThisServerSubtitle": "{url}: works when whoever hosts this web app mirrors the models there",
+  "@settingsModelSourceThisServerSubtitle": {
+    "placeholders": {
+      "url": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsModelSourceCustom": "Custom mirror…",
+  "@settingsModelSourceCustom": {
+    "description": "settingsModelSourceCustom"
+  },
+  "settingsModelSourceCustomSubtitle": "Your own server, a computer on your network or a .onion address",
+  "@settingsModelSourceCustomSubtitle": {
+    "description": "settingsModelSourceCustomSubtitle"
+  },
+  "settingsModelSourceMirror": "Mirror: {host}",
+  "@settingsModelSourceMirror": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsModelSourceWithFallback": "{source}, then the original publishers",
+  "@settingsModelSourceWithFallback": {
+    "placeholders": {
+      "source": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsModelSourceUrlLabel": "Mirror address",
+  "@settingsModelSourceUrlLabel": {
+    "description": "settingsModelSourceUrlLabel"
+  },
+  "settingsModelSourceUrlHint": "https://example.org/models/",
+  "@settingsModelSourceUrlHint": {
+    "description": "settingsModelSourceUrlHint"
+  },
+  "settingsModelSourceUrlInvalid": "Enter the mirror’s address, for example https://example.org/models/",
+  "@settingsModelSourceUrlInvalid": {
+    "description": "settingsModelSourceUrlInvalid"
+  },
+  "settingsModelSourceUrlCredentials": "Remove the user name and password from the address. Model mirrors are public; their files are checked by Mozhi.",
+  "@settingsModelSourceUrlCredentials": {
+    "description": "settingsModelSourceUrlCredentials"
+  },
+  "settingsModelSourceUrlQuery": "Remove the part after “?” or “#” from the address.",
+  "@settingsModelSourceUrlQuery": {
+    "description": "settingsModelSourceUrlQuery"
+  },
+  "settingsModelSourceFallback": "Use the original publishers when the mirror lacks a file",
+  "@settingsModelSourceFallback": {
+    "description": "settingsModelSourceFallback"
+  },
+  "settingsModelSourceFallbackSubtitle": "Otherwise the download fails, and nothing is requested from them",
+  "@settingsModelSourceFallbackSubtitle": {
+    "description": "settingsModelSourceFallbackSubtitle"
+  },
+  "offlineModelSourceMirror": "Models download from {host}, a mirror, and are checked before use. None of your text is sent.",
+  "@offlineModelSourceMirror": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "offlineErrorChecksumMirror": "{language} didn’t download correctly from {mirror}: a file didn’t match the one Mozhi expects, so it was discarded. The mirror may be out of date.",
+  "@offlineErrorChecksumMirror": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      },
+      "mirror": {
+        "type": "String"
+      }
+    }
+  },
+  "offlineErrorServerMirror": "Couldn’t download {language} from {mirror}: it answered with error {status}. The mirror may not have this language yet; ask its owner or change the model source.",
+  "@offlineErrorServerMirror": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      },
+      "mirror": {
+        "type": "String"
+      },
+      "status": {
+        "type": "int"
+      }
+    }
+  },
+  "offlineErrorNetworkMirror": "Couldn’t reach {mirror} to download {language}. Check your connection or the model source.",
+  "@offlineErrorNetworkMirror": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      },
+      "mirror": {
+        "type": "String"
+      }
+    }
+  },
+  "offlineUnavailableWebEngineMissing": "This copy of the web app was built without the on-device engine, so it translates online only.",
+  "@offlineUnavailableWebEngineMissing": {
+    "description": "Offline languages page in the web app: the build has no WebAssembly engine files (bergamot-translator.wasm)"
+  },
+  "offlineUnavailableWebInsecure": "On-device translation needs a secure connection. Open the web app over HTTPS.",
+  "@offlineUnavailableWebInsecure": {
+    "description": "Offline languages page in the web app: the page is not a secure context (plain http), so private storage and checksums are unavailable"
+  },
+  "offlineUnavailableWebStorage": "This browser doesn’t let the web app store language packs (private windows often don’t). Open it in a normal window or another browser.",
+  "@offlineUnavailableWebStorage": {
+    "description": "Offline languages page in the web app: the Origin Private File System is unavailable"
+  },
+  "offlineUnavailableWebOutdated": "This browser is too old for on-device translation. Update it, or use a current Chrome, Edge, Firefox or Safari.",
+  "@offlineUnavailableWebOutdated": {
+    "description": "Offline languages page in the web app: no WebAssembly SIMD, DecompressionStream or Intl.Segmenter"
+  },
+  "offlineWebStorageNote": "Language packs are kept in this browser, for this site only. Clearing the site’s data deletes them.",
+  "@offlineWebStorageNote": {
+    "description": "Offline languages page in the web app: where the downloaded models are stored (the browser’s private storage for the site)"
+  },
+  "speechOnlineVoiceConsent": "“{voice}” is an online voice: it sends the text to {provider} to read it aloud, and personal data in it can’t be hidden.",
+  "@speechOnlineVoiceConsent": {
+    "description": "Snack bar before an online device voice (e.g. Chrome’s Google voices) reads aloud for the first time; the action is speechListenOnline. {voice} is the voice name, {provider} who receives the text (e.g. Google).",
+    "placeholders": {
+      "voice": {
+        "type": "String"
+      },
+      "provider": {
+        "type": "String"
+      }
+    }
+  },
+  "speechOnlineVoiceConsentUnknown": "“{voice}” is an online voice: it sends the text to its speech service to read it aloud, and personal data in it can’t be hidden.",
+  "@speechOnlineVoiceConsentUnknown": {
+    "description": "Like speechOnlineVoiceConsent when it is unknown who runs the voice.",
+    "placeholders": {
+      "voice": {
+        "type": "String"
+      }
+    }
+  },
+  "speechOnlineVoiceOfflineOnly": "“{voice}” is an online voice, and in offline-only mode no text leaves the device. Install a voice for this language in your device’s text-to-speech settings.",
+  "@speechOnlineVoiceOfflineOnly": {
+    "description": "Why an online device voice did not read aloud in offline-only mode.",
+    "placeholders": {
+      "voice": {
+        "type": "String"
+      }
+    }
+  },
+  "speechVoiceOnline": "Online voice: the text goes to {provider}",
+  "@speechVoiceOnline": {
+    "description": "Label of an online voice in the voice picker; {provider} is who receives the text (e.g. Google).",
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      }
+    }
+  },
+  "speechVoiceOnlineUnknown": "Online voice: the text goes to its speech service",
+  "@speechVoiceOnlineUnknown": {
+    "description": "Label of an online voice in the voice picker when it is unknown who runs it."
+  },
+  "speechVoiceOnlineAllowed": "Allowed",
+  "@speechVoiceOnlineAllowed": {
+    "description": "Label of an online voice the user allowed to read aloud, in the voice picker."
+  },
+  "speechOnlineVoicesTitle": "Allowed online voices",
+  "@speechOnlineVoicesTitle": {
+    "description": "Read aloud settings row listing how many online voices the user allowed."
+  },
+  "speechOnlineVoicesSubtitle": "{count, plural, =1{1 online voice may read aloud. It sends the text to its speech service. Forget it to be asked again.} other{{count} online voices may read aloud. They send the text to their speech service. Forget them to be asked again.}}",
+  "@speechOnlineVoicesSubtitle": {
+    "description": "Subtitle of speechOnlineVoicesTitle.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "speechOnlineVoicesForget": "Forget",
+  "@speechOnlineVoicesForget": {
+    "description": "Button that forgets the allowed online voices."
+  },
+  "translateOptionsGlossaryUnsupported": "Not with this engine",
+  "@translateOptionsGlossaryUnsupported": {
+    "description": "Tag of the glossary option in the translation options when the current engine (the offline engine, a translation-only AI model) ignores glossaries."
+  },
+  "translateOptionsGlossaryOnlyNeedAi": "{engine} applies the glossary. Style, formality, gender and context need an AI translator. Your choices are saved and apply when you use one.",
+  "@translateOptionsGlossaryOnlyNeedAi": {
+    "description": "Note at the top of the translation options sheet for an engine that applies only the glossary (a Mozhi engine or LibreTranslate); {engine} is its name.",
+    "placeholders": {
+      "engine": {
+        "type": "String"
+      }
+    }
+  },
+  "transcribeTitle": "Transcribe",
+  "@transcribeTitle": {
+    "description": "transcribeTitle"
+  },
+  "transcribeStart": "Start listening",
+  "@transcribeStart": {
+    "description": "transcribeStart"
+  },
+  "transcribePause": "Pause",
+  "@transcribePause": {
+    "description": "transcribePause"
+  },
+  "transcribeResume": "Resume",
+  "@transcribeResume": {
+    "description": "transcribeResume"
+  },
+  "transcribeStop": "Stop",
+  "@transcribeStop": {
+    "description": "transcribeStop"
+  },
+  "transcribeStatusIdle": "Tap the microphone to start",
+  "@transcribeStatusIdle": {
+    "description": "transcribeStatusIdle"
+  },
+  "transcribeStatusStarting": "Starting…",
+  "@transcribeStatusStarting": {
+    "description": "transcribeStatusStarting"
+  },
+  "transcribeStatusListening": "Listening…",
+  "@transcribeStatusListening": {
+    "description": "transcribeStatusListening"
+  },
+  "transcribeStatusHearing": "Hearing speech…",
+  "@transcribeStatusHearing": {
+    "description": "transcribeStatusHearing"
+  },
+  "transcribeStatusPaused": "Paused",
+  "@transcribeStatusPaused": {
+    "description": "transcribeStatusPaused"
+  },
+  "transcribeStatusBackground": "Paused: Mozhi only listens while it’s on screen",
+  "@transcribeStatusBackground": {
+    "description": "transcribeStatusBackground"
+  },
+  "transcribePending": "{count, plural, =1{Transcribing 1 phrase…} other{Transcribing {count} phrases…}}",
+  "@transcribePending": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "transcribeEmptyTitle": "Transcribe a lecture, a tour or a meeting",
+  "@transcribeEmptyTitle": {
+    "description": "transcribeEmptyTitle"
+  },
+  "transcribeEmptyBody": "Mozhi writes down what it hears, one paragraph per phrase, with the time. Turn on translation to read each phrase in your language too.",
+  "@transcribeEmptyBody": {
+    "description": "transcribeEmptyBody"
+  },
+  "transcribeKeepsScreenOn": "The screen stays on while Mozhi listens.",
+  "@transcribeKeepsScreenOn": {
+    "description": "transcribeKeepsScreenOn"
+  },
+  "transcribeOnDevice": "Speech stays on this device (offline Whisper).",
+  "@transcribeOnDevice": {
+    "description": "transcribeOnDevice"
+  },
+  "transcribeSystemNotice": "Your browser’s speech recognition hears what is said. Most browsers send the audio to their maker (Chrome to Google).",
+  "@transcribeSystemNotice": {
+    "description": "transcribeSystemNotice"
+  },
+  "transcribeSpokenLanguage": "Spoken language",
+  "@transcribeSpokenLanguage": {
+    "description": "transcribeSpokenLanguage"
+  },
+  "transcribeSpokenLanguageValue": "Spoken: {language}",
+  "@transcribeSpokenLanguageValue": {
+    "description": "transcribeSpokenLanguageValue"
+  },
+  "transcribeTranslate": "Translate",
+  "@transcribeTranslate": {
+    "description": "transcribeTranslate"
+  },
+  "transcribeTranslateInto": "Translate into {language}",
+  "@transcribeTranslateInto": {
+    "description": "transcribeTranslateInto"
+  },
+  "transcribeTranslateOff": "Phrases aren’t translated. Turn on translation to read them in another language.",
+  "@transcribeTranslateOff": {
+    "description": "transcribeTranslateOff"
+  },
+  "transcribeTranslatedOnDevice": "Each phrase is translated on this device.",
+  "@transcribeTranslatedOnDevice": {
+    "description": "transcribeTranslatedOnDevice"
+  },
+  "transcribeTranslatedBy": "Each phrase is sent to {destination} to be translated.",
+  "@transcribeTranslatedBy": {
+    "description": "transcribeTranslatedBy"
+  },
+  "transcribeTargetLanguage": "Translation language",
+  "@transcribeTargetLanguage": {
+    "description": "transcribeTargetLanguage"
+  },
+  "transcribeTranslating": "Translating…",
+  "@transcribeTranslating": {
+    "description": "transcribeTranslating"
+  },
+  "transcribeTranslationFailed": "Not translated.",
+  "@transcribeTranslationFailed": {
+    "description": "transcribeTranslationFailed"
+  },
+  "transcribeTranslationWaiting": "Waiting for your OK to translate.",
+  "@transcribeTranslationWaiting": {
+    "description": "transcribeTranslationWaiting"
+  },
+  "transcribeNoEngine": "There’s no translation engine. Set one up in Settings › Translation engines.",
+  "@transcribeNoEngine": {
+    "description": "transcribeNoEngine"
+  },
+  "transcribeSkipped": "Some speech was skipped: transcription fell behind. The Fast model keeps up better.",
+  "@transcribeSkipped": {
+    "description": "transcribeSkipped"
+  },
+  "transcribePhraseFailed": "This phrase couldn’t be transcribed.",
+  "@transcribePhraseFailed": {
+    "description": "transcribePhraseFailed"
+  },
+  "transcribeNeedsModelTitle": "Transcribe needs the offline speech model",
+  "@transcribeNeedsModelTitle": {
+    "description": "transcribeNeedsModelTitle"
+  },
+  "transcribeNeedsModelBody": "Transcribe listens for a long time and writes down every phrase, which the system speech recognition can’t do. Download a model (75 MB) in the voice input settings; your speech then stays on this device.",
+  "@transcribeNeedsModelBody": {
+    "description": "transcribeNeedsModelBody"
+  },
+  "transcribeOfflineOnlyTitle": "Transcribe isn’t available in Offline only",
+  "@transcribeOfflineOnlyTitle": {
+    "description": "transcribeOfflineOnlyTitle"
+  },
+  "transcribeOfflineOnlyBody": "The web app has no speech recognition that stays on this device. Use the Android app with the offline speech model, or change the privacy mode.",
+  "@transcribeOfflineOnlyBody": {
+    "description": "transcribeOfflineOnlyBody"
+  },
+  "transcribeUnavailableTitle": "Transcribe isn’t available here",
+  "@transcribeUnavailableTitle": {
+    "description": "transcribeUnavailableTitle"
+  },
+  "transcribeUnavailableBody": "It needs the offline speech model (Android) or a browser whose speech recognition listens continuously.",
+  "@transcribeUnavailableBody": {
+    "description": "transcribeUnavailableBody"
+  },
+  "transcribeVadMissing": "Download speech detection (0.9 MB) so phrases are cut at real pauses. Without it, loudness decides, and noise can fool it.",
+  "@transcribeVadMissing": {
+    "description": "transcribeVadMissing"
+  },
+  "transcribeVadDownload": "Download",
+  "@transcribeVadDownload": {
+    "description": "transcribeVadDownload"
+  },
+  "transcribeVadDownloading": "Downloading speech detection… {percent}%",
+  "@transcribeVadDownloading": {
+    "description": "transcribeVadDownloading"
+  },
+  "transcribeVadFailed": "Couldn’t download speech detection. Try again later.",
+  "@transcribeVadFailed": {
+    "description": "transcribeVadFailed"
+  },
+  "transcribeVadMetered": "You’re on mobile data or a metered network. Speech detection needs about 0.9 MB.",
+  "@transcribeVadMetered": {
+    "description": "transcribeVadMetered"
+  },
+  "transcribeVadDownloadAnyway": "Download anyway",
+  "@transcribeVadDownloadAnyway": {
+    "description": "transcribeVadDownloadAnyway"
+  },
+  "transcribeCopy": "Copy transcript",
+  "@transcribeCopy": {
+    "description": "transcribeCopy"
+  },
+  "transcribeShare": "Share transcript",
+  "@transcribeShare": {
+    "description": "transcribeShare"
+  },
+  "transcribeSaveText": "Save as text (.txt)",
+  "@transcribeSaveText": {
+    "description": "transcribeSaveText"
+  },
+  "transcribeSaveSubtitles": "Save as subtitles (.srt)",
+  "@transcribeSaveSubtitles": {
+    "description": "transcribeSaveSubtitles"
+  },
+  "transcribeSaveHistory": "Save to History",
+  "@transcribeSaveHistory": {
+    "description": "transcribeSaveHistory"
+  },
+  "transcribeSavedHistory": "Saved to History",
+  "@transcribeSavedHistory": {
+    "description": "transcribeSavedHistory"
+  },
+  "transcribeSavedFavorite": "History is paused, so the transcript was saved to your favourites",
+  "@transcribeSavedFavorite": {
+    "description": "transcribeSavedFavorite"
+  },
+  "transcribeSaveHistoryFailed": "Couldn’t save the transcript to History",
+  "@transcribeSaveHistoryFailed": {
+    "description": "transcribeSaveHistoryFailed"
+  },
+  "transcribeFileSaved": "Saved",
+  "@transcribeFileSaved": {
+    "description": "transcribeFileSaved"
+  },
+  "transcribeFileFailed": "Couldn’t save the file",
+  "@transcribeFileFailed": {
+    "description": "transcribeFileFailed"
+  },
+  "transcribeShareUnsupported": "Sharing files isn’t available here",
+  "@transcribeShareUnsupported": {
+    "description": "transcribeShareUnsupported"
+  },
+  "transcribeClear": "Clear transcript",
+  "@transcribeClear": {
+    "description": "transcribeClear"
+  },
+  "transcribeClearTitle": "Clear the transcript?",
+  "@transcribeClearTitle": {
+    "description": "transcribeClearTitle"
+  },
+  "transcribeClearBody": "The transcript and its translations are removed from this screen. What you saved to History stays.",
+  "@transcribeClearBody": {
+    "description": "transcribeClearBody"
+  },
+  "transcribeExportTitle": "Transcript, {date}",
+  "@transcribeExportTitle": {
+    "description": "transcribeExportTitle"
+  },
+  "transcribeSkippedMark": "(skipped)",
+  "@transcribeSkippedMark": {
+    "description": "transcribeSkippedMark"
+  },
+  "transcribeTimeLabel": "At {time}",
+  "@transcribeTimeLabel": {
+    "description": "transcribeTimeLabel"
+  },
+  "translateToolTranscribe": "Transcribe",
+  "@translateToolTranscribe": {
+    "description": "translateToolTranscribe"
+  },
+  "conversationTranscribe": "Transcribe a talk",
+  "@conversationTranscribe": {
+    "description": "conversationTranscribe"
+  },
+  "voiceModelVoiceDetection": "Speech detection",
+  "@voiceModelVoiceDetection": {
+    "description": "voiceModelVoiceDetection"
+  },
+  "voiceModelVoiceDetectionSubtitle": "Tells speech from noise, so text appears phrase by phrase · {size}",
+  "@voiceModelVoiceDetectionSubtitle": {
+    "description": "voiceModelVoiceDetectionSubtitle"
+  },
+  "dictionaryHeroSubtitleOffline": "Meanings, pronunciation and examples from your offline dictionaries, then your AI provider.",
+  "@dictionaryHeroSubtitleOffline": {
+    "description": "dictionaryHeroSubtitleOffline"
+  },
+  "dictionaryHeroSubtitleOfflineOnly": "Meanings, pronunciation and examples from your offline dictionaries, on this device.",
+  "@dictionaryHeroSubtitleOfflineOnly": {
+    "description": "dictionaryHeroSubtitleOfflineOnly"
+  },
+  "dictionaryOfflineSource": "From {source} · {license}",
+  "@dictionaryOfflineSource": {
+    "placeholders": {
+      "source": {
+        "type": "String"
+      },
+      "license": {
+        "type": "String"
+      }
+    }
+  },
+  "dictionaryOfflineSourceHint": "Shows where this entry comes from and its licence",
+  "@dictionaryOfflineSourceHint": {
+    "description": "dictionaryOfflineSourceHint"
+  },
+  "dictionaryAttributionTitle": "About this dictionary",
+  "@dictionaryAttributionTitle": {
+    "description": "dictionaryAttributionTitle"
+  },
+  "dictionaryAttributionSnapshot": "Data of {date}",
+  "@dictionaryAttributionSnapshot": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "dictionaryAttributionLicense": "Licence",
+  "@dictionaryAttributionLicense": {
+    "description": "dictionaryAttributionLicense"
+  },
+  "dictionaryAttributionSource": "Source",
+  "@dictionaryAttributionSource": {
+    "description": "dictionaryAttributionSource"
+  },
+  "dictionaryInflectedForm": "“{form}” is a form of “{lemma}”",
+  "@dictionaryInflectedForm": {
+    "placeholders": {
+      "form": {
+        "type": "String"
+      },
+      "lemma": {
+        "type": "String"
+      }
+    }
+  },
+  "dictionaryAlsoFormOf": "Also a form of",
+  "@dictionaryAlsoFormOf": {
+    "description": "dictionaryAlsoFormOf"
+  },
+  "dictionaryOfflineNotFoundBody": "Your offline dictionaries don’t have it. Add an AI provider to look up any word.",
+  "@dictionaryOfflineNotFoundBody": {
+    "description": "dictionaryOfflineNotFoundBody"
+  },
+  "dictionaryOfflineNoPack": "No offline dictionary for {language} is downloaded.",
+  "@dictionaryOfflineNoPack": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "dictionaryGetDictionaries": "Get dictionaries",
+  "@dictionaryGetDictionaries": {
+    "description": "dictionaryGetDictionaries"
+  },
+  "dictionarySuggestions": "Similar words",
+  "@dictionarySuggestions": {
+    "description": "dictionarySuggestions"
+  },
+  "dictionaryNoSourceTitle": "Look up words offline or with AI",
+  "@dictionaryNoSourceTitle": {
+    "description": "dictionaryNoSourceTitle"
+  },
+  "dictionaryNoSourceBody": "Download a dictionary to look up words without a network, or add an AI provider.",
+  "@dictionaryNoSourceBody": {
+    "description": "dictionaryNoSourceBody"
+  },
+  "offlineDictionariesTitle": "Dictionaries",
+  "@offlineDictionariesTitle": {
+    "description": "offlineDictionariesTitle"
+  },
+  "offlineDictionariesEntrySubtitle": "Look up words without a network · {count, plural, =0{no dictionaries downloaded} =1{1 dictionary downloaded} other{{count} dictionaries downloaded}}",
+  "@offlineDictionariesEntrySubtitle": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "offlineDictionariesDescription": "Definitions, pronunciation, examples and translations from Wiktionary, for the Dictionary tab and short translations. Each dictionary is downloaded once; look-ups never leave this device.",
+  "@offlineDictionariesDescription": {
+    "description": "offlineDictionariesDescription"
+  },
+  "offlineDictionariesSource": "Wiktionary data by its contributors, under CC BY-SA 4.0. Every file is checked against the app’s SHA-256.",
+  "@offlineDictionariesSource": {
+    "description": "offlineDictionariesSource"
+  },
+  "offlineDictionariesAbout": "About the data",
+  "@offlineDictionariesAbout": {
+    "description": "offlineDictionariesAbout"
+  },
+  "offlineDictionariesEmptyTitle": "No dictionaries available yet",
+  "@offlineDictionariesEmptyTitle": {
+    "description": "offlineDictionariesEmptyTitle"
+  },
+  "offlineDictionariesEmptyBody": "Dictionaries are published with the app’s releases. Check again after an update.",
+  "@offlineDictionariesEmptyBody": {
+    "description": "offlineDictionariesEmptyBody"
+  },
+  "offlineDictionariesUnavailable": "This browser can’t store dictionaries. Use a current version of Chrome, Edge, Firefox or Safari.",
+  "@offlineDictionariesUnavailable": {
+    "description": "offlineDictionariesUnavailable"
+  },
+  "offlineDictionariesDeleteBody": "Words in {language} will be looked up with your AI provider, if you have one, until you download it again.",
+  "@offlineDictionariesDeleteBody": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
   }
 }

@@ -13,7 +13,41 @@
 	# email you@example.com
 }
 
+# The on-device model mirror at /models/: the files tool/mirror_models.py
+# downloads (MOZHI_MODELS_DIR in .env, mounted at /srv/models), for the
+# app's Settings > Translation engines > Model source (Custom mirror
+# https://<MOZHI_DOMAIN>/models/, or "This web server" for a web app served
+# from the same site). Every file is checked against the SHA-256 built into
+# the app, so serving them needs no trust; it keeps your users' IP
+# addresses and languages away from Google, GitHub and Hugging Face.
+# Plain static files with Range support (resumed downloads), CORS for web
+# apps on other origins, and no directory listings.
+(models) {
+	handle_path /models/* {
+		root * /srv/models
+		@preflight method OPTIONS
+		header {
+			Access-Control-Allow-Origin "*"
+			Access-Control-Allow-Methods "GET, HEAD, OPTIONS"
+			Access-Control-Allow-Headers "Range"
+			Access-Control-Expose-Headers "Content-Length, Content-Range, Accept-Ranges, ETag"
+			# A day, then revalidated (ETag): Whisper and Tesseract files keep
+			# their names when the catalogue moves to a new version.
+			Cache-Control "public, max-age=86400"
+			X-Content-Type-Options "nosniff"
+			-Server
+		}
+		respond @preflight 204
+		# Partial downloads of the mirror tool and hidden files stay private.
+		file_server {
+			hide .* *.part
+		}
+	}
+}
+
 {$MOZHI_DOMAIN:localhost} {
+	import models
+
 	reverse_proxy {$MOZHI_UPSTREAM:mozhi:3000}
 
 	# Mozhi rejects request bodies over 4 MB (image translation uploads);
@@ -43,6 +77,24 @@
 # 		# Streamed answers should not be buffered.
 # 		flush_interval -1
 # 	}
+# }
+
+# Optional: the Mozhi web app (the release's mozhi-<version>-web.zip,
+# unpacked into MOZHI_WEB_DIR, mounted at /srv/mozhi-web) on its own domain,
+# with the model mirror next to it, so the web app's default model source
+# ("This web server") works. Set MOZHI_APP_DOMAIN in .env and uncomment.
+# Use a domain of its own: other pages on the same origin could read the
+# web app's storage (docs/security.md).
+#
+# {$MOZHI_APP_DOMAIN:app.localhost} {
+# 	import models
+#
+# 	root * /srv/mozhi-web
+# 	# index.html must not be cached for long, or updates are not picked up.
+# 	@index path / /index.html /flutter_bootstrap.js /flutter_service_worker.js
+# 	header @index Cache-Control "no-cache"
+# 	header -Server
+# 	file_server
 # }
 
 # Optional: HTTPS on your LAN without a public domain. Caddy creates its own

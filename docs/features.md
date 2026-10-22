@@ -646,6 +646,23 @@ order:
   Choose the language of the text** hint. The
   [Play variant](contributing.md#build-variants) uses Google's ML Kit
   instead.
+
+  The translation is then **drawn over the photo**, in place of the
+  original text, like a camera translator: each paragraph's area is filled
+  with the colour around it and the translation is written in it, sized to
+  fit, in the text's own colour (or black or white, whichever reads
+  better), right to left for Arabic or Hebrew. Pinch to zoom and drag to
+  pan; tap a paragraph to see the original and the translation and copy
+  either; press and hold **Original** to look at the photo without the
+  overlay. **Overlay | Text** above the photo switches to the plain photo
+  with the recognised text (which you can correct and translate again)
+  and the translation below it; your choice is kept for the next photos.
+  **Share image** and **Save image** make a PNG of the photo with the
+  translation, at the photo's resolution (at most 4096 px on its long
+  side), on the phone; nothing is uploaded. All the paragraphs of a photo
+  are translated in one request, so a cloud engine gets no more requests
+  than before. Screen readers read each paragraph as its translation, with
+  the original as hint.
 - **AI vision**: an AI model with **Supports images** turned on reads and
   translates the text itself, with your translation options. One choice per
   such model.

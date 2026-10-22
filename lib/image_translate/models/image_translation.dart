@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:mozhi/image_translate/models/text_layout.dart';
 import 'package:translation_repository/translation_repository.dart'
     show DataDestination;
 
@@ -15,6 +16,8 @@ class ImageTranslation {
     this.isComplete = true,
     this.destination,
     this.recognitionConfidence,
+    this.layout,
+    this.translatedParagraphs = const [],
   });
 
   /// Where the image (or its recognised text) was sent, when known.
@@ -42,7 +45,25 @@ class ImageTranslation {
   /// ML Kit, edited text).
   final int? recognitionConfidence;
 
+  /// Where the paragraphs of [sourceText] are in the photo (on-device
+  /// recognition that reports it); [sourceText] is then
+  /// [TextLayout.text].
+  final TextLayout? layout;
+
+  /// The translation of each paragraph of [layout] (empty ones are not
+  /// drawn), once the translation is complete; empty otherwise.
+  final List<String> translatedParagraphs;
+
   bool get hasImage => translatedImage != null;
+
+  /// Whether the translation can be drawn over the photo: the paragraphs'
+  /// places are known and translated.
+  bool get hasOverlay =>
+      translatedImage == null &&
+      layout != null &&
+      !layout!.isEmpty &&
+      translatedParagraphs.length == layout!.paragraphs.length &&
+      translatedParagraphs.any((paragraph) => paragraph.isNotEmpty);
 
   ImageTranslation copyWith({
     String? sourceText,
@@ -50,6 +71,7 @@ class ImageTranslation {
     String? detectedSource,
     bool? isComplete,
     DataDestination? destination,
+    List<String>? translatedParagraphs,
   }) => ImageTranslation(
     translatedImage: translatedImage,
     sourceText: sourceText ?? this.sourceText,
@@ -59,6 +81,8 @@ class ImageTranslation {
     isComplete: isComplete ?? this.isComplete,
     destination: destination ?? this.destination,
     recognitionConfidence: recognitionConfidence,
+    layout: layout,
+    translatedParagraphs: translatedParagraphs ?? this.translatedParagraphs,
   );
 
   /// The image bytes are compared by identity (they never change in
@@ -74,7 +98,9 @@ class ImageTranslation {
           other.detectedSource == detectedSource &&
           other.isComplete == isComplete &&
           other.destination == destination &&
-          other.recognitionConfidence == recognitionConfidence;
+          other.recognitionConfidence == recognitionConfidence &&
+          other.layout == layout &&
+          listEquals(other.translatedParagraphs, translatedParagraphs);
 
   @override
   int get hashCode => Object.hash(
@@ -86,6 +112,8 @@ class ImageTranslation {
     isComplete,
     destination,
     recognitionConfidence,
+    layout,
+    Object.hashAll(translatedParagraphs),
   );
 
   @override

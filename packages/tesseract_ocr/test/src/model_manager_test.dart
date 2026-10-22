@@ -246,6 +246,125 @@ void main() {
     });
   });
 
+  group('mirror', () {
+    final mirror = Uri.parse('https://mirror.test/models/');
+    String copyOf(FakeTessdata data) =>
+        tessdataMirrorUrl(mirror, data.language).toString();
+    List<String> urls() => [
+      for (final request in server.requests) request.url.toString(),
+    ];
+
+    test('downloads from <mirror>/tesseract/<code>.traineddata', () async {
+      server.overrides[copyOf(deu)] = deu.bytes;
+      manager.mirror = mirror;
+      final installed = await manager.install(deu.language);
+      expect(installed.sha256, deu.language.sha256);
+      expect(urls(), ['https://mirror.test/models/tesseract/deu.traineddata']);
+    });
+
+    test('a file the mirror lacks fails, naming the mirror', () async {
+      manager.mirror = mirror;
+      await expectLater(
+        manager.install(deu.language),
+        throwsA(
+          isA<TessdataDownloadException>()
+              .having((e) => e.statusCode, 'statusCode', 404)
+              .having((e) => e.mirror, 'mirror', mirror)
+              .having((e) => e.message, 'message', contains('mirror.test')),
+        ),
+      );
+      expect(urls(), [copyOf(deu)]);
+    });
+
+    test('falls back to the catalog URL when allowed', () async {
+      manager
+        ..mirror = mirror
+        ..fallbackToDefault = true;
+      await manager.install(deu.language);
+      expect(urls(), [copyOf(deu), deu.language.url.toString()]);
+    });
+
+    test('falls back when the mirror cannot be reached', () async {
+      final fallback =
+          TessdataManager(
+              root: root,
+              httpClient: _MirrorDownClient(server.client),
+            )
+            ..mirror = mirror
+            ..fallbackToDefault = true;
+      await fallback.install(deu.language);
+      expect(urls(), [deu.language.url.toString()]);
+    });
+
+    test('reports a mirror that cannot be reached', () async {
+      server.offline = true;
+      manager.mirror = mirror;
+      await expectLater(
+        manager.install(deu.language),
+        throwsA(
+          isA<TessdataDownloadException>()
+              .having((e) => e.mirror, 'mirror', mirror)
+              .having((e) => e.message, 'message', contains('mirror.test')),
+        ),
+      );
+    });
+
+    test('rejects another file from the mirror, naming it', () async {
+      server.overrides[copyOf(deu)] = List.of(deu.bytes)..[0] ^= 0xFF;
+      manager
+        ..mirror = mirror
+        ..fallbackToDefault = true;
+      await expectLater(
+        manager.install(deu.language),
+        throwsA(
+          isA<TessdataChecksumException>()
+              .having((e) => e.mirror, 'mirror', mirror)
+              .having(
+                (e) => e.message,
+                'message',
+                contains('from the mirror https://mirror.test/models/'),
+              ),
+        ),
+      );
+      // A mismatch is not a missing file: no fallback.
+      expect(urls(), [copyOf(deu)]);
+      expect(part('deu').existsSync(), isFalse);
+    });
+
+    test('rejects a mirror that sends more than the file', () async {
+      server.overrides[copyOf(deu)] = [...deu.bytes, 1];
+      manager.mirror = mirror;
+      await expectLater(
+        manager.install(deu.language),
+        throwsA(
+          isA<TessdataChecksumException>().having(
+            (e) => e.mirror,
+            'mirror',
+            mirror,
+          ),
+        ),
+      );
+    });
+
+    test('an interrupted mirror download names the mirror', () async {
+      server
+        ..overrides[copyOf(deu)] = deu.bytes
+        ..cutAfter = 100;
+      manager.mirror = mirror;
+      await expectLater(
+        manager.install(deu.language),
+        throwsA(
+          isA<TessdataDownloadException>().having(
+            (e) => e.mirror,
+            'mirror',
+            mirror,
+          ),
+        ),
+      );
+      expect(part('deu').existsSync(), isTrue);
+    });
+  });
+
   group('installed', () {
     test('lists every complete install, sorted by code', () async {
       await manager.install(eng.language);
@@ -493,5 +612,21 @@ class _ChangingIterator implements Iterator<File> {
     _index++;
     if (_index == 1) files.change();
     return _index == 0;
+  }
+}
+
+/// Refuses every request to `mirror.test` as an unreachable host would;
+/// others go to [_inner].
+class _MirrorDownClient extends http.BaseClient {
+  new(this._inner);
+
+  final http.Client _inner;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) {
+    if (request.url.host == 'mirror.test') {
+      return Future.error(const SocketException('Connection refused'));
+    }
+    return _inner.send(request);
   }
 }

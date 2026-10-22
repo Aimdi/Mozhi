@@ -9,7 +9,7 @@ must show these notices (it does, on its licenses page).
 
 | Component | Where | License |
 | --- | --- | --- |
-| whisper.cpp v1.9.5 (Whisper inference: model loading, log-mel spectrogram, encoder/decoder, sampling) | `third_party/whisper.cpp` ([ggml-org/whisper.cpp](https://github.com/ggml-org/whisper.cpp), tag `v1.9.5`, commit `d1be6fde11ac6e0407606b4e42fe72d34add8037`) | MIT (© 2023-2026 The ggml authors) |
+| whisper.cpp v1.9.5 (Whisper inference: model loading, log-mel spectrogram, encoder/decoder, sampling; Silero voice activity detection) | `third_party/whisper.cpp` ([ggml-org/whisper.cpp](https://github.com/ggml-org/whisper.cpp), tag `v1.9.5`, commit `d1be6fde11ac6e0407606b4e42fe72d34add8037`) | MIT (© 2023-2026 The ggml authors) |
 | ggml 0.26.0 (tensor library, CPU backend only) | `third_party/whisper.cpp/ggml` (vendored by whisper.cpp) | MIT (© 2023-2026 The ggml authors) |
 | YaRN RoPE scaling (a function in `ggml/src/ggml-cpu/ops.cpp`; unused by Whisper) | from [jquesnelle/yarn](https://github.com/jquesnelle/yarn) | MIT (© 2023 Jeffrey Quesnelle and Bowen Peng) |
 | LLVM libc++ (NDK, linked statically) | Android NDK r28 | Apache-2.0 WITH LLVM-exception |
@@ -25,11 +25,15 @@ bundled) from Hugging Face
 and `ggml-base.bin`: OpenAI's Whisper weights converted to ggml by the
 whisper.cpp project) or imported from files, and are licensed MIT
 (© 2022 OpenAI, <https://github.com/openai/whisper/blob/main/LICENSE>).
+The voice activity detection model (`ggml-silero-v6.2.0.bin`, from
+<https://huggingface.co/ggml-org/whisper-vad>, downloaded with a speech
+model or imported) is Silero VAD v6.2.0 converted to ggml by whisper.cpp,
+MIT (© 2020-present Silero Team, <https://github.com/snakers4/silero-vad>).
 
 The `mozhi_whisper` shim itself (`src/`, `tool/`) is MIT, like the app.
 
-License texts: MIT below (the same text for whisper.cpp, ggml, YaRN and the
-Whisper weights, with the copyright lines above); Apache-2.0
+License texts: MIT below (the same text for whisper.cpp, ggml, YaRN, the
+Whisper weights and Silero VAD, with the copyright lines above); Apache-2.0
 <https://www.apache.org/licenses/LICENSE-2.0>.
 
 ```

@@ -69,6 +69,11 @@ const _custom = AppSettings(
   rememberQuality: false,
   multilineInput: false,
   maskPersonalData: false,
+  modelSource: ModelSource(
+    kind: ModelSourceKind.custom,
+    customUrl: 'https://mirror.example/models/',
+    fallbackToDefault: true,
+  ),
 );
 
 void main() {
@@ -120,6 +125,8 @@ void main() {
       expect(settings.multilineInput, isTrue);
       // Personal data is kept on the device unless the user says otherwise.
       expect(settings.maskPersonalData, isTrue);
+      // The original publishers, outside a browser.
+      expect(settings.modelSource, ModelSource.platformDefault);
     });
 
     test('supports value equality', () {
@@ -337,6 +344,7 @@ void main() {
           rememberQuality: _custom.rememberQuality,
           multilineInput: _custom.multilineInput,
           maskPersonalData: _custom.maskPersonalData,
+          modelSource: _custom.modelSource,
         );
 
         expect(copy, equals(_custom));
@@ -548,6 +556,7 @@ void main() {
           'rememberQuality': 0,
           'multilineInput': 'no',
           'maskPersonalData': 'off',
+          'modelSource': 'mirror',
         });
 
         expect(settings, equals(const AppSettings()));
@@ -572,6 +581,18 @@ void main() {
         expect(settings.recentPairs, isEmpty);
         expect(settings.extraTargets, isEmpty);
         expect(settings.engineId, 'ai:p1');
+      });
+
+      test('loads settings stored before the model source existed', () {
+        final json = _custom.toJson()..remove('modelSource');
+        expect(
+          AppSettings.fromJson(json).modelSource,
+          ModelSource.platformDefault,
+        );
+        expect(
+          AppSettings.fromJson(_custom.toJson()).modelSource,
+          _custom.modelSource,
+        );
       });
 
       test('loads settings stored before the general settings existed', () {

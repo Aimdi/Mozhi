@@ -21,6 +21,9 @@
  *    to stderr / logcat.)
  *  - Nothing is logged by whisper.cpp or ggml and nothing touches the
  *    network: the only input is the model file and the samples.
+ *  - Voice activity detection (mozhi_whisper_vad_*) is a separate object
+ *    with its own model (Silero VAD in whisper.cpp's ggml format,
+ *    ggml-silero-*.bin), so it can run while a recording is transcribed.
  */
 #ifndef MOZHI_WHISPER_H_
 #define MOZHI_WHISPER_H_
@@ -37,8 +40,9 @@
 extern "C" {
 #endif
 
-/* Bumped when a function signature changes (Dart checks it on load). */
-#define MOZHI_WHISPER_ABI_VERSION 1
+/* Bumped when a function signature changes or functions are added (Dart
+ * checks it on load). 2: voice activity detection (mozhi_whisper_vad_*). */
+#define MOZHI_WHISPER_ABI_VERSION 2
 
 /* The sample rate mozhi_whisper_transcribe() expects (Whisper's). */
 #define MOZHI_WHISPER_SAMPLE_RATE 16000
@@ -104,6 +108,41 @@ MOZHI_WHISPER_EXPORT void mozhi_whisper_free_string(char* text);
 /* Message of the last failure on the calling thread, or NULL when the last
  * call on this thread succeeded. Valid until the next call on this thread. */
 MOZHI_WHISPER_EXPORT const char* mozhi_whisper_last_error(void);
+
+/* --- Voice activity detection (Silero VAD) --------------------------------- */
+
+/* One loaded Silero VAD model with the state of one audio stream. */
+typedef struct MozhiWhisperVad MozhiWhisperVad;
+
+/* Loads a Silero VAD model in whisper.cpp's ggml format (e.g.
+ * ggml-silero-v6.2.0.bin, about 0.9 MB) for the CPU. `n_threads` <= 0 means
+ * 1 (the network is tiny; more threads only add overhead). Returns NULL on
+ * failure (missing or invalid file, out of memory). */
+MOZHI_WHISPER_EXPORT MozhiWhisperVad* mozhi_whisper_vad_load(
+    const char* path, int32_t n_threads);
+
+/* Releases a detector (NULL is ignored). */
+MOZHI_WHISPER_EXPORT void mozhi_whisper_vad_free(MozhiWhisperVad* vad);
+
+/* Samples per speech probability: the model's window, 512 (32 ms at
+ * 16 kHz) for Silero v5 and v6. 0 when `vad` is NULL. */
+MOZHI_WHISPER_EXPORT int32_t mozhi_whisper_vad_frame_size(
+    MozhiWhisperVad* vad);
+
+/* Feeds `n_samples` more mono samples at 16 kHz (floats in -1..1) of the
+ * stream and writes the speech probability (0..1) of every window they
+ * complete to `probs`, oldest first, at most `max_probs` of them. Samples
+ * that do not fill a window yet (and windows beyond `max_probs`) are kept
+ * for the next call, as is the network's state, so a stream can be fed in
+ * chunks of any size. Returns the number of probabilities written, or -1
+ * on failure. */
+MOZHI_WHISPER_EXPORT int32_t mozhi_whisper_vad_process(
+    MozhiWhisperVad* vad, const float* samples, int32_t n_samples,
+    float* probs, int32_t max_probs);
+
+/* Forgets the stream (kept samples and the network's state), e.g. before a
+ * new recording. */
+MOZHI_WHISPER_EXPORT void mozhi_whisper_vad_reset(MozhiWhisperVad* vad);
 
 #ifdef __cplusplus
 } /* extern "C" */

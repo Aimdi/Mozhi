@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:bergamot_translator/src/engine/bergamot_engine.dart';
 import 'package:bergamot_translator/src/engine/ffi/isolate_engine.dart';
 import 'package:bergamot_translator/src/engine/ffi/isolate_language_identifier.dart';
+import 'package:bergamot_translator/src/engine/web/bergamot_worker.dart';
 import 'package:bergamot_translator/src/native_language_identifier.dart';
 
 /// Whether the native engine can run here: Android on arm64-v8a, x86_64 or
@@ -49,3 +50,11 @@ BergamotEngine createBergamotEngine({
 NativeLanguageIdentifier createNativeLanguageIdentifier({
   String? libraryPath,
 }) => IsolateLanguageIdentifier(libraryPath: libraryPath);
+
+/// The web engine's worker: none outside a browser.
+BergamotWorkerChannel? openBergamotWorker({
+  String url = defaultBergamotWorkerUrl,
+}) => null;
+
+/// Persistent browser storage: there is none outside a browser.
+Future<bool> requestPersistentBrowserStorage() async => false;

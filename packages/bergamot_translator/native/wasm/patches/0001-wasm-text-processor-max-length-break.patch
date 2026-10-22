@@ -1,0 +1,30 @@
+diff --git a/inference/src/translator/text_processor.h b/inference/src/translator/text_processor.h
+index 021488d..b01e64f 100644
+--- a/inference/src/translator/text_processor.h
++++ b/inference/src/translator/text_processor.h
+@@ -57,8 +57,10 @@ class TextProcessor {
+   void parseCommonOptions(Ptr<Options> options);
+ #elif defined(WASM)
+  public:
+-  /// Constructs a TextProcessor object from the given vocabs.
+-  TextProcessor(const Vocabs &vocabs): vocabs_(vocabs) {}
++  /// Constructs a TextProcessor object from the given options (it reads
++  /// `max-length-break`) and vocabs.
++  TextProcessor(Ptr<Options> options, const Vocabs &vocabs)
++      : vocabs_(vocabs), maxLengthBreak_(options->get<size_t>("max-length-break")) {}
+ 
+   /// Registers the source language that the text processor will use for sentence segmentation.
+   void registerSourceLanguage(const std::string& language) {
+diff --git a/inference/src/translator/translation_model.cpp b/inference/src/translator/translation_model.cpp
+index d447c51..849fdb9 100644
+--- a/inference/src/translator/translation_model.cpp
++++ b/inference/src/translator/translation_model.cpp
+@@ -24,7 +24,7 @@ TranslationModel::TranslationModel(const Config &options, MemoryBundle &&memory
+ #if !defined(WASM)
+       textProcessor_(options, vocabs_, std::move(memory_.ssplitPrefixFile)),
+ #elif defined(WASM)
+-      textProcessor_(vocabs_),
++      textProcessor_(options, vocabs_),
+ #endif // defined(WASM)
+       batchingPool_(options),
+       qualityEstimator_(createQualityEstimator(getQualityEstimatorModel(memory, options))) {

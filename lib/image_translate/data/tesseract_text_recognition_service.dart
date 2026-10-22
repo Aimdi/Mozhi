@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io' show File;
+import 'dart:ui' show Color, Rect;
 
 import 'package:bergamot_translator/bergamot_translator.dart'
     show MeteredConnectionException;
@@ -7,6 +8,7 @@ import 'package:mozhi/image_translate/data/rgba_image_decoder.dart';
 import 'package:mozhi/image_translate/data/text_recognition_plan.dart';
 import 'package:mozhi/image_translate/data/text_recognition_service.dart';
 import 'package:mozhi/image_translate/models/models.dart';
+import 'package:mozhi/settings/models/model_source.dart';
 import 'package:tesseract_ocr/tesseract_ocr.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -20,8 +22,10 @@ import 'package:translation_repository/translation_repository.dart';
 /// contract) reads with the source's data, or with the installed
 /// languages for "Detect language" (see [planTextRecognition]); the image
 /// screen plans with the user's preferred languages and calls
-/// [recognizeWith]. Pixels are decoded with a [RgbaImageDecoder]
-/// (`dart:ui`). Downloads honour Wi-Fi only through
+/// [recognizeWithConfidence], which also reports where each paragraph is
+/// ([textLayoutOf]). Pixels are decoded with a [RgbaImageDecoder]
+/// (`dart:ui`, which turns the photo upright by its EXIF orientation, as
+/// the image screen shows it). Downloads honour Wi-Fi only through
 /// `isMeteredConnection`.
 class TesseractTextRecognitionService
     implements
@@ -111,8 +115,13 @@ class TesseractTextRecognitionService
         decoded.width,
         decoded.height,
         languages: codes,
+        layout: true,
       );
-      return TextWithConfidence(result.text, confidence: result.meanConfidence);
+      return TextWithConfidence(
+        result.text,
+        confidence: result.meanConfidence,
+        layout: textLayoutOf(result.layout),
+      );
     } on TessdataMissingException catch (error) {
       final language = ocr.catalog.byCode(error.missing.first);
       if (language == null) rethrow;
@@ -135,6 +144,11 @@ class TesseractTextRecognitionService
     if (wifiOnly && await _isMetered()) {
       throw const MeteredConnectionException();
     }
+    // The settings' model source (SHARED W3-B): GitHub or a mirror.
+    final source = ModelSource.current;
+    ocr.data
+      ..mirror = source.mirror()
+      ..fallbackToDefault = source.fallsBackToDefault;
     await ocr.download(
       code,
       onProgress: onProgress == null
@@ -188,6 +202,59 @@ class TesseractTextRecognitionService
     );
     return started;
   }
+
+  /// The paragraphs of Tesseract's [layout] with their lines joined
+  /// ([TextParagraph.joinLines]), without those that have no letter or
+  /// digit or are a very unsure one or two characters (specks, edges and
+  /// textures read as text); null without a layout.
+  static TextLayout? textLayoutOf(OcrLayout? layout) {
+    if (layout == null) return null;
+    return TextLayout(
+      width: layout.width,
+      height: layout.height,
+      paragraphs: [
+        for (final paragraph in layout.paragraphs) ?_paragraphOf(paragraph),
+      ],
+    );
+  }
+
+  static TextParagraph? _paragraphOf(OcrParagraph paragraph) {
+    final text = TextParagraph.joinLines([
+      for (final line in paragraph.lines) line.text,
+    ]);
+    if (!_letterOrDigit.hasMatch(text)) return null;
+    if (paragraph.confidence < _speckConfidence && text.runes.length <= 2) {
+      return null;
+    }
+    final box = paragraph.box;
+    Color? colour(int? rgb) => rgb == null ? null : Color(0xFF000000 | rgb);
+    return TextParagraph(
+      text: text,
+      box: Rect.fromLTRB(
+        box.left.toDouble(),
+        box.top.toDouble(),
+        box.right.toDouble(),
+        box.bottom.toDouble(),
+      ),
+      lineCount: paragraph.lines.isEmpty ? 1 : paragraph.lines.length,
+      alignment: switch (paragraph.alignment) {
+        OcrAlignment.left => TextParagraphAlignment.left,
+        OcrAlignment.center => TextParagraphAlignment.center,
+        OcrAlignment.right => TextParagraphAlignment.right,
+        OcrAlignment.unknown => TextParagraphAlignment.unknown,
+      },
+      isRightToLeft: !paragraph.isLeftToRight,
+      background: colour(paragraph.background),
+      foreground: colour(paragraph.foreground),
+      confidence: paragraph.confidence,
+    );
+  }
+
+  static final _letterOrDigit = RegExp(r'[\p{L}\p{N}]', unicode: true);
+
+  /// Below this confidence a paragraph of one or two characters is taken
+  /// for a speck.
+  static const _speckConfidence = 30;
 
   static OcrLanguage _describe(TessdataLanguage language) => OcrLanguage(
     code: language.code,

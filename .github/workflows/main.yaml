@@ -85,8 +85,9 @@ jobs:
         run: bash .github/scripts/packages.sh test
 
       # tool/play_prepare.sh and tool/fdroid_prepare.sh on scratch copies
-      # (idempotent, fail loudly), and the APK checkers (Google code,
-      # trackers) on synthetic APKs.
+      # (idempotent, fail loudly), the APK checkers (Google code, trackers)
+      # on synthetic APKs, and the model mirror tool against a local
+      # fixture server.
       - name: Test build scripts
         run: |
           sh tool/variant_prepare_test.sh
@@ -96,6 +97,7 @@ jobs:
           python3 tool/check_keystore_test.py
           python3 tool/check_signing_test.py
           python3 tool/check_page_size_test.py
+          python3 tool/mirror_models_test.py
 
       - name: Test app
         run: flutter test --coverage

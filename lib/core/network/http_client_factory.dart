@@ -19,9 +19,11 @@ const appUserAgent = 'Mozhi';
 /// timeout never does (`MozhiPool.canFailOver`).
 const connectTimeout = Duration(seconds: 7);
 
-/// [connectTimeout] for a client with a proxy: connecting may include
-/// opening the tunnel through it (plain `http`), and Tor first has to build
-/// a circuit to the server.
+/// [connectTimeout] for a client with a proxy. It covers the whole tunnel:
+/// the connection to the proxy, its answer to `CONNECT` (Tor first has to
+/// build a circuit to the server) and, for `https`, the TLS handshake with
+/// the server through the tunnel (see `routeThroughProxy`), so a server
+/// that never answers through the proxy fails as a connection error too.
 const proxyConnectTimeout = Duration(seconds: 20);
 
 /// How long a kept-alive connection may stay idle before it is closed on
@@ -42,7 +44,9 @@ const idleConnectionTimeout = Duration(seconds: 90);
 ///   through that HTTP proxy, except requests to this device and the
 ///   private network (which a proxy such as Tor could not reach); plain
 ///   `http` goes through a `CONNECT` tunnel too, the only method Tor's
-///   HTTP tunnel port (Orbot's `127.0.0.1:8118`) accepts.
+///   HTTP tunnel port (Orbot's `127.0.0.1:8118`) accepts, and the
+///   connection timeout covers opening the tunnel and the TLS handshake
+///   through it.
 ///
 /// A [proxy] that cannot be parsed never falls back to a direct connection:
 /// the client then refuses every request with an [InvalidProxyException].

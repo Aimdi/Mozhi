@@ -34,7 +34,9 @@ enum SettingsSaveFailure {
 class SettingsCubit extends Cubit<AppSettings> {
   new({SettingsRepository? repository, AppSettings? initial})
     : _repository = repository ?? SettingsRepository(),
-      super(initial ?? const AppSettings());
+      super(initial ?? const AppSettings()) {
+    ModelSource.current = state.modelSource;
+  }
 
   /// Maximum number of [AppSettings.recentLanguages].
   static const maxRecentLanguages = 8;
@@ -331,6 +333,11 @@ class SettingsCubit extends Cubit<AppSettings> {
   void setMaskPersonalData({required bool enabled}) =>
       _apply(state.copyWith(maskPersonalData: enabled));
 
+  /// Where on-device models are downloaded from
+  /// (`AppSettings.modelSource`).
+  void setModelSource(ModelSource source) =>
+      _apply(state.copyWith(modelSource: source));
+
   /// Sets the HTTP proxy (`host:port`); null or blank = no proxy.
   void setHttpProxy(String? proxy) {
     final value = proxy?.trim();
@@ -385,6 +392,14 @@ class SettingsCubit extends Cubit<AppSettings> {
       }
       addError(error, stackTrace);
     }
+  }
+
+  /// Keeps [ModelSource.current] (read by the model downloads) equal to
+  /// the settings in use.
+  @override
+  void onChange(Change<AppSettings> change) {
+    super.onChange(change);
+    ModelSource.current = change.nextState.modelSource;
   }
 
   @override

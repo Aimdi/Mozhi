@@ -65,8 +65,37 @@ class DeviceVoice extends Equatable {
   /// The engine's quality label, if any (see [highQualityLabels]).
   final String? quality;
 
-  /// Android: the voice is synthesised online.
+  /// The voice is synthesised online, so the text it reads leaves the
+  /// device: Android voices that need a network connection, and browser
+  /// voices that are not a `localService` (Chrome's "Google …" voices).
   final bool networkRequired;
+
+  /// Who receives the text of an online voice ([networkRequired]), when
+  /// its name tells: `Google` for Chrome's "Google …" voices and the
+  /// `…-network` voices of Google's Android engine, `Microsoft` for Edge's
+  /// "Microsoft … Online" voices. Null for other voices.
+  String? get onlineProvider {
+    if (!networkRequired) return null;
+    final lower = name.toLowerCase();
+    if (lower.contains('google') ||
+        (_engineIdPattern.hasMatch(name) && lower.endsWith('-network'))) {
+      return 'Google';
+    }
+    if (lower.contains('microsoft')) return 'Microsoft';
+    return null;
+  }
+
+  /// A copy whose [networkRequired] is [online].
+  DeviceVoice withNetworkRequired({required bool online}) =>
+      online == networkRequired
+      ? this
+      : DeviceVoice(
+          name: name,
+          locale: locale,
+          identifier: identifier,
+          quality: quality,
+          networkRequired: online,
+        );
 
   /// Whether the engine rates this voice above its default quality.
   bool get isHighQuality =>

@@ -1,9 +1,10 @@
 import 'package:bergamot_translator/src/engine/bergamot_engine.dart';
+import 'package:bergamot_translator/src/engine/web/bergamot_worker.dart';
 import 'package:bergamot_translator/src/model_manager.dart';
 import 'package:bergamot_translator/src/native_language_identifier.dart';
 import 'package:translation_repository/translation_repository.dart';
 
-/// Whether the native engine can run here: never on the web.
+/// Whether the native engine can run here: never without `dart:ffi`.
 bool get bergamotPlatformSupported => false;
 
 /// An engine that is not available on this platform.
@@ -17,7 +18,8 @@ NativeLanguageIdentifier createNativeLanguageIdentifier({
   String? libraryPath,
 }) => const UnsupportedNativeLanguageIdentifier();
 
-/// The engine on platforms without `dart:ffi` (web): every call fails.
+/// The engine on platforms without `dart:ffi` or a browser: every call
+/// fails.
 final class UnsupportedBergamotEngine implements BergamotBatchEngine {
   const new();
 
@@ -54,8 +56,8 @@ final class UnsupportedBergamotEngine implements BergamotBatchEngine {
   Future<void> dispose() async {}
 }
 
-/// The language identifier on platforms without `dart:ffi` (web): there is
-/// none, so callers use the `LanguageIdentifier` heuristic.
+/// The language identifier on platforms without `dart:ffi` or a browser:
+/// there is none, so callers use the `LanguageIdentifier` heuristic.
 final class UnsupportedNativeLanguageIdentifier
     implements NativeLanguageIdentifier {
   const new();
@@ -66,3 +68,11 @@ final class UnsupportedNativeLanguageIdentifier
     List<String> hints = const [],
   }) async => null;
 }
+
+/// The web engine's worker: none outside a browser.
+BergamotWorkerChannel? openBergamotWorker({
+  String url = defaultBergamotWorkerUrl,
+}) => null;
+
+/// Persistent browser storage: there is none outside a browser.
+Future<bool> requestPersistentBrowserStorage() async => false;

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:bergamot_translator/bergamot_translator.dart';
+import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -14,6 +15,8 @@ import 'package:mozhi/offline/data/offline_model_details.dart';
 import 'package:mozhi/offline/data/offline_model_error.dart';
 import 'package:mozhi/offline/data/offline_model_import.dart';
 import 'package:mozhi/offline/offline.dart';
+import 'package:mozhi/settings/cubit/settings_cubit.dart';
+import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 import '../../helpers/helpers.dart';
@@ -651,5 +654,91 @@ void main() {
         );
       }
     });
+
+    test('names the mirror a failed download came from', () {
+      String of(OfflineModelErrorKind kind, {int? status}) => message(
+        OfflineModelOperation.download,
+        error: OfflineModelError(
+          kind,
+          statusCode: status,
+          mirror: 'mirror.example',
+        ),
+      );
+
+      expect(
+        of(OfflineModelErrorKind.checksum),
+        'German didn’t download correctly from mirror.example: a file '
+        'didn’t match the one Mozhi expects, so it was discarded. The mirror '
+        'may be out of date.',
+      );
+      expect(
+        of(OfflineModelErrorKind.server, status: 404),
+        'Couldn’t download German from mirror.example: it answered with '
+        'error 404. The mirror may not have this language yet; ask its owner '
+        'or change the model source.',
+      );
+      expect(of(OfflineModelErrorKind.server), contains('error 0'));
+      expect(
+        of(OfflineModelErrorKind.network),
+        'Couldn’t reach mirror.example to download German. Check your '
+        'connection or the model source.',
+      );
+      // The network rules still come first.
+      expect(
+        message(
+          OfflineModelOperation.download,
+          error: const OfflineModelError(
+            OfflineModelErrorKind.network,
+            networkPolicy: NetworkPolicyError.cleartext,
+            mirror: 'mirror.example',
+          ),
+        ),
+        l10n.commonErrorCleartextRefused,
+      );
+    });
+  });
+
+  group('OfflineModelsPage model source', () {
+    late SettingsCubit settings;
+
+    setUp(() {
+      settings = _MockSettingsCubit();
+      when(() => settings.state).thenReturn(
+        const AppSettings(
+          modelSource: ModelSource(
+            kind: ModelSourceKind.custom,
+            customUrl: 'https://mirror.example/models/',
+          ),
+        ),
+      );
+    });
+
+    testWidgets('shows the source and where models come from', (tester) async {
+      useTallView(tester);
+      await tester.pumpApp(
+        BlocProvider<SettingsCubit>.value(
+          value: settings,
+          child: OfflineModelsPage(
+            translator: translator,
+            store: store,
+            details: FakeOfflineModelDetails(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Model source'), findsOneWidget);
+      expect(find.text('Mirror: mirror.example'), findsOneWidget);
+      expect(
+        find.text(
+          'Models download from mirror.example, a mirror, and are checked '
+          'before use. None of your text is sent.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.textContaining('storage.googleapis.com'), findsNothing);
+    });
   });
 }
+
+class _MockSettingsCubit extends MockCubit<AppSettings>
+    implements SettingsCubit;

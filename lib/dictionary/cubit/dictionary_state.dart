@@ -15,6 +15,9 @@ class DictionaryState extends Equatable {
     this.lookedUp = '',
     this.error,
     this.entryLanguage,
+    this.offlineAnswer,
+    this.offlineLanguages = const [],
+    this.suggestions = const [],
   });
 
   /// What the user is about to look up (the search field).
@@ -48,10 +51,37 @@ class DictionaryState extends Equatable {
   /// device once the entry arrived; null while unknown.
   final String? entryLanguage;
 
+  /// What an offline dictionary had for [lookedUp] when it wrote [entry]
+  /// (its language, the credit of its data, the lemma of an inflected
+  /// form); null for an entry written by the AI [engine].
+  final OfflineDictionaryAnswer? offlineAnswer;
+
+  /// Language codes of the installed offline dictionaries.
+  final List<String> offlineLanguages;
+
+  /// Words of the offline dictionaries that start like [lookedUp], when
+  /// nothing was found (and no AI engine could look it up).
+  final List<String> suggestions;
+
   bool get hasEngine => engine != null;
 
-  /// A word can be looked up now.
-  bool get canLookUp => engine != null && word.trim().isNotEmpty;
+  /// Whether offline dictionaries are installed: look-ups use them first.
+  bool get hasOfflineDictionaries => offlineLanguages.isNotEmpty;
+
+  /// Whether an installed offline dictionary has the words of [language]
+  /// (any, to detect the language).
+  bool hasOfflineDictionaryFor(Language language) => language.isAuto
+      ? hasOfflineDictionaries
+      : offlineLanguages.any(
+          (code) => dictionaryLanguageMatches(code, language.code),
+        );
+
+  /// A word can be looked up now (with AI, or in an offline dictionary).
+  bool get canLookUp =>
+      (engine != null || hasOfflineDictionaries) && word.trim().isNotEmpty;
+
+  /// The shown (or loading) entry comes from an offline dictionary.
+  bool get isOfflineEntry => offlineAnswer != null;
 
   /// The languages can be swapped (not while detecting the source).
   bool get canSwap => !source.isAuto;
@@ -78,6 +108,9 @@ class DictionaryState extends Equatable {
     String? lookedUp,
     Object? Function()? error,
     String? Function()? entryLanguage,
+    OfflineDictionaryAnswer? Function()? offlineAnswer,
+    List<String>? offlineLanguages,
+    List<String>? suggestions,
   }) => DictionaryState(
     word: word ?? this.word,
     source: source ?? this.source,
@@ -89,6 +122,9 @@ class DictionaryState extends Equatable {
     lookedUp: lookedUp ?? this.lookedUp,
     error: error != null ? error() : this.error,
     entryLanguage: entryLanguage != null ? entryLanguage() : this.entryLanguage,
+    offlineAnswer: offlineAnswer != null ? offlineAnswer() : this.offlineAnswer,
+    offlineLanguages: offlineLanguages ?? this.offlineLanguages,
+    suggestions: suggestions ?? this.suggestions,
   );
 
   @override
@@ -103,5 +139,8 @@ class DictionaryState extends Equatable {
     lookedUp,
     error,
     entryLanguage,
+    offlineAnswer,
+    offlineLanguages,
+    suggestions,
   ];
 }

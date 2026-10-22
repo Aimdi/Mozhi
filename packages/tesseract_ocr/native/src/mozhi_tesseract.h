@@ -8,8 +8,9 @@
  *
  * Contract:
  *  - All strings are NUL-terminated UTF-8.
- *  - Strings returned by mozhi_tesseract_recognize() are allocated with
- *    malloc() and must be released with mozhi_tesseract_free_string().
+ *  - Strings returned by mozhi_tesseract_recognize() and
+ *    mozhi_tesseract_recognize_layout() are allocated with malloc() and
+ *    must be released with mozhi_tesseract_free_string().
  *  - A handle must not be used by two threads at the same time; separate
  *    handles may be used on separate threads. Call the functions from a
  *    background thread/isolate: creating a handle loads the language data
@@ -36,8 +37,9 @@
 extern "C" {
 #endif
 
-/* Bumped when a function signature changes (Dart checks it on load). */
-#define MOZHI_TESSERACT_ABI_VERSION 1
+/* Bumped when a function signature changes or a function is added (Dart
+ * checks it on load). 2: mozhi_tesseract_recognize_layout(). */
+#define MOZHI_TESSERACT_ABI_VERSION 2
 
 /* Resolution recognition assumes (Tesseract needs one to size its
  * filters; photos carry none that is meaningful). */
@@ -83,6 +85,53 @@ MOZHI_TESSERACT_EXPORT char* mozhi_tesseract_recognize(
     MozhiTesseract* engine, const uint8_t* pixels, int32_t width,
     int32_t height, int32_t bytes_per_pixel, int32_t bytes_per_line,
     int32_t* mean_confidence);
+
+/* mozhi_tesseract_recognize_layout() flags. */
+/* Also report every word (text, box, confidence) of each line. */
+#define MOZHI_TESSERACT_LAYOUT_WORDS 1
+
+/* Like mozhi_tesseract_recognize() (same arguments, thresholding passes and
+ * text), but returns the text together with where it is in the image, as
+ * one malloc'd JSON object (UTF-8):
+ *
+ *   {"text": "...",            the text mozhi_tesseract_recognize() returns
+ *    "confidence": 87,         mean word confidence, 0-100
+ *    "width": 1200, "height": 800,   the image size (pixels)
+ *    "blocks": [               text blocks in reading order
+ *      {"box": [l, t, r, b], "confidence": 90,
+ *       "orientation": 0,      0, 90, 180 or 270: clockwise rotation of the
+ *                              text from upright, as layout analysis sees
+ *                              it (no orientation detection: usually 0)
+ *       "vertical": false,     top-to-bottom writing (vertical CJK)
+ *       "deskew": -1.5,        degrees to rotate the block anti-clockwise
+ *                              for it to be level (-45 to 45)
+ *       "paragraphs": [
+ *         {"box": [...], "confidence": 91,
+ *          "ltr": true,        left-to-right script (false: Arabic, Hebrew)
+ *          "align": "left",    left, center, right or unknown
+ *          "background": 16777215, "foreground": 0,   0xRRGGBB, see below
+ *          "lines": [
+ *            {"box": [...], "confidence": 92,
+ *             "baseline": [x1, y1, x2, y2],
+ *             "text": "Opening hours",
+ *             "words": [{"box": [...], "confidence": 95, "text": "..."}]}
+ *          ]}
+ *       ]}
+ *    ]}
+ *
+ * Boxes are [left, top, right, bottom] in pixels of the image, from the
+ * top-left corner of the first pixel to the bottom-right corner of the
+ * last one (right and bottom exclusive). Lines are in reading order, also
+ * for right-to-left scripts. "words" is present with
+ * MOZHI_TESSERACT_LAYOUT_WORDS. "background" and "foreground" are the
+ * median colours of the pixels inside the paragraph's box that Tesseract's
+ * thresholding counted as background and as text (the larger share is the
+ * background, so light text on a dark ground works too); they are left out
+ * when unknown. Returns NULL on failure. */
+MOZHI_TESSERACT_EXPORT char* mozhi_tesseract_recognize_layout(
+    MozhiTesseract* engine, const uint8_t* pixels, int32_t width,
+    int32_t height, int32_t bytes_per_pixel, int32_t bytes_per_line,
+    int32_t flags);
 
 /* Frees a string returned by this library (NULL is ignored). */
 MOZHI_TESSERACT_EXPORT void mozhi_tesseract_free_string(char* text);

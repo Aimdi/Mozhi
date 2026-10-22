@@ -100,8 +100,13 @@ pick ones you trust, or self-host them ([guide](self-hosting-mozhi.md)).
 - **Proxy:** with **Settings > Privacy & data > Network > HTTP proxy** (for
   example Orbot, `127.0.0.1:8118`) every request goes through a `CONNECT`
   tunnel; a proxy setting that can't be parsed never falls back to a direct
-  connection. Without a proxy, `.onion` and `.i2p` addresses are refused
-  before a DNS lookup.
+  connection. The app opens the tunnel itself and runs TLS through it with
+  the system's certificate checks, so the connection timeout (20 s through
+  a proxy, 7 s direct) covers the proxy's answer and the TLS handshake
+  too; `dart:io`'s own proxy support would time only the connection to
+  the proxy. A proxy that answers with anything but `200`, or sends data
+  before the TLS handshake, is refused. Without a proxy, `.onion` and
+  `.i2p` addresses are refused before a DNS lookup.
 - **Headers:** requests carry `User-Agent: Mozhi`, no cookies and no
   `Referer`; the web app's page sets `referrer` to `no-referrer`.
 - **Certificates:** the app never disables certificate checks. Release
@@ -115,7 +120,8 @@ pick ones you trust, or self-host them ([guide](self-hosting-mozhi.md)).
   `https` to `http`.
 - **Timeouts and size limits** on every request. Mozhi failover does not
   resend your text to another instance after a timeout, when the first one
-  may already have received it.
+  may already have received it. A connection that can't be set up in time
+  (also through the proxy) carried nothing yet, so it fails over.
 
 ## Web page translator
 
@@ -175,6 +181,12 @@ treated as data, not instructions:
   angle brackets) and shortened before they go into a prompt.
 - Refinement suggestions written by the model go into the prompt as a
   lower-trust "refinement preference", never as an instruction from you.
+- With the personal data shield, the AI extras get placeholders such as
+  `⟨1⟩` and a system note that they stand for personal data to keep; the
+  values are put back on the device only, into the model's answer, and a
+  placeholder the model changed is never filled in by sending the value.
+  Glossary terms for Mozhi and LibreTranslate are placeholders too, so
+  those engines never see the glossary.
 - Model output is shown as plain text (with bold, italics and code at most):
   no links, HTML, images or scripts are rendered.
 
@@ -205,6 +217,14 @@ translations, for example with **Check meaning**.
   Dependabot updates), so a moved tag can't change what runs in CI.
 
 ## Known limitations
+
+- **Online voices** are recognised by what the platform reports: the
+  browser's `localService` flag in the web app, and Android's
+  network-required flag and installed voice data. A speech engine that
+  reports an online voice as local, or switches to its online service on
+  its own, isn't caught; [Offline only](privacy.md#privacy-modes) and
+  **Device voice only** can't stop that either. The personal data shield
+  can't apply to speech.
 
 - Android's "translate clipboard" entry point (Quick Settings tile,
   home-screen widget, launcher shortcut) goes through a non-exported

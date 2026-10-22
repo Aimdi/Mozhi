@@ -13,6 +13,7 @@ uses, and troubleshooting.
 - [Use it on your LAN](#use-it-on-your-lan)
 - [HTTPS with Caddy](#https-with-caddy)
 - [Tor and I2P](#tor-and-i2p)
+- [Mirror the on-device models](#mirror-the-on-device-models)
 - [The API the app uses](#the-api-the-app-uses)
 - [Updating](#updating)
 - [Troubleshooting](#troubleshooting)
@@ -250,6 +251,124 @@ it has no built-in Tor or I2P client: the device has to route the app's
 traffic through Tor or I2P, for example with Orbot's VPN mode on Android. If
 such an address fails the **Test**, the tunnel isn't routing the app.
 
+## Mirror the on-device models
+
+The app's on-device models (offline languages, voice input, text
+recognition) come from their publishers by default: Mozilla's Firefox
+Translations bucket on Google Cloud Storage, the Whisper models on Hugging
+Face and Tesseract's language data on GitHub. Each of them sees the IP
+address and which files, so which languages, a user downloads. A mirror on
+your server keeps that between your users and you.
+
+**A mirror needs no trust.** Every file is pinned in the app's catalogues
+by size and SHA-256 (Whisper also by SHA-1) and checked before it is
+installed, whichever server sends it. A mirror that serves anything else
+gets an error that names it (*Pashto didn't download correctly from
+mirror.example.com…*), and nothing is installed.
+
+### The layout
+
+One plain directory of files, under their original names:
+
+```text
+models/
+├── bergamot/<source>-<target>/<version>/<name>.gz   e.g. bergamot/en-de/retrain_hr_…/model.ende.intgemm.alphas.bin.gz
+├── whisper/<name>                                   e.g. whisper/ggml-tiny.bin, whisper/ggml-silero-v6.2.0.bin
+└── tesseract/<code>.traineddata                     e.g. tesseract/deu.traineddata
+```
+
+The app asks for `<mirror>/bergamot/…`, `<mirror>/whisper/…` and
+`<mirror>/tesseract/…` (plain `GET`, with `Range` to resume; no cookies,
+nothing else).
+
+### Fill it
+
+[`tool/mirror_models.py`](../tool/mirror_models.py) (Python 3.10+, no
+dependencies) downloads exactly the files of the catalogues in your
+checkout, verifies them, resumes interrupted downloads, skips files already
+in place and never deletes anything else (so one mirror can serve several
+app versions):
+
+```sh
+python3 tool/mirror_models.py /srv/mozhi/models --list    # files and total size
+python3 tool/mirror_models.py /srv/mozhi/models           # everything, about 3 GB
+python3 tool/mirror_models.py /srv/mozhi/models \
+    --languages de,fr,ja --whisper tiny,silero-vad        # what your users need
+python3 tool/mirror_models.py /srv/mozhi/models --verify  # check, no network
+```
+
+Filters: `--only bergamot,whisper,tesseract`, `--languages` (translation in
+both directions with English, and the text recognition data of those
+languages), `--pairs en-de,de-en`, `--whisper tiny,base,silero-vad` (the
+voice activity model `silero-vad` comes with every speech model download),
+`--tesseract deu,chi_sim`. With the Compose file:
+
+```sh
+cd deploy
+docker compose --profile mirror run --rm mirror --languages de,fr
+```
+
+writes to `deploy/models` (`MOZHI_MODELS_DIR` in `.env`). Run it again
+after updating the app: a new model version is a new directory (or, for
+Whisper and Tesseract, replaces the file of the same name). Delete old
+`bergamot/<pair>/<version>` directories yourself when no user runs an app
+version that still asks for them.
+
+### Serve it
+
+Any static web server works; it should allow `Range` requests, send no
+directory listings, and, for web apps on other origins, CORS headers.
+
+**Caddy (`deploy/Caddyfile`):** the `(models)` snippet serves
+`/srv/models` at `/models/` on the Mozhi site, with CORS, a one-day cache
+and `.part` files hidden. With the `https` profile, the mirror is at
+`https://mozhi.example.com/models/`. A commented site serves the web app on
+its own domain with the same `/models/` next to it.
+
+**nginx:**
+
+```nginx
+location /models/ {
+    alias /srv/mozhi/models/;
+    autoindex off;
+    location ~ \.part$ { return 404; }
+    add_header Access-Control-Allow-Origin "*" always;
+    add_header Access-Control-Allow-Headers "Range" always;
+    add_header Access-Control-Expose-Headers "Content-Length, Content-Range, Accept-Ranges, ETag" always;
+    add_header Cache-Control "public, max-age=86400" always;
+    if ($request_method = OPTIONS) { return 204; }
+}
+```
+
+**A quick test on your LAN:** `python3 -m http.server 8000 --directory
+/srv/mozhi` serves `http://<server-ip>:8000/models/` (no CORS, so for the
+Android app only).
+
+### Point the app at it
+
+**Settings > Translation engines > Model source** (also on the
+**Offline languages** page):
+
+- **Original publishers:** the default of the Android app.
+- **This web server** (web app only, its default): `models/` next to the
+  web app, e.g. `https://translate.example.com/models/` for a web app at
+  `https://translate.example.com/`. Unpack the web zip and put (or link)
+  the mirror's `models/` directory next to its `index.html`, or serve it
+  there as above.
+- **Custom mirror…:** the mirror's address, e.g.
+  `https://mozhi.example.com/models/`. `https` for public servers; plain
+  `http` only for this device, your LAN and `.onion` / `.i2p` addresses
+  (which need Orbot or another proxy).
+
+**Use the original publishers when the mirror lacks a file** is off by
+default: a file your mirror doesn't have then fails with *the mirror may not
+have this language yet* rather than going to Google, GitHub or Hugging Face.
+Turn it on to use the mirror for what it has and the publishers for the
+rest. A file that doesn't match its checksum is never fetched elsewhere.
+
+The **Network activity** log lists every download with its host (your
+mirror, or the publisher).
+
 ## The API the app uses
 
 All endpoints live under `/api`, send `Access-Control-Allow-Origin: *`, and
@@ -288,6 +407,14 @@ docker compose pull && docker compose up -d
 Mozhi has no state, so updating is safe at any time.
 
 ## Troubleshooting
+
+**Model downloads fail with "from mirror.example.com: it answered with
+error 404".** The mirror lacks that language: run `tool/mirror_models.py`
+with it (`--languages xx`), or turn on **Use the original publishers when
+the mirror lacks a file**. *Didn't download correctly from …* means the
+mirror's copy doesn't match the app's catalogue: run the tool again (it
+replaces files that don't match), or check that nothing rewrites the files
+(compression, a CDN that transcodes).
 
 **The app says it couldn't reach the instance.**
 Run `curl http://<server-ip>:3000/api/version` from another computer on the

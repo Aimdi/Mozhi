@@ -144,6 +144,8 @@ class VoiceSettingsState extends Equatable {
     this.importing = false,
     this.outcome,
     this.importOutcome,
+    this.voiceDetection,
+    this.voiceDetectionInstalled = false,
   });
 
   final VoiceSettingsStatus status;
@@ -178,6 +180,22 @@ class VoiceSettingsState extends Equatable {
   /// The latest finished import (null once another starts).
   final VoiceImportOutcome? importOutcome;
 
+  /// The voice activity detection model (Silero VAD, about 0.9 MB), which
+  /// lets Whisper transcribe phrase by phrase: downloaded with every speech
+  /// model, imported with them, deleted with the last one. Null without
+  /// one (or where Whisper does not run).
+  final VoiceModel? voiceDetection;
+
+  /// Whether [voiceDetection] is installed.
+  final bool voiceDetectionInstalled;
+
+  /// A speech model is installed but not the voice activity model (it was
+  /// installed before the app had one): offer to download it.
+  bool get voiceDetectionMissing =>
+      voiceDetection != null &&
+      !voiceDetectionInstalled &&
+      installed.isNotEmpty;
+
   bool isInstalled(String id) => installed.contains(id);
 
   /// The model [id], if listed.
@@ -196,6 +214,8 @@ class VoiceSettingsState extends Equatable {
     bool? importing,
     ValueGetter<VoiceModelOutcome?>? outcome,
     ValueGetter<VoiceImportOutcome?>? importOutcome,
+    ValueGetter<VoiceModel?>? voiceDetection,
+    bool? voiceDetectionInstalled,
   }) => VoiceSettingsState(
     status: status ?? this.status,
     engine: engine ?? this.engine,
@@ -208,6 +228,11 @@ class VoiceSettingsState extends Equatable {
     importing: importing ?? this.importing,
     outcome: outcome != null ? outcome() : this.outcome,
     importOutcome: importOutcome != null ? importOutcome() : this.importOutcome,
+    voiceDetection: voiceDetection != null
+        ? voiceDetection()
+        : this.voiceDetection,
+    voiceDetectionInstalled:
+        voiceDetectionInstalled ?? this.voiceDetectionInstalled,
   );
 
   @override
@@ -223,5 +248,7 @@ class VoiceSettingsState extends Equatable {
     importing,
     outcome,
     importOutcome,
+    voiceDetection,
+    voiceDetectionInstalled,
   ];
 }

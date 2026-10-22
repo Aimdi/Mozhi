@@ -11,6 +11,7 @@ import 'package:mozhi/offline/data/offline_model_details.dart';
 import 'package:mozhi/offline/data/offline_model_error.dart';
 import 'package:mozhi/offline/data/offline_model_import.dart';
 import 'package:mozhi/offline/data/unavailable_offline_translator.dart';
+import 'package:mozhi/settings/models/model_source.dart';
 
 class _Engine implements BergamotEngine {
   @override
@@ -325,6 +326,73 @@ void main() {
           'en-de',
         });
         expect(details.manualFiles('en'), isEmpty);
+      });
+    });
+
+    group('model source', () {
+      const mirror = ModelSource(
+        kind: ModelSourceKind.custom,
+        customUrl: 'https://mirror.example/models/',
+      );
+
+      /// Serves every catalog file at its mirror URL too.
+      void mirrorAll() {
+        final built = catalog.build();
+        for (final model in built.models) {
+          for (final file in model.files.values) {
+            catalog.bodies[bergamotMirrorUrl(mirror.mirror()!, model, file)] =
+                catalog.bodies[file.url]!;
+          }
+        }
+      }
+
+      test('downloads from the mirror of the source in use', () async {
+        mirrorAll();
+        final details = BergamotModelDetails(
+          translator(),
+          modelSource: () => mirror,
+        );
+        await details.download('de', wifiOnly: false);
+        expect(requests, isNotEmpty);
+        expect(requests.map((url) => url.host).toSet(), {'mirror.example'});
+        expect(requests.first.path, startsWith('/models/bergamot/'));
+      });
+
+      test('falls back to Mozilla only when allowed', () async {
+        final strict = BergamotModelDetails(
+          translator(),
+          modelSource: () => mirror,
+        );
+        await expectLater(
+          strict.download('de', wifiOnly: false),
+          throwsA(
+            isA<ModelDownloadException>().having(
+              (e) => OfflineModelError.of(e).mirror,
+              'mirror',
+              'mirror.example',
+            ),
+          ),
+        );
+        expect(requests.map((url) => url.host).toSet(), {'mirror.example'});
+
+        requests.clear();
+        final lenient = BergamotModelDetails(
+          translator(),
+          modelSource: () => mirror.copyWith(fallbackToDefault: true),
+        );
+        await lenient.download('de', wifiOnly: false);
+        expect(requests.map((url) => url.host).toSet(), {
+          'mirror.example',
+          'models.example',
+        });
+      });
+
+      test("uses the settings' source by default", () async {
+        addTearDown(() => ModelSource.current = ModelSource.platformDefault);
+        ModelSource.current = ModelSource.defaultHosts;
+        await BergamotModelDetails(translator())
+            .download('de', wifiOnly: false);
+        expect(requests.map((url) => url.host).toSet(), {'models.example'});
       });
     });
 

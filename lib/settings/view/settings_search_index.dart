@@ -8,6 +8,7 @@ import 'package:mozhi/settings/view/categories/appearance_settings.dart';
 import 'package:mozhi/settings/view/categories/engine_settings.dart';
 import 'package:mozhi/settings/view/categories/general_settings.dart';
 import 'package:mozhi/settings/view/categories/speech_settings.dart';
+import 'package:mozhi/settings/view/widgets/model_source_dialog.dart';
 import 'package:mozhi/settings/view/widgets/privacy_settings_section.dart';
 import 'package:mozhi/settings/view/widgets/settings_search.dart';
 
@@ -172,6 +173,17 @@ List<SettingsSearchEntry> settingsSearchIndex(
         l10n.offlineTitle,
         subtitle: l10n.settingsOfflineUnavailableSubtitle,
       ),
+    entry(
+      engines,
+      EngineAnchors.modelSource,
+      l10n.settingsModelSource,
+      subtitle: modelSourceSummary(l10n, settings.modelSource),
+      keywords: [
+        l10n.settingsModelSourceDefault,
+        l10n.settingsModelSourceCustom,
+        l10n.settingsModelSourceUrlLabel,
+      ],
+    ),
     entry(engines, EngineAnchors.instances, l10n.settingsInstancesTitle),
     entry(engines, EngineAnchors.services, l10n.settingsMtServicesTitle),
     entry(

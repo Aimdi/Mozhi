@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import 'package:mozhi/speech/browser_voices.dart';
 import 'package:mozhi/speech/device_tts.dart';
 
 /// Scriptable stand-in for the `flutter_tts` plugin; records calls.
@@ -114,6 +115,7 @@ void main() {
     TargetPlatform platform = TargetPlatform.android,
     bool isWeb = false,
     Duration settleTimeout = const Duration(seconds: 5),
+    List<BrowserVoice> browserVoices = const [],
   }) => FlutterTtsDeviceTts(
     createTts: () {
       created++;
@@ -123,6 +125,7 @@ void main() {
     isWeb: isWeb,
     settleTimeout: settleTimeout,
     webVoicesDelay: Duration.zero,
+    browserVoices: () => browserVoices,
   );
 
   Future<void> flush() => Future<void>.delayed(Duration.zero);
@@ -564,6 +567,199 @@ void main() {
 
         expect(voices.single.name, 'Google français');
         expect(tts.calls, ['getVoices', 'getVoices']);
+      });
+    });
+
+    group('online voices', () {
+      const google = (
+        name: 'Google français',
+        lang: 'fr-FR',
+        localService: false,
+      );
+      const thomas = (name: 'Thomas', lang: 'fr-FR', localService: true);
+      Map<String, String> listed(BrowserVoice voice) => {
+        'name': voice.name,
+        'locale': voice.lang,
+      };
+
+      group('on the web', () {
+        test('marks the voices that are no local service', () async {
+          tts.voices = [
+            [listed(google), listed(thomas)],
+          ];
+          final device = deviceTts(
+            isWeb: true,
+            browserVoices: [google, thomas],
+          );
+
+          final voices = await device.voices('fr');
+
+          expect(
+            {for (final v in voices) v.name: v.networkRequired},
+            {'Google français': true, 'Thomas': false},
+          );
+          expect(voices.first.onlineProvider, 'Google');
+        });
+
+        test('reads with a voice on the device instead of an online '
+            'default', () async {
+          tts
+            ..voices = [
+              [
+                listed(google),
+                {'name': 'Anna', 'locale': 'de-DE'},
+                listed(thomas),
+              ],
+            ]
+            ..languages = const ['fr-FR', 'de-DE'];
+          final device = deviceTts(
+            isWeb: true,
+            browserVoices: [google, thomas],
+          );
+
+          await device.setLanguage('fr');
+
+          expect(tts.calls, contains('setVoice Thomas fr-FR'));
+          expect(device.activeVoice?.name, 'Thomas');
+          expect(device.activeVoice?.networkRequired, isFalse);
+        });
+
+        test('names the online default when the language has no other '
+            'voice', () async {
+          tts.voices = [
+            [listed(google)],
+          ];
+          final device = deviceTts(isWeb: true, browserVoices: [google]);
+
+          await device.setLanguage('fr');
+
+          expect(tts.calls, isNot(contains(startsWith('setVoice'))));
+          expect(device.activeVoice?.name, 'Google français');
+          expect(device.activeVoice?.networkRequired, isTrue);
+        });
+
+        test('keeps a local default', () async {
+          tts.voices = [
+            [listed(thomas), listed(google)],
+          ];
+          final device = deviceTts(
+            isWeb: true,
+            browserVoices: [thomas, google],
+          );
+
+          await device.setLanguage('fr');
+
+          expect(tts.calls, isNot(contains(startsWith('setVoice'))));
+          expect(device.activeVoice?.name, 'Thomas');
+        });
+
+        test('knows whether a chosen voice is online now', () async {
+          tts.voices = [
+            [listed(google), listed(thomas)],
+          ];
+          final device = deviceTts(
+            isWeb: true,
+            browserVoices: [google, thomas],
+          );
+
+          // Chosen before online voices were told apart.
+          await device.setLanguage(
+            'fr',
+            voice: const DeviceVoice(name: 'Google français', locale: 'fr-FR'),
+          );
+
+          expect(device.activeVoice?.networkRequired, isTrue);
+
+          // Back to the default voice: the one on the device.
+          await device.setLanguage('fr');
+          expect(device.activeVoice?.name, 'Thomas');
+        });
+
+        test('a chosen voice that is not listed stays as it is', () async {
+          tts.voices = [
+            [listed(thomas)],
+          ];
+          final device = deviceTts(isWeb: true, browserVoices: [thomas]);
+          const gone = DeviceVoice(name: 'Gone', locale: 'fr-FR');
+
+          await device.setLanguage('fr', voice: gone);
+
+          expect(device.activeVoice, gone);
+        });
+
+        test('a failing voice list leaves the default unknown', () async {
+          tts.voices = [Exception('not ready')];
+          final device = deviceTts(isWeb: true, browserVoices: [google]);
+
+          await device.setLanguage('fr');
+          expect(device.activeVoice, isNull);
+
+          await device.setLanguage(
+            'fr',
+            voice: const DeviceVoice(name: 'Thomas', locale: 'fr-FR'),
+          );
+          expect(device.activeVoice?.name, 'Thomas');
+        });
+      });
+
+      group('on Android', () {
+        const network = {
+          'name': 'fr-fr-x-frd-network',
+          'locale': 'fr-FR',
+          'network_required': '1',
+        };
+
+        test('names the online default without voice data', () async {
+          tts.voices = [
+            [network],
+          ];
+          final device = deviceTts();
+
+          await device.setLanguage('fr-FR');
+
+          expect(device.activeVoice?.name, 'fr-fr-x-frd-network');
+          expect(device.activeVoice?.onlineProvider, 'Google');
+        });
+
+        test('trusts installed voice data', () async {
+          tts
+            ..installed = ((_) => true)
+            ..voices = [
+              [network],
+            ];
+          final device = deviceTts();
+
+          await device.setLanguage('fr-FR');
+
+          expect(device.activeVoice, isNull);
+          expect(tts.calls, isNot(contains('getVoices')));
+        });
+
+        test('leaves the default unknown with a voice on the device', () async {
+          tts.voices = [
+            [
+              network,
+              {'name': 'fr-fr-x-frd-local', 'locale': 'fr-FR'},
+            ],
+          ];
+          final device = deviceTts();
+
+          await device.setLanguage('fr-FR');
+
+          expect(device.activeVoice, isNull);
+        });
+      });
+
+      test('elsewhere, a chosen voice is taken as it is', () async {
+        final device = deviceTts(platform: TargetPlatform.iOS);
+        const amelie = DeviceVoice(name: 'Amélie', locale: 'fr-CA');
+
+        await device.setLanguage('fr');
+        expect(device.activeVoice, isNull);
+
+        await device.setLanguage('fr', voice: amelie);
+        expect(device.activeVoice, amelie);
+        expect(tts.calls, isNot(contains('getVoices')));
       });
     });
 

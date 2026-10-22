@@ -7,12 +7,14 @@ import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/settings/view/widgets/choice_dialog.dart';
+import 'package:mozhi/settings/view/widgets/model_source_dialog.dart';
 import 'package:mozhi/settings/view/widgets/settings_search.dart';
 import 'package:mozhi/settings/view/widgets/settings_section.dart';
 
 /// Anchors ([SettingsAnchor.id]) of the Translation engines settings.
 abstract final class EngineAnchors {
   static const offlineLanguages = 'offline_languages';
+  static const modelSource = 'model_source';
   static const instances = 'instances';
   static const services = 'mt_services';
   static const quality = 'quality_modes';
@@ -66,6 +68,11 @@ class EngineSettings extends StatelessWidget {
                       title: Text(l10n.settingsOfflineUnavailable),
                       subtitle: Text(l10n.settingsOfflineUnavailableSubtitle),
                     ),
+            ),
+            // Offline languages, voice input and text recognition.
+            const SettingsAnchor(
+              id: EngineAnchors.modelSource,
+              child: ModelSourceTile(),
             ),
           ],
         ),

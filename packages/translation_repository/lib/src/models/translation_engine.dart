@@ -113,6 +113,14 @@ class TranslationEngine {
   /// See [supportsFormality].
   bool get supportsContext => supportsFormality;
 
+  /// `TranslationOptions.glossary` is applied: by the model (AI engines
+  /// with the general profile), with DeepL's glossaries, or on the device
+  /// for Mozhi engines and LibreTranslate (their terms go to the engine as
+  /// placeholders it keeps, which are replaced by the renderings; see
+  /// `TranslationRepository.translate`). Not by the offline engine and
+  /// translation-specialised models.
+  bool get supportsGlossary => supportsOptions || isMozhi || isMt;
+
   /// Mozhi TTS exists for `google` and `reverso`; AI engines fall back to
   /// whatever TTS the app has (Mozhi google TTS or device TTS).
   bool get supportsTts =>

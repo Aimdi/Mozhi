@@ -331,11 +331,21 @@ class TranslationRepository {
   /// how many items stayed on the device
   /// ([TranslationResult.maskedPersonalData]). Applies to [translate] (also
   /// the language detections it makes, [compare] and [backTranslate]),
-  /// [refine] and [detectLanguage]; the AI extras on a translation
-  /// (alternatives, insights, explanations, dictionary, alignment, meaning
-  /// checks) and text-to-speech are sent as they are. Masked data is never
-  /// sent unmasked: when an engine loses a placeholder, the translation
-  /// keeps the gap and gets [TranslationWarningKind.personalDataLost].
+  /// [refine], [detectLanguage] and every AI extra: [getAlternatives],
+  /// [getInsights], [getSuggestions], [explain], [lookUp]
+  /// ([DictionaryEntry.maskedPersonalData]), [romanize], [align],
+  /// [checkMeaning], [proofread] ([ProofreadResult.maskedPersonalData]) and
+  /// the options of [translateImage] (the image itself cannot be masked).
+  /// The free-text translation options (context, tone notes, one-off
+  /// instructions) are masked together with the text, so a value that
+  /// occurs in both gets the same placeholder; DeepL gets its context
+  /// masked. The extras' prompts say what the placeholders stand for
+  /// ([TranslationPrompts.maskedPersonalDataNote]), and their replies get
+  /// the values back on the device (a placeholder the model changed stays
+  /// as it was written). Text-to-speech ([textToSpeech]) cannot be masked:
+  /// it would read the placeholders aloud. Masked data is never sent
+  /// unmasked: when an engine loses a placeholder, the translation keeps
+  /// the gap and gets [TranslationWarningKind.personalDataLost].
   bool maskPersonalData = true;
 
   /// Whether text for [destination] gets the personal data shield (see
@@ -354,6 +364,56 @@ class TranslationRepository {
   /// when the shield applies (see [maskPersonalData]).
   String _shielded(String text, DataDestination? destination) =>
       _shields(destination) ? _maskPersonal(text)?.text ?? text : text;
+
+  /// [texts] as they may go to [destination]: masked together (one set of
+  /// tokens, so a value that occurs in several of them gets one token) when
+  /// the shield applies (see [maskPersonalData]).
+  _Shield _shieldTexts(DataDestination? destination, List<String> texts) {
+    if (!_shields(destination)) return _Shield(texts);
+    // Personal data never spans the separator, so the parts stay apart.
+    final joined = [
+      for (final text in texts) text.replaceAll(_pairSeparator, ' '),
+    ].join(_pairSeparator);
+    final masked = _maskPersonal(joined);
+    if (masked == null) return _Shield(texts);
+    return _Shield(masked.text.split(_pairSeparator), masked: masked);
+  }
+
+  /// [request] (its text and free-text options: context, tone notes and
+  /// instructions) and [extra] texts as they may go to [destination],
+  /// masked together (see [_shieldTexts]); `extra` holds the [extra] texts
+  /// as they are sent, in order.
+  ({TranslationRequest request, List<String> extra, _Shield shield})
+  _shieldRequest(
+    DataDestination? destination,
+    TranslationRequest request, [
+    List<String> extra = const [],
+  ]) {
+    final options = request.options;
+    final shield = _shieldTexts(destination, [
+      request.text,
+      options.context,
+      options.formalityContext,
+      options.instructions,
+      ...extra,
+    ]);
+    if (shield.masked == null) {
+      return (request: request, extra: extra, shield: shield);
+    }
+    final texts = shield.texts;
+    return (
+      request: request.copyWith(
+        text: texts[0],
+        options: options.copyWith(
+          context: texts[1],
+          formalityContext: texts[2],
+          instructions: texts[3],
+        ),
+      ),
+      extra: texts.sublist(4),
+      shield: shield,
+    );
+  }
 
   /// Whether a request of [engine] for text in [source] translated into
   /// [target] would stop for the user's consent ([ConsentRequiredException])
@@ -1273,6 +1333,7 @@ class TranslationRepository {
         engine,
         request,
         shield: shield,
+        glossary: request.options.glossary,
         style: MaskStyle.brackets,
         limit: mozhiCharacterLimit(mozhiEngineId(engine)),
         concurrency: mozhiConcurrency(mozhiEngineId(engine)),
@@ -1332,8 +1393,10 @@ class TranslationRepository {
 
   /// A machine translation service's translation of [request] (see
   /// [_machineTranslation]); DeepL gets the masks as XML tags
-  /// (`tag_handling=xml`), its glossaries and its quality-optimised model
-  /// when the provider prefers it.
+  /// (`tag_handling=xml`), its glossaries, its quality-optimised model when
+  /// the provider prefers it and, with [shield], its context with the
+  /// personal data masked. LibreTranslate gets the glossary applied on the
+  /// device.
   Stream<TranslationResult> _translateMt(
     TranslationEngine engine,
     TranslationRequest request, {
@@ -1346,10 +1409,19 @@ class TranslationRepository {
       return Stream.error(error, stackTrace);
     }
     final deepl = config.service == MtService.deepl;
+    final context = request.options.context;
+    final work = deepl && shield && context.trim().isNotEmpty
+        ? request.copyWith(
+            options: request.options.copyWith(
+              context: _shielded(context, _providerDestination(config)),
+            ),
+          )
+        : request;
     return _machineTranslation(
       engine,
-      request,
+      work,
       shield: shield,
+      glossary: deepl ? const {} : request.options.glossary,
       style: deepl ? MaskStyle.xml : MaskStyle.brackets,
       limit: deepl ? deeplCharacterLimit : libreCharacterLimit,
       concurrency: 2,
@@ -1382,10 +1454,15 @@ class TranslationRepository {
   /// * Formatting (`TextMasker.formatSpans`: tags, entities, URLs, e-mail
   ///   addresses, placeholders; when `TranslationOptions.preserveFormatting`)
   ///   and, with [shield], personal data are replaced by [style] tokens and
-  ///   put back afterwards. When the engine damages the tokens, the part is
-  ///   sent once more with only the personal data masked (and plain when
-  ///   there is none). Personal data is never sent unmasked: a lost token of
-  ///   it stays lost ([TranslationWarningKind.personalDataLost]).
+  ///   put back afterwards. So are the terms of [glossary] (for engines that
+  ///   cannot apply one: `TranslationPrompts.glossaryOccurrences`, inflected
+  ///   forms included), whose tokens get the terms' renderings instead.
+  ///   When the engine damages the tokens, the part is sent once more with
+  ///   only the personal data masked (and plain when there is none): the
+  ///   glossary is then not applied, which the checks report
+  ///   ([TranslationWarningKind.glossary]). Personal data is never sent
+  ///   unmasked: a lost token of it stays lost
+  ///   ([TranslationWarningKind.personalDataLost]).
   /// * Input longer than [limit] characters is split at paragraphs
   ///   (`ParagraphChunker`) and translated [concurrency] parts at a time;
   ///   snapshots combine the parts (see `chunkedTranslation`).
@@ -1399,12 +1476,14 @@ class TranslationRepository {
     required int limit,
     required int concurrency,
     required _Send send,
+    Map<String, String> glossary = const {},
   }) {
     final report = _MaskReport();
     Stream<TranslationResult> one(TranslationRequest part) => _abortable(
       (abort) => _protectedRequest(
         part,
         shield: shield,
+        glossary: glossary,
         style: style,
         report: report,
         send: (masked, {required isMasked}) =>
@@ -1441,6 +1520,7 @@ class TranslationRepository {
       required bool isMasked,
     })
     send,
+    Map<String, String> glossary = const {},
   }) async {
     final personal = shield
         ? PersonalData.find(request.text)
@@ -1448,12 +1528,25 @@ class TranslationRepository {
     final format = request.options.preserveFormatting
         ? TextMasker.formatSpans(request.text)
         : const <ProtectedSpan>[];
-    if (personal.isEmpty && format.isEmpty) {
+    final terms = [
+      for (final term in TranslationPrompts.glossaryOccurrences(
+        glossary,
+        request.text,
+      ))
+        ProtectedSpan(
+          term.start,
+          term.end,
+          kind: ProtectedKind.glossary,
+          replacement: term.rendering,
+        ),
+    ];
+    if (personal.isEmpty && format.isEmpty && terms.isEmpty) {
       return await send(request, isMasked: false);
     }
     final masked = TextMasker.mask(request.text, [
       ...format,
       ...personal,
+      ...terms,
     ], style: style);
     report.personal += masked.personalCount;
     final first = await send(
@@ -1462,7 +1555,7 @@ class TranslationRepository {
     );
     final restored = masked.restore(first.text);
     if (restored.isComplete) return _restoredResult(first, restored, masked);
-    if (masked.formatCount == 0) {
+    if (masked.formatCount == 0 && masked.glossaryCount == 0) {
       // Only personal data is masked, and it never goes as it is.
       report.lost = true;
       return _restoredResult(first, restored, masked);
@@ -1481,7 +1574,8 @@ class TranslationRepository {
   }
 
   /// [result] of masked text with [restored] text (and its
-  /// transliterations restored with [masked]).
+  /// transliterations restored with [masked]; the source's with the text
+  /// the tokens replaced, not the glossary renderings).
   static TranslationResult _restoredResult(
     TranslationResult result,
     RestoredText restored,
@@ -1490,7 +1584,7 @@ class TranslationRepository {
     text: restored.text,
     sourceTransliteration: result.sourceTransliteration.isEmpty
         ? null
-        : masked.restore(result.sourceTransliteration).text,
+        : masked.restore(result.sourceTransliteration, original: true).text,
     targetTransliteration: result.targetTransliteration.isEmpty
         ? null
         : masked.restore(result.targetTransliteration).text,
@@ -1499,9 +1593,11 @@ class TranslationRepository {
   /// The checks after a translation ([TranslationQa]) for the final
   /// results of [results] (the translation of [request] by [engine]): their
   /// warnings are added to [TranslationResult.warnings]. Glossary targets
-  /// are only checked for engines that use glossaries (AI engines with
-  /// options, DeepL). With an on-device identifier, the output of a network
-  /// engine is also checked for still being in the source language
+  /// are only checked for engines that use glossaries
+  /// ([TranslationEngine.supportsGlossary]: AI engines with options, DeepL,
+  /// and Mozhi and LibreTranslate, which get it applied on the device).
+  /// With an on-device identifier, the output of a network engine is also
+  /// checked for still being in the source language
   /// ([TranslationWarningKind.wrongLanguage]).
   Stream<TranslationResult> _checked(
     TranslationEngine engine,
@@ -1517,9 +1613,7 @@ class TranslationRepository {
         sourceLanguage: request.source,
         target: request.target,
         detectedSource: result.detectedSource,
-        glossary: engine.supportsOptions || engine.mtService == MtService.deepl
-            ? request.options.glossary
-            : const {},
+        glossary: engine.supportsGlossary ? request.options.glossary : const {},
         ai: engine.isAi,
       ),
     ];
@@ -1649,8 +1743,9 @@ class TranslationRepository {
     ).copyWith(destination: _mozhiDestination(id, instance));
   }
 
-  /// With [shield], personal data is masked before the text goes to the
-  /// model and put back into every snapshot (see [maskPersonalData]).
+  /// With [shield], personal data is masked before the text (and its
+  /// context, tone notes and instructions) goes to the model and put back
+  /// into every snapshot (see [maskPersonalData]).
   /// General-profile models get a default temperature
   /// ([_defaultTemperature]) and, when a part's translation fails the
   /// checks worth it ([TranslationQa.worthRetrying]), one more attempt
@@ -1667,8 +1762,13 @@ class TranslationRepository {
         ArgumentError.value(engine.id, 'engine', 'Unknown AI provider'),
       );
     }
-    final masked = shield ? _maskPersonal(request.text) : null;
-    final work = masked == null ? request : request.copyWith(text: masked.text);
+    // The text and its free-text options share one set of tokens.
+    final sent = _shieldRequest(
+      shield ? _providerDestination(config) : null,
+      request,
+    );
+    final masked = sent.shield.masked;
+    final work = sent.request;
     final profile = config.resolvedPromptProfile;
     final results = profile.isTranslationOnly
         ? _translateWithMtProfile(
@@ -2456,6 +2556,9 @@ class TranslationRepository {
     return controller.stream;
   }
 
+  /// With the personal data shield (see [maskPersonalData]) the request,
+  /// [translation] and [span] are masked together, and the alternatives and
+  /// explanations get the values back.
   Future<AlternativeTranslations> getAlternatives(
     TranslationEngine engine,
     TranslationRequest request,
@@ -2463,57 +2566,92 @@ class TranslationRepository {
     int count = 3,
     String? span,
     String uiLanguage = 'English',
-  }) => _chatJson(
-    engine,
-    () => TranslationPrompts.alternatives(
-      request,
+  }) {
+    final sent = _shieldRequest(_destinationFor(engine), request, [
       translation,
-      count: count,
-      span: span,
-      uiLanguage: uiLanguage,
-    ),
-    ResponseParsers.parseAlternatives,
-    source: request.source.code,
-    target: request.target.code,
-  );
+      ?span,
+    ]);
+    return _chatJson(
+      engine,
+      () => sent.shield.withNote(
+        TranslationPrompts.alternatives(
+          sent.request,
+          sent.extra.first,
+          count: count,
+          span: span == null ? null : sent.extra.last,
+          uiLanguage: uiLanguage,
+        ),
+      ),
+      (output) =>
+          ResponseParsers.parseAlternatives(sent.shield.restore(output)),
+      source: request.source.code,
+      target: request.target.code,
+    );
+  }
 
+  /// With the personal data shield (see [maskPersonalData]) the request and
+  /// [translation] are masked together; the insights get the values back
+  /// (and are located in the unmasked [translation]).
   Future<List<WordInsight>> getInsights(
     TranslationEngine engine,
     TranslationRequest request,
     String translation, {
     String uiLanguage = 'English',
-  }) => _chatJson(
-    engine,
-    () => TranslationPrompts.insights(
-      request,
+  }) {
+    final sent = _shieldRequest(_destinationFor(engine), request, [
       translation,
-      uiLanguage: uiLanguage,
-    ),
-    (output) => ResponseParsers.parseInsights(output, translation: translation),
-    source: request.source.code,
-    target: request.target.code,
-  );
+    ]);
+    return _chatJson(
+      engine,
+      () => sent.shield.withNote(
+        TranslationPrompts.insights(
+          sent.request,
+          sent.extra.single,
+          uiLanguage: uiLanguage,
+        ),
+      ),
+      (output) => ResponseParsers.parseInsights(
+        sent.shield.restore(output),
+        translation: translation,
+      ),
+      source: request.source.code,
+      target: request.target.code,
+    );
+  }
 
+  /// With the personal data shield (see [maskPersonalData]) the request and
+  /// [translation] are masked together; the suggestions get the values
+  /// back ([refine] masks their instructions again).
   Future<List<RefinementSuggestion>> getSuggestions(
     TranslationEngine engine,
     TranslationRequest request,
     String translation, {
     String uiLanguage = 'English',
-  }) => _chatJson(
-    engine,
-    () => TranslationPrompts.suggestions(
-      request,
+  }) {
+    final sent = _shieldRequest(_destinationFor(engine), request, [
       translation,
-      uiLanguage: uiLanguage,
-    ),
-    ResponseParsers.parseSuggestions,
-    source: request.source.code,
-    target: request.target.code,
-  );
+    ]);
+    return _chatJson(
+      engine,
+      () => sent.shield.withNote(
+        TranslationPrompts.suggestions(
+          sent.request,
+          sent.extra.single,
+          uiLanguage: uiLanguage,
+        ),
+      ),
+      (output) => ResponseParsers.parseSuggestions(sent.shield.restore(output)),
+      source: request.source.code,
+      target: request.target.code,
+    );
+  }
 
   /// Streams Markdown as text deltas (concatenate them for the full text).
   /// Requires an AI engine with [TranslationEngine.supportsExtras] (an
-  /// [ArgumentError] stream error otherwise).
+  /// [ArgumentError] stream error otherwise). With the personal data
+  /// shield (see [maskPersonalData]) the request, [translation] and
+  /// [question] are masked together, and the deltas get the values back (a
+  /// token split across deltas comes with the next one).
   Stream<String> explain(
     TranslationEngine engine,
     TranslationRequest request,
@@ -2527,25 +2665,36 @@ class TranslationRepository {
       source: request.source.code,
       target: request.target.code,
     );
-    yield* _llm
-        .clientFor(config)
-        .streamChat(
-          _llmRequest(
-            config,
-            TranslationPrompts.explain(
-              request,
-              translation,
-              question: question,
-              uiLanguage: uiLanguage,
+    final sent = _shieldRequest(_destinationFor(engine), request, [
+      translation,
+      ?question,
+    ]);
+    yield* sent.shield.restoreDeltas(
+      _llm
+          .clientFor(config)
+          .streamChat(
+            _llmRequest(
+              config,
+              sent.shield.withNote(
+                TranslationPrompts.explain(
+                  sent.request,
+                  sent.extra.first,
+                  question: question == null ? null : sent.extra.last,
+                  uiLanguage: uiLanguage,
+                ),
+              ),
             ),
           ),
-        );
+    );
   }
 
   /// A dictionary entry for [word] (definitions in [uiLanguage],
   /// translations into [target]). [verbosity] sets how many senses,
   /// examples and notes are asked for. [DictionaryEntry.didYouMean] holds
-  /// the corrected spelling when [word] looks misspelled.
+  /// the corrected spelling when [word] looks misspelled. With the
+  /// personal data shield (see [maskPersonalData]) [word] and [context] are
+  /// masked together, the entry gets the values back and says how many
+  /// items stayed on the device ([DictionaryEntry.maskedPersonalData]).
   Future<DictionaryEntry> lookUp(
     TranslationEngine engine,
     String word, {
@@ -2554,20 +2703,33 @@ class TranslationRepository {
     String context = '',
     String uiLanguage = 'English',
     DictionaryVerbosity verbosity = DictionaryVerbosity.standard,
-  }) => _chatJson(
-    engine,
-    () => TranslationPrompts.dictionary(
-      word,
-      source: source,
-      targetLanguage: target,
-      context: context,
-      uiLanguage: uiLanguage,
-      verbosity: verbosity,
-    ),
-    (output) => ResponseParsers.parseDictionary(output, query: word),
-    source: source.code,
-    target: target.code,
-  );
+  }) {
+    final shield = _shieldTexts(_destinationFor(engine), [word, context]);
+    return _chatJson(
+      engine,
+      () => shield.withNote(
+        TranslationPrompts.dictionary(
+          shield.texts[0],
+          source: source,
+          targetLanguage: target,
+          context: shield.texts[1],
+          uiLanguage: uiLanguage,
+          verbosity: verbosity,
+        ),
+      ),
+      (output) {
+        final entry = ResponseParsers.parseDictionary(
+          shield.restore(output),
+          query: word,
+        );
+        return shield.personalCount == 0
+            ? entry
+            : entry.withMaskedPersonalData(shield.personalCount);
+      },
+      source: source.code,
+      target: target.code,
+    );
+  }
 
   // Round 3 extras.
 
@@ -2620,16 +2782,18 @@ class TranslationRepository {
     if (safe == null) throw _emptyCustomLanguage(request);
     _ensureAllowed(engine, source: safe.source.code, target: safe.target.code);
     final destination = _destinationFor(engine);
-    // The text and its translation share one set of tokens.
-    final masked = _shields(destination)
-        ? _maskPersonal('${safe.text}$_pairSeparator$currentTranslation')
-        : null;
-    final parts = masked?.text.split(_pairSeparator);
-    final work = parts == null ? safe : safe.copyWith(text: parts.first);
+    // The text, its options, its translation and the instruction (which
+    // may come from a suggestion) share one set of tokens.
+    final sent = _shieldRequest(destination, safe, [
+      currentTranslation,
+      instruction,
+    ]);
+    final masked = sent.shield.masked;
+    final work = sent.request;
     final messages = TranslationPrompts.refine(
       work,
-      currentTranslation: parts?.last ?? currentTranslation,
-      instruction: instruction,
+      currentTranslation: sent.extra.first,
+      instruction: sent.extra.last,
     );
     final results = aiTranslationStream(
       open: () => _streamTranslation(config, messages),
@@ -2660,7 +2824,9 @@ class TranslationRepository {
   /// other, split like [translate] splits long input (parts without
   /// non-Latin letters are kept as they are). Requires an AI engine with
   /// [TranslationEngine.supportsExtras] ([ArgumentError] otherwise). An
-  /// empty reply is an `LlmApiException`.
+  /// empty reply is an `LlmApiException`. With the personal data shield
+  /// (see [maskPersonalData]) the text is masked before it is split, and
+  /// the romanization gets the values back.
   Future<String> romanize(
     TranslationEngine engine, {
     required String text,
@@ -2669,34 +2835,42 @@ class TranslationRepository {
     final config = _extrasProviderFor(engine);
     if (!LanguageCatalog.hasNonLatinLetters(text)) return text;
     _ensureAllowed(engine, source: language.code, target: language.code);
+    final shield = _shieldTexts(_destinationFor(engine), [text]);
+    final sent = shield.texts.single;
     final limit = _chunkLimit(engine, config);
-    final chunks = text.length > limit
-        ? ParagraphChunker.split(text, maxChars: limit)
+    final chunks = sent.length > limit
+        ? ParagraphChunker.split(sent, maxChars: limit)
         : const <TextChunk>[];
-    if (chunks.length < 2) return await _romanize(config, text, language);
+    if (chunks.length < 2) {
+      return shield.restore(await _romanize(config, sent, language, shield));
+    }
     final parts = <String>[];
     for (final chunk in chunks) {
       parts.add(
         LanguageCatalog.hasNonLatinLetters(chunk.text)
-            ? await _romanize(config, chunk.text, language)
+            ? await _romanize(config, chunk.text, language, shield)
             : chunk.text,
       );
     }
-    return ParagraphChunker.joinTranslations(chunks, parts);
+    return shield.restore(ParagraphChunker.joinTranslations(chunks, parts));
   }
 
-  /// [text] romanized in one request (see [romanize]).
+  /// [text] romanized in one request (see [romanize]), with the note of
+  /// [shield] about its tokens.
   Future<String> _romanize(
     AiProviderConfig config,
     String text,
     Language language,
+    _Shield shield,
   ) async {
     final output = await _llm
         .clientFor(config)
         .chat(
           _llmRequest(
             config,
-            TranslationPrompts.romanize(text, language: language),
+            shield.withNote(
+              TranslationPrompts.romanize(text, language: language),
+            ),
           ),
         );
     final romanized = ResponseParsers.cleanRomanization(output, source: text);
@@ -2769,16 +2943,19 @@ class TranslationRepository {
       _extrasProviderFor(engine);
       return const [];
     }
+    final shield = _shieldTexts(_destinationFor(engine), [source, translation]);
     return await _chatJson(
       engine,
-      () => TranslationPrompts.align(
-        source: source,
-        translation: translation,
-        sourceLanguage: sourceLanguage,
-        targetLanguage: targetLanguage,
+      () => shield.withNote(
+        TranslationPrompts.align(
+          source: shield.texts[0],
+          translation: shield.texts[1],
+          sourceLanguage: sourceLanguage,
+          targetLanguage: targetLanguage,
+        ),
       ),
       (output) => ResponseParsers.parseAlignment(
-        output,
+        shield.restore(output),
         source: source,
         translation: translation,
       ),
@@ -2823,17 +3000,20 @@ class TranslationRepository {
     if (translation.trim().isEmpty) {
       throw ArgumentError.value(translation, 'translation', 'Is empty');
     }
+    final shield = _shieldTexts(_destinationFor(engine), [source, translation]);
     return await _chatJson(
       engine,
-      () => TranslationPrompts.meaningCheck(
-        source: source,
-        translation: translation,
-        sourceLanguage: sourceLanguage,
-        targetLanguage: targetLanguage,
-        uiLanguage: uiLanguage,
+      () => shield.withNote(
+        TranslationPrompts.meaningCheck(
+          source: shield.texts[0],
+          translation: shield.texts[1],
+          sourceLanguage: sourceLanguage,
+          targetLanguage: targetLanguage,
+          uiLanguage: uiLanguage,
+        ),
       ),
       (output) => ResponseParsers.parseMeaningCheck(
-        output,
+        shield.restore(output),
         source: source,
         translation: translation,
       ),
@@ -2899,7 +3079,11 @@ class TranslationRepository {
   /// [TranslationPrompts.proofread]): [readingLevel] other than
   /// [ReadingLevel.standard] rewords for that CEFR level, and a [variety]
   /// converts to that regional variety; by default the author's level and
-  /// variety are kept.
+  /// variety are kept. With the personal data shield (see
+  /// [maskPersonalData]) [text] and [context] are masked together, and the
+  /// result gets the values back (its edits are located in [text]) and
+  /// says how many items stayed on the device
+  /// ([ProofreadResult.maskedPersonalData]).
   Future<ProofreadResult> proofread(
     TranslationEngine engine,
     String text, {
@@ -2910,22 +3094,35 @@ class TranslationRepository {
     ProofreadVariety? variety,
     String context = '',
     String uiLanguage = 'English',
-  }) => _chatJson(
-    engine,
-    () => TranslationPrompts.proofread(
-      text,
-      style: style,
-      level: level,
-      formality: formality,
-      readingLevel: readingLevel,
-      variety: variety,
-      context: context,
-      uiLanguage: uiLanguage,
-    ),
-    (output) => ResponseParsers.parseProofread(output, input: text),
-    source: Language.auto.code,
-    target: Language.auto.code,
-  );
+  }) {
+    final shield = _shieldTexts(_destinationFor(engine), [text, context]);
+    return _chatJson(
+      engine,
+      () => shield.withNote(
+        TranslationPrompts.proofread(
+          shield.texts[0],
+          style: style,
+          level: level,
+          formality: formality,
+          readingLevel: readingLevel,
+          variety: variety,
+          context: shield.texts[1],
+          uiLanguage: uiLanguage,
+        ),
+      ),
+      (output) {
+        final result = ResponseParsers.parseProofread(
+          shield.restore(output),
+          input: text,
+        );
+        return shield.personalCount == 0
+            ? result
+            : result.withMaskedPersonalData(shield.personalCount);
+      },
+      source: Language.auto.code,
+      target: Language.auto.code,
+    );
+  }
 
   /// Uses the AI [engine] when it [TranslationEngine.supportsExtras]; the
   /// on-device identifier when [engine] is the offline engine; else Mozhi
@@ -3097,27 +3294,42 @@ class TranslationRepository {
         source: safe.source.code,
         target: safe.target.code,
       );
-      final output = await _llm
-          .clientFor(config)
-          .chat(
-            _llmRequest(
-              config,
-              TranslationPrompts.translateImage(
-                imageBytes,
-                mimeType: mimeType,
-                source: safe.source,
-                target: safe.target,
-                options: options,
+      // The image cannot be masked; the free-text options can.
+      final destination = _providerDestination(config);
+      final sent = _shieldRequest(
+        destination,
+        TranslationRequest(
+          text: '',
+          source: safe.source,
+          target: safe.target,
+          options: options,
+        ),
+      );
+      final output = sent.shield.restore(
+        await _llm
+            .clientFor(config)
+            .chat(
+              _llmRequest(
+                config,
+                sent.shield.withNote(
+                  TranslationPrompts.translateImage(
+                    imageBytes,
+                    mimeType: mimeType,
+                    source: safe.source,
+                    target: safe.target,
+                    options: sent.request.options,
+                  ),
+                ),
               ),
             ),
-          );
+      );
       final split = ResponseParsers.splitLanguageMarker(output);
       return ImageTranslationResult(
         translatedText: ResponseParsers.cleanTranslation(
           split.text,
           source: '',
         ),
-        destination: _providerDestination(config),
+        destination: destination,
       );
     }
     if (!engine.isMozhi) {
@@ -3466,6 +3678,59 @@ class TranslationRepository {
       return parse(retry);
     }
   }
+}
+
+/// Texts with their personal data masked for one request (see
+/// `TranslationRepository._shieldTexts`).
+class _Shield {
+  new(this.texts, {this.masked});
+
+  /// The texts as they are sent.
+  final List<String> texts;
+
+  /// The tokens of [texts], or null when nothing was masked (the texts are
+  /// sent as they are).
+  final MaskedText? masked;
+
+  /// Distinct items of personal data masked.
+  int get personalCount => masked?.personalCount ?? 0;
+
+  /// [output] (the model's reply to [texts]) with the masked values back.
+  String restore(String output) => masked?.restore(output).text ?? output;
+
+  /// [messages] with the note about the tokens
+  /// ([TranslationPrompts.maskedPersonalDataNote]) when there are any.
+  List<LlmMessage> withNote(List<LlmMessage> messages) => masked == null
+      ? messages
+      : TranslationPrompts.withMaskedPersonalDataNote(messages);
+
+  /// [deltas] of a streamed reply with the masked values back; a token split
+  /// across deltas is held back until it is complete.
+  Stream<String> restoreDeltas(Stream<String> deltas) async* {
+    final tokens = masked;
+    if (tokens == null) {
+      yield* deltas;
+      return;
+    }
+    final pending = StringBuffer();
+    await for (final delta in deltas) {
+      pending.write(delta);
+      final text = pending.toString();
+      final hold = _partialTokenStart(text);
+      pending
+        ..clear()
+        ..write(text.substring(hold));
+      if (hold > 0) yield tokens.restore(text.substring(0, hold)).text;
+    }
+    if (pending.isNotEmpty) yield tokens.restore(pending.toString()).text;
+  }
+
+  static final _partialToken = RegExp(r'[⟨〈]\s*\d{0,4}\s*$');
+
+  /// Where a token that the next delta may complete starts at the end of
+  /// [text] (its length when there is none).
+  static int _partialTokenStart(String text) =>
+      _partialToken.firstMatch(text)?.start ?? text.length;
 }
 
 /// Sends one (masked) part of a non-AI translation: [masked] when it has

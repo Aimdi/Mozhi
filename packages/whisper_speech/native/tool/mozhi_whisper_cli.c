@@ -2,11 +2,15 @@
  * Smoke test and benchmark for libmozhi_whisper (not shipped in the app).
  *
  *   mozhi_whisper_cli MODEL [WAV|--silence SECONDS] [LANGUAGE] [THREADS]
+ *   mozhi_whisper_cli --vad VAD_MODEL WAV [CHUNK_SAMPLES]
  *
  * WAV must be 16 kHz mono 16-bit PCM (e.g. third_party/whisper.cpp/samples/
  * jfk.wav, or `ffmpeg -i in.mp3 -ar 16000 -ac 1 -c:a pcm_s16le out.wav`).
  * LANGUAGE is a Whisper code or "auto" (default). Prints the detected
- * language, the text and the time taken.
+ * language, the text and the time taken. With --vad it feeds WAV to the
+ * voice activity detector in chunks of CHUNK_SAMPLES (default 1600, 100 ms,
+ * like a microphone stream) and prints where speech was heard (probability
+ * >= 0.5) and the time taken.
  *
  * Copyright (c) 2026 Mozhi contributors. MIT License.
  */
@@ -62,7 +66,66 @@ static float* read_wav(const char* path, int32_t* count) {
   return NULL;
 }
 
+/* --vad VAD_MODEL WAV [CHUNK_SAMPLES] */
+static int run_vad(int argc, char** argv) {
+  if (argc < 4) {
+    fprintf(stderr, "usage: %s --vad VAD_MODEL WAV [CHUNK_SAMPLES]\n",
+            argv[0]);
+    return 2;
+  }
+  int32_t count = 0;
+  float* samples = read_wav(argv[3], &count);
+  if (samples == NULL) {
+    fprintf(stderr, "cannot read %s (16-bit PCM WAV expected)\n", argv[3]);
+    return 1;
+  }
+  const int32_t chunk = argc > 4 && atoi(argv[4]) > 0 ? atoi(argv[4]) : 1600;
+  MozhiWhisperVad* vad = mozhi_whisper_vad_load(argv[2], 0);
+  if (vad == NULL) {
+    fprintf(stderr, "load failed: %s\n", mozhi_whisper_last_error());
+    free(samples);
+    return 1;
+  }
+  const int32_t frame = mozhi_whisper_vad_frame_size(vad);
+  float* probs = malloc(((size_t)chunk / (size_t)frame + 2) * sizeof(float));
+  int32_t frames = 0;
+  int speaking = 0;
+  double speech_start = 0;
+  const double start = now_seconds();
+  for (int32_t offset = 0; offset < count && probs != NULL; offset += chunk) {
+    const int32_t n = count - offset < chunk ? count - offset : chunk;
+    const int32_t got = mozhi_whisper_vad_process(
+        vad, samples + offset, n, probs, chunk / frame + 1);
+    if (got < 0) {
+      fprintf(stderr, "vad failed: %s\n", mozhi_whisper_last_error());
+      break;
+    }
+    for (int32_t i = 0; i < got; ++i, ++frames) {
+      const double at = (double)frames * frame / MOZHI_WHISPER_SAMPLE_RATE;
+      if (!speaking && probs[i] >= 0.5f) {
+        speaking = 1;
+        speech_start = at;
+      } else if (speaking && probs[i] < 0.35f) {
+        speaking = 0;
+        printf("speech %.2f - %.2f s\n", speech_start, at);
+      }
+    }
+  }
+  if (speaking) {
+    printf("speech %.2f - %.2f s\n", speech_start,
+           (double)frames * frame / MOZHI_WHISPER_SAMPLE_RATE);
+  }
+  printf("%d windows of %d samples (%.2f s of audio) in %.3f s\n", frames,
+         frame, (double)count / MOZHI_WHISPER_SAMPLE_RATE,
+         now_seconds() - start);
+  free(probs);
+  mozhi_whisper_vad_free(vad);
+  free(samples);
+  return 0;
+}
+
 int main(int argc, char** argv) {
+  if (argc > 1 && strcmp(argv[1], "--vad") == 0) return run_vad(argc, argv);
   if (argc < 2) {
     fprintf(stderr,
             "usage: %s MODEL [WAV|--silence SECONDS] [LANGUAGE] [THREADS]\n",

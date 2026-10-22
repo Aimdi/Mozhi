@@ -33,6 +33,7 @@ void main() {
         any(),
         dataPath: any(named: 'dataPath'),
         languages: any(named: 'languages'),
+        layout: any(named: 'layout'),
       ),
     ).thenAnswer(
       (_) async => const OcrResult(text: 'Hallo', meanConfidence: 88),
@@ -97,6 +98,17 @@ void main() {
     final image = captured.single as OcrImage;
     expect((image.width, image.height, image.bytesPerPixel), (4, 2, 4));
 
+    // The layout is asked for only when wanted.
+    await ocr.recognize(pixels, 4, 2, languages: const ['deu'], layout: true);
+    verify(
+      () => engine.recognize(
+        any(),
+        dataPath: p.join(root.path, 'tessdata'),
+        languages: ['deu'],
+        layout: true,
+      ),
+    ).called(1);
+
     await ocr.delete('deu');
     verify(() => engine.release()).called(1);
     expect(await ocr.installedLanguages(), isEmpty);
@@ -121,6 +133,7 @@ void main() {
         any(),
         dataPath: any(named: 'dataPath'),
         languages: any(named: 'languages'),
+        layout: any(named: 'layout'),
       ),
     );
   });
