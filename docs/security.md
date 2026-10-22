@@ -232,14 +232,37 @@ are on) is the recommended way. What we do protect against:
   `no-referrer`, `no-store` and no cookies. It only ever sets
   `textContent`, so nothing the host or a guest types becomes markup;
   the configuration it embeds escapes `<`.
-- **Flooding:** at most 8 guests and one update stream per guest; 120
-  requests a minute per address; request bodies of 4 KiB; replies of 500
-  characters, one every 2 seconds and 12 a minute; guests whose page is
-  gone for 45 seconds are removed.
+- **Flooding:** at most 8 guests, 20 joins a minute in all (and 10 per
+  address), one update stream per guest; at most 64 open connections (16
+  per address; more are closed as soon as they open), idle ones closed
+  after 10 seconds; 120 requests a minute per address; request bodies of
+  4 KiB that must arrive within 10 seconds; replies of 500 characters,
+  one every 2 seconds and 12 a minute per device and 20 a minute from all
+  guests together, language changes 10 a minute per device and 30 in all
+  (a device is counted by its address, so leaving and joining again
+  doesn't reset them); guests whose page is gone for 45 seconds are
+  removed. An update stream holds at most one snapshot: while a page
+  hasn't taken in the last one, changes wait and go out as one, and a
+  page that takes in nothing for 20 seconds is disconnected (it connects
+  again by itself), so a guest that stops reading can't make the phone
+  hold more and more data.
+- **Your engine's bill:** guests can't make your engine translate more
+  than they read: only the last 100 messages, only into languages a guest
+  reads now (when a language's last guest leaves or switches, its queued
+  and running translations stop at once; the finished ones stay for 5
+  minutes, so coming back or switching back and forth costs nothing
+  more), and at most 4 languages besides the conversation's two at a
+  time (a guest asking for a fifth is told which ones they can pick; a
+  language keeps its place for those 5 minutes). The sharing page lists
+  every language being translated and how many messages are still to
+  go.
 - **Your privacy settings:** translations into the guests' languages only
   use an engine your settings allow without asking (or the offline
   engine); anything else waits for your OK on the sharing page (see
-  [Privacy](privacy.md#shared-conversation)).
+  [Privacy](privacy.md#shared-conversation)), one language pair at a
+  time. What a **Once** there would still let through after its messages
+  were sent (or dropped, e.g. when the guest left) is withdrawn, so it
+  can't let a later, unrelated translation through without asking.
 
 ## Phone to phone
 

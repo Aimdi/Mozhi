@@ -282,10 +282,17 @@ void main() {
 
       expect(cubit.state.guests, [joined.guest]);
       expect(cubit.state.languages.single.language, french);
-      expect(cubit.state.languages.single.consent, isNotNull);
+      expect(cubit.state.maxExtraLanguages, ShareRoom.defaultMaxExtraLanguages);
+      final consent = cubit.state.languages.single.consent!;
 
-      cubit.retryLanguage(french);
+      cubit.retryLanguage(french, consent: consent);
       verify(() => repository.translate(deepl, any())).called(1);
+      // Nothing it would still let through is left.
+      verify(() => repository.revokeOnce(consent)).called(1);
+    });
+
+    test("lets guests always read the conversation's languages", () {
+      expect(room.readableLanguages, [english, spanish]);
     });
 
     test('adds guest replies to the conversation', () async {

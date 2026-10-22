@@ -480,8 +480,9 @@ your offline languages between two phones directly
   accepts: the parts of your data you pick (API keys and passwords only if
   you turn that on, and the receiving phone is told), and the offline files
   you pick. It sees the list you offer, nothing else about your phone.
-- **What's kept:** files pass through the app's cache folder while they
-  are checked and are deleted after each transfer (what an interrupted one
+- **What's kept:** your data stays in memory until it is restored, and
+  only offline files pass through the app's cache folder while they are
+  checked; they are deleted after each transfer (what an interrupted one
   left, at the next). Nothing about the other phone is remembered. These
   connections are between your phones, so
   [Network activity](#network-activity), which lists what the app sends

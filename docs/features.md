@@ -771,11 +771,20 @@ hotspot) scan its QR code, or open the link, in their browser.
   see its own translations. Any other language is translated once for all
   its guests by your engine, under your privacy settings: a pair your
   settings would ask about is translated on the phone (the offline engine)
-  when it can, and otherwise waits for your OK on the sharing page, while
-  its guests read the original. In **Offline only** only the phone
-  translates. A guest can never make your phone send text anywhere you
-  haven't allowed. Each extra language is one more request per message to
-  your engine (counted in [Usage](#usage-and-costs) for your own keys).
+  when it can, and otherwise waits for your OK on the sharing page (one
+  language pair at a time), while its guests read the original. In
+  **Offline only** only the phone translates. A guest can never make your
+  phone send text anywhere you haven't allowed, and a **Once** you give
+  there covers just the messages waiting for it. Each extra language is
+  one more request per message to your engine (counted in
+  [Usage](#usage-and-costs) for your own keys), for the messages guests
+  can see only and only while a guest reads it: when its last guest
+  leaves or switches, what was still to translate is dropped (the
+  finished translations stay for 5 minutes, so coming back costs
+  nothing). Guests can read up to 4 languages besides the conversation's
+  two at a time; a language keeps its place for those 5 minutes, and a
+  guest asking for one more is told which ones they can pick. The sharing
+  page lists each language and how many messages are still to translate.
 - **What guests see:** what is said after you start sharing (the last 100
   messages), nothing from before, from your history or anywhere else.
 - **The sharing page** shows the QR code, the link (with **Copy link**),
@@ -787,9 +796,13 @@ hotspot) scan its QR code, or open the link, in their browser.
 - **It stops** when you tap **Stop sharing**, leave the conversation
   (another tab or screen), or the app stays in the background (the phone
   locked) for 2 minutes. Guests then see *The conversation ended*.
-- **Limits:** 8 guests at a time; replies of up to 500 characters, at most
-  one every 2 seconds and 12 a minute; after 20 wrong PINs nobody new can
-  join until you set a new PIN.
+- **Limits:** 8 guests at a time and 20 joins a minute; 4 other
+  languages at a time; replies of up to 500 characters, at most one every
+  2 seconds and 12 a minute per phone (also after leaving and joining
+  again) and 20 a minute from all guests together; after 20 wrong PINs
+  nobody new can join until you set a new PIN. A guest's page that stops
+  taking in updates for 20 seconds is disconnected and connects again by
+  itself.
 - **Privacy:** only devices on the local network can open the page, but it
   is plain `http` (a phone has no certificate browsers trust), so other
   devices on the same Wi-Fi could read along. Avoid public Wi-Fi for
@@ -1121,7 +1134,8 @@ internet (Android; details in [Phone to phone](pairing.md)):
   another; with several networks, pick the one both phones are on).
 - On the other phone, scan the QR code with the camera app (it opens Mozhi)
   or open **Send to another phone** and type or paste the code, then
-  **Connect**. Both phones show the same six-digit number: compare them.
+  **Connect**. Both phones show the same six-digit number: compare them
+  and confirm on both (the receiving phone can only accept after that).
 - Choose what to send: **Your data** (pick the parts; **Include API keys and
   passwords** is off unless you turn it on, with a warning) and any
   translation models, speech models, text recognition languages and

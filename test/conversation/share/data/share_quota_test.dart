@@ -112,8 +112,9 @@ void main() {
   });
 
   test('translates only the turns guests see', () async {
-    room.update([for (var i = 0; i < ShareRoom.maxTurns * 3; i++) turn(i)]);
-    room.join(languageCode: 'x0');
+    room
+      ..update([for (var i = 0; i < ShareRoom.maxTurns * 3; i++) turn(i)])
+      ..join(languageCode: 'x0');
     await answerAll();
 
     expect(calls, ShareRoom.maxTurns);

@@ -560,6 +560,43 @@ void main() {
 
       expect((await repository.load()).providers.last.apiKey, isNull);
     });
+
+    test('takes no keys, headers or credentials from the plain settings '
+        '(a crafted file; only secrets carries them)', () async {
+      final json = theirs.toJson();
+      final providers = [
+        for (final provider in json['providers'] as List<Object?>)
+          {
+            ...provider! as Map<String, dynamic>,
+            'apiKey': 'planted',
+            'headers': {'Authorization': 'Bearer planted'},
+          },
+      ];
+      final crafted = {
+        'settings': {
+          ...json,
+          'providers': providers,
+          'instances': [
+            {'url': 'https://evil:pw@other.example.org', 'isCustom': true},
+          ],
+        },
+      };
+      expect(SettingsBackupSection.hasSecrets(crafted), isFalse);
+
+      for (final mode in BackupRestoreMode.values) {
+        await repository.save(mine);
+        await section.restore(throughJson(crafted), version: 1, mode: mode);
+        final restored = await repository.load();
+        final c = restored.providers.firstWhere((p) => p.id == 'c');
+        expect(c.apiKey, isNull, reason: mode.name);
+        expect(c.headers, isEmpty, reason: mode.name);
+        expect(
+          restored.instances.map((i) => i.url),
+          isNot(contains(contains('evil:pw'))),
+          reason: mode.name,
+        );
+      }
+    });
   });
 
   group('additions', () {

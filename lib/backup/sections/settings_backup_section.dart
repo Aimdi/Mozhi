@@ -153,12 +153,28 @@ class SettingsBackupSection implements BackupSection {
     }
     if (data case {'settings': final Map<dynamic, dynamic> json}) {
       return (
-        AppSettings.fromJson(Map<String, dynamic>.from(json)),
+        _plain(AppSettings.fromJson(Map<String, dynamic>.from(json))),
         _Secrets.fromJson(data['secrets']),
       );
     }
     throw const FormatException('Invalid settings data');
   }
+
+  /// [settings] without the secrets a crafted file may put in its plain
+  /// part ([export] never does): API keys, headers and instance
+  /// credentials only come from `secrets`, so [hasSecrets] tells the whole
+  /// story.
+  static AppSettings _plain(AppSettings settings) => settings.copyWith(
+    providers: List.unmodifiable(settings.providers.map(_withoutSecrets)),
+    instances: List.unmodifiable([
+      for (final instance in settings.instances)
+        MozhiInstance(
+          url: urlWithoutCredentials(instance.url),
+          label: instance.label,
+          isCustom: instance.isCustom,
+        ),
+    ]),
+  );
 
   /// The stored settings with their secrets. Throws when they could not be
   /// read (defaults must never be backed up, nor saved over them).

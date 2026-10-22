@@ -78,10 +78,11 @@ void main() {
     Object? json,
     String? body,
     String contentType = 'application/json',
+    int? port,
   }) async {
     final request = await client.openUrl(
       method,
-      Uri.parse('http://127.0.0.1:${server.port}$location'),
+      Uri.parse('http://127.0.0.1:${port ?? server.port}$location'),
     );
     headers.forEach(request.headers.set);
     final payload = body ?? (json == null ? null : jsonEncode(json));
@@ -275,6 +276,131 @@ void main() {
       expect(limited, isTrue);
     });
 
+    test('connections beyond the limits', () async {
+      final capped = await io.IoShareServer.bind(
+        address: '127.0.0.1',
+        room: room,
+        strings: shareStrings,
+        allowPeer: (_) => true,
+        maxConnections: 3,
+        maxConnectionsPerAddress: 2,
+      );
+      addTearDown(capped.close);
+      final sockets = <Socket>[];
+      addTearDown(() {
+        for (final socket in sockets) {
+          socket.destroy();
+        }
+      });
+
+      /// Whether a new connection from [from] stays open.
+      Future<bool> stays(String from) async {
+        final socket = await Socket.connect(
+          '127.0.0.1',
+          capped.port,
+          sourceAddress: from,
+        );
+        sockets.add(socket);
+        final closed = Completer<bool>();
+        socket.listen(
+          (_) {},
+          onError: (Object _) {
+            if (!closed.isCompleted) closed.complete(true);
+          },
+          onDone: () {
+            if (!closed.isCompleted) closed.complete(true);
+          },
+        );
+        return !await closed.future.timeout(
+          const Duration(milliseconds: 300),
+          onTimeout: () => false,
+        );
+      }
+
+      expect(await stays('127.0.0.1'), isTrue);
+      expect(await stays('127.0.0.1'), isTrue);
+      expect(await stays('127.0.0.1'), isFalse);
+      expect(await stays('127.0.0.2'), isTrue);
+      expect(await stays('127.0.0.2'), isFalse);
+
+      // A connection that closes makes room for another.
+      sockets.first.destroy();
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      final request = await client.getUrl(
+        Uri.parse('http://127.0.0.1:${capped.port}${path('/api/hello')}'),
+      );
+      final response = await request.close();
+      await response.drain<void>();
+      expect(response.statusCode, HttpStatus.ok);
+    });
+
+    test('bodies that take too long', () async {
+      final strict = await io.IoShareServer.bind(
+        address: '127.0.0.1',
+        room: room,
+        strings: shareStrings,
+        allowPeer: (_) => true,
+        bodyTimeout: const Duration(milliseconds: 200),
+      );
+      addTearDown(strict.close);
+
+      /// The status line answering a join whose body comes [slowly] (a
+      /// byte every 100 ms) or never.
+      Future<String> answer({required bool slowly}) async {
+        final socket = await Socket.connect('127.0.0.1', strict.port);
+        addTearDown(socket.destroy);
+        // The server may close it while the slow body still comes.
+        socket.done.ignore();
+        socket.write(
+          'POST ${path('/api/join')} HTTP/1.1\r\n'
+          'Host: 127.0.0.1:${strict.port}\r\n'
+          'Content-Type: application/json\r\n'
+          'Content-Length: 100\r\n\r\n{',
+        );
+        final lines = utf8.decoder.bind(socket).transform(const LineSplitter());
+        final first = lines.first;
+        if (slowly) {
+          for (var i = 0; i < 5; i++) {
+            await Future<void>.delayed(const Duration(milliseconds: 100));
+            socket.write(' ');
+          }
+        }
+        return await first.timeout(const Duration(seconds: 5));
+      }
+
+      expect(await answer(slowly: false), contains('400'));
+      expect(await answer(slowly: true), contains('400'));
+    });
+
+    test('bodies that are too large or cut off', () async {
+      // Sent in chunks: no length announced.
+      final request = await client.postUrl(
+        Uri.parse('http://127.0.0.1:${server.port}${path('/api/join')}'),
+      );
+      request.headers.contentType = ContentType.json;
+      request.write('{"pin": "${'1' * 5000}"}');
+      final response = await request.close();
+      await response.drain<void>();
+      expect(response.statusCode, HttpStatus.badRequest);
+
+      final socket = await Socket.connect('127.0.0.1', server.port);
+      socket.done.ignore();
+      socket.write(
+        'POST ${path('/api/join')} HTTP/1.1\r\n'
+        'Host: 127.0.0.1:${server.port}\r\n'
+        'Content-Type: application/json\r\n'
+        'Content-Length: 100\r\n\r\n{',
+      );
+      await socket.flush();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      socket.destroy();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      // The server goes on.
+      expect((await send('GET', path('/api/hello'))).status, HttpStatus.ok);
+      expect(room.guests, isEmpty);
+    });
+
     test('everything once the room ended', () async {
       await room.end();
       await settle();
@@ -317,6 +443,73 @@ void main() {
           json: {'language': 'fr', 'pin': '0000'},
         );
         expect(response.status, HttpStatus.forbidden);
+      }
+
+      final response = await send(
+        'POST',
+        path('/api/join'),
+        json: {'language': 'fr', 'pin': '1234'},
+      );
+      expect(response.status, HttpStatus.tooManyRequests);
+    });
+
+    test('names the languages a guest can pick when no more fit', () async {
+      final limited = ShareRoom(
+        token: 'abcdefghijklmnopqrstuv',
+        languages: const [english, spanish, french, german],
+        translations: translations,
+        onReply: (_, _) {},
+        conversationLanguages: () => const [english, spanish],
+        maxExtraLanguages: 1,
+      );
+      addTearDown(limited.end);
+      final other = await io.IoShareServer.bind(
+        address: '127.0.0.1',
+        room: limited,
+        strings: shareStrings,
+        allowPeer: (_) => true,
+      );
+      addTearDown(other.close);
+      Future<_Response> post(
+        String rest,
+        Object json, [
+        Map<String, String> headers = const {},
+      ]) => send(
+        'POST',
+        path(rest),
+        json: json,
+        headers: headers,
+        port: other.port,
+      );
+
+      final first = await post('/api/join', {'language': 'fr'});
+      expect(first.status, HttpStatus.ok);
+      final refused = await post('/api/join', {'language': 'de'});
+      expect(refused.status, HttpStatus.conflict);
+      expect(jsonDecode(refused.body), {
+        'error': 'languageLimit',
+        'languages': ['en', 'es', 'fr'],
+      });
+
+      final second = await post('/api/join', {'language': 'en'});
+      final body = jsonDecode(second.body) as Map<String, Object?>;
+      final change = await post(
+        '/api/language',
+        {'language': 'de'},
+        {
+          'X-Mozhi-Guest': body['guest']! as String,
+          'X-Mozhi-Key': body['key']! as String,
+        },
+      );
+      expect(change.status, HttpStatus.conflict);
+      expect(jsonDecode(change.body), containsPair('error', 'languageLimit'));
+    });
+
+    test('limits joins in all', () async {
+      for (var i = 0; i < ShareRoom.maxRoomJoinsPerMinute; i++) {
+        final joined =
+            room.join(languageCode: 'fr', pin: '1234') as ShareJoined;
+        room.leave(joined.guest);
       }
 
       final response = await send(
@@ -515,6 +708,98 @@ void main() {
       await snapshots.close();
     });
 
+    test('disconnects a page that takes in nothing', () async {
+      final slow = await io.IoShareServer.bind(
+        address: '127.0.0.1',
+        room: room,
+        strings: shareStrings,
+        allowPeer: (_) => true,
+        maxFlushTime: const Duration(milliseconds: 300),
+      );
+      addTearDown(slow.close);
+      final joined = await join();
+      final response = await (await client.getUrl(
+        Uri.parse(
+          'http://127.0.0.1:${slow.port}'
+          '${path('/api/events?guest=${joined.guest.id}&key=${joined.key}')}',
+        ),
+      )).close();
+      final subscription = response.listen((_) {}, onError: (Object _) {});
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      expect(room.guests.single.connected, isTrue);
+      // The page stops reading.
+      subscription.pause();
+
+      for (var round = 0; round < 10 && room.guests.single.connected; round++) {
+        room.update(_bigTurns(round));
+        await Future<void>.delayed(const Duration(milliseconds: 400));
+      }
+
+      expect(room.guests.single.connected, isFalse);
+      await subscription.cancel();
+    });
+
+    test('ends a page that takes in nothing at once', () async {
+      final joined = await join();
+      final response = await (await client.getUrl(
+        Uri.parse(
+          'http://127.0.0.1:${server.port}'
+          '${path('/api/events?guest=${joined.guest.id}&key=${joined.key}')}',
+        ),
+      )).close();
+      final subscription = response.listen((_) {}, onError: (Object _) {});
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      subscription.pause();
+      room.update(_bigTurns(0));
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+
+      final ending = Stopwatch()..start();
+      await room.end();
+      await server.close();
+      expect(ending.elapsed, lessThan(const Duration(seconds: 2)));
+      await subscription.cancel();
+    });
+
+    test('sends the latest snapshot once a slow page caught up', () async {
+      final joined = await join();
+      final response = await (await client.getUrl(
+        Uri.parse(
+          'http://127.0.0.1:${server.port}'
+          '${path('/api/events?guest=${joined.guest.id}&key=${joined.key}')}',
+        ),
+      )).close();
+      final snapshots = <String>[];
+      final subscription = response
+          .transform(utf8.decoder)
+          .transform(const LineSplitter())
+          .listen((line) {
+            if (line.startsWith('data: {"revision"')) {
+              final turns =
+                  (jsonDecode(line.substring(6)) as Map)['turns'] as List;
+              snapshots.add(
+                turns.isEmpty ? '' : (turns.first as Map)['text'] as String,
+              );
+            }
+          });
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      subscription.pause();
+      for (var round = 0; round < 3; round++) {
+        room.update(_bigTurns(round));
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+      }
+
+      subscription.resume();
+      for (var i = 0; i < 50; i++) {
+        if (snapshots.isNotEmpty && snapshots.last.startsWith('2 ')) break;
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      }
+      expect(snapshots.last, startsWith('2 '));
+      // Not one snapshot per change: the waiting ones were sent as one.
+      expect(snapshots.length, lessThan(4));
+      expect(room.guests.single.connected, isTrue);
+      await subscription.cancel();
+    });
+
     test('of a new page replaces the old one', () async {
       final joined = await join();
       final location = Uri.parse(
@@ -603,3 +888,16 @@ void main() {
     expect(shareStrings(['', 'xx']).localeName, 'en');
   });
 }
+
+/// A hundred turns of 50,000 characters, starting with [round].
+List<ConversationTurn> _bigTurns(int round) => [
+  for (var i = 0; i < ShareRoom.maxTurns; i++)
+    ConversationTurn(
+      id: i,
+      side: ConversationSide.a,
+      original: '$round ${'x' * 50000}',
+      source: english,
+      target: spanish,
+      createdAt: sentAt,
+    ),
+];

@@ -42,7 +42,7 @@ bool get shareServerSupported => true;
 /// `no-referrer`, and no cookies.
 /// Limits: [maxRequestsPerMinute] requests and [maxJoinsPerMinute] joins
 /// (of which [maxWrongPinsPerMinute] wrong PINs) per address, request
-/// bodies of [maxBodyBytes] arriving within [bodyTimeout], one update
+/// bodies of [maxBodyBytes] arriving within `bodyTimeout`, one update
 /// stream per guest, and at most `maxConnections` connections at a time
 /// (`maxConnectionsPerAddress` per address; more are closed as soon as
 /// they open). Idle connections close after [idleTimeout]. An update
@@ -59,6 +59,7 @@ class IoShareServer implements ShareServer {
     this._address,
     this._allowPeer,
     this._maxFlushTime,
+    this._bodyTimeout,
     DateTime Function()? clock,
   ) : port = _server.port,
       _requests = ShareRateLimiter(
@@ -83,7 +84,8 @@ class IoShareServer implements ShareServer {
   /// update streams open through idle timeouts. At most [maxConnections]
   /// connections are open at a time, [maxConnectionsPerAddress] from one
   /// address; an update stream whose page takes in nothing for
-  /// [maxFlushTime] is closed.
+  /// [maxFlushTime] is closed; a request body must arrive within
+  /// [bodyTimeout].
   static Future<IoShareServer> bind({
     required String address,
     required ShareRoom room,
@@ -93,6 +95,7 @@ class IoShareServer implements ShareServer {
     int maxConnections = defaultMaxConnections,
     int maxConnectionsPerAddress = defaultMaxConnectionsPerAddress,
     Duration maxFlushTime = defaultMaxFlushTime,
+    Duration bodyTimeout = defaultBodyTimeout,
     DateTime Function()? clock,
   }) async {
     final sockets = _ConnectionGate(
@@ -116,6 +119,7 @@ class IoShareServer implements ShareServer {
       address,
       allowPeer ?? _privatePeer,
       maxFlushTime,
+      bodyTimeout,
       clock,
     ).._pingInterval = pingInterval;
     result
@@ -141,7 +145,7 @@ class IoShareServer implements ShareServer {
   static const maxBodyBytes = 4096;
 
   /// How long a request body may take to arrive.
-  static const bodyTimeout = Duration(seconds: 10);
+  static const defaultBodyTimeout = Duration(seconds: 10);
 
   /// After how long without a request a connection is closed (one that
   /// stays idle is closed between one and two times this).
@@ -170,6 +174,7 @@ class IoShareServer implements ShareServer {
   final String _address;
   final bool Function(InternetAddress peer) _allowPeer;
   final Duration _maxFlushTime;
+  final Duration _bodyTimeout;
   final ShareRateLimiter _requests;
   final ShareRateLimiter _joins;
   final ShareRateLimiter _wrongPins;
@@ -348,24 +353,47 @@ class IoShareServer implements ShareServer {
       return null;
     }
     if (request.contentLength > maxBodyBytes) return null;
-    final bytes = BytesBuilder(copy: false);
-    final elapsed = Stopwatch()..start();
+    final body = await _readBody(request);
+    if (body == null) return null;
     try {
-      await for (final chunk in request.timeout(bodyTimeout)) {
-        bytes.add(chunk);
-        if (bytes.length > maxBodyBytes || elapsed.elapsed > bodyTimeout) {
-          return null;
-        }
-      }
-    } on TimeoutException {
-      return null;
-    }
-    try {
-      final json = jsonDecode(utf8.decode(bytes.takeBytes()));
+      final json = jsonDecode(utf8.decode(body));
       return json is Map<String, Object?> ? json : null;
     } on FormatException {
       return null;
     }
+  }
+
+  /// The body of [request], or null when it is larger than [maxBodyBytes]
+  /// or takes longer than the body timeout to arrive. The rest is not
+  /// read then (nor its subscription cancelled, which would drop the
+  /// connection unanswered): the server closes the connection once the
+  /// answer went out.
+  Future<Uint8List?> _readBody(HttpRequest request) {
+    final result = Completer<Uint8List?>();
+    final bytes = BytesBuilder(copy: false);
+    // Not cancelled on purpose: cancelling drops the connection before the
+    // answer (see above); the connection takes it along when it closes.
+    // ignore: cancel_subscriptions
+    late final StreamSubscription<Uint8List> subscription;
+    void stop() {
+      if (result.isCompleted) return;
+      subscription.pause();
+      result.complete(null);
+    }
+
+    final deadline = Timer(_bodyTimeout, stop);
+    subscription = request.listen(
+      (chunk) {
+        bytes.add(chunk);
+        if (bytes.length > maxBodyBytes) stop();
+      },
+      onError: (Object _) => stop(),
+      onDone: () {
+        if (!result.isCompleted) result.complete(bytes.takeBytes());
+      },
+      cancelOnError: false,
+    );
+    return result.future.whenComplete(deadline.cancel);
   }
 
   /// The browser's languages, best first (`Accept-Language`).
@@ -559,10 +587,11 @@ class IoShareServer implements ShareServer {
   }
 }
 
-/// One guest page's Server-Sent Events stream. One write is in flight at
-/// a time: changes while the page has not taken in the last write wait
-/// (and are sent as one snapshot), and a page that takes in nothing for
-/// `maxFlushTime` is disconnected.
+/// One guest page's Server-Sent Events stream, written through a stream
+/// that the connection pauses while the page does not take in what it
+/// was sent: meanwhile changes wait (and are sent as one snapshot once it
+/// caught up), and a page that stays behind for `maxFlushTime` is
+/// disconnected.
 class _EventStream {
   new(
     this._response,
@@ -582,27 +611,29 @@ class _EventStream {
   final Duration _pingInterval;
   final Duration _maxFlushTime;
   final void Function(_EventStream stream) _onDone;
+  late final StreamController<List<int>> _out = StreamController(
+    onPause: _paused,
+    onResume: _resumed,
+  );
+  late final Future<void> _streamed;
   Timer? _ping;
   Timer? _pending;
 
-  /// The page has not taken in the last write yet.
-  bool _flushing = false;
-
-  /// A snapshot is due once it has.
-  bool _behind = false;
+  /// Paused since then, until the page takes in what it was sent.
   Timer? _stuck;
+
+  /// A snapshot is due once the page caught up.
+  bool _behind = false;
   bool _done = false;
 
   void start() {
+    // Completes when the connection is closed (also by the page).
+    _streamed = _response
+        .addStream(_out.stream)
+        .then<void>((_) {}, onError: (Object _) {});
+    unawaited(_streamed.whenComplete(_finish));
     _send(prefix: 'retry: 3000\n\n');
-    _ping = Timer.periodic(_pingInterval, (_) {
-      if (!_flushing) _write(': ping\n\n');
-    });
-    unawaited(
-      _response.done
-          .then<void>((_) {}, onError: (Object _) {})
-          .whenComplete(_finish),
-    );
+    _ping = Timer.periodic(_pingInterval, (_) => _write(': ping\n\n'));
   }
 
   /// Sends a snapshot soon (several changes in a row make one).
@@ -614,9 +645,23 @@ class _EventStream {
     });
   }
 
+  void _paused() {
+    if (_done) return;
+    _stuck ??= Timer(_maxFlushTime, _drop);
+  }
+
+  void _resumed() {
+    _stuck?.cancel();
+    _stuck = null;
+    if (_behind) {
+      _behind = false;
+      _send();
+    }
+  }
+
   void _send({String prefix = ''}) {
     if (_done) return;
-    if (_flushing) {
+    if (_out.isPaused) {
       // Skipped: the page gets the latest snapshot once it caught up.
       _behind = true;
       return;
@@ -630,32 +675,16 @@ class _EventStream {
   }
 
   void _write(String text) {
-    if (_done || _flushing) return;
-    try {
-      _response.write(text);
-      _flushing = true;
-      _stuck = Timer(_maxFlushTime, _drop);
-      unawaited(
-        _response.flush().then<void>((_) {
-          _flushing = false;
-          _stuck?.cancel();
-          _stuck = null;
-          if (_behind) {
-            _behind = false;
-            _send();
-          }
-        }, onError: (Object _) => _drop()),
-      );
-    } on Object {
-      _drop(); // coverage:ignore-line
-    }
+    if (_done || _out.isPaused) return;
+    _out.add(utf8.encode(text));
   }
 
-  /// Disconnects a page that takes in nothing (or whose connection
-  /// broke): what waits for it is dropped with the connection.
+  /// Disconnects a page that takes in nothing: what waits for it goes
+  /// with the connection.
   void _drop() {
     if (_done) return;
     _finish();
+    unawaited(_out.close());
     // Closes the connection at once, whatever it still holds.
     _response.deadline = Duration.zero;
   }
@@ -664,12 +693,13 @@ class _EventStream {
   /// guest [replaced] it) and closes the stream.
   Future<void> end({bool replaced = false}) async {
     if (_done) return;
-    if (_flushing) return _drop();
+    if (_out.isPaused) return _drop();
     _finish();
+    if (!replaced) _out.add(utf8.encode('event: ended\ndata: {}\n\n'));
+    // A page that does not take it in is disconnected.
+    _response.deadline = _maxFlushTime;
     try {
-      if (!replaced) _response.write('event: ended\ndata: {}\n\n');
-      // A page that does not take it in is disconnected.
-      _response.deadline = _maxFlushTime;
+      await Future.wait([_out.close(), _streamed]).timeout(_endTimeout);
       await _response.close().timeout(_endTimeout);
     } on Object {
       // The page is gone already, or does not read.

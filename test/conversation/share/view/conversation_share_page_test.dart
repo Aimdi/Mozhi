@@ -47,7 +47,11 @@ final _live = ConversationShareState(
     ShareGuest(id: 'b', number: 2, language: german, joinedAt: sentAt),
   ],
   languages: const [
-    ShareLanguageState(language: french, mode: ShareLanguageMode.engine),
+    ShareLanguageState(
+      language: french,
+      mode: ShareLanguageMode.engine,
+      pending: 3,
+    ),
     ShareLanguageState(
       language: Language(code: 'it', name: 'Italian'),
       mode: ShareLanguageMode.onDevice,
@@ -197,6 +201,13 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('French: translated by DeepL'), findsOneWidget);
+      expect(find.text('3 messages still to translate'), findsOneWidget);
+      expect(
+        find.textContaining(
+          'Guests can read up to 4 other languages at a time.',
+        ),
+        findsOneWidget,
+      );
       expect(find.text('Italian: translated on this device'), findsOneWidget);
       expect(
         find.text(
@@ -211,7 +222,7 @@ void main() {
       expect(prompt.consent, _consent);
       expect(prompt.requests, 2);
       prompt.onGranted();
-      verify(() => share.retryLanguage(german)).called(1);
+      verify(() => share.retryLanguage(german, consent: _consent)).called(1);
       expect(find.textContaining('plain http'), findsOneWidget);
       expect(find.textContaining('from now on'), findsOneWidget);
       semantics.dispose();
