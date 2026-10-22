@@ -78,6 +78,7 @@ test('a translation goes into a new collection, which exports as CSV', async ({
   const csv = fs.readFileSync(path, 'utf8').replace(/^﻿/, '');
   expect(csv.startsWith('#separator:Comma\r\n#html:false\r\n')).toBe(true);
   expect(csv).toContain(`${TEXT},${TRANSLATION},English,French,`);
-  await expect(page.getByText('Saved 1 phrase')).toBeVisible();
+  // The snack bar, and its announcement for screen readers.
+  await expect(page.getByText('Saved 1 phrase').first()).toBeVisible();
   expect(errors).toEqual([]);
 });
