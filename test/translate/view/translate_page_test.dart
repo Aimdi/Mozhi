@@ -733,6 +733,30 @@ void main() {
       });
     });
 
+    test('a queued translation joins the thread', () {
+      expect(outputJoinsThread(readyState(input: 'Hi')), isFalse);
+      expect(
+        outputJoinsThread(readyState(input: 'Hi').copyWith(queued: true)),
+        isTrue,
+      );
+    });
+
+    testWidgets('the output placeholder gives way to a queued translation', (
+      tester,
+    ) async {
+      final states = StreamController<TranslateState>();
+      addTearDown(states.close);
+      final initial = readyState(input: 'Hi');
+      final harness = TranslateHarness(state: initial);
+      whenListen(harness.translate, states.stream, initialState: initial);
+      await harness.pump(tester, size: const Size(1280, 800));
+      final placeholder = find.byKey(const Key('translate_output_placeholder'));
+      expect(placeholder, findsOneWidget);
+      states.add(initial.copyWith(queued: true));
+      await tester.pump();
+      expect(placeholder, findsNothing);
+    });
+
     test('translateComposerFill is the shared composer fill', () {
       final scheme = ColorScheme.fromSeed(seedColor: Colors.teal);
       const quiet = Color(0xFF536471);

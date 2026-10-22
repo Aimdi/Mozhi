@@ -180,7 +180,7 @@ class ComposerCard extends StatelessWidget {
   }
 }
 
-/// A hairline-outlined pill holding the controls of a composer, like the
+/// An outlined pill holding the controls of a composer, like the
 /// translate screen's language bar: [children] in a row with thin
 /// vertical dividers ([ComposerBarDivider]) between them. Wrap one child
 /// in an [Expanded] to give it the rest of the width (e.g. the language
@@ -192,10 +192,11 @@ class ComposerBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hairline = AppPalette.of(context).hairline;
+    // A control's outline (3:1, WCAG 1.4.11), not a separator hairline.
+    final outline = Theme.of(context).colorScheme.outline;
     return DecoratedBox(
       decoration: ShapeDecoration(
-        shape: StadiumBorder(side: BorderSide(color: hairline)),
+        shape: StadiumBorder(side: BorderSide(color: outline)),
       ),
       child: Padding(
         // Inside the outline.
@@ -359,7 +360,7 @@ class ComposerGoButton extends StatelessWidget {
 }
 
 /// The AI model a composer screen uses (Dictionary, Proofread), as a
-/// small hairline pill for its app bar in the look of the translate
+/// small outlined pill for its app bar in the look of the translate
 /// screen's engine selector: an icon, the model's name and (while it fits,
 /// up to 130 % text) its subtitle, e.g. the model id.
 ///
@@ -452,7 +453,9 @@ class ComposerEngineChip extends StatelessWidget {
           style: TextButton.styleFrom(
             minimumSize: const Size(48, 48),
             padding: const EdgeInsetsDirectional.only(start: 10, end: 6),
-            shape: StadiumBorder(side: BorderSide(color: palette.hairline)),
+            shape: StadiumBorder(
+              side: BorderSide(color: theme.colorScheme.outline),
+            ),
             foregroundColor: theme.colorScheme.onSurface,
           ),
           onPressed: showChoices || onManage != null

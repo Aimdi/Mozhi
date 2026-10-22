@@ -368,9 +368,7 @@ class ProofreadPill extends StatelessWidget {
       decoration: ShapeDecoration(
         color: filled ? colors.primaryContainer : null,
         shape: StadiumBorder(
-          side: filled
-              ? BorderSide.none
-              : BorderSide(color: colors.outlineVariant),
+          side: filled ? BorderSide.none : BorderSide(color: colors.outline),
         ),
       ),
       child: Padding(

@@ -29,9 +29,10 @@ enum AlignedSide {
 /// aligned phrases are underlined with [phraseStyle].
 ///
 /// Keyboard: the text is one stop in the focus traversal (the app's focus
-/// ring, [FocusRing], outlines it while focused). The arrow keys then focus the next or previous phrase (in
-/// reading order, so Left and Right follow [textDirection]), Enter or Space
-/// focuses the first phrase or clears the focus, and Escape clears it.
+/// ring, [FocusRing], outlines it while focused). The arrow keys then
+/// focus the next or previous phrase (in reading order, so Left and Right
+/// follow [textDirection]), Enter or Space focuses the first phrase or
+/// clears the focus, and Escape clears it.
 ///
 /// Screen readers read the text in its language ([locale]), each phrase as
 /// a link of its own in reading order; whitespace between two phrases is
@@ -145,7 +146,6 @@ class AlignedText extends StatefulWidget {
 class _AlignedTextState extends State<AlignedText> {
   final _recognizers = <TapGestureRecognizer>[];
   final _focusNode = FocusNode(debugLabel: 'AlignedText');
-
 
   /// The phrase ranges of the last build ([AlignedText.ranges]).
   List<(int, int, int)> _ranges = const [];

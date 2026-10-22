@@ -36,7 +36,7 @@ class TranslateToolChip extends StatelessWidget {
     return Tooltip(
       message: tooltip,
       excludeFromSemantics: tooltip == label,
-      // An outlined hairline pill (X topic).
+      // An outlined pill (X topic).
       child: TranslatePills(
         child: FilterChip(
           focusNode: focusNode,

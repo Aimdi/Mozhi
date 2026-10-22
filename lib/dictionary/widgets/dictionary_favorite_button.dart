@@ -58,7 +58,7 @@ class DictionaryFavoriteButton extends StatelessWidget {
       tooltip: favorite ? l10n.historyUnfavorite : l10n.historyFavorite,
       style: IconButton.styleFrom(
         fixedSize: const Size.square(size),
-        side: BorderSide(color: colors.outlineVariant),
+        side: BorderSide(color: colors.outline),
         foregroundColor: favorite ? palette.like : colors.onSurface,
       ),
       icon: Icon(

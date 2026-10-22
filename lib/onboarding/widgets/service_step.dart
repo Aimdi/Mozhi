@@ -124,7 +124,6 @@ class _ServerChoiceState extends State<ServerChoice> {
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-    final palette = AppPalette.of(context);
     final instances = context.select<SettingsCubit, List<MozhiInstance>>(
       (c) => c.state.instances,
     );
@@ -141,9 +140,10 @@ class _ServerChoiceState extends State<ServerChoice> {
     final fastest =
         state.serviceStatus == ServiceStatus.done &&
         first.url == state.fastestUrl;
+    // Its rows are controls: the control outline (3:1).
     final shape = RoundedRectangleBorder(
       borderRadius: AppRadius.cardBorderRadius,
-      side: BorderSide(color: palette.hairline),
+      side: BorderSide(color: colors.outline),
     );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,

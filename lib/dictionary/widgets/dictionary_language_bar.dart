@@ -97,7 +97,7 @@ class DictionaryLanguageBar extends StatelessWidget {
   }
 }
 
-/// An outlined hairline pill with the language's avatar.
+/// An outlined pill with the language's avatar.
 class _LanguageButton extends StatelessWidget {
   const new({
     required this.code,
@@ -120,7 +120,7 @@ class _LanguageButton extends StatelessWidget {
       style: OutlinedButton.styleFrom(
         minimumSize: const Size(48, 48),
         foregroundColor: colors.onSurface,
-        side: BorderSide(color: palette.hairline),
+        side: BorderSide(color: colors.outline),
         shape: const StadiumBorder(),
         padding: const EdgeInsetsDirectional.fromSTEB(6, 6, 8, 6),
         textStyle: Theme.of(context).textTheme.labelLarge

@@ -3,7 +3,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/theme.dart';
-import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/view/provider_editor_page.dart';
@@ -293,7 +292,7 @@ class _ProviderTile extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         shape: RoundedRectangleBorder(
           borderRadius: AppRadius.cardBorderRadius,
-          side: BorderSide(color: AppPalette.of(context).hairline),
+          side: BorderSide(color: Theme.of(context).colorScheme.outline),
         ),
         child: InkWell(
           onTap: () =>

@@ -7,7 +7,6 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/network/network.dart';
 import 'package:mozhi/core/undo_snack_bar.dart';
-import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/view/widgets/add_instance_dialog.dart';
@@ -385,7 +384,7 @@ class _Header extends StatelessWidget {
           margin: const EdgeInsets.only(bottom: 16),
           color: colors.surface,
           shape: RoundedRectangleBorder(
-            side: BorderSide(color: AppPalette.of(context).hairline),
+            side: BorderSide(color: Theme.of(context).colorScheme.outline),
             borderRadius: AppRadius.cardBorderRadius,
           ),
           child: Padding(
@@ -547,7 +546,7 @@ class _InstanceTile extends StatelessWidget {
           borderRadius: AppRadius.cardBorderRadius,
           side: preferred
               ? BorderSide(color: colors.primary, width: 2)
-              : BorderSide(color: AppPalette.of(context).hairline),
+              : BorderSide(color: colors.outline),
         ),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 4),

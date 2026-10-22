@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:mozhi/core/widgets/focus_ring.dart';
 import 'package:mozhi/translate/translate.dart';
 import 'package:mozhi/translate/widgets/widgets.dart';
 import 'package:translation_repository/translation_repository.dart';
@@ -349,28 +350,31 @@ void main() {
       FocusNode node(WidgetTester tester) =>
           Focus.of(tester.element(_alignedText));
 
-      BoxDecoration outline(WidgetTester tester) =>
-          tester
-                  .widget<DecoratedBox>(
-                    find.byKey(const Key('translate_aligned_text_focus')),
-                  )
-                  .decoration
-              as BoxDecoration;
-
       testWidgets('the text is a tab stop with a visible focus', (
         tester,
       ) async {
         final host = _Host();
         await TranslateHarness().pump(tester, child: host.build());
-        expect(outline(tester).border, isNull);
+        // The app's focus ring, not one of its own.
+        expect(
+          find.byKey(const Key('translate_aligned_text_focus')),
+          findsOneWidget,
+        );
+        expect(
+          tester
+              .widget<FocusRing>(
+                find.byKey(const Key('translate_aligned_text_focus')),
+              )
+              .shape,
+          const RoundedRectangleBorder(
+            borderRadius: BorderRadius.all(Radius.circular(4)),
+          ),
+        );
 
         await tester.sendKeyEvent(LogicalKeyboardKey.tab);
         await tester.pump();
         expect(node(tester).hasPrimaryFocus, isTrue);
-        final context = tester.element(_alignedText);
-        final border = outline(tester).border! as Border;
-        expect(border.top.color, Theme.of(context).colorScheme.primary);
-        expect(border.top.width, 2);
+        expect(FocusRing.claims(node(tester)), isTrue);
         // Focusing the text alone focuses no phrase.
         expect(host.calls, isEmpty);
       });

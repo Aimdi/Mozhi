@@ -998,7 +998,7 @@ class _HistoryFilterBar extends StatelessWidget {
                       ? colors.onSurfaceVariant
                       : colors.onSecondaryContainer,
                   side: pair == null
-                      ? BorderSide(color: colors.outlineVariant)
+                      ? BorderSide(color: colors.outline)
                       : BorderSide.none,
                 ),
                 onPressed: onPickPair,
@@ -1335,7 +1335,6 @@ class _HistoryPausedBanner extends StatelessWidget {
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-    final palette = AppPalette.of(context);
     final settings = context.read<SettingsCubit>();
     final (icon, body, action, onPressed) = incognito
         ? (
@@ -1357,7 +1356,7 @@ class _HistoryPausedBanner extends StatelessWidget {
         container: true,
         child: DecoratedBox(
           decoration: BoxDecoration(
-            border: Border.all(color: palette.hairline),
+            border: Border.all(color: colors.outline),
             borderRadius: AppRadius.cardBorderRadius,
           ),
           child: Padding(

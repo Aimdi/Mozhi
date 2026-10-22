@@ -606,11 +606,12 @@ String sourceAvatarCode(TranslateState state) {
 String targetAvatarCode(TranslateState state) =>
     state.target.isCustom ? state.target.name : state.target.code;
 
-/// Whether the output shows a translation (or one in progress), so it is
+/// Whether the output shows a translation (or one queued or in progress,
+/// `TranslateState.isPending`: its header and placeholder lines), so it is
 /// drawn as the reply of the input's thread (not the empty state or an
 /// error).
 bool outputJoinsThread(TranslateState state) =>
-    state.output.isNotEmpty || state.status == TranslateStatus.translating;
+    state.output.isNotEmpty || state.isPending;
 
 /// The input as the first post of the thread: the source language's avatar
 /// beside it, joined to the translation's avatar by a connector while there

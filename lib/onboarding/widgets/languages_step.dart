@@ -167,7 +167,7 @@ class _LanguageField extends StatelessWidget {
       color: theme.colorScheme.surface,
       shape: RoundedRectangleBorder(
         borderRadius: AppRadius.cardBorderRadius,
-        side: BorderSide(color: palette.hairline),
+        side: BorderSide(color: theme.colorScheme.outline),
       ),
       clipBehavior: Clip.antiAlias,
       child: ListTile(
