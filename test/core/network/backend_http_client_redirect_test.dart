@@ -252,7 +252,7 @@ void main() {
     test('refuses a public server sending the request to a .onion address, '
         'and a .onion server sending it into the local network', () async {
       answers
-        ..['https://mirror.example/a'] = _redirect(302, 'http://abc.onion/a')
+        ..['https://mirror.example/a'] = _redirect(302, 'https://abc.onion/a')
         ..['http://abc.onion/b'] = _redirect(302, 'http://192.168.1.1/b')
         ..['http://abc.onion/c'] = _redirect(302, '/d')
         ..['http://abc.onion/d'] = http.Response('ok', 200);
@@ -260,7 +260,7 @@ void main() {
 
       await expectLater(
         proxied.get(Uri.parse('https://mirror.example/a')),
-        _refusedIntoPrivate('http://abc.onion/a'),
+        _refusedIntoPrivate('https://abc.onion/a'),
       );
       await expectLater(
         proxied.get(Uri.parse('http://abc.onion/b')),
@@ -341,7 +341,7 @@ void main() {
       });
     }
 
-    test('gives up after the request\'s maxRedirects', () async {
+    test("gives up after the request's maxRedirects", () async {
       for (var hop = 0; hop < 10; hop++) {
         answers['https://dl.example/$hop'] = _redirect(302, '/${hop + 1}');
       }
@@ -423,9 +423,9 @@ void main() {
       final inner = _RecordingClient((_) => answer);
 
       final response = await client(inner: inner)
-          .get(Uri.parse('https://dl.example/a'));
+          .send(http.Request('GET', Uri.parse('https://dl.example/a')));
 
-      expect(response.statusCode, 200);
+      expect(response, same(answer));
       expect(inner.sent.single.followRedirects, isFalse);
     });
 

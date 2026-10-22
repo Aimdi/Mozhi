@@ -1525,20 +1525,27 @@ class TranslationRepository {
     final personal = shield
         ? PersonalData.find(request.text)
         : const <ProtectedSpan>[];
-    final format = request.options.preserveFormatting
+    final formatting = request.options.preserveFormatting || glossary.isNotEmpty
         ? TextMasker.formatSpans(request.text)
+        : const <ProtectedSpan>[];
+    final format = request.options.preserveFormatting
+        ? formatting
         : const <ProtectedSpan>[];
     final terms = [
       for (final term in TranslationPrompts.glossaryOccurrences(
         glossary,
         request.text,
+        caseSensitive: request.options.caseSensitiveGlossaryTerms,
       ))
-        ProtectedSpan(
-          term.start,
-          term.end,
-          kind: ProtectedKind.glossary,
-          replacement: term.rendering,
-        ),
+        // Never inside a URL, an e-mail address, a tag or a placeholder,
+        // masked or not.
+        if (!formatting.any((s) => s.start < term.end && term.start < s.end))
+          ProtectedSpan(
+            term.start,
+            term.end,
+            kind: ProtectedKind.glossary,
+            replacement: term.rendering,
+          ),
     ];
     if (personal.isEmpty && format.isEmpty && terms.isEmpty) {
       return await send(request, isMasked: false);
@@ -1614,6 +1621,7 @@ class TranslationRepository {
         target: request.target,
         detectedSource: result.detectedSource,
         glossary: engine.supportsGlossary ? request.options.glossary : const {},
+        caseSensitiveGlossaryTerms: request.options.caseSensitiveGlossaryTerms,
         ai: engine.isAi,
       ),
     ];
@@ -1940,6 +1948,7 @@ class TranslationRepository {
         target: chunk.target,
         detectedSource: result.detectedSource,
         glossary: chunk.options.glossary,
+        caseSensitiveGlossaryTerms: chunk.options.caseSensitiveGlossaryTerms,
         ai: true,
       ))
         if (TranslationQa.worthRetrying([warning])) warning,
@@ -3725,7 +3734,9 @@ class _Shield {
     if (pending.isNotEmpty) yield tokens.restore(pending.toString()).text;
   }
 
-  static final _partialToken = RegExp(r'[⟨〈]\s*\d{0,4}\s*$');
+  static final _partialToken = RegExp(
+    '[⟨〈]\\s*\\d{0,${TextMasker.maxTokenDigits}}\\s*\$',
+  );
 
   /// Where a token that the next delta may complete starts at the end of
   /// [text] (its length when there is none).
