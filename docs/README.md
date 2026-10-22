@@ -17,6 +17,7 @@ Translate.
 | [Voice input](voice-input.md) | Dictation with the system recognizer or offline with Whisper: models, languages, privacy, import from files |
 | [Text recognition](text-recognition.md) | Reading text in photos on the phone with Tesseract: languages, sizes, where the data comes from, import from files |
 | [Offline dictionaries](dictionary-packs.md) | Wiktionary dictionaries for the Dictionary tab without AI or a network: what's in a pack, downloads, attribution, building and publishing packs |
+| [Phrasebook](phrasebook.md) | Collections of phrases built from favorites, history and the dictionary; CSV import and export; offline starter phrasebooks from Wikivoyage |
 | [Backup](backup.md) | Encrypted backups of your history, favorites, settings, presets and glossaries: what's inside, restoring, the file format, passphrase advice |
 | [Sync](sync.md) | End-to-end-encrypted sync between your devices through your own WebDAV folder: setup per server, how it works, what the server sees, CORS for the web app |
 | [Phone to phone](pairing.md) | Moving your data or language packs to another phone over the local network, end to end encrypted: how pairing works and what is checked |

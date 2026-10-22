@@ -142,7 +142,8 @@ guides.
   the collections, their phrases, the notes on favorites and the deletion
   records, not the favorites themselves (the history's section has them)
   nor the starter phrasebooks (download them again). **Replace** makes the
-  backup the phrasebook; **Merge** keeps the newer copy of each phrase,
+  backup the phrasebook (one here that can't be read is set aside first,
+  so a backup brings it back after the key was lost); **Merge** keeps the newer copy of each phrase,
   collection and note, keeps what only one side has, and lets a deletion
   win over older copies. Deleted phrases and collections, and phrases
   taken out of a collection, are remembered for 180 days (at most 5,000 of

@@ -133,6 +133,13 @@ List<SettingsSearchEntry> settingsSearchIndex(
       l10n.settingsImportHistory,
       subtitle: l10n.settingsImportHistorySubtitle,
     ),
+    entry(
+      privacy,
+      PrivacyAnchors.phrasebook,
+      l10n.settingsPhrasebook,
+      subtitle: l10n.settingsPhrasebookSubtitle,
+      keywords: [l10n.phrasebookStarterTitle],
+    ),
     entry(privacy, PrivacyAnchors.recentPairs, l10n.settingsClearRecentPairs),
     entry(privacy, PrivacyAnchors.networkPairs, l10n.settingsNetworkPairs),
     entry(

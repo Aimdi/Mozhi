@@ -314,10 +314,9 @@ class PhrasebookRepository {
     String? targetCode,
   }) async {
     final trimmed = _name(name);
-    late PhraseCollection created;
-    await _mutate((book) {
+    return await _mutate((book) {
       final now = _clock();
-      created = PhraseCollection(
+      final created = PhraseCollection(
         id: '${PhraseCollection.storedIdPrefix}${_newId()}',
         name: trimmed,
         sourceCode: sourceCode,
@@ -327,8 +326,8 @@ class PhrasebookRepository {
         updatedAt: now,
       );
       book.collections.insert(0, created);
+      return created;
     });
-    return created;
   }
 
   /// Renames the user's collection [id].
@@ -383,8 +382,7 @@ class PhrasebookRepository {
       await starter?.delete(packId);
       return null;
     }
-    late CollectionDeletion deletion;
-    await _mutate((book) {
+    return await _mutate((book) {
       final index = book.indexOfEditable(id);
       final collection = book.collections.removeAt(index);
       final now = _clock();
@@ -397,13 +395,12 @@ class PhrasebookRepository {
         deleted.add(phrase);
         book.tombstones[phraseId] = now;
       }
-      deletion = CollectionDeletion(
+      return CollectionDeletion(
         collection: collection,
         index: index,
         phrases: List.unmodifiable(deleted),
       );
     });
-    return deletion;
   }
 
   /// Puts back a collection [deleteCollection] deleted, with its phrases.
@@ -439,27 +436,26 @@ class PhrasebookRepository {
     if (draft.isEmpty) {
       throw ArgumentError.value(draft, 'draft', 'needs text and translation');
     }
-    late PhraseAddition addition;
-    await _mutate((book) {
-      addition = _add(book, draft, collectionId);
+    return await _mutate((book) {
+      final addition = _add(book, draft, collectionId);
       book.lastCollectionId = collectionId;
+      return addition;
     });
-    return addition;
   }
 
   /// Adds every phrase of [drafts] (empty ones are skipped) to the user's
   /// collection [collectionId] in one write, as [addPhrase] does; returns
   /// how many were added.
-  Future<int> importPhrases(String collectionId, List<PhraseDraft> drafts) {
-    var added = 0;
-    return _mutate((book) {
-      book.indexOfEditable(collectionId);
-      for (final draft in drafts) {
-        if (draft.isEmpty) continue;
-        if (_add(book, draft, collectionId).added) added++;
-      }
-    }).then((_) => added);
-  }
+  Future<int> importPhrases(String collectionId, List<PhraseDraft> drafts) =>
+      _mutate((book) {
+        book.indexOfEditable(collectionId);
+        var added = 0;
+        for (final draft in drafts) {
+          if (draft.isEmpty) continue;
+          if (_add(book, draft, collectionId).added) added++;
+        }
+        return added;
+      });
 
   /// Adds the phrase [phraseId] to the user's collection [collectionId]:
   /// a stored phrase itself, a favourite or a starter phrase as a copy
@@ -473,17 +469,16 @@ class PhrasebookRepository {
     if (!phrase.isStored) {
       return await addPhrase(PhraseDraft.fromPhrase(phrase), collectionId);
     }
-    late PhraseAddition addition;
-    await _mutate((book) {
+    return await _mutate((book) {
       final stored = book.phrases[phraseId];
       if (stored == null) throw ArgumentError.value(phraseId, 'phraseId');
-      addition = PhraseAddition(
+      final addition = PhraseAddition(
         phrase: stored,
         added: _addMember(book, collectionId, phraseId),
       );
       book.lastCollectionId = collectionId;
+      return addition;
     });
-    return addition;
   }
 
   /// Moves the stored phrase [phraseId] from the collection [from] to the
@@ -523,26 +518,24 @@ class PhrasebookRepository {
         deleted: false,
       );
     }
-    PhraseRemoval? removal;
-    await _mutate((book) {
+    return await _mutate<PhraseRemoval?>((book) {
       final index = book.indexOfEditable(collectionId);
       final position = book.collections[index].phraseIds.indexOf(phraseId);
       final phrase = book.phrases[phraseId];
-      if (position == -1 || phrase == null) return;
+      if (position == -1 || phrase == null) return null;
       _removeMember(book, collectionId, phraseId);
       final deleted = !book.isInAnyCollection(phraseId);
       if (deleted) {
         book.phrases.remove(phraseId);
         book.tombstones[phraseId] = _clock();
       }
-      removal = PhraseRemoval(
+      return PhraseRemoval(
         phrase: phrase,
         collectionId: collectionId,
         index: position,
         deleted: deleted,
       );
     });
-    return removal;
   }
 
   /// Undoes [removePhrase]: the phrase is back at its place (a favourite
@@ -663,7 +656,9 @@ class PhrasebookRepository {
   ///   less those the other copy took out after the newer copy changed.
   ///
   /// Throws [FormatException] for a newer [version] or data that is not a
-  /// phrasebook backup (nothing changes then).
+  /// phrasebook backup (nothing changes then). Replacing a phrasebook that
+  /// cannot be decrypted sets it aside first ([discardUnreadable]);
+  /// merging into one throws [PhrasebookUnreadableException].
   Future<void> restoreBackup(
     Object? data, {
     required int version,
@@ -676,6 +671,10 @@ class PhrasebookRepository {
       throw const FormatException('Expected a phrasebook backup object');
     }
     final incoming = _Book.fromJson(Map<String, Object?>.from(data));
+    // Replacing needs nothing of a phrasebook that cannot be read: it is
+    // set aside (as [discardUnreadable] does), so a backup can bring the
+    // phrasebook back after the key was lost. A merge needs it, and fails.
+    if (!merge) await discardUnreadable();
     await _mutate((book) {
       final next = merge ? _Book.merged(book, incoming) : incoming;
       final last = book.lastCollectionId;
@@ -861,10 +860,13 @@ class PhrasebookRepository {
     return collections;
   }
 
-  Future<void> _mutate(void Function(_Book book) change) async {
-    await _synchronized(() async {
+  /// Applies [change] to a copy of the phrasebook, writes it and returns
+  /// what [change] returned (results are returned rather than assigned
+  /// from the closure: see the wave's dart2js notes).
+  Future<T> _mutate<T>(T Function(_Book book) change) async {
+    final result = await _synchronized(() async {
       final next = (await _current()).copy();
-      change(next);
+      final value = change(next);
       next.prune(
         now: _clock(),
         maxAge: tombstoneMaxAge,
@@ -872,8 +874,10 @@ class PhrasebookRepository {
       );
       await _write(next);
       _book = next;
+      return value;
     });
     _changed();
+    return result;
   }
 
   Future<_Book> _current() async {

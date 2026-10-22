@@ -107,14 +107,15 @@ class _PhrasebookViewState extends State<PhrasebookView> {
     ?..hideCurrentSnackBar()
     ..showSnackBar(SnackBar(content: Text(message)));
 
-  /// Runs [action]; says when it fails.
-  Future<bool> _attempt(Future<void> Function() action) async {
+  /// Runs [action]; says when it fails. Returns whether it worked, with
+  /// its result (the result is returned rather than assigned from a
+  /// closure: see the wave's dart2js notes).
+  Future<(bool, T?)> _attempt<T>(Future<T> Function() action) async {
     try {
-      await action();
-      return true;
+      return (true, await action());
     } on Object {
       if (mounted) _say(context.l10n.phrasebookSaveFailed);
-      return false;
+      return (false, null);
     }
   }
 
@@ -131,9 +132,8 @@ class _PhrasebookViewState extends State<PhrasebookView> {
       action: l10n.phrasebookCreate,
     );
     if (name == null || !mounted) return;
-    PhraseCollection? created;
-    final ok = await _attempt(
-      () async => created = await _repository.createCollection(name),
+    final (ok, created) = await _attempt(
+      () => _repository.createCollection(name),
     );
     if (ok && mounted) _select(created?.id);
   }
@@ -153,18 +153,19 @@ class _PhrasebookViewState extends State<PhrasebookView> {
   Future<void> _delete(PhraseCollection collection) async {
     final l10n = context.l10n;
     if (collection.starter) {
-      if (await _attempt(() => _repository.deleteCollection(collection.id))) {
-        if (mounted && _cubit.state.selectedId == collection.id) _select(null);
+      final (ok, _) = await _attempt(
+        () => _repository.deleteCollection(collection.id),
+      );
+      if (ok && mounted && _cubit.state.selectedId == collection.id) {
+        _select(null);
       }
       return;
     }
-    CollectionDeletion? deletion;
-    final ok = await _attempt(
-      () async => deletion = await _repository.deleteCollection(collection.id),
+    final (ok, deleted) = await _attempt(
+      () => _repository.deleteCollection(collection.id),
     );
     if (!ok || !mounted) return;
     if (_cubit.state.selectedId == collection.id) _select(null);
-    final deleted = deletion;
     if (deleted == null) return;
     showUndoSnackBar(
       context,
@@ -271,9 +272,8 @@ class _PhrasebookViewState extends State<PhrasebookView> {
     );
     if (choice == null || !mounted) return null;
     if (choice.newName case final name?) {
-      PhraseCollection? created;
-      await _attempt(
-        () async => created = await _repository.createCollection(
+      final (_, created) = await _attempt(
+        () => _repository.createCollection(
           name,
           sourceCode: phrase.sourceCode,
           targetCode: phrase.targetCode,
@@ -300,9 +300,8 @@ class _PhrasebookViewState extends State<PhrasebookView> {
       title: l10n.phrasebookCopyTo,
     );
     if (target == null || !mounted) return;
-    PhraseAddition? addition;
-    final ok = await _attempt(
-      () async => addition = await _repository.copyPhrase(phrase.id, target.id),
+    final (ok, addition) = await _attempt(
+      () => _repository.copyPhrase(phrase.id, target.id),
     );
     if (!ok || !mounted) return;
     _say(
@@ -320,7 +319,7 @@ class _PhrasebookViewState extends State<PhrasebookView> {
       title: l10n.phrasebookMoveTo,
     );
     if (target == null || !mounted) return;
-    final ok = await _attempt(
+    final (ok, _) = await _attempt(
       () => _repository.movePhrase(phrase.id, from: from.id, to: target.id),
     );
     if (ok && mounted) _say(l10n.phrasebookMovedTo(target.name));
@@ -328,11 +327,9 @@ class _PhrasebookViewState extends State<PhrasebookView> {
 
   Future<void> _remove(Phrase phrase, PhraseCollection from) async {
     final l10n = context.l10n;
-    PhraseRemoval? removal;
-    final ok = await _attempt(
-      () async => removal = await _repository.removePhrase(phrase.id, from.id),
+    final (ok, removed) = await _attempt(
+      () => _repository.removePhrase(phrase.id, from.id),
     );
-    final removed = removal;
     if (!ok || removed == null || !mounted) return;
     showUndoSnackBar(
       context,

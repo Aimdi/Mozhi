@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:mozhi/presets/models/tombstone.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 /// Language scopes of glossaries: a language code or [any].
@@ -149,6 +150,10 @@ TermMerge mergeTerms(
 
 /// A named list of terms for a language pair (either side may be
 /// [LanguageScope.any]). Disabled glossaries are kept but not applied.
+///
+/// [updatedAt] says when the glossary was last created or changed, for
+/// backups and sync (the newer copy of a glossary wins); it is not part of
+/// `==`.
 class Glossary extends Equatable {
   const new({
     required this.id,
@@ -157,10 +162,13 @@ class Glossary extends Equatable {
     this.targetCode = LanguageScope.any,
     this.enabled = true,
     this.terms = const [],
+    this.updatedAt,
   });
 
   /// Tolerant parser: invalid terms are skipped, a missing scope means
-  /// [LanguageScope.any]. Throws [FormatException] without an id.
+  /// [LanguageScope.any], an invalid `updatedAt` is ignored (glossaries
+  /// stored before they had one have none). Throws [FormatException]
+  /// without an id.
   factory fromJson(Map<String, dynamic> json) {
     final id = json['id'];
     if (id is! String || id.trim().isEmpty) {
@@ -182,6 +190,7 @@ class Glossary extends Equatable {
           for (final term in terms)
             if (term is Map) ?_tryParseTerm(term),
       ]),
+      updatedAt: parseChangeTime(json['updatedAt']),
     );
   }
 
@@ -196,6 +205,19 @@ class Glossary extends Equatable {
 
   final bool enabled;
   final List<GlossaryTerm> terms;
+
+  /// When the glossary was last created or changed (renamed, scoped,
+  /// turned on or off, terms added, edited or removed, put back after a
+  /// delete); null for glossaries stored before glossaries had change
+  /// times. Backups and sync keep the newer copy of a glossary by
+  /// [modifiedAt].
+  ///
+  /// Bookkeeping only: glossaries that differ only here are equal (`==`).
+  final DateTime? updatedAt;
+
+  /// [updatedAt], else the epoch (1970): a glossary without a change time
+  /// loses to any copy or deletion that has one.
+  DateTime get modifiedAt => updatedAt ?? unknownChangeTime;
 
   /// Whether this glossary applies to translations from [sourceCode] into
   /// [targetCode] (see [LanguageScope.matches]); ignores [enabled].
@@ -215,6 +237,7 @@ class Glossary extends Equatable {
     String? targetCode,
     bool? enabled,
     List<GlossaryTerm>? terms,
+    DateTime? updatedAt,
   }) => Glossary(
     id: id ?? this.id,
     name: name ?? this.name,
@@ -226,8 +249,23 @@ class Glossary extends Equatable {
         : LanguageScope.normalize(targetCode),
     enabled: enabled ?? this.enabled,
     terms: terms == null ? this.terms : List.unmodifiable(terms),
+    updatedAt: updatedAt ?? this.updatedAt,
   );
 
+  /// This glossary without its [updatedAt] (for exports shared with
+  /// others).
+  Glossary withoutChangeTime() => updatedAt == null
+      ? this
+      : Glossary(
+          id: id,
+          name: name,
+          sourceCode: sourceCode,
+          targetCode: targetCode,
+          enabled: enabled,
+          terms: terms,
+        );
+
+  /// `updatedAt` (UTC) is written only when there is one.
   Map<String, dynamic> toJson() => {
     'id': id,
     'name': name,
@@ -235,6 +273,8 @@ class Glossary extends Equatable {
     'target': targetCode,
     'enabled': enabled,
     'terms': [for (final term in terms) term.toJson()],
+    if (updatedAt case final updatedAt?)
+      'updatedAt': updatedAt.toUtc().toIso8601String(),
   };
 
   static GlossaryTerm? _tryParseTerm(Map<dynamic, dynamic> json) {
@@ -247,7 +287,15 @@ class Glossary extends Equatable {
   }
 
   @override
-  List<Object?> get props => [id, name, sourceCode, targetCode, enabled, terms];
+  List<Object?> get props => [
+    id,
+    name,
+    sourceCode,
+    targetCode,
+    enabled,
+    terms,
+    // Not updatedAt: see there.
+  ];
 }
 
 /// Merges the terms of all enabled [glossaries] that match the language pair

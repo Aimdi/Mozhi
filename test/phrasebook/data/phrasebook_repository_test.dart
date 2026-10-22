@@ -780,6 +780,25 @@ void main() {
       expect(await target.lastCollectionId(), isNull);
     });
 
+    test('replacing sets an unreadable phrasebook aside; merging into '
+        'one fails', () async {
+      final source = repo();
+      final lisbon = await source.createCollection('Lisbon');
+      final backup = jsonDecode(jsonEncode(await source.exportBackup()));
+      keys.values.clear();
+      final target = repo();
+      await expectLater(
+        target.restoreBackup(backup, version: 1, merge: true),
+        throwsA(isA<PhrasebookUnreadableException>()),
+      );
+      await target.restoreBackup(backup, version: 1, merge: false);
+      expect((await target.collection(lisbon.id))?.name, 'Lisbon');
+      expect(
+        store.values[PhrasebookRepository.unreadableStorageKey],
+        isNotNull,
+      );
+    });
+
     test('refuses newer versions and other data', () async {
       final phrasebook = repo();
       expect(
