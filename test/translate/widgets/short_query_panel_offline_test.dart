@@ -6,6 +6,7 @@ import 'package:mozhi/translate/widgets/widgets.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 import '../../dictionary/data/dictionary_pack_fixtures.dart';
+import '../../dictionary/helpers/offline_dictionary_helpers.dart';
 import '../../helpers/helpers.dart';
 import '../helpers/helpers.dart';
 import 'output_stubs.dart';
@@ -121,7 +122,7 @@ void main() {
     testWidgets('looks up again for a new word and survives failures', (
       tester,
     ) async {
-      Widget panel(String word, DictionaryPacks dictionary) => Scaffold(
+      Widget panel(String word, OfflineDictionary dictionary) => Scaffold(
         body: OfflineDefinitions(
           dictionary: dictionary,
           word: word,
@@ -143,6 +144,25 @@ void main() {
       await tester.pumpApp(panel('gato', failing));
       await tester.pump();
       expect(find.text('Definitions'), findsNothing);
+      // A dictionary that throws shows nothing either.
+      final fake = FakeOfflineDictionary()..error = StateError('broken');
+      await tester.pumpApp(panel('gato', fake));
+      await tester.pump();
+      expect(find.text('Definitions'), findsNothing);
+      fake.error = null;
+      await tester.pumpApp(
+        Scaffold(
+          body: OfflineDefinitions(
+            dictionary: fake,
+            word: 'gato',
+            language: 'es',
+            target: 'fr',
+            heading: const Text('Definitions'),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.text('Definitions'), findsOneWidget);
     });
   });
 }

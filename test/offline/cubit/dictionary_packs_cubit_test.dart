@@ -326,6 +326,17 @@ void main() {
     expect(item.matches('span'), isTrue);
     expect(item.matches('es'), isTrue);
     expect(item.matches('fr'), isFalse);
+    expect(
+      item,
+      DictionaryPackItem(
+        pack: es,
+        display: const OfflineLanguage(
+          code: 'es',
+          name: 'Spanish',
+          nativeName: 'Español',
+        ),
+      ),
+    );
   });
 }
 

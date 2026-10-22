@@ -686,6 +686,31 @@ void main() {
         expect(prompt, isNot(contains('empty')));
       });
 
+      test('matches acronyms and case-sensitive terms of a long glossary '
+          'in their exact case', () {
+        final prompt = system(
+          request(
+            text: 'Is it an apple from Apple?',
+            options: TranslationOptions(
+              glossary: {...long, 'IT': 'TI', 'Apple': 'Apple Inc.'},
+              caseSensitiveGlossaryTerms: const {'Apple'},
+            ),
+          ),
+        );
+        expect(prompt, contains('- Apple -> Apple Inc.'));
+        expect(prompt, isNot(contains('IT -> TI')));
+        final lower = system(
+          request(
+            text: 'Is it an apple?',
+            options: TranslationOptions(
+              glossary: {...long, 'IT': 'TI', 'Apple': 'Apple Inc.'},
+              caseSensitiveGlossaryTerms: const {'Apple'},
+            ),
+          ),
+        );
+        expect(lower, isNot(contains('Glossary')));
+      });
+
       test('is omitted when no term of a long glossary occurs', () {
         final prompt = system(
           request(

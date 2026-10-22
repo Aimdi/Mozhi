@@ -67,11 +67,12 @@ DictionaryPacks? maybeDictionaryPacks(BuildContext context) {
   }
 }
 
-/// Sends every request with the client of [NetworkSession.current] at that
-/// moment (its proxy, network rules and request log; also in a browser).
-/// Closing it does nothing: the session owns the client.
+/// Sends every request with the model download client of
+/// [NetworkSession.current] at that moment (its proxy, network rules and
+/// request log, where pack downloads are listed as model downloads; also
+/// in a browser). Closing it does nothing: the session owns the client.
 class SessionHttpClient extends http.BaseClient {
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) =>
-      NetworkSession.current.client.send(request);
+      NetworkSession.current.modelClient.send(request);
 }

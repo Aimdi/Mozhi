@@ -9407,7 +9407,7 @@
       }
     }
   },
-  "dictionaryOfflineSourceHint": "Shows where this entry comes from and its licence",
+  "dictionaryOfflineSourceHint": "Shows where this entry comes from and its license",
   "@dictionaryOfflineSourceHint": {
     "description": "dictionaryOfflineSourceHint"
   },
@@ -9423,7 +9423,7 @@
       }
     }
   },
-  "dictionaryAttributionLicense": "Licence",
+  "dictionaryAttributionLicense": "License",
   "@dictionaryAttributionLicense": {
     "description": "dictionaryAttributionLicense"
   },
@@ -9565,5 +9565,9 @@
   "translateOfflineOnlyBrowserUnsupported": "This browser can’t run offline translation (Settings › Translation engines › Languages on this device says why). Switch to Offline first or Online in Settings › Privacy & data.",
   "@translateOfflineOnlyBrowserUnsupported": {
     "description": "translateOfflineOnlyBrowserUnsupported"
+  },
+  "commonErrorRedirectRefused": "The server redirected to an address Mozhi doesn’t follow (plain http, your local network or another kind of address), so nothing was sent there.",
+  "@commonErrorRedirectRefused": {
+    "description": "commonErrorRedirectRefused"
   }
 }

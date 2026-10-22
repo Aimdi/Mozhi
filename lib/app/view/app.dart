@@ -11,6 +11,7 @@ import 'package:mozhi/app/shared_text_handler.dart';
 import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/app/translate_link.dart';
 import 'package:mozhi/core/key_value_store.dart';
+import 'package:mozhi/dictionary/data/dictionary_packs.dart';
 import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/history/data/history_repository.dart';
 import 'package:mozhi/history/view/widgets/history_retention_listener.dart';
@@ -266,6 +267,9 @@ class _AppState extends State<App> {
         // Only where Whisper runs (the voice settings look for it).
         if (_deps.offlineSpeech case final offlineSpeech?)
           RepositoryProvider<OfflineSpeech>.value(value: offlineSpeech),
+        // The offline dictionaries (`maybeDictionaryPacks` finds them).
+        if (_deps.dictionaryPacks case final dictionaryPacks?)
+          RepositoryProvider<DictionaryPacks>.value(value: dictionaryPacks),
         RepositoryProvider<OfflineTranslator>.value(
           value: _deps.offlineTranslator,
         ),

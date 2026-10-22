@@ -616,6 +616,15 @@ void main() {
         l10n.commonErrorInvalidProxy,
       );
       expect(
+        of(
+          const ModelDownloadException(
+            'de-en',
+            RedirectRefusedException.downgradeMessage,
+          ),
+        ),
+        l10n.commonErrorRedirectRefused,
+      );
+      expect(
         of(const FileSystemException('full')),
         'Couldn’t save German. Free up some storage and try again.',
       );

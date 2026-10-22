@@ -95,6 +95,13 @@ in `-rc.N`).
   Read aloud & voice › Voice input), text appears after each phrase
   instead of at the end, sessions last up to a minute, and noise no longer
   counts as speech. Conversation uses it too.
+- **Offline dictionaries** (Offline languages › Dictionaries): download a
+  Wiktionary dictionary once, and the Dictionary tab and the panel under
+  short translations show meanings, pronunciation, examples and
+  inflected forms ("went" is a form of "go") without AI or a network,
+  credited "From Wiktionary · CC BY-SA 4.0". **More detail** still asks
+  your AI provider. Look-ups never leave the device. The dictionaries are
+  published with the app's releases.
 - **Model source** (Settings › Translation engines, and the Offline
   languages screen): download offline languages, voice input and text
   recognition models from the original publishers, from the server that

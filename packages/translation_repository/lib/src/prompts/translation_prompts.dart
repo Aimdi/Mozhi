@@ -296,10 +296,10 @@ abstract final class TranslationPrompts {
   ///   without its dots).
   /// * The only inflection is a plural or genitive `s` or `es` after a
   ///   last word of four or more letters that is written in lower case or
-  ///   capitalised (`server`: `servers`; `Haus`: `Hauses`; `box` is too
-  ///   short for `boxes`, so `car` never matches `cares`; acronyms and
-  ///   mixed case like `iPhone` get none). A possessive needs none, as the
-  ///   apostrophe ends the word (`Mozhi` in `Mozhi's`).
+  ///   capitalised (`server`: `servers`; `Haus`: `Hauses`, not `Häuser`).
+  ///   Shorter words, acronyms and mixed case like `iPhone` get none, so
+  ///   `car` matches neither `cars` nor `cares`. A possessive needs none,
+  ///   as the apostrophe ends the word (`Mozhi` in `Mozhi's`).
   ///
   /// Occurrences never overlap: longer terms are placed first (`New York
   /// Times` before `New York`), and an occurrence that overlaps one placed
@@ -2201,22 +2201,23 @@ final class _Folded {
 final class _GlossaryTerm {
   new(String term, {bool caseSensitive = false, this.strict = false})
     : folded = _Folded(term.trim()),
-      exactCase = caseSensitive || _isAcronym(term) {
-    _lastWord = term.trim().split(_spaces).last;
-  }
+      exactCase = caseSensitive || _isAcronym(term),
+      _lastWord = term.trim().split(_spaces).last;
 
   /// The term, folded.
   final _Folded folded;
 
-  /// Whether only whole words in the same case (see [exactCase]), with the
-  /// same accents and at most a plural `s` or `es` match.
+  /// Whether the term is matched strictly (see `TranslationPrompts
+  /// .glossaryOccurrences`): with the same accents, and inflected only by
+  /// a plural `s` or `es`.
   final bool strict;
 
   /// Whether the term matches its exact capitalisation only: a
   /// case-sensitive term or an acronym.
   final bool exactCase;
 
-  late final String _lastWord;
+  /// The last word of the term as written.
+  final String _lastWord;
 
   /// Whether the term has characters of a script written without spaces
   /// between words: it matches anywhere then.
@@ -2253,6 +2254,20 @@ final class _GlossaryTerm {
   /// .glossaryMatches` and, when [strict], `TranslationPrompts
   /// .glossaryOccurrences`).
   RegExp get pattern {
+    final source = _parts.source;
+    if (_patterns[source] case final pattern?) return pattern;
+    if (_patterns.length >= 4096) _patterns.clear();
+    return _patterns[source] = RegExp(source, unicode: true);
+  }
+
+  /// What every match of [pattern] starts with (its first word, or the
+  /// stem of its only word): a quick test before the pattern runs.
+  String get start => _parts.start;
+
+  late final ({String source, String start}) _parts = _compose();
+
+  /// The source of [pattern] and [start].
+  ({String source, String start}) _compose() {
     final words = folded.text.split(_spaces);
     final last = words.removeLast();
     var stem = last;
@@ -2280,10 +2295,10 @@ final class _GlossaryTerm {
     const before = r'(?<![\p{L}\p{M}\p{N}])';
     const after = r'(?![\p{L}\p{M}\p{N}])';
     final body = [...words, stem].map(RegExp.escape).join(r'\s+');
-    final source = '$before$body$ending$after';
-    if (_patterns[source] case final pattern?) return pattern;
-    if (_patterns.length >= 4096) _patterns.clear();
-    return _patterns[source] = RegExp(source, unicode: true);
+    return (
+      source: '$before$body$ending$after',
+      start: words.isEmpty ? stem : words.first,
+    );
   }
 
   /// Whether [term] is an acronym: two or more letters, all upper case
@@ -2350,6 +2365,7 @@ final class _GlossaryLocator {
         }
       }
     }
+    if (!_text.text.contains(term.start)) return;
     for (final match in term.pattern.allMatches(_text.text)) {
       if (match.end > match.start &&
           term.agreesWith(_text, match.start, match.end)) {

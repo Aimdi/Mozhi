@@ -15,6 +15,7 @@ import 'package:translation_repository/translation_repository.dart';
 import '../../helpers/helpers.dart';
 import '../data/dictionary_pack_fixtures.dart';
 import '../helpers/dictionary_helpers.dart';
+import '../helpers/offline_dictionary_helpers.dart';
 
 const _readyWithAi = TranslateState(
   enginesStatus: EnginesStatus.ready,
@@ -222,6 +223,22 @@ void main() {
       expect(find.text('“gatos” is a form of “gato”'), findsOneWidget);
     });
 
+    testWidgets('a word that is also a form links its lemma', (tester) async {
+      await pumpPage(
+        tester,
+        page: const DictionaryPage(word: 'gata', autoLookUp: true),
+      );
+      await tester.pump();
+      expect(find.text('Also a form of'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('dictionary_lemma:gato')));
+      await tester.pump();
+      await tester.pump();
+      expect(
+        find.textContaining('cat  (masculine)', findRichText: true),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('without AI, a miss offers similar words', (tester) async {
       await pumpPage(
         tester,
@@ -303,6 +320,8 @@ void main() {
         find.byKey(const Key('dictionary_set_up_providers')),
         findsOneWidget,
       );
+      await tester.tap(find.byKey(const Key('dictionary_set_up_providers')));
+      await tester.pump();
       await tester.tap(find.byKey(const Key('dictionary_get_packs')));
       await tester.pumpAndSettle();
       expect(find.byType(DictionaryPacksPage), findsOneWidget);
@@ -317,6 +336,31 @@ void main() {
         findsOneWidget,
       );
     });
+  });
+
+  testWidgets('the notice links the other lemmas', (tester) async {
+    final tapped = <String>[];
+    await tester.pumpApp(
+      Scaffold(
+        body: DictionaryOfflineNotice(
+          answer: gatosAnswer,
+          onWordTap: tapped.add,
+        ),
+      ),
+    );
+    expect(find.text('“gatos” is a form of “gato”'), findsOneWidget);
+    expect(find.text('Also a form of'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('dictionary_lemma:gatear')));
+    expect(tapped, ['gatear']);
+    await tester.pumpApp(
+      Scaffold(
+        body: DictionaryOfflineNotice(
+          answer: gatoAnswer,
+          onWordTap: tapped.add,
+        ),
+      ),
+    );
+    expect(find.byKey(const Key('dictionary_offline_notice')), findsNothing);
   });
 
   testWidgets('an AI entry without personal data shows no note', (

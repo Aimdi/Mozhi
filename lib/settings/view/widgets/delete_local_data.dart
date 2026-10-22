@@ -6,6 +6,9 @@ import 'package:intl/intl.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/router.dart' show AppRoutes;
 import 'package:mozhi/core/key_value_store.dart';
+import 'package:mozhi/dictionary/data/default_dictionary_packs.dart'
+    show maybeDictionaryPacks;
+import 'package:mozhi/dictionary/data/dictionary_packs.dart';
 import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/history/data/history_repository.dart';
 import 'package:mozhi/image_translate/data/text_recognition_service.dart';
@@ -87,6 +90,7 @@ class LocalDataEraser {
     this.speech,
     this.speechInput,
     this.offlineSpeech,
+    this.dictionaryPacks,
     this.textRecognition,
     this.deleteTextRecognitionFiles,
   });
@@ -125,6 +129,7 @@ class LocalDataEraser {
       speech: maybe<SpeechService>(),
       speechInput: maybe<SpeechInputService>(),
       offlineSpeech: maybe<OfflineSpeech>(),
+      dictionaryPacks: maybeDictionaryPacks(context),
       textRecognition: hasOcrData ? ocr : null,
       deleteTextRecognitionFiles: hasOcrData
           ? text_recognition.deleteTextRecognitionFiles
@@ -156,6 +161,10 @@ class LocalDataEraser {
   /// The offline speech models (Whisper), deleted with the offline
   /// languages.
   final OfflineSpeech? offlineSpeech;
+
+  /// The offline dictionaries, deleted pack by pack so that open screens
+  /// update.
+  final DictionaryPacks? dictionaryPacks;
 
   /// The text recognition language data (Tesseract), deleted language by
   /// language so that open screens update.
@@ -204,6 +213,13 @@ class LocalDataEraser {
     }
     if (deleteOfflineFiles case final deleteFiles?) await attempt(deleteFiles);
     if (offlineSpeech case final speech?) await attempt(speech.deleteAll);
+    if (dictionaryPacks case final packs?) {
+      await attempt(() async {
+        for (final pack in await packs.installed()) {
+          await packs.delete(pack.id);
+        }
+      });
+    }
     if (textRecognition case final ocr?) {
       await attempt(() async {
         for (final code in (await ocr.installedOcrLanguages()).keys) {

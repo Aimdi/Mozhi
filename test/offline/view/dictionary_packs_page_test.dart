@@ -9,6 +9,7 @@ import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/dictionary/data/dictionary_packs.dart';
 import 'package:mozhi/dictionary/widgets/dictionary_attribution.dart';
 import 'package:mozhi/offline/offline.dart';
+import 'package:mozhi/settings/view/widgets/link_launcher.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 import '../../dictionary/data/dictionary_pack_fixtures.dart';
@@ -205,10 +206,16 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(DictionaryAttributionDialog), findsOneWidget);
       expect(find.text('From Wiktionary · CC BY-SA 4.0'), findsOneWidget);
-      expect(
-        find.byKey(const Key('dictionary_attribution_source')),
-        findsOneWidget,
-      );
+      final opened = <Uri>[];
+      final launcher = LinkLauncher.launcher;
+      LinkLauncher.launcher = (uri) async {
+        opened.add(uri);
+        return true;
+      };
+      addTearDown(() => LinkLauncher.launcher = launcher);
+      await tester.tap(find.byKey(const Key('dictionary_attribution_source')));
+      await tester.pump();
+      expect(opened, [Uri.parse('https://www.wiktionary.org/')]);
     });
 
     testWidgets('a failed load offers a retry', (tester) async {

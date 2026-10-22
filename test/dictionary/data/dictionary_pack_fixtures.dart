@@ -3,7 +3,8 @@ import 'dart:typed_data';
 import 'package:mozhi/dictionary/data/dictionary_packs.dart';
 import 'package:translation_repository/translation_repository.dart';
 
-/// A small Spanish pack: `gato` (forms `gatos`, `gata`) and `árbol`.
+/// A small Spanish pack: `gato` (forms `gatos`, `gata`), `gata` and
+/// `árbol`.
 Uint8List spanishPack() {
   final writer =
       DictionaryPackWriter(
@@ -30,6 +31,13 @@ Uint8List spanishPack() {
             synonyms: ['minino'],
           ),
           forms: ['gatos', 'gata'],
+        )
+        ..add(
+          const DictionaryPackEntry(
+            word: 'gata',
+            partOfSpeech: 'noun',
+            senses: [DictionaryPackSense(gloss: 'female cat')],
+          ),
         )
         ..add(
           const DictionaryPackEntry(

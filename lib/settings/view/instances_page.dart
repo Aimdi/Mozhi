@@ -742,7 +742,9 @@ abstract final class HealthBadges {
             color: colors.error,
             icon: Icons.no_encryption_outlined,
           ),
-          NetworkPolicyError.invalidProxy || null => StatusBadge(
+          NetworkPolicyError.invalidProxy ||
+          NetworkPolicyError.redirectRefused ||
+          null => StatusBadge(
             label: l10n.settingsInstancesOffline,
             color: colors.error,
             icon: Icons.cloud_off_outlined,

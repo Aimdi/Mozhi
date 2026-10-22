@@ -345,6 +345,10 @@ void main() {
         '東京 -> Tokyo',
         '東京 -> Tokyo',
       ]);
+      // An acronym among them still needs its case.
+      expect(found({'AI翻译': 'AI translation'}, 'ai翻译和AI翻译'), [
+        'AI翻译 -> AI translation',
+      ]);
     });
 
     test('skips blank entries and empty texts', () {

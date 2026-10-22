@@ -333,7 +333,12 @@ enum NetworkPolicyError {
 
   /// The proxy setting is not a valid `host:port`
   /// ([InvalidProxyException]).
-  invalidProxy;
+  invalidProxy,
+
+  /// A download's redirect that [BackendHttpClient] does not follow
+  /// ([RedirectRefusedException]: https to http, into the private network,
+  /// another scheme).
+  redirectRefused;
 
   /// The policy error behind [error], or null. Also recognises the errors
   /// after a backend client wrapped them (`MozhiApiException`,
@@ -352,6 +357,7 @@ enum NetworkPolicyError {
     if (text.contains(InvalidProxyException.defaultMessage)) {
       return invalidProxy;
     }
+    if (text.contains(RedirectRefusedException.marker)) return redirectRefused;
     return null;
   }
 }
@@ -363,5 +369,6 @@ String? describeNetworkPolicyError(AppLocalizations l10n, Object? error) =>
       NetworkPolicyError.cleartext => l10n.commonErrorCleartextRefused,
       NetworkPolicyError.proxyRequired => l10n.commonErrorProxyRequired,
       NetworkPolicyError.invalidProxy => l10n.commonErrorInvalidProxy,
+      NetworkPolicyError.redirectRefused => l10n.commonErrorRedirectRefused,
       null => null,
     };

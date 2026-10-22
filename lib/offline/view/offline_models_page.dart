@@ -233,6 +233,7 @@ String offlineOutcomeMessage(
       NetworkPolicyError.cleartext => l10n.commonErrorCleartextRefused,
       NetworkPolicyError.proxyRequired => l10n.commonErrorProxyRequired,
       NetworkPolicyError.invalidProxy => l10n.commonErrorInvalidProxy,
+      NetworkPolicyError.redirectRefused => l10n.commonErrorRedirectRefused,
       null when mirror != null => l10n.offlineErrorNetworkMirror(name, mirror),
       null => l10n.offlineErrorNetwork(name),
     },

@@ -765,8 +765,9 @@ void main() {
 
       test('a term without its rendering is retried and reported', () async {
         stubAnswers(llmOf(plainOpenAi), [
-          'El equipo de informática está listo hoy.',
-          'El equipo de informática está listo hoy mismo.',
+          // (A rendering in a word counts: no "informática" here.)
+          'El equipo de sistemas está listo hoy.',
+          'El equipo de sistemas está listo hoy mismo.',
         ]);
         final result = await repository
             .translate(openAi, withIt('The IT team is ready today.'))

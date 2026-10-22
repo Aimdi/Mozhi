@@ -249,6 +249,16 @@ void main() {
         NetworkPolicyError.of(InvalidProxyException(null)),
         NetworkPolicyError.invalidProxy,
       );
+      for (final refused in [
+        RedirectRefusedException.downgrade(null),
+        RedirectRefusedException.intoPrivateNetwork(null),
+        RedirectRefusedException.unsupported(null),
+      ]) {
+        expect(
+          NetworkPolicyError.of(refused),
+          NetworkPolicyError.redirectRefused,
+        );
+      }
       expect(NetworkPolicyError.of(null), isNull);
       expect(NetworkPolicyError.of(StateError('x')), isNull);
       expect(
@@ -329,6 +339,13 @@ void main() {
     expect(
       describeNetworkPolicyError(l10n, InvalidProxyException(null)),
       l10n.commonErrorInvalidProxy,
+    );
+    expect(
+      describeNetworkPolicyError(
+        l10n,
+        RedirectRefusedException.intoPrivateNetwork(null),
+      ),
+      l10n.commonErrorRedirectRefused,
     );
     expect(describeNetworkPolicyError(l10n, StateError('x')), isNull);
   });

@@ -271,10 +271,10 @@ void main() {
         {'bank': 'banco'},
         preserveFormatting: false,
       );
-      expect(masked, '⟨1⟩: https://bank.example/bank or bank@example.org');
+      expect(masked, 'The ⟨1⟩: https://bank.example/bank or bank@example.org');
       expect(
         result.text,
-        'Banco: https://bank.example/bank or bank@example.org',
+        'The banco: https://bank.example/bank or bank@example.org',
       );
       expect(glossaryWarnings(result), isEmpty);
     });
