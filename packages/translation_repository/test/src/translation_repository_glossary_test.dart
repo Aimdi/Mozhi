@@ -78,10 +78,20 @@ void main() {
     test('send the terms as tokens and put the renderings back', () async {
       stubMozhi(toEnglish);
       final result = await repository
-          .translate(googleEngine, german('Das Haus und die Häuser sind alt'))
+          .translate(googleEngine, german('Das Haus und die HAUS sind alt'))
           .single;
       expect(sent.single, 'Das ⟨1⟩ und die ⟨1⟩ sind alt');
       expect(result.text, 'The building and the building are old');
+      expect(result.warnings, isEmpty);
+    });
+
+    test('replace whole words only, not other forms', () async {
+      stubMozhi(toEnglish);
+      final result = await repository
+          .translate(googleEngine, german('Das Haus und die Häuser sind alt'))
+          .single;
+      expect(sent.single, 'Das ⟨1⟩ und die Häuser sind alt');
+      expect(result.text, 'The building and the Häuser are old');
       expect(result.warnings, isEmpty);
     });
 
@@ -156,6 +166,117 @@ void main() {
           .single;
       expect(sent.single, 'Das ist groß');
       expect(result.warnings, isEmpty);
+    });
+  });
+
+  group('words that only look like a term', () {
+    /// The English [text] with [glossary], into Spanish.
+    TranslationRequest english(
+      String text,
+      Map<String, String> glossary, {
+      Set<String> caseSensitive = const {},
+      bool preserveFormatting = true,
+    }) => TranslationRequest(
+      text: text,
+      source: const Language(code: 'en', name: 'English'),
+      target: const Language(code: 'es', name: 'Spanish'),
+      options: TranslationOptions(
+        glossary: glossary,
+        caseSensitiveGlossaryTerms: caseSensitive,
+        preserveFormatting: preserveFormatting,
+      ),
+    );
+
+    Iterable<TranslationWarning> glossaryWarnings(TranslationResult result) =>
+        result.warnings.where(
+          (warning) => warning.kind == TranslationWarningKind.glossary,
+        );
+
+    /// What Mozhi gets and the result of [text] with [glossary], Mozhi
+    /// echoing what it gets.
+    Future<(String, TranslationResult)> echo(
+      String text,
+      Map<String, String> glossary, {
+      Set<String> caseSensitive = const {},
+      bool preserveFormatting = true,
+    }) async {
+      sent.clear();
+      stubMozhi((text) => text);
+      final result = await repository
+          .translate(
+            googleEngine,
+            english(
+              text,
+              glossary,
+              caseSensitive: caseSensitive,
+              preserveFormatting: preserveFormatting,
+            ),
+          )
+          .single;
+      return (sent.single, result);
+    }
+
+    for (final (glossary, text) in [
+      (const {'IT': 'TI'}, 'Is it ready?'),
+      (const {'US': 'EE. UU.'}, 'Tell us more.'),
+      (const {'Apple': 'Apple'}, 'He applied today.'),
+      (const {'Paris': 'París'}, 'Parity in the parish.'),
+      (const {'car': 'coche'}, 'He cares a lot.'),
+      (const {'Mail': 'correo'}, 'Wir fliegen nach Mailand.'),
+      (const {'Bank': 'banco'}, 'Das Bankett beginnt.'),
+    ]) {
+      test('are sent and come back as they are: $text', () async {
+        final (masked, result) = await echo(text, glossary);
+        expect(masked, text);
+        expect(result.text, text);
+        expect(glossaryWarnings(result), isEmpty);
+      });
+    }
+
+    test('acronyms are replaced in their exact case', () async {
+      final (masked, result) = await echo('Is it in the IT budget?', {
+        'IT': 'TI',
+      });
+      expect(masked, 'Is it in the ⟨1⟩ budget?');
+      expect(result.text, 'Is it in the TI budget?');
+      expect(glossaryWarnings(result), isEmpty);
+    });
+
+    test('other terms in any case, multi-word ones too', () async {
+      final (masked, result) = await echo(
+        'Glossary of machine learning: see the glossary.',
+        {'glossary': 'glosario', 'machine learning': 'aprendizaje automático'},
+      );
+      expect(masked, '⟨1⟩ of ⟨2⟩: see the ⟨1⟩.');
+      expect(
+        result.text,
+        'Glosario of aprendizaje automático: see the glosario.',
+      );
+    });
+
+    test('case-sensitive terms in their exact case only', () async {
+      final (masked, result) = await echo(
+        'Apple sells no apple.',
+        {'Apple': 'Apple Inc.'},
+        caseSensitive: {'Apple'},
+      );
+      expect(masked, '⟨1⟩ sells no apple.');
+      expect(result.text, 'Apple Inc. sells no apple.');
+    });
+
+    test('never inside URLs or e-mail addresses', () async {
+      repository.maskPersonalData = false;
+      final (masked, result) = await echo(
+        'The bank: https://bank.example/bank or bank@example.org',
+        {'bank': 'banco'},
+        preserveFormatting: false,
+      );
+      expect(masked, '⟨1⟩: https://bank.example/bank or bank@example.org');
+      expect(
+        result.text,
+        'Banco: https://bank.example/bank or bank@example.org',
+      );
+      expect(glossaryWarnings(result), isEmpty);
     });
   });
 

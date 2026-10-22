@@ -46,6 +46,15 @@ void main() {
     isMeteredConnection: () async => metered,
   );
 
+  /// Lets a download finish: the response stream's timeout runs outside
+  /// the test's fake time.
+  Future<void> settle(WidgetTester tester) async {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 50)),
+    );
+    await tester.pumpAndSettle();
+  }
+
   Future<void> pumpPage(
     WidgetTester tester,
     DictionaryPacks dictionaries,
@@ -238,6 +247,7 @@ void main() {
         find.text('Look up words without a network · 1 dictionary downloaded'),
         findsOneWidget,
       );
+      respond = () => http.Response.bytes(english, 200);
       await tester.runAsync(() => dictionaries.install(en));
       await tester.pumpAndSettle();
       expect(

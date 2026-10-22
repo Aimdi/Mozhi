@@ -192,6 +192,95 @@ void main() {
           isEmpty,
         );
       });
+
+      test('words that only look like a term ask for nothing', () {
+        for (final (glossary, source) in [
+          (const {'IT': 'TI'}, 'Is it ready? It is.'),
+          (const {'US': 'EE. UU.'}, 'Tell us more.'),
+          (const {'Apple': 'Apple'}, 'He applied today.'),
+          (const {'Paris': 'París'}, 'Parity in the parish.'),
+          (const {'car': 'coche'}, 'He cares a lot.'),
+          (const {'Mail': 'correo'}, 'Wir fliegen nach Mailand.'),
+          (const {'Bank': 'banco'}, 'Das Bankett beginnt.'),
+        ]) {
+          expect(
+            TranslationQa.missingGlossaryTargets(source, 'Nada.', glossary),
+            isEmpty,
+            reason: source,
+          );
+        }
+      });
+
+      test('terms in the source are found strictly', () {
+        expect(
+          TranslationQa.missingGlossaryTargets(
+            'The IT department, the US and machine learning.',
+            'El departamento, el país y el aprendizaje.',
+            const {
+              'machine learning': 'aprendizaje automático',
+              'US': 'EE. UU.',
+              'IT': 'TI',
+            },
+          ),
+          ['TI', 'EE. UU.', 'aprendizaje automático'],
+        );
+        expect(
+          TranslationQa.missingGlossaryTargets(
+            'Apple and apple.',
+            'Manzana.',
+            const {'Apple': 'Apple Inc.'},
+            caseSensitive: const {'Apple'},
+          ),
+          ['Apple Inc.'],
+        );
+        expect(
+          TranslationQa.missingGlossaryTargets(
+            'An apple.',
+            'Una manzana.',
+            const {'Apple': 'Apple Inc.'},
+            caseSensitive: const {'Apple'},
+          ),
+          isEmpty,
+        );
+      });
+
+      test('terms inside URLs, e-mail addresses or tags ask for nothing', () {
+        expect(
+          TranslationQa.missingGlossaryTargets(
+            'See https://bank.example/bank, bank@example.org, <bank>',
+            'Mira https://bank.example/bank, bank@example.org, <bank>',
+            const {'bank': 'banco'},
+          ),
+          isEmpty,
+        );
+      });
+
+      test('lists a rendering once', () {
+        expect(
+          TranslationQa.missingGlossaryTargets(
+            'A server, a host.',
+            'Un servidor.',
+            const {'server': 'nodo', 'host': 'nodo'},
+          ),
+          ['nodo'],
+        );
+      });
+
+      test('check takes the case-sensitive terms', () {
+        List<TranslationWarningKind> glossaryKinds(Set<String> terms) => [
+          for (final warning in TranslationQa.check(
+            source: 'An apple.',
+            output: 'Una manzana.',
+            sourceLanguage: _en,
+            target: _de,
+            glossary: const {'Apple': 'Apple Inc.'},
+            caseSensitiveGlossaryTerms: terms,
+          ))
+            warning.kind,
+        ];
+        expect(glossaryKinds(const {}), [TranslationWarningKind.glossary]);
+        expect(glossaryKinds(const {'Apple'}), isEmpty);
+      });
     });
 
     group('suspects', () {
