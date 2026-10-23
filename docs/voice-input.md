@@ -9,7 +9,7 @@ recognition**.
 | --- | --- | --- |
 | What runs | The recognizer your phone or browser provides. On most Android phones it is Google's | OpenAI's Whisper model on the phone itself, with [whisper.cpp](https://github.com/ggml-org/whisper.cpp) |
 | Where your voice goes | Wherever that recognizer sends it, often to Google | Nowhere: it never leaves the phone |
-| Needs | A recognizer on the device (de-Googled phones often have none) | A downloaded or imported model (75 or 142 MB, plus the 0.9 MB speech detector); Android only |
+| Needs | A recognizer on the device (de-Googled phones often have none) | A downloaded or imported model (57 MB to 547 MB, plus the 0.9 MB speech detector); Android only |
 | Text appears | While you speak | Phrase by phrase while you speak, as soon as you pause (with the speech detector); else when you stop (a "Transcribing…" ring shows meanwhile) |
 | Languages | Whatever the recognizer supports on your device | 99 languages ([list](#languages)) |
 
@@ -62,22 +62,56 @@ because the system recognizer stops after every pause.
 ### Models
 
 Download one in **Settings > Read aloud & voice > Voice input > Offline speech
-models**. Both are multilingual (99 languages); with both installed, tap the
-one to use.
+models**. All are multilingual (99 languages); with several installed, tap
+the one to use (without a choice, the most accurate installed one is used).
 
 | Model | Whisper model | Download | SHA-1 | Notes |
 | --- | --- | --- | --- | --- |
 | **Fast** | `tiny` (39 M parameters) | 75 MiB (`ggml-tiny.bin`, 77,691,713 bytes) | `bd577a113a864445d4c299885e0cb97d4ba92b5f` | Quick, also on older phones; makes more mistakes, especially with accents, names and less common languages |
-| **Better** | `base` (74 M parameters) | 142 MiB (`ggml-base.bin`, 147,951,465 bytes) | `465707469ff3a37a2b9b8d8f89f2f99de7299dac` | Noticeably more accurate, about two to three times slower |
-| Speech detector | Silero VAD v6.2.0 | 0.9 MB (`ggml-silero-v6.2.0.bin`, 885,098 bytes) | `470e5d9d094ddba2f0a512cecc3732a252188abd` | Comes with either model; deleted with the last one |
+| **Better (compact)** | `base`, quantized (q5_1) | about 57 MiB (`ggml-base-q5_1.bin`) | in the app's catalogue | The same model as Better in less than half the space, about as accurate; faster on newer phones ([Speed](#speed)) |
+| **Better** | `base` (74 M parameters) | 142 MiB (`ggml-base.bin`, 147,951,465 bytes) | `465707469ff3a37a2b9b8d8f89f2f99de7299dac` | Noticeably more accurate than Fast, about two to three times slower |
+| **Best** | `small` (244 M parameters), quantized (q5_1) | about 181 MiB (`ggml-small-q5_1.bin`) | in the app's catalogue | Clearly more accurate, especially in less common languages; about three times slower than Better. Offered on phones with 4 GB of RAM or more |
+| **Large** | `large-v3-turbo` (809 M parameters), quantized (q5_0) | 547 MiB (`ggml-large-v3-turbo-q5_0.bin`) | `e050f7970618a659205450ad97eb95a18d69c9ee` | Close to Whisper's best; for fast phones with 8 GB of RAM or more (offered only there) |
+| Speech detector | Silero VAD v6.2.0 | 0.9 MB (`ggml-silero-v6.2.0.bin`, 885,098 bytes) | `470e5d9d094ddba2f0a512cecc3732a252188abd` | Comes with any model; deleted with the last one |
+
+Better (compact), Best and Large are copies of OpenAI's weights quantized
+by the whisper.cpp project (smaller numbers for the weights, a little less
+precise). They appear in the app once its catalogue lists their exact sizes
+and checksums, which are taken from Hugging Face (see
+[For contributors](#for-contributors)). A phone with too little memory for
+Best or Large (or an Android Go phone) is not offered them: while it
+transcribes, Best needs about 0.6 GB and Large about 1 GB. A model you
+imported or installed stays listed, so you can use or delete it.
 
 Quality notes: Whisper is strongest in widely spoken languages (English,
 Spanish, German, French, ...) and much weaker in languages with little
-training data. Both models are small versions of Whisper, so they are less
-accurate than cloud recognizers, may mix up similar languages with
+training data. Fast and Better are small versions of Whisper, so they are
+less accurate than cloud recognizers, may mix up similar languages with
 **Detect language**, and write Chinese in simplified or traditional
 characters unpredictably. Transcribing takes a few seconds; the longer the
 recording, the longer it takes.
+
+### Speed
+
+Whisper runs on the phone's processor. Mozhi ships the engine three times
+for 64-bit ARM phones and uses the fastest one the phone runs, without any
+setting:
+
+| Engine build | Used on | What it adds |
+| --- | --- | --- |
+| Baseline | Every 64-bit ARM phone (Cortex-A53 and later) | NEON |
+| Dot product | Phones whose cores are all Cortex-A55/A75 or newer (most mid-range and flagship phones from 2019 on, for example Snapdragon 845 and 855, Google Tensor and G2, most Dimensity chips; budget chips with Cortex-A53 or A73 cores keep the baseline) | Int8 dot products (the quantized models) and half-precision arithmetic (the others) |
+| Int8 matrix | Phones with ARMv9 cores (from 2022: Snapdragon 8 Gen 1 and later, Google Tensor G3 and later, Dimensity 9000 and later) | The above and int8 matrix multiplication |
+
+A build is used only if every core of the processor supports it (some
+phones mix cores of different generations); if it cannot be loaded, the
+baseline is. The quantized models (Better (compact), Best, Large) gain the
+most. The aim is transcriptions about 1.5 to 3 times faster on such phones;
+phone measurements are still to come. On a desktop x86-64 processor (a Xeon
+with AVX-512), a build for that processor runs Fast's 30-second window about
+7 times faster than the portable baseline (0.6 s instead of 4.5 s, two
+threads; that baseline is what x86_64 Android devices, emulators and
+Chromebooks use).
 
 ### Where the models come from
 
@@ -152,7 +186,8 @@ on.
   Android app only.
 - **Supported phones:** Whisper runs on 64-bit ARM and x86_64 Android
   devices and on 32-bit ARM devices with NEON and VFPv4 (almost all of
-  them); elsewhere the offline option is not offered.
+  them); elsewhere the offline option is not offered. Newer 64-bit ARM
+  phones get a faster build of the engine automatically ([Speed](#speed)).
 - **Storage:** the models are kept in the app's private storage (not in
   backups) until you delete them; **Delete all local data** removes them
   too.
@@ -178,7 +213,13 @@ on.
 
 The engine is the `packages/whisper_speech` package: whisper.cpp v1.9.5 as a
 pinned submodule, built into `libmozhi_whisper.so` with ggml's CPU backend
-only, the model catalogue (the speech models and the `kind: vad` entry),
+only (on arm64-v8a also `libmozhi_whisper_dotprod.so`,
+`armv8.2-a+dotprod+fp16`, and `libmozhi_whisper_i8mm.so`,
+`armv8.6-a+dotprod+fp16+i8mm`: Dart reads `/proc/cpuinfo`
+(`ArmCpuFeatures`, a feature counts when every core lists it), loads the
+best one and falls back to the baseline when it does not open or reports
+another ABI version; see the package README's "CPU variants"),
+the model catalogue (the speech models and the `kind: vad` entry),
 the verified model manager and the Dart FFI engine in a background isolate,
 with Silero VAD (`mozhi_whisper_vad_*`) in another isolate so it keeps up
 with the microphone while a phrase is transcribed. See its
@@ -192,3 +233,17 @@ pauses (with 200 ms of padding, dropping blips under 160 ms, at most 25 s
 each) and each phrase is transcribed as soon as it is cut; the text so far
 arrives as partial results. Transcribe (`lib/transcribe/`) uses the same
 pipeline without the end-of-utterance stop.
+
+The quantized models' catalogue entries come from
+`tool/whisper_catalog.py resolve`: it pins Hugging Face's current commit,
+takes each file's size and SHA-256 from its API, downloads the file to
+compute the SHA-1 (and compares whisper.cpp's README SHA-1 where it lists
+one) and prints the entries with their `minRamMb` (3000 for Best, 7000 for
+Large: below that RAM, `WhisperCatalogModel.fitsMemory` keeps the app from
+offering them; `OfflineSpeech.fits` with `DeviceMemory`). Only CI reaches
+Hugging Face, so the job "Check model downloads" prints them for a
+maintainer to add (`resolve --write` merges them in catalogue order where
+Hugging Face is reachable); `tool/whisper_catalog_test.py` tests it against
+a local fixture server. `GGML_CPU_REPACK` stays off: ggml repacks Q4, Q8
+and K-quant weights, not q5_0/q5_1 (on x86-64 the two builds measured the
+same with a q5_1 model).

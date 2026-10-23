@@ -58,7 +58,8 @@ sealed class DataDestination {
   }
 }
 
-/// The text stays on this device (offline engine).
+/// The text stays on this device: the offline engine, or an AI model that
+/// runs inside the app (`AiProviderConfig.isOnDevice`).
 final class OnDeviceDestination extends DataDestination {
   const new();
 

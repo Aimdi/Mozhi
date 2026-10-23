@@ -6,8 +6,10 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/backup/data/backup_registry.dart';
 import 'package:mozhi/dictionary/data/dictionary_packs.dart';
 import 'package:mozhi/image_translate/data/text_recognition_service.dart';
+import 'package:mozhi/on_device_ai/data/on_device_models.dart';
 import 'package:mozhi/pairing/data/bergamot_pairing_packs.dart';
 import 'package:mozhi/pairing/data/dictionary_pairing_packs.dart';
+import 'package:mozhi/pairing/data/llama_pairing_packs.dart';
 import 'package:mozhi/pairing/data/pairing_environment.dart';
 import 'package:mozhi/pairing/data/pairing_packs.dart';
 import 'package:mozhi/pairing/data/tesseract_pairing_packs.dart';
@@ -24,10 +26,11 @@ import 'package:translation_repository/translation_repository.dart';
 /// The app's pairing dependencies, from what the widget tree provides: the
 /// backup sections ([BackupRegistry]), the offline translation models
 /// (when the [OfflineTranslator] is Bergamot's), the speech models
-/// ([OfflineSpeech]), the text recognition data of the build's recognizer
-/// and the offline dictionaries ([DictionaryPacks]). Whatever is missing
-/// is neither offered nor taken. Transfers use the app's cache folder and
-/// keep the screen on ([ScreenAwake]).
+/// ([OfflineSpeech]), the on-device AI models ([OnDeviceModels]), the text
+/// recognition data of the build's recognizer and the offline dictionaries
+/// ([DictionaryPacks]). Whatever is missing is neither offered nor taken.
+/// Transfers use the app's cache folder and keep the screen on
+/// ([ScreenAwake]).
 PairingEnvironment pairingEnvironmentOf(BuildContext context) {
   T? read<T>() {
     try {
@@ -39,6 +42,7 @@ PairingEnvironment pairingEnvironmentOf(BuildContext context) {
 
   final translator = read<OfflineTranslator>();
   final speech = read<OfflineSpeech>();
+  final onDeviceModels = read<OnDeviceModels>();
   final dictionaries = read<DictionaryPacks>();
   final ocr = textRecognitionLanguageDataOf(createTextRecognitionService());
   final screen = ScreenAwake();
@@ -49,6 +53,7 @@ PairingEnvironment pairingEnvironmentOf(BuildContext context) {
         if (translator case final BergamotTranslator bergamot)
           BergamotPairingPacks(bergamot),
         if (speech != null) WhisperPairingPacks(speech),
+        if (onDeviceModels != null) LlamaPairingPacks(onDeviceModels),
         if (ocr != null && ocr.isSupported)
           TesseractPairingPacks(
             data: ocr,

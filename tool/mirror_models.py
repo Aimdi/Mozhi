@@ -4,8 +4,9 @@ directory, for a self-hosted `/models/` (docs/self-hosting-mozhi.md).
 
   python3 tool/mirror_models.py OUT [filters] [--list | --verify]
 
-  # Everything (about 3 GB): every translation direction, both Whisper
-  # models and the voice activity model, every Tesseract language.
+  # Everything (about 3 GB, plus 1 to 3 GB per on-device AI model):
+  # every translation direction, both Whisper models and the voice
+  # activity model, every Tesseract language, the on-device AI models.
   python3 tool/mirror_models.py /srv/mozhi/models
 
   # German, French and Japanese only (both directions with English, and
@@ -24,17 +25,21 @@ It reads the catalogues the app ships (exactly the files it can ask for):
   phrasebook lib/phrasebook/data/starter_catalog_data.dart (the starter
              phrasebooks of a GitHub release; empty until the first one,
              see docs/phrasebook.md)
+  llm        packages/llama_engine/assets/models.json (the on-device AI
+             models, GGUF files on Hugging Face pinned to a commit; see
+             docs/on-device-ai.md)
 
 and writes the layout the app downloads from (`bergamotMirrorUrl`,
 `whisperMirrorUrl`, `tessdataMirrorUrl`, `dictionaryPackDownloadUrls`,
-`starterPhrasebookUrls` in the packages and the app), each file as
-published under its original name:
+`starterPhrasebookUrls`, `llamaMirrorUrl` in the packages and the app),
+each file as published under its original name:
 
   OUT/bergamot/<source>-<target>/<version>/<name>.gz
   OUT/whisper/<name>
   OUT/tesseract/<code>.traineddata
   OUT/dictionary/<id>.mzd
   OUT/phrasebooks/<id>.json.gz
+  OUT/llm/<name>.gguf
 
 Point the app at the directory's URL (Settings > Translation engines >
 Model source > Custom mirror, e.g. https://example.org/models/; the web
@@ -50,7 +55,7 @@ can serve several app versions.
 
 Filters (combined: a file is mirrored when its kind is selected and it
 matches the filters of its kind):
-  --only KINDS        bergamot,whisper,tesseract,dictionary,phrasebook
+  --only KINDS        bergamot,whisper,tesseract,dictionary,phrasebook,llm
                       (default: all)
   --languages CODES   Bergamot: the directions to and from English of
                       these languages (Mozilla codes, e.g. de, zh_hant;
@@ -65,6 +70,9 @@ matches the filters of its kind):
   --tesseract CODES   Tesseract codes (deu, chi_sim)
   --dictionaries IDS  dictionary pack ids (es, en)
   --phrasebooks IDS   starter phrasebook ids (pt, pt-de)
+  --llm IDS           on-device AI model ids (hy-mt2-1.8b-q4,
+                      gemma-4-e2b-q4, qwen3-1.7b-q4); like the Whisper
+                      models, --languages keeps them
 
 Modes: --list prints the selected files and their total size without
 downloading; --verify checks the files already in OUT (no network).
@@ -97,7 +105,8 @@ WHISPER = REPO_ROOT / "packages/whisper_speech/assets/models.json"
 TESSERACT = REPO_ROOT / "packages/tesseract_ocr/assets/catalog.json"
 DICTIONARY = REPO_ROOT / "lib/dictionary/data/dictionary_catalog_data.dart"
 PHRASEBOOK = REPO_ROOT / "lib/phrasebook/data/starter_catalog_data.dart"
-KINDS = ("bergamot", "whisper", "tesseract", "dictionary", "phrasebook")
+LLM = REPO_ROOT / "packages/llama_engine/assets/models.json"
+KINDS = ("bergamot", "whisper", "tesseract", "dictionary", "phrasebook", "llm")
 USER_AGENT = "Mozhi model mirror (+https://github.com/Aimdi/Mozhi)"
 ATTEMPTS = 3
 RETRY_DELAY = 1.0
@@ -276,6 +285,29 @@ def phrasebook_files(catalog: dict) -> list[MirrorFile]:
     return files
 
 
+def llm_files(catalog: dict) -> list[MirrorFile]:
+    """The files of the on-device AI catalogue (`llamaMirrorUrl` layout:
+    `llm/<name>`)."""
+    files = []
+    for model in catalog.get("models", []):
+        name = _safe(str(model.get("name", "")), "on-device AI file name")
+        if not name.lower().endswith(".gguf"):
+            raise CatalogError(f"{name} is not a .gguf file")
+        if _last_segment(model.get("url", "")) != name:
+            raise CatalogError(f"the URL of {name} must name it")
+        files.append(
+            MirrorFile(
+                kind="llm",
+                path=f"llm/{name}",
+                url=model["url"],
+                size=_size(model.get("size"), name),
+                sha256=_hex(model.get("sha256"), 64, f"SHA-256 of {name}"),
+                label=str(model.get("id", "")),
+            )
+        )
+    return files
+
+
 def read_dictionary_catalog(path: Path) -> dict:
     """The dictionary (or starter phrasebook) catalogue: the JSON file
     itself, or the Dart file the app bundles it in (`... = '''...'''`,
@@ -365,6 +397,13 @@ def select(args: argparse.Namespace, catalogs: dict[str, dict]) -> list[MirrorFi
                 if not (by_id or primary in app):
                     continue
             selected += phrasebook_files({"packs": [pack]})
+
+    if "llm" in kinds:
+        llm = _codes(args.llm)
+        for model in catalogs["llm"].get("models", []):
+            if llm is not None and model.get("id") not in llm:
+                continue
+            selected += llm_files({"models": [model]})
 
     paths = [file.path for file in selected]
     if len(paths) != len(set(paths)):
@@ -483,6 +522,7 @@ def load_catalogs(args: argparse.Namespace) -> dict[str, dict]:
         ("bergamot", args.bergamot_catalog),
         ("whisper", args.whisper_catalog),
         ("tesseract", args.tesseract_catalog),
+        ("llm", args.llm_catalog),
     ):
         try:
             catalogs[kind] = json.loads(Path(path).read_text(encoding="utf-8"))
@@ -507,7 +547,8 @@ def parser() -> argparse.ArgumentParser:
     )
     result.add_argument("out", type=Path, help="the mirror directory")
     result.add_argument(
-        "--only", help="kinds: bergamot,whisper,tesseract,dictionary,phrasebook"
+        "--only",
+        help="kinds: bergamot,whisper,tesseract,dictionary,phrasebook,llm",
     )
     result.add_argument("--languages", help="language codes, e.g. de,fr,ja")
     result.add_argument("--pairs", help="Bergamot directions, e.g. en-de,de-en")
@@ -515,6 +556,9 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--tesseract", help="Tesseract codes, e.g. deu,chi_sim")
     result.add_argument("--dictionaries", help="dictionary pack ids, e.g. es,en")
     result.add_argument("--phrasebooks", help="phrasebook ids, e.g. pt,pt-de")
+    result.add_argument(
+        "--llm", help="on-device AI model ids, e.g. hy-mt2-1.8b-q4"
+    )
     mode = result.add_mutually_exclusive_group()
     mode.add_argument("--list", action="store_true", help="only list the files")
     mode.add_argument(
@@ -524,6 +568,7 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--bergamot-catalog", default=str(BERGAMOT))
     result.add_argument("--whisper-catalog", default=str(WHISPER))
     result.add_argument("--tesseract-catalog", default=str(TESSERACT))
+    result.add_argument("--llm-catalog", default=str(LLM))
     result.add_argument(
         "--dictionary-catalog",
         default=str(DICTIONARY),

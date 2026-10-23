@@ -183,8 +183,12 @@ class OllamaClient extends HttpLlmClient {
   Map<String, Object?> _body(LlmRequest request) {
     final options = {
       'temperature': ?request.temperature,
+      'top_p': ?request.topP,
+      'top_k': ?request.topK,
+      'repeat_penalty': ?request.repeatPenalty,
       'num_predict': ?request.maxTokens,
       'num_ctx': contextSizeFor(request),
+      if (request.stop.isNotEmpty) 'stop': request.stop,
     };
     return {
       'model': request.model,

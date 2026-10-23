@@ -12,6 +12,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.PersistableBundle
+import android.os.PowerManager
 import android.view.WindowManager
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -57,6 +58,10 @@ import java.util.Locale
  * (`lib/platform/metered_network.dart`: Wi-Fi-only offline model downloads).
  * `setKeepScreenOn(Boolean)` sets or clears `FLAG_KEEP_SCREEN_ON`
  * (`lib/transcribe/data/screen_awake.dart`: while Transcribe listens).
+ * `thermalStatus()` answers `PowerManager.getCurrentThermalStatus()` (-1
+ * before Android 10) and `isPowerSaveMode()` whether battery saver is on
+ * (`lib/platform/device_conditions.dart`: on-device AI waits for the Enter
+ * key while the phone is hot or saving battery).
  *
  * [MEMORY_CHANNEL] (`lib/platform/native_memory.dart`): `memoryInfo()` answers
  * what [ActivityManager] says about memory (see [memoryInfo]), which sizes the
@@ -201,6 +206,9 @@ open class MainActivity : FlutterActivity() {
                 // The API level: below 29 the app is not drawn edge to edge
                 // and needs an opaque navigation bar (system_bars.dart).
                 "sdkInt" -> result.success(Build.VERSION.SDK_INT)
+                // Heat and battery saver (device_conditions.dart).
+                "thermalStatus" -> result.success(thermalStatus())
+                "isPowerSaveMode" -> result.success(isPowerSaveMode())
                 else -> result.notImplemented()
             }
         }
@@ -279,6 +287,23 @@ open class MainActivity : FlutterActivity() {
         }
         clipboard.setPrimaryClip(clip)
         return true
+    }
+
+    /**
+     * `PowerManager.getCurrentThermalStatus()`: 0 (none) to 6 (shutdown), see
+     * `PowerManager.THERMAL_STATUS_*`. -1 before Android 10 (API 29) or when
+     * the service is missing.
+     */
+    private fun thermalStatus(): Int {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return -1
+        val power = getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return -1
+        return power.currentThermalStatus
+    }
+
+    /** Whether battery saver is on (`PowerManager.isPowerSaveMode`). */
+    private fun isPowerSaveMode(): Boolean {
+        val power = getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return false
+        return power.isPowerSaveMode
     }
 
     /**

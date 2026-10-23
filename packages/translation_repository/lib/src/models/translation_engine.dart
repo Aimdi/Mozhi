@@ -38,6 +38,7 @@ class TranslationEngine {
     this.isLocal = false,
     this.promptProfile,
     this.mtService,
+    this.onDevice = false,
   });
 
   factory mozhi(String engine, String name) => TranslationEngine(
@@ -72,6 +73,10 @@ class TranslationEngine {
   /// Runs on-device / on LAN (privacy badge).
   final bool isLocal;
 
+  /// AI engines of a model that runs inside the app, on this device
+  /// (`AiProviderConfig.isOnDevice`; [isLocal] too). See [isOnDevice].
+  final bool onDevice;
+
   /// AI engines: the provider's prompt profile resolved against its model
   /// (never [PromptProfile.auto] for engines from `getEngines`). Null for
   /// other kinds.
@@ -85,6 +90,12 @@ class TranslationEngine {
   bool get isMozhi => kind == EngineKind.mozhi;
   bool get isOffline => kind == EngineKind.offline;
   bool get isMt => kind == EngineKind.mt;
+
+  /// Whether the text stays on this device: the offline engine, or an AI
+  /// engine of an on-device model ([onDevice]). The repository's
+  /// `destinationOf` is the authority (an `OnDeviceDestination`); this is
+  /// what the engine itself says.
+  bool get isOnDevice => isOffline || (isAi && onDevice);
 
   /// An AI engine whose model is translation-specialised (TranslateGemma,
   /// Hy-MT): plain translation only, no options, custom targets or extras,
@@ -114,12 +125,17 @@ class TranslationEngine {
   bool get supportsContext => supportsFormality;
 
   /// `TranslationOptions.glossary` is applied: by the model (AI engines
-  /// with the general profile), with DeepL's glossaries, or on the device
+  /// with the general profile, and Hy-MT, whose terminology template lists
+  /// the terms; see `MtPrompts`), with DeepL's glossaries, or on the device
   /// for Mozhi engines and LibreTranslate (their terms go to the engine as
   /// placeholders it keeps, which are replaced by the renderings; see
   /// `TranslationRepository.translate`). Not by the offline engine and
-  /// translation-specialised models.
-  bool get supportsGlossary => supportsOptions || isMozhi || isMt;
+  /// TranslateGemma.
+  bool get supportsGlossary =>
+      supportsOptions ||
+      isMozhi ||
+      isMt ||
+      (isAi && promptProfile == PromptProfile.hunyuanMt);
 
   /// Mozhi TTS exists for `google` and `reverso`; AI engines fall back to
   /// whatever TTS the app has (Mozhi google TTS or device TTS).

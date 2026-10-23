@@ -19,6 +19,12 @@ enum LlmProvider {
   /// Ollama native API: `POST {base}/api/chat` (NDJSON), `GET {base}/api/tags`.
   /// Default base `http://localhost:11434`.
   ollama,
+
+  /// A model that runs inside the app, on this device (llama.cpp): no
+  /// server and no network. This package has no client for it (the
+  /// `LlmClient` factory throws [UnsupportedError]); the app supplies one.
+  /// Its endpoint's base URL names the model: `device://<model id>`.
+  onDevice,
 }
 
 /// Where and how to reach a model API.
@@ -101,6 +107,10 @@ class LlmRequest {
     this.jsonOutput = false,
     this.effort,
     this.contextWindow,
+    this.topP,
+    this.topK,
+    this.repeatPenalty,
+    this.stop = const [],
   });
 
   final String model;
@@ -147,6 +157,29 @@ class LlmRequest {
   /// is fixed by the server.
   final int? contextWindow;
 
+  /// Nucleus sampling: only the most likely tokens whose probabilities add
+  /// up to [topP] are considered (a model card's recommendation, e.g.
+  /// Hy-MT's 0.6). Only sent when non-null: OpenAI-compatible `top_p`,
+  /// Ollama `options.top_p`, on-device models. Ignored by Anthropic and
+  /// Gemini.
+  final double? topP;
+
+  /// Only the [topK] most likely tokens are considered. Only sent when
+  /// non-null: Ollama `options.top_k`, on-device models. Ignored by the
+  /// other providers (OpenAI's API rejects it).
+  final int? topK;
+
+  /// Penalty for repeating recent tokens (1.0 = none). Only sent when
+  /// non-null: Ollama `options.repeat_penalty`, on-device models. Ignored
+  /// by the other providers.
+  final double? repeatPenalty;
+
+  /// Strings that end the reply when the model writes them (they are not
+  /// part of the reply). Only sent when not empty: OpenAI-compatible
+  /// `stop`, Ollama `options.stop`, on-device models. Ignored by Anthropic
+  /// and Gemini.
+  final List<String> stop;
+
   LlmRequest copyWith({
     String? model,
     List<LlmMessage>? messages,
@@ -155,6 +188,10 @@ class LlmRequest {
     bool? jsonOutput,
     String? effort,
     int? contextWindow,
+    double? topP,
+    int? topK,
+    double? repeatPenalty,
+    List<String>? stop,
   }) => LlmRequest(
     model: model ?? this.model,
     messages: messages ?? this.messages,
@@ -163,7 +200,52 @@ class LlmRequest {
     jsonOutput: jsonOutput ?? this.jsonOutput,
     effort: effort ?? this.effort,
     contextWindow: contextWindow ?? this.contextWindow,
+    topP: topP ?? this.topP,
+    topK: topK ?? this.topK,
+    repeatPenalty: repeatPenalty ?? this.repeatPenalty,
+    stop: stop ?? this.stop,
   );
+
+  /// Requests are equal when every field is (messages compare by role and
+  /// content, see [LlmMessage]).
+  @override
+  bool operator ==(Object other) =>
+      other is LlmRequest &&
+      other.model == model &&
+      _listEquals(other.messages, messages) &&
+      other.temperature == temperature &&
+      other.maxTokens == maxTokens &&
+      other.jsonOutput == jsonOutput &&
+      other.effort == effort &&
+      other.contextWindow == contextWindow &&
+      other.topP == topP &&
+      other.topK == topK &&
+      other.repeatPenalty == repeatPenalty &&
+      _listEquals(other.stop, stop);
+
+  @override
+  int get hashCode => Object.hash(
+    model,
+    Object.hashAll(messages),
+    temperature,
+    maxTokens,
+    jsonOutput,
+    effort,
+    contextWindow,
+    topP,
+    topK,
+    repeatPenalty,
+    Object.hashAll(stop),
+  );
+}
+
+bool _listEquals<T>(List<T> a, List<T> b) {
+  if (identical(a, b)) return true;
+  if (a.length != b.length) return false;
+  for (var i = 0; i < a.length; i++) {
+    if (a[i] != b[i]) return false;
+  }
+  return true;
 }
 
 /// A model advertised by a provider's model-listing endpoint.

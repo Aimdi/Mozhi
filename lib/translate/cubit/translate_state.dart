@@ -62,7 +62,8 @@ class AppliedRefinement extends Equatable {
 /// original text, the wrong language, garbage, a chat reply), e.g. "Google
 /// returned the original text. Translated on this device."
 /// (`TranslateCubit` falls back by itself, only to engines the privacy
-/// settings allow without asking).
+/// settings allow without asking, and for text that an engine on this
+/// device translated only to engines on this device).
 class TranslationFallback extends Equatable {
   const new({
     required this.fromEngineName,

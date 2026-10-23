@@ -13,7 +13,8 @@ enum PromptProfile {
   /// Google TranslateGemma template.
   translateGemma,
 
-  /// Tencent Hy-MT / Hunyuan-MT template.
+  /// Tencent Hy-MT / Hunyuan-MT templates (Hy-MT2's: default,
+  /// terminology for glossary terms, delimiters for masked spans).
   hunyuanMt;
 
   /// `translategemma` -> [translateGemma]; `hy-mt`, `hymt`, `hunyuan-mt`

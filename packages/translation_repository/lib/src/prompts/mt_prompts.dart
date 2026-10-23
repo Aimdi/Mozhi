@@ -3,9 +3,15 @@ import 'package:translation_repository/src/language_catalog.dart';
 import 'package:translation_repository/src/language_matcher.dart';
 import 'package:translation_repository/src/models/models.dart';
 import 'package:translation_repository/src/prompts/translation_prompts.dart';
+import 'package:translation_repository/src/quality/text_masker.dart';
 
 /// Sampling recommended by a model card.
-typedef MtSampling = ({double? temperature, double? topP, int? topK});
+typedef MtSampling = ({
+  double? temperature,
+  double? topP,
+  int? topK,
+  double? repeatPenalty,
+});
 
 /// Prompt templates for translation-specialised models.
 ///
@@ -16,10 +22,11 @@ typedef MtSampling = ({double? temperature, double? topP, int? topK});
 /// [TranslationPrompts.translate].
 ///
 /// The templates carry the text verbatim and nothing else: translation
-/// options, glossaries, custom styles and the `[[lang:xx]]` marker are not
-/// supported by these models (see [PromptProfile.isTranslationOnly]).
+/// options, custom styles and the `[[lang:xx]]` marker are not supported by
+/// these models (see [PromptProfile.isTranslationOnly]); only Hy-MT takes
+/// the glossary terms that occur in the text (its terminology template).
 /// Language names come from the [LanguageCatalog] (English names; Chinese
-/// names in the Hy-MT Chinese template where known).
+/// names in the Hy-MT Chinese templates where known).
 abstract final class MtPrompts {
   /// The messages for translating [request] with a model of [profile].
   ///
@@ -27,12 +34,34 @@ abstract final class MtPrompts {
   ///   `You are a professional {Source} ({src}) to {Target} ({tgt})
   ///   translator. …` followed by two blank lines and the text. When the
   ///   source is still auto the source slots are left out.
-  /// * [PromptProfile.hunyuanMt]: Tencent Hy-MT. A Chinese instruction when
-  ///   either side is Chinese (`将以下文本翻译为{target}，注意只需要输出翻译后的
-  ///   结果，不要额外解释：`), otherwise `Translate the following segment into
-  ///   {target}, without additional explanation.`, then a blank line and
-  ///   the text. With an auto source, text that is mostly Han characters
-  ///   (and has no kana or Hangul) counts as Chinese.
+  /// * [PromptProfile.hunyuanMt]: Tencent Hy-MT2's templates (model card,
+  ///   "Translation Task Instruction Examples"): Chinese ones when either
+  ///   side is Chinese, with the target's Chinese name, English ones
+  ///   otherwise; the instruction, a blank line and the text. With an auto
+  ///   source, text that is mostly Han characters (and has no kana or
+  ///   Hangul) counts as Chinese.
+  ///   * Default: `将以下文本翻译为{target}，注意只需要输出翻译后的结果，不要额外
+  ///     解释：` / `Translate the following text into {target}. Note that
+  ///     you should only output the translated result without any
+  ///     additional explanation:`.
+  ///   * Terminology, when terms of `TranslationOptions.glossary` may occur
+  ///     in the text ([TranslationPrompts.glossaryMatches]): `参考下面的翻译：`
+  ///     and a `{term} 翻译成 {rendering}` line per term before the default
+  ///     instruction / `Reference the following translations:`, a
+  ///     `{term} translates to {rendering}` line per term and a blank line
+  ///     before `Translate the following text into {target}. Note that you
+  ///     must ONLY output the translated result without any additional
+  ///     explanation:`.
+  ///   * Delimiters, when the text carries masked spans (`⟨1⟩` tokens of
+  ///     [TextMasker.bracketToken], e.g. the personal data shield's), which
+  ///     must come back as they are: `请将以下文本准确翻译为{target}。` and
+  ///     `你必须在译文中保留等量的分隔符，绝对不可遗漏、转义或翻译该符号，并注意分隔
+  ///     符的位置。` / `Please accurately translate the following text into
+  ///     {target}.` and `You must retain the exact same number of
+  ///     delimiters in the translation. Strictly do not omit, escape, or
+  ///     translate these symbols, and pay close attention to their
+  ///     placement.` (on two lines), after the terms' lines when there are
+  ///     any.
   static List<LlmMessage> translate(
     PromptProfile profile,
     TranslationRequest request,
@@ -45,16 +74,25 @@ abstract final class MtPrompts {
 
   /// Recommended sampling for [profile]; all-null means provider defaults.
   ///
-  /// * Hy-MT: temperature 0.7, top-p 0.6, top-k 20 (model card; it also
-  ///   recommends a repetition penalty of 1.05, which is not part of
-  ///   [MtSampling]).
+  /// * Hy-MT: temperature 0.7, top-p 0.6, top-k 20 and a repetition
+  ///   penalty of 1.05 (Hy-MT2 model card, 1.8B and 7B).
   /// * TranslateGemma, general and auto: provider defaults (the
   ///   TranslateGemma card does not override sampling).
   static MtSampling sampling(PromptProfile profile) => switch (profile) {
-    PromptProfile.hunyuanMt => (temperature: 0.7, topP: 0.6, topK: 20),
+    PromptProfile.hunyuanMt => (
+      temperature: 0.7,
+      topP: 0.6,
+      topK: 20,
+      repeatPenalty: 1.05,
+    ),
     PromptProfile.translateGemma ||
     PromptProfile.general ||
-    PromptProfile.auto => (temperature: null, topP: null, topK: null),
+    PromptProfile.auto => (
+      temperature: null,
+      topP: null,
+      topK: null,
+      repeatPenalty: null,
+    ),
   };
 
   // ---------------------------------------------------------------------
@@ -106,15 +144,53 @@ abstract final class MtPrompts {
         (request.source.isAuto
             ? _looksChinese(request.text)
             : _isChinese(request.source));
+    final options = request.options;
+    final terms = TranslationPrompts.glossaryMatches(
+      options.glossary,
+      request.text,
+      caseSensitive: options.caseSensitiveGlossaryTerms,
+    );
+    final delimiters = TextMasker.bracketToken.hasMatch(request.text);
+    String lines(String Function(String term, String rendering) line) => [
+      for (final MapEntry(:key, :value) in terms.entries)
+        '${line(key, value)}\n',
+    ].join();
+    final String reference;
+    final String instruction;
     if (chinese) {
       final target =
           _chineseNames[_code(request.target)] ?? _englishName(request.target);
-      return '将以下文本翻译为$target，注意只需要输出翻译后的结果，不要额外解释：\n\n'
-          '${request.text}';
+      reference = terms.isEmpty
+          ? ''
+          : '参考下面的翻译：\n${lines((term, to) => '$term 翻译成 $to')}';
+      instruction = delimiters
+          ? '请将以下文本准确翻译为$target。\n'
+                '你必须在译文中保留等量的分隔符，绝对不可遗漏、转义或翻译该符号，'
+                '并注意分隔符的位置。'
+          : '将以下文本翻译为$target，注意只需要输出翻译后的结果，不要额外解释：';
+    } else {
+      final target = _englishName(request.target);
+      reference = terms.isEmpty
+          ? ''
+          : 'Reference the following translations:\n'
+                '${lines((term, to) => '$term translates to $to')}\n';
+      instruction = switch ((delimiters, terms.isNotEmpty)) {
+        (true, _) =>
+          'Please accurately translate the following text into $target.\n'
+              'You must retain the exact same number of delimiters in the '
+              'translation. Strictly do not omit, escape, or translate these '
+              'symbols, and pay close attention to their placement.',
+        (false, true) =>
+          'Translate the following text into $target. Note that you must '
+              'ONLY output the translated result without any additional '
+              'explanation:',
+        (false, false) =>
+          'Translate the following text into $target. Note that you should '
+              'only output the translated result without any additional '
+              'explanation:',
+      };
     }
-    return 'Translate the following segment into '
-        '${_englishName(request.target)}, without additional explanation.'
-        '\n\n${request.text}';
+    return '$reference$instruction\n\n${request.text}';
   }
 
   /// Chinese (any script or region), after normalisation (`zh`, `cmn`,

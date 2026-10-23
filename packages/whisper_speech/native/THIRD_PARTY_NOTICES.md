@@ -1,8 +1,10 @@
 # Third-party notices: libmozhi_whisper
 
-`libmozhi_whisper.so` (shipped in the APK) is built from the sources below,
-vendored as a pinned git submodule under `third_party/` and compiled
-statically: OpenAI's Whisper speech recognition as implemented by
+`libmozhi_whisper.so` (shipped in the APK; on arm64-v8a also
+`libmozhi_whisper_dotprod.so` and `libmozhi_whisper_i8mm.so`, the same
+sources with ggml's CPU kernels compiled for newer CPUs) is built from the
+sources below, vendored as a pinned git submodule under `third_party/` and
+compiled statically: OpenAI's Whisper speech recognition as implemented by
 whisper.cpp, on the CPU backend of ggml. Everything here is MIT-licensed;
 nothing is GPL or proprietary, and there is no Google code. The app (MIT)
 must show these notices (it does, on its licenses page).
@@ -22,7 +24,9 @@ llamafile's sgemm and KleidiAI. No source file is modified.
 The speech recognition **models** are downloaded at run time (never
 bundled) from Hugging Face
 (<https://huggingface.co/ggerganov/whisper.cpp>, files `ggml-tiny.bin`
-and `ggml-base.bin`: OpenAI's Whisper weights converted to ggml by the
+and `ggml-base.bin`, and the quantized `ggml-base-q5_1.bin`,
+`ggml-small-q5_1.bin` and `ggml-large-v3-turbo-q5_0.bin` once the
+catalogue lists them: OpenAI's Whisper weights converted to ggml by the
 whisper.cpp project) or imported from files, and are licensed MIT
 (© 2022 OpenAI, <https://github.com/openai/whisper/blob/main/LICENSE>).
 The voice activity detection model (`ggml-silero-v6.2.0.bin`, from

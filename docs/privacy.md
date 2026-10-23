@@ -26,7 +26,8 @@ goes anywhere else.
   read, and there is no account ([Sync](sync.md)).
 - **Your text is sent only to the back end you choose** for that
   translation: a Mozhi instance, an AI provider, a DeepL or LibreTranslate
-  service, or nowhere at all with the offline engine and local models.
+  service, or nowhere at all with the offline engine and [on-device
+  AI](#on-device-ai).
 - **Personal data stays behind.** E-mail addresses, phone numbers, IBANs,
   card numbers and IP addresses are [replaced before text goes
   online](#personal-data-shield), also for the AI extras, and put back
@@ -96,6 +97,14 @@ another engine, and the result says so. It only uses engines that need no
 new consent: the on-device engine first, then servers and providers you
 already allowed. A paid AI provider is never tried automatically.
 
+Text that an engine on this device translated (offline translation or
+on-device AI) is never sent to another engine automatically: its only
+fallback is offline translation, which runs on the phone too, never a
+Mozhi instance, your own server or a provider. Its romanization (with
+**Show transliterations** on) only starts on its own when the extras
+engine is on this device too. Comparing it with another engine (**Compare
+engines**) stays your choice.
+
 ### Personal data shield
 
 **Settings > Privacy & data > Hide personal data from online engines** (on by
@@ -141,8 +150,9 @@ term in its place. The engine never receives the glossary, and doesn't see
 the terms. When an engine damages a placeholder, the text is translated
 again without the glossary (personal data stays masked) and the result
 says which terms couldn't be placed. AI models and DeepL get the glossary
-as before; the on-device engine and translation-only AI models don't apply
-it.
+as before (Hy-MT, translation-only, gets the terms that occur in the text,
+in its own terminology template); the offline engine and TranslateGemma
+don't apply it.
 
 ### Online voices
 
@@ -238,6 +248,48 @@ needs (an old one, a private window without site storage, a page opened over
 plain `http`) keeps the old behaviour, online only, and **Offline languages**
 says why. Details: [offline engine](offline-engine.md#web-app).
 
+### On-device AI
+
+On Android phones with enough memory, AI models can run inside the app
+(**Settings > On-device AI**, [details](on-device-ai.md)): Hy-MT2 (Tencent,
+Apache-2.0) translates, and Gemma 4 E2B or Qwen3 1.7B (Apache-2.0) does
+the AI extras: refine, alternatives, word insights, dictionary,
+explanations, **Proofread**, **Check meaning**, romanization and word
+alignment. They run on llama.cpp (MIT), compiled into the app; the model
+files are downloaded only when you tap **Download** (see below).
+
+- **Nothing leaves the device.** Their engines are labelled **On this
+  device**, and their destination is the device, like the offline engine:
+  no consent prompt, no approved language pairs, and they work in
+  **Offline only**. No request is made, so **Network activity** shows
+  nothing for them. The [personal data shield](#personal-data-shield)
+  isn't needed: the text, your options and glossary stay on the phone as
+  they are.
+- **Helpers stay on the device too.** With an "auto" source, Hy-MT2 needs
+  the language first: it is identified on the device, never by a Mozhi
+  instance. When you translate on the device (or the privacy mode isn't
+  **Online**), the AI extras use the on-device assistant model, unless you
+  chose another model under **Settings > AI > AI assistant for insights**
+  (that choice asks before text leaves, as before, and in **Offline only**
+  it is skipped for the on-device model).
+- **Nothing is kept.** Your text is in memory only while the model writes
+  its answer: each request starts from an empty context, and nothing is
+  logged or written to disk (the history follows your history settings,
+  as for every engine). A model is unloaded two minutes after its last
+  use, when the app goes to the background and when the phone runs low
+  on memory.
+- **Model files.** They come from the [model
+  source](#where-model-files-come-from) (by default Hugging Face, pinned
+  to one commit of the publisher's repository; a mirror otherwise), which
+  sees your IP address, the time and which model you download, never any
+  text. Every file is checked against the size and SHA-256 pinned in the
+  app before it is installed; **Import from files** only accepts a file
+  that matches a model of the catalogue. They are kept in the app's
+  private storage (`<app files>/llm`), until you delete them on the
+  On-device AI page or with **Delete all local data**.
+
+The web app has no on-device AI yet; its On-device AI page says so.
+
 ## What is sent, to whom, and how long it is kept
 
 Mozhi itself keeps nothing off the device. "Kept" below means what Mozhi
@@ -250,6 +302,7 @@ stores on the device and what the other party may keep.
 | Translate with a local AI model or your own server | That server | As above | Only on your server. |
 | DeepL API, LibreTranslate | The service you set up | Text, languages, formality, context or glossary (DeepL), the key | The service's policy. |
 | Offline translation | Nowhere | Nothing | History as above. |
+| Translation and AI extras with [on-device AI](#on-device-ai) | Nowhere: the model runs in the app | Nothing | In memory while the model writes; history as above. |
 | Language detection (**Detect language**, an "auto" source with a translation-only AI model) | The device first; if it is unsure, the AI provider itself or, for translation-only models, your Mozhi instance's Google engine, when the privacy rules allow that destination | The text | As for that destination. |
 | Kagi-style extras, **Check meaning**, **Proofread** | The AI model for extras (**Settings > AI > AI assistant for insights**) or the model you selected; **Check meaning** without one: the engine you translate with, to translate back | Source text, translation or both (the first 4,000 characters for **Check meaning**; the word for the dictionary), with [personal data masked](#personal-data-shield) | The provider's policy. Results stay in memory only, except Dictionary tab look-ups: on the device, the word, its languages, the model's name, the detail level and a one-line summary go to the history unless incognito or **Save history** is off (or when you heart the entry). |
 | **Listen** (read aloud) | The device's text-to-speech voice, one on the device whenever the language has one. An [online voice](#online-voices) only after you agree, once per voice. A Mozhi instance only when the device has no voice for the language: never in Offline only or with **Device voice only**, and in Offline first only after you agree (**Listen online**) | Device voice on the device: nothing leaves it. Online voice: the text to the voice's speech service (for example Google). Mozhi: the text **in the request address** (`GET /api/tts?text=…`, up to 200 characters per part). The [personal data shield](#personal-data-shield) can't apply to speech | Online voice: its service's policy. Mozhi: the address can end up in the server's and any reverse proxy's access logs. The app keeps the last 20 clips in memory until it closes. |
@@ -259,6 +312,7 @@ stores on the device and what the other party may keep.
 | Offline model download (**Settings > Translation engines > Offline languages**, or a language's download button in the language picker) | The [model source](#where-model-files-come-from); by default `storage.googleapis.com`: Mozilla's Firefox Translations bucket (`moz-fx-translations-data--303e-prod-translations-data`), hosted on Google Cloud Storage | Plain file requests (HTTPS `GET`, `Range` to resume): Google as the host sees your IP address, the time and which model files, so which languages, you download. No text, identifiers or cookies | Google Cloud Storage's logs. The models stay on the device until you delete them. |
 | Text recognition data download (**Download German text recognition**, **Settings > Translation engines > Offline languages > Text recognition**) | The [model source](#where-model-files-come-from); by default `raw.githubusercontent.com`: Tesseract's [tessdata_fast](https://github.com/tesseract-ocr/tessdata_fast) on GitHub (owned by Microsoft), pinned to one commit | Plain file requests (HTTPS `GET`, `Range` to resume): GitHub sees your IP address, the time and which language files you download. No picture, text, identifiers or cookies | GitHub's logs. The data stays on the device until you delete it; **Import from files** contacts nothing. |
 | Offline speech model download (**Settings > Read aloud & voice > Voice input**) | The [model source](#where-model-files-come-from); by default `huggingface.co` (the [whisper.cpp models](https://huggingface.co/ggerganov/whisper.cpp), and the 0.9 MB speech detector from [ggml-org/whisper-vad](https://huggingface.co/ggml-org/whisper-vad), downloaded with the first model), which may redirect to its download servers | Plain file requests (HTTPS `GET`, `Range` to resume): Hugging Face sees your IP address, the time and which model (Fast or Better, and the speech detector) you download. No voice, text, identifiers or cookies | Hugging Face's logs. The model stays on the device until you delete it; **Import from files** contacts nothing. |
+| On-device AI model download (**Settings > On-device AI**) | The [model source](#where-model-files-come-from); by default `huggingface.co` (the publishers' repositories, pinned to one commit), which may redirect to its download servers | Plain file requests (HTTPS `GET`, `Range` to resume): Hugging Face sees your IP address, the time and which model you download. No text, identifiers or cookies | Hugging Face's logs. The model stays on the device until you delete it; **Import from files** contacts nothing. |
 | Engine and language lists | The Mozhi instances in your list | Nothing about you except your IP address | The instance's logs. Stored on the device as a cache. |
 | **Check instances**, **Find the fastest server** (setup), **Test**, **Test connection**, **Browse models** | Each instance or provider, only when you ask | A version request, or a model list request with your key | The server's logs. |
 | Sync (**Settings > Backup & sync > Sync**, only once you set it up) | Your WebDAV server | The sync file, encrypted on the device (`GET`, `PUT`), folder checks (`PROPFIND`, `MKCOL`), your user name and app password (HTTP Basic over `https`; plain `http` only to this device, your local network or `.onion`), your IP address. Never in Offline only | The server keeps the file: it sees its name, size, when it changes and its readable header (app version, when it was written, the key derivation parameters), never its contents ([what the server sees](sync.md#what-the-server-sees)). **Turn off sync** can delete it. |
@@ -291,6 +345,7 @@ the fastest server** during setup.
 | Sync setup | App preferences (server address, user name, folder, what to sync, the last sync's time and result, the sync file's ETag and a fingerprint of the synced data); secure storage (the app password and the key derived from your passphrase) | Never the passphrase. In the web app the app password and the key last as long as the tab. **Turn off sync** and **Delete all local data** forget all of it. |
 | Offline language models | App storage (`<app files>/bergamot`); in the web app the browser's private storage for the site (the Origin Private File System, folder `bergamot`), which no other site and no page script outside the app can read | About 50 MB to download and 73 MB on disk per language. Delete them under **Settings > Translation engines > Offline languages**; in the web app clearing the site's data deletes them too. |
 | Text recognition data | App storage (`<app files>/tesseract`) | 0.4 to 12 MB per language (median 2.4 MB). Delete it under **Settings > Translation engines > Offline languages > Text recognition**. |
+| On-device AI models | App storage (`<app files>/llm`) | One to a few GB per model (the On-device AI page shows each size). Delete them under **Settings > On-device AI**. Which model translates and which does the extras is kept in the app preferences. |
 
 **History encryption.** Each history value is encrypted with AES-256-GCM (a
 fresh nonce per write) under a 256-bit key generated on the device. On Android
@@ -374,8 +429,9 @@ with its deletion records and its key, the date of the last backup (the
 backup files you saved are yours and stay where you put them), the
 phrasebook with its key and the starter phrasebooks, the
 settings with every key, header and password, presets and
-glossaries (with their deletion records), usage counters, speech settings, cached lists and the whole
-offline models folder (partial downloads included), clears what the app holds
+glossaries (with their deletion records), usage counters, speech settings, cached lists, the whole
+offline models folder (partial downloads included) and the on-device AI
+models, clears what the app holds
 in memory, and starts setup again. Uninstalling the app removes all of it too.
 In the web app, clearing the site's data does the same.
 

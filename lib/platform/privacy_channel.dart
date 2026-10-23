@@ -15,6 +15,9 @@ import 'package:flutter/services.dart';
 ///   (see `androidSdkInt`; the system bars depend on it).
 /// * `setKeepScreenOn(on: Boolean)` sets or clears the window's
 ///   `FLAG_KEEP_SCREEN_ON` (see `ScreenAwake`: while Transcribe listens).
+/// * `thermalStatus()` -> `Int`: `PowerManager.getCurrentThermalStatus()`
+///   (-1 before Android 10), and `isPowerSaveMode()` -> `Boolean`: whether
+///   battery saver is on (see `DeviceConditions`).
 const privacyChannelName = 'io.github.aimdi.mozhi/privacy';
 
 /// The [MethodChannel] named [privacyChannelName] on [messenger] (the

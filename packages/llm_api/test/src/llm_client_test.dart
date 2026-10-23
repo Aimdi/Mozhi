@@ -40,9 +40,16 @@ void main() {
       }
     });
 
+    test('has no client for on-device models', () {
+      expect(
+        () => LlmClient(endpointFor(LlmProvider.onDevice)),
+        throwsUnsupportedError,
+      );
+    });
+
     test('passes the retry policy and keep-alive on', () {
       const policy = LlmRetryPolicy(maxRetries: 3);
-      for (final provider in LlmProvider.values) {
+      for (final provider in httpProviders) {
         final client = LlmClient(
           endpointFor(provider),
           httpClient: FakeServer().client,
@@ -98,7 +105,7 @@ void main() {
 
     test('LlmRequest.contextWindow only changes Ollama requests', () async {
       const request = LlmRequest(model: 'm', messages: [LlmMessage.user('Hi')]);
-      for (final provider in LlmProvider.values) {
+      for (final provider in httpProviders) {
         final server = FakeServer([
           FakeResponse.text(''),
           FakeResponse.text(''),

@@ -3,6 +3,7 @@
 # Android build (nothing is downloaded during the Gradle build itself):
 #
 #   packages/bergamot_translator  offline translation (Mozilla Bergamot)
+#   packages/llama_engine         on-device AI (llama.cpp)
 #   packages/tesseract_ocr        text recognition in photos (Tesseract)
 #   packages/whisper_speech       offline voice input (whisper.cpp)
 #

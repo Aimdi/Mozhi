@@ -226,6 +226,34 @@ jobs:
               fi
             done
           done
+          # Whisper's builds for newer arm64 CPUs (dotprod + FP16, i8mm).
+          for variant in dotprod i8mm; do
+            if ! grep -q "lib/arm64-v8a/libmozhi_whisper_$variant\.so" <<< "$entries"; then
+              echo "::error::$apk has no lib/arm64-v8a/libmozhi_whisper_$variant.so"
+              failed=1
+            fi
+          done
+          # ...and only there (the other ABIs build empty stand-ins).
+          if grep -qE "lib/(armeabi-v7a|x86_64)/libmozhi_whisper_(dotprod|i8mm)\.so" <<< "$entries"; then
+            echo "::error::$apk has a Whisper CPU variant outside arm64-v8a"
+            failed=1
+          fi
+          # On-device AI (llama.cpp): arm64-v8a has the baseline and two CPU
+          # variants, x86_64 the baseline, armeabi-v7a nothing (64-bit only).
+          for lib in libmozhi_llama libmozhi_llama_dotprod libmozhi_llama_i8mm; do
+            if ! grep -q "lib/arm64-v8a/$lib\.so" <<< "$entries"; then
+              echo "::error::$apk has no lib/arm64-v8a/$lib.so"
+              failed=1
+            fi
+          done
+          if ! grep -q "lib/x86_64/libmozhi_llama\.so" <<< "$entries"; then
+            echo "::error::$apk has no lib/x86_64/libmozhi_llama.so"
+            failed=1
+          fi
+          if grep -qE "lib/(armeabi-v7a/libmozhi_llama|x86_64/libmozhi_llama_)" <<< "$entries"; then
+            echo "::error::$apk has llama libraries for armeabi-v7a or x86_64 CPU variants"
+            failed=1
+          fi
           if grep -q 'libc++_shared\.so' <<< "$entries"; then
             echo "::error::$apk contains libc++_shared.so"
             failed=1

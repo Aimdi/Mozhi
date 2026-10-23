@@ -390,6 +390,56 @@ Prompt injection can't be ruled out completely: a hostile text can still
 make a model produce a wrong or misleading "translation". Check important
 translations, for example with **Check meaning**.
 
+## On-device AI
+
+[On-device AI](on-device-ai.md) runs language models inside the app with
+llama.cpp (MIT, built from a pinned release in the repository's
+`packages/llama_engine`), so its text never leaves the phone
+([Privacy](privacy.md#on-device-ai)):
+
+- **No network in the engine.** The native library is built without
+  llama.cpp's download and HTTP code (`LLAMA_CURL` and `LLAMA_OPENSSL`
+  off) and exports only Mozhi's small C API (a version script). The
+  models are AI providers of their own kind (`onDevice`) whose client
+  runs in the app: there is no URL to point elsewhere, and the
+  repository gives them the device as their destination, so the privacy
+  rules and the shield have nothing to send. A provider stored in the
+  settings, a backup or a sync file can never become one: they are made
+  from the installed models only, and a stored provider with an
+  on-device id is ignored.
+- **Only verified model files are loaded.** A GGUF model file is parsed
+  by native code, so a crafted file could exploit a parser bug. The app
+  loads only files of its catalogue: each download is checked against the
+  size and SHA-256 pinned in the app (whatever server sent it) before it
+  is installed, **Import from files** accepts a file only when it matches
+  a catalogue entry (by name, or by exact size and SHA-256), and the
+  engine is given the path of an installed, verified model only. The
+  files are in the app's private storage, where other apps can't replace
+  them.
+- **No state between requests.** Each request starts with an empty
+  context (the cache is cleared), so one text can't leak into the answer
+  to another, and requests run one at a time. Prompts that don't fit the
+  model's context fail with an error instead of being cut; long texts are
+  translated in parts.
+- **Resources.** The engine runs in a background isolate (the screen stays
+  responsive, and **Cancel** stops a reply at once). A model is mapped
+  from its file, not copied, is offered only on phones with enough memory,
+  and is unloaded after two idle minutes, in the background and on memory
+  pressure.
+- **Prompts and output** follow the rules above: the extras use the same
+  tagged prompts (and a JSON grammar for the replies that must be JSON),
+  and the output is shown as plain text.
+- **Text can't forge the model's chat markers.** The engine formats each
+  request with the model's chat template itself and tokenizes the parts
+  separately: only the template's own text can contain special tokens,
+  and the messages (the text you translate, a document, a web page,
+  recognised text) are tokenized as plain text. Text such as
+  `<|im_end|>`, `<|im_start|>`, `<turn|>`, `<|endoftext|>` or `<eos>` in
+  them stays ordinary characters, never the model's turn, end-of-text or
+  other special tokens (nor those a vocabulary would match in plain text,
+  such as Gemma 4's `<|channel>`), so a text can't end its turn or open a
+  system turn of its own.
+
 ## Other measures
 
 - Photos sent to AI providers are re-encoded first, which removes EXIF data

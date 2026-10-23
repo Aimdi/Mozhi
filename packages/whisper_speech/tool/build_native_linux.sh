@@ -12,8 +12,16 @@
 #
 # Needs cmake (>= 3.22), a C++17 compiler (gcc >= 9 or clang >= 10) and,
 # optionally, ninja. Environment:
-#   WHISPER_JOBS  parallel jobs (default: all cores)
-#   CMAKE_ARGS    extra cmake arguments (e.g. -DCMAKE_CXX_COMPILER=clang++)
+#   WHISPER_JOBS          parallel jobs (default: all cores)
+#   WHISPER_CPU_VARIANTS  also build CPU variants, `<name>=<march>` separated
+#                         by `;` (default: none), e.g. `native=native` builds
+#                         libmozhi_whisper_native.so and
+#                         mozhi_whisper_native_cli to compare with the
+#                         baseline (the arm64 Android variants are
+#                         `dotprod=armv8.2-a+dotprod+fp16` and
+#                         `i8mm=armv8.6-a+dotprod+fp16+i8mm`)
+#   CMAKE_ARGS            extra cmake arguments (e.g.
+#                         -DCMAKE_CXX_COMPILER=clang++)
 set -euo pipefail
 
 package_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -30,10 +38,21 @@ fi
 # shellcheck disable=SC2206 # CMAKE_ARGS is split on purpose.
 extra=(${CMAKE_ARGS:-})
 
+variants="${WHISPER_CPU_VARIANTS:-}"
+targets=(mozhi_whisper mozhi_whisper_cli)
+if [ -n "$variants" ]; then
+  IFS=';' read -ra entries <<< "$variants"
+  for entry in "${entries[@]}"; do
+    targets+=("mozhi_whisper_${entry%%=*}" "mozhi_whisper_${entry%%=*}_cli")
+  done
+fi
+
+# The variants are always passed (empty: none), so an earlier run's stay
+# out of the cache.
 cmake -S "${package_dir}/native" -B "$build_dir" "${generator[@]}" \
-  -DCMAKE_BUILD_TYPE=Release "${extra[@]}"
-cmake --build "$build_dir" --target mozhi_whisper mozhi_whisper_cli \
-  --parallel "$jobs"
+  -DCMAKE_BUILD_TYPE=Release "-DMOZHI_WHISPER_CPU_VARIANTS=${variants}" \
+  "${extra[@]}"
+cmake --build "$build_dir" --target "${targets[@]}" --parallel "$jobs"
 
 library="${build_dir}/libmozhi_whisper.so"
 if [ ! -f "$library" ]; then

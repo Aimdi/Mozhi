@@ -14,6 +14,7 @@ import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
+import 'package:mozhi/translate/widgets/on_device_ai_offer.dart';
 import 'package:mozhi/translate/widgets/quality_toggle.dart';
 import 'package:mozhi/translate/widgets/recent_pairs_sheet.dart';
 import 'package:mozhi/translate/widgets/translate_layout.dart';
@@ -43,6 +44,8 @@ String translateGreeting(AppLocalizations l10n, DateTime now) =>
 ///
 /// * after the app comes back to the front with text on the clipboard,
 ///   "Paste and translate" ([TranslatePasteOffer]);
+/// * once, on a phone that can run on-device AI and has no AI provider, the
+///   offer to set it up ([OnDeviceAiOffer]; it never downloads anything);
 /// * "Continue" with the last translation of the on-device history
 ///   ([translateHeroContinueEntry]; one tap shows it again with
 ///   `TranslateCubit.restoreHistoryEntry`, nothing is sent);
@@ -149,6 +152,8 @@ class TranslateHero extends StatelessWidget {
             ),
           ],
           const TranslatePasteOffer(),
+          // Once, where a model fits and no AI provider is set up.
+          const OnDeviceAiOffer(),
           if (last != null) ...[
             const SizedBox(height: 16),
             _ContinueButton(entry: last),

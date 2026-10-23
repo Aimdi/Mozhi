@@ -9,12 +9,14 @@ import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/settings/view/widgets/choice_dialog.dart';
 import 'package:mozhi/settings/view/widgets/model_source_dialog.dart';
+import 'package:mozhi/settings/view/widgets/on_device_ai_tile.dart';
 import 'package:mozhi/settings/view/widgets/settings_search.dart';
 import 'package:mozhi/settings/view/widgets/settings_section.dart';
 
 /// Anchors ([SettingsAnchor.id]) of the Translation engines settings.
 abstract final class EngineAnchors {
   static const offlineLanguages = 'offline_languages';
+  static const onDeviceAi = 'engines_on_device_ai';
   static const modelSource = 'model_source';
   static const instances = 'instances';
   static const services = 'mt_services';
@@ -24,10 +26,10 @@ abstract final class EngineAnchors {
 }
 
 /// The Translation engines settings: the offline languages (where the
-/// platform runs them), the online engines (Mozhi instances, machine
-/// translation services such as DeepL and LibreTranslate) and how they
-/// translate (quality modes, remembering the last one, instant
-/// translation).
+/// platform runs them) and on-device AI (where it runs), the online
+/// engines (Mozhi instances, machine translation services such as DeepL
+/// and LibreTranslate) and how they translate (quality modes, remembering
+/// the last one, instant translation).
 class EngineSettings extends StatelessWidget {
   const new({required this.settings, super.key});
 
@@ -73,6 +75,12 @@ class EngineSettings extends StatelessWidget {
                       subtitle: Text(l10n.settingsOfflineUnavailableSubtitle),
                     ),
             ),
+            // AI on this phone (Android, where it runs).
+            if (onDeviceAiOffered(context))
+              const SettingsAnchor(
+                id: EngineAnchors.onDeviceAi,
+                child: OnDeviceAiTile(),
+              ),
             // Offline languages, voice input and text recognition.
             const SettingsAnchor(
               id: EngineAnchors.modelSource,

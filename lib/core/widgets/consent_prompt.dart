@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/router.dart' show AppRoutes;
 import 'package:mozhi/app/theme.dart';
+import 'package:mozhi/core/on_device_ai_engine.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
@@ -46,7 +47,8 @@ String? _upstreamOf(DataDestination destination, String? engineId) =>
     };
 
 /// A short name for where text goes, as used in prompts and on the
-/// destination chip: "On device", "your server (192.168.1.10)", "Google via
+/// destination chip: "On device" ("On this device" for an on-device AI
+/// model's [engineId]), "your server (192.168.1.10)", "Google via
 /// mozhi.example.org", "Claude". [engineId] adds the upstream engine of a
 /// self-hosted Mozhi server.
 String destinationLabel(
@@ -56,6 +58,8 @@ String destinationLabel(
 }) {
   final upstream = _upstreamOf(destination, engineId);
   return switch (destination) {
+    OnDeviceDestination() when isOnDeviceAiEngineId(engineId) =>
+      l10n.commonDestinationOnDeviceAi,
     OnDeviceDestination() => l10n.commonDestinationOnDevice,
     SelfHostedDestination(:final host) =>
       upstream == null
@@ -85,6 +89,8 @@ String destinationDescription(
 }) {
   final upstream = _upstreamOf(destination, engineId);
   return switch (destination) {
+    OnDeviceDestination() when isOnDeviceAiEngineId(engineId) =>
+      l10n.commonDestinationOnDeviceAiBody,
     OnDeviceDestination() => l10n.commonDestinationOnDeviceBody,
     SelfHostedDestination(:final host) =>
       upstream == null
@@ -108,14 +114,17 @@ String destinationDescription(
   };
 }
 
-/// The icon of [destination]: a phone for the device, a server for the
-/// user's own, a globe for public servers and a cloud for cloud providers.
-IconData destinationIcon(DataDestination destination) => switch (destination) {
-  OnDeviceDestination() => Icons.phone_android,
-  SelfHostedDestination() => Icons.dns_outlined,
-  PublicInstanceDestination() => Icons.public,
-  CloudProviderDestination() => Icons.cloud_outlined,
-};
+/// The icon of [destination]: a phone for the device (a memory chip for an
+/// on-device AI model's [engineId]), a server for the user's own, a globe
+/// for public servers and a cloud for cloud providers.
+IconData destinationIcon(DataDestination destination, {String? engineId}) =>
+    switch (destination) {
+      OnDeviceDestination() when isOnDeviceAiEngineId(engineId) => Icons.memory,
+      OnDeviceDestination() => Icons.phone_android,
+      SelfHostedDestination() => Icons.dns_outlined,
+      PublicInstanceDestination() => Icons.public,
+      CloudProviderDestination() => Icons.cloud_outlined,
+    };
 
 /// "German → English" for the language codes [source] and [target]
 /// (`auto` is "Detect language").
@@ -735,7 +744,7 @@ class DestinationChip extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
-                        destinationIcon(destination),
+                        destinationIcon(destination, engineId: engineId),
                         size: 14,
                         color: palette.secondaryText,
                       ),
@@ -790,7 +799,7 @@ Future<void> showDestinationSheet(
           const SizedBox(height: 16),
           ListTile(
             contentPadding: EdgeInsets.zero,
-            leading: Icon(destinationIcon(destination)),
+            leading: Icon(destinationIcon(destination, engineId: engineId)),
             title: Text(
               destinationLabel(l10n, destination, engineId: engineId),
             ),

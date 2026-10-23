@@ -30,6 +30,7 @@ void main() {
     Object? sha256,
     Object? multilingual,
     Object? parameters,
+    Object? minRamMb,
   }) => {
     'id': ?id,
     'name': ?name,
@@ -39,18 +40,35 @@ void main() {
     'sha256': ?sha256,
     'multilingual': ?multilingual,
     'parameters': ?parameters,
+    'minRamMb': ?minRamMb,
   };
 
   String catalog(List<Object?> models, {Object schema = 1}) =>
       jsonEncode({'schemaVersion': schema, 'models': models});
 
   group(WhisperModelCatalog, () {
-    test('the bundled catalog lists tiny and base with the published '
+    test('the bundled catalog lists the speech models with the published '
         'checksums', () {
       final parsed = WhisperModelCatalog.parse(
         File('assets/models.json').readAsStringSync(),
       );
-      expect(parsed.models.map((m) => m.id), ['tiny', 'base']);
+      expect(parsed.models.map((m) => m.id), [
+        'tiny',
+        'base-q5_1',
+        'base',
+        'small-q5_1',
+        'large-v3-turbo-q5_0',
+      ]);
+      // whisper.cpp v1.9.5 models/README.md lists the turbo q5_0 SHA-1.
+      final turbo = parsed.model('large-v3-turbo-q5_0')!;
+      expect(turbo.sha1, 'e050f7970618a659205450ad97eb95a18d69c9ee');
+      expect(turbo.minRamMb, 7000);
+      expect(parsed.model('small-q5_1')!.minRamMb, 3000);
+      // The quantized files are pinned to a commit of the repository.
+      expect(
+        parsed.model('base-q5_1')!.url.path,
+        contains('/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/'),
+      );
       final tiny = parsed.model('tiny')!;
       final base = parsed.model('base')!;
       // whisper.cpp v1.9.5 models/README.md.
@@ -92,16 +110,29 @@ void main() {
       final parsed = WhisperModelCatalog.parse(
         File('assets/models.json').readAsStringSync(),
       );
+      // The README lists some models (the quantized base and small are
+      // checked by tool/whisper_catalog.py, which hashes the files): each
+      // one it lists must have its SHA-1.
+      final listed = <String>[];
       for (final model in parsed.models) {
+        if (!RegExp(
+          '^\\| ${RegExp.escape(model.id)} +\\|',
+          multiLine: true,
+        ).hasMatch(text)) {
+          continue;
+        }
+        listed.add(model.id);
         expect(
           RegExp(
-            '^\\| ${model.id} +\\| [^|]+\\| `${model.sha1}` \\|',
+            '^\\| ${RegExp.escape(model.id)} +\\| [^|]+\\| '
+            '`${model.sha1}` \\|',
             multiLine: true,
           ).hasMatch(text),
           isTrue,
           reason: model.id,
         );
       }
+      expect(listed, ['tiny', 'base', 'large-v3-turbo-q5_0']);
     });
 
     test('loads the bundled asset', () async {
@@ -109,7 +140,7 @@ void main() {
       final loaded = await loadBundledWhisperCatalog(
         bundle: _StringBundle({WhisperModelCatalog.assetKey: source}),
       );
-      expect(loaded.models, hasLength(2));
+      expect(loaded.models, hasLength(5));
     });
 
     test('parses optional fields', () {
@@ -147,6 +178,72 @@ void main() {
       expect(parsed.model('tiny'), isNot(parsed.model('base')));
     });
 
+    test('the quantized models resolved by tool/whisper_catalog.py fit '
+        'in, fastest first', () {
+      // The catalogue as `resolve --write` leaves it (made-up checksums).
+      final parsed = WhisperModelCatalog.parse(
+        File('test/fixtures/models_quantized.json').readAsStringSync(),
+      );
+      expect(parsed.models.map((m) => m.id), [
+        'tiny',
+        'base-q5_1',
+        'base',
+        'small-q5_1',
+        'large-v3-turbo-q5_0',
+      ]);
+      expect(parsed.vad?.id, 'silero-vad');
+      expect(parsed.model('tiny')!.minRamMb, isNull);
+      expect(parsed.model('base-q5_1')!.minRamMb, isNull);
+      expect(parsed.model('small-q5_1')!.minRamMb, 3000);
+      expect(parsed.model('large-v3-turbo-q5_0')!.minRamMb, 7000);
+      expect(
+        parsed.model('small-q5_1')!.url.path,
+        '/ggerganov/whisper.cpp/resolve/${'0' * 40}/ggml-small-q5_1.bin',
+      );
+    });
+
+    test('reads the RAM a model needs', () {
+      final parsed = WhisperModelCatalog.parse(
+        catalog([
+          entry(minRamMb: 3000),
+          entry(id: 'base', name: 'ggml-base.bin'),
+        ]),
+      );
+      expect(parsed.model('tiny')!.minRamMb, 3000);
+      expect(parsed.model('base')!.minRamMb, isNull);
+      expect(parsed.model('tiny'), isNot(parsed.model('base')));
+    });
+
+    group('fitsMemory', () {
+      const mib = 1024 * 1024;
+      final small = WhisperModelCatalog.parse(catalog([entry(minRamMb: 3000)]))
+          .models
+          .single;
+      final tiny = WhisperModelCatalog.parse(catalog([entry()])).models.single;
+
+      test('a model without a minimum fits every device', () {
+        expect(tiny.fitsMemory(), isTrue);
+        expect(tiny.fitsMemory(totalBytes: 512 * mib, lowRam: true), isTrue);
+      });
+
+      test('compares the RAM in MiB', () {
+        // A "4 GB" phone reports about 3.6 GiB; a "3 GB" one 2.7 GiB.
+        expect(small.fitsMemory(totalBytes: 3686 * mib), isTrue);
+        expect(small.fitsMemory(totalBytes: 3000 * mib), isTrue);
+        expect(small.fitsMemory(totalBytes: 3000 * mib - 1), isFalse);
+        expect(small.fitsMemory(totalBytes: 2765 * mib), isFalse);
+      });
+
+      test('a low-RAM device fits no model with a minimum', () {
+        expect(small.fitsMemory(totalBytes: 8000 * mib, lowRam: true), isFalse);
+        expect(small.fitsMemory(lowRam: true), isFalse);
+      });
+
+      test('unknown RAM fits', () {
+        expect(small.fitsMemory(), isTrue);
+      });
+    });
+
     final invalid = <String, String>{
       'not an object': '[]',
       'unknown schema': catalog([entry()], schema: 2),
@@ -166,6 +263,8 @@ void main() {
       'size not an int': catalog([entry(size: '10')]),
       'bad multilingual': catalog([entry(multilingual: 'yes')]),
       'bad parameters': catalog([entry(parameters: -1)]),
+      'bad minRamMb': catalog([entry(minRamMb: 0)]),
+      'minRamMb not an int': catalog([entry(minRamMb: '3000')]),
       'duplicate id': catalog([entry(), entry(name: 'other.bin')]),
       'duplicate name': catalog([entry(), entry(id: 'other')]),
     };

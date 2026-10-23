@@ -78,7 +78,7 @@ goes in 64 KiB frames.
 | Message | From | Content |
 | --- | --- | --- |
 | `hello` | both | protocol version `v: 1`; the sender's is the first encrypted frame and proves it knows the code's secret |
-| `offer` | sender | the items: kind, key, files (name, size, hashes as hints); the data item lists its sections and whether it holds secrets |
+| `offer` | sender | the items: kind, key, files (name, size, hashes as hints); the data item lists its sections and whether it holds secrets. A receiver leaves out items of a kind it doesn't know (from a newer Mozhi) and plans the rest |
 | `accept` / `decline` | receiver | the items and files it wants (from its own catalogue) |
 | `file` + data | sender | each wanted file in order: item, name, size, then exactly that many bytes |
 | `result` | receiver | per item, after installing it: `installed`, `damaged`, `noSpace`, `incompatible`, `failed` |

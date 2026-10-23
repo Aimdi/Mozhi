@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/offline/data/offline_model_file_picker.dart';
+import 'package:mozhi/platform/native_memory.dart';
 import 'package:mozhi/voice/voice.dart';
 import 'package:whisper_speech/whisper_speech.dart';
 
@@ -141,6 +142,69 @@ void main() {
       skip: 1,
       expect: () => [ready],
       errors: () => [isA<FileSystemException>()],
+    );
+  });
+
+  group('memory', () {
+    // Needs 3000 MiB of RAM (tool/whisper_catalog.py's small).
+    final small = WhisperCatalogModel(
+      id: 'small-q5_1',
+      name: 'ggml-small-q5_1.bin',
+      url: Uri.parse('https://models.example/ggml-small-q5_1.bin'),
+      size: 300,
+      sha1: 'c' * 40,
+      minRamMb: 3000,
+    );
+    final smallModel = VoiceModel(
+      id: 'small-q5_1',
+      sizeBytes: 300,
+      url: small.url,
+    );
+    const mib = 1024 * 1024;
+
+    setUp(() {
+      when(() => offline.models).thenReturn([_tiny, _base, small]);
+      // A "3 GB" phone.
+      when(() => offline.memory)
+          .thenReturn(const DeviceMemory(totalBytes: 2765 * mib));
+    });
+
+    blocTest<VoiceSettingsCubit, VoiceSettingsState>(
+      'does not list a model the device has too little memory for',
+      build: build,
+      act: (cubit) => cubit.load(),
+      skip: 1,
+      expect: () => [ready],
+    );
+
+    blocTest<VoiceSettingsCubit, VoiceSettingsState>(
+      'lists it with enough memory',
+      setUp: () =>
+          when(() => offline.memory)
+              .thenReturn(const DeviceMemory(totalBytes: 3686 * mib)),
+      build: build,
+      act: (cubit) => cubit.load(),
+      skip: 1,
+      expect: () => [
+        ready.copyWith(models: [_tinyModel, _baseModel, smallModel]),
+      ],
+    );
+
+    blocTest<VoiceSettingsCubit, VoiceSettingsState>(
+      'lists it while it is installed (imported), until it is deleted',
+      setUp: () => installed = {'small-q5_1'},
+      build: build,
+      act: (cubit) async {
+        await cubit.load();
+        expect(cubit.state.models, [_tinyModel, _baseModel, smallModel]);
+        expect(cubit.state.selected, 'small-q5_1');
+        await cubit.delete('small-q5_1');
+      },
+      verify: (cubit) {
+        expect(cubit.state.models, [_tinyModel, _baseModel]);
+        expect(cubit.state.installed, isEmpty);
+        expect(cubit.state.outcome?.succeeded, isTrue);
+      },
     );
   });
 

@@ -29,6 +29,11 @@
 #ifndef MOZHI_WHISPER_ENGINE_VERSION
 #define MOZHI_WHISPER_ENGINE_VERSION "unknown"
 #endif
+// The CPU ggml's kernels are compiled for (CMakeLists.txt: the ABI's
+// baseline, or a variant's -march), e.g. "armv8.2-a+dotprod+fp16".
+#ifndef MOZHI_WHISPER_CPU
+#define MOZHI_WHISPER_CPU "unknown"
+#endif
 
 namespace {
 
@@ -165,7 +170,8 @@ int32_t mozhi_whisper_abi_version(void) { return MOZHI_WHISPER_ABI_VERSION; }
 const char* mozhi_whisper_version(void) {
   static const std::string version = std::string("whisper.cpp ") +
                                      MOZHI_WHISPER_ENGINE_VERSION + " (ggml " +
-                                     ggml_version() + ", CPU)";
+                                     ggml_version() + ", CPU " +
+                                     MOZHI_WHISPER_CPU + ")";
   return version.c_str();
 }
 

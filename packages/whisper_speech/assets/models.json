@@ -6,7 +6,8 @@
     "size: exact bytes of the published files (75 MiB / 141 MiB), confirmed against what Hugging Face serves by CI (tool/check_model_downloads.py).",
     "sha256: the SHA-256 Hugging Face reports for the files (X-Linked-Etag); the app checks it as well as sha1 (a download from a mirror must match both), and CI compares it with what Hugging Face serves on every run.",
     "Weights: MIT License, Copyright (c) 2022 OpenAI (https://github.com/openai/whisper/blob/main/LICENSE). The files are F16 and multilingual (99 languages).",
-    "silero-vad (kind vad): Silero VAD v6.2.0 (MIT License, Copyright (c) 2020-present Silero Team, https://github.com/snakers4/silero-vad) converted to ggml by whisper.cpp (models/convert-silero-vad-to-ggml.py), published at https://huggingface.co/ggml-org/whisper-vad (whisper.cpp's models/download-vad-model.sh). size, sha1 and sha256 are those of the copy whisper.cpp v1.9.5 ships for its tests (native/third_party/whisper.cpp/models/for-tests-silero-v6.2.0-ggml.bin, the real model: 864.35 KiB as in whisper.cpp's README download log); CI compares size and sha256 with what Hugging Face serves (tool/check_model_downloads.py)."
+    "silero-vad (kind vad): Silero VAD v6.2.0 (MIT License, Copyright (c) 2020-present Silero Team, https://github.com/snakers4/silero-vad) converted to ggml by whisper.cpp (models/convert-silero-vad-to-ggml.py), published at https://huggingface.co/ggml-org/whisper-vad (whisper.cpp's models/download-vad-model.sh). size, sha1 and sha256 are those of the copy whisper.cpp v1.9.5 ships for its tests (native/third_party/whisper.cpp/models/for-tests-silero-v6.2.0-ggml.bin, the real model: 864.35 KiB as in whisper.cpp's README download log); CI compares size and sha256 with what Hugging Face serves (tool/check_model_downloads.py).",
+    "Quantized models (base-q5_1, small-q5_1, large-v3-turbo-q5_0): whisper.cpp's quantization of the same OpenAI weights (q5_1, q5_0), published in the same repository; url pinned to commit 5359861c739e955e79d9a303bcbc70fb988958b1, size and sha256 from Hugging Face's API (the Git LFS object) and checked against the downloaded file, sha1 computed from it (tool/whisper_catalog.py resolve, in the CI job 'Check model downloads'; whisper.cpp's models/README.md SHA-1 compared where listed). minRamMb: the RAM below which the app does not offer the model (small: 4 GB phones, large-v3-turbo: 8 GB)."
   ],
   "source": "https://huggingface.co/ggerganov/whisper.cpp",
   "license": "OpenAI Whisper model weights: MIT License (Copyright (c) 2022 OpenAI)",
@@ -22,6 +23,16 @@
       "parameters": 39000000
     },
     {
+      "id": "base-q5_1",
+      "name": "ggml-base-q5_1.bin",
+      "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-base-q5_1.bin",
+      "size": 59707625,
+      "sha1": "a3733eda680ef76256db5fc5dd9de8629e62c5e7",
+      "sha256": "422f1ae452ade6f30a004d7e5c6a43195e4433bc370bf23fac9cc591f01a8898",
+      "multilingual": true,
+      "parameters": 74000000
+    },
+    {
       "id": "base",
       "name": "ggml-base.bin",
       "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin",
@@ -30,6 +41,28 @@
       "sha256": "60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe",
       "multilingual": true,
       "parameters": 74000000
+    },
+    {
+      "id": "small-q5_1",
+      "name": "ggml-small-q5_1.bin",
+      "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-small-q5_1.bin",
+      "size": 190085487,
+      "sha1": "6fe57ddcfdd1c6b07cdcc73aaf620810ce5fc771",
+      "sha256": "ae85e4a935d7a567bd102fe55afc16bb595bdb618e11b2fc7591bc08120411bb",
+      "multilingual": true,
+      "parameters": 244000000,
+      "minRamMb": 3000
+    },
+    {
+      "id": "large-v3-turbo-q5_0",
+      "name": "ggml-large-v3-turbo-q5_0.bin",
+      "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-large-v3-turbo-q5_0.bin",
+      "size": 574041195,
+      "sha1": "e050f7970618a659205450ad97eb95a18d69c9ee",
+      "sha256": "394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2",
+      "multilingual": true,
+      "parameters": 809000000,
+      "minRamMb": 7000
     },
     {
       "id": "silero-vad",

@@ -53,6 +53,7 @@ NOTICES = NATIVE / "THIRD_PARTY_NOTICES.md"
 # <package>/native/third_party), with the library it builds.
 NATIVE_ENGINES = {
     ENGINE: "Offline translation (`libmozhi_bergamot.so`)",
+    Path("packages/llama_engine"): "On-device AI (`libmozhi_llama*.so`)",
     Path("packages/tesseract_ocr"): "Text recognition (`libmozhi_tesseract.so`)",
     Path("packages/whisper_speech"): "Offline voice input (`libmozhi_whisper.so`)",
 }
@@ -82,6 +83,7 @@ PURPOSE = {
     "intl": "Date and number formatting, generated localisations.",
     "llm_api": "Streaming clients for AI providers.",
     "material_ui": "Material 3 widgets (decoupled Material library).",
+    "llama_engine": "On-device AI: language models with llama.cpp over dart:ffi.",
     "mozhi_api": "Client for the Mozhi REST API.",
     "package_info_plus": "App version on the About page (local only).",
     "path_provider": "App-private directory for the offline models.",
@@ -123,6 +125,7 @@ PURPOSE = {
     "packages/bergamot_translator/native/third_party/translations": "mozilla/translations; `inference/` is bergamot-translator and its Marian fork, the engine itself.",
     "packages/bergamot_translator/native/third_party/pcre2": "Regular expressions for ssplit (sentence splitting).",
     "packages/bergamot_translator/native/third_party/cld2": "Compact Language Detector 2: on-device language identification.",
+    "packages/llama_engine/native/third_party/llama.cpp": "llama.cpp and ggml: language model inference on the CPU.",
     "packages/tesseract_ocr/native/third_party/tesseract": "Tesseract OCR: the LSTM text recognizer and layout analysis.",
     "packages/tesseract_ocr/native/third_party/leptonica": "Image processing for Tesseract (thresholding, scaling); no image codecs.",
     "packages/whisper_speech/native/third_party/whisper.cpp": "whisper.cpp and ggml: speech recognition on the CPU.",

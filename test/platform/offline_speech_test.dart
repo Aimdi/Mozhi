@@ -77,7 +77,13 @@ void main() {
     );
     expect(speech, isNotNull);
     expect(speech!.isAvailable, isTrue);
-    expect(speech.models.map((m) => m.id), ['tiny', 'base']);
+    expect(speech.models.map((m) => m.id), [
+      'tiny',
+      'base-q5_1',
+      'base',
+      'small-q5_1',
+      'large-v3-turbo-q5_0',
+    ]);
     expect(
       speech.whisper.models.root.path,
       p.join(support.path, offlineSpeechFolder),
@@ -113,6 +119,60 @@ void main() {
     await pumpEventQueue();
     expect(engine.disposed, 2);
     await speech.dispose();
+  });
+
+  test('offers the larger models only where the memory fits', () async {
+    // The catalogue once the quantized models are in (made-up checksums).
+    final quantized = File(
+      'packages/whisper_speech/test/fixtures/models_quantized.json',
+    ).readAsStringSync();
+    const mib = 1024 * 1024;
+    Future<List<String>> offered(DeviceMemory? memory) async {
+      final speech = await createOfflineSpeech(
+        store: MemoryStore(),
+        bundle: _Bundle({WhisperModelCatalog.assetKey: quantized}),
+        supportDirectory: () async => support,
+        isAvailable: true,
+        engine: _Engine(),
+        memoryBudget: NativeMemoryBudget(),
+        deviceMemory: () async => memory,
+      );
+      expect(speech!.memory, memory);
+      final ids = [
+        for (final model in speech.models)
+          if (speech.fits(model)) model.id,
+      ];
+      await speech.dispose();
+      return ids;
+    }
+
+    const all = [
+      'tiny',
+      'base-q5_1',
+      'base',
+      'small-q5_1',
+      'large-v3-turbo-q5_0',
+    ];
+    // An 8 GB flagship (7.4 GiB reported), a 4 GB phone (3.6 GiB), a 3 GB
+    // one (2.7 GiB).
+    expect(await offered(const DeviceMemory(totalBytes: 7577 * mib)), all);
+    expect(await offered(const DeviceMemory(totalBytes: 3686 * mib)), [
+      'tiny',
+      'base-q5_1',
+      'base',
+      'small-q5_1',
+    ]);
+    expect(await offered(const DeviceMemory(totalBytes: 2765 * mib)), [
+      'tiny',
+      'base-q5_1',
+      'base',
+    ]);
+    // Android Go, and unknown memory (the user decides).
+    expect(
+      await offered(const DeviceMemory(totalBytes: 8192 * mib, isLowRam: true)),
+      ['tiny', 'base-q5_1', 'base'],
+    );
+    expect(await offered(null), all);
   });
 
   test('is not created when the catalog cannot be loaded', () async {

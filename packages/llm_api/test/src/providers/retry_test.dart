@@ -83,6 +83,7 @@ String _success(LlmProvider provider, [String text = 'Hi']) =>
         },
         {'done': true, 'done_reason': 'stop'},
       ]),
+      LlmProvider.onDevice => throw UnsupportedError('No HTTP client'),
     };
 
 /// Only the first text delta of [_success], without an end.
@@ -93,6 +94,7 @@ String _firstDelta(LlmProvider provider) {
     LlmProvider.gemini => '${full.split('\n\n').first}\n\n',
     LlmProvider.anthropic => '${full.split('\n\n').first}\n\n',
     LlmProvider.ollama => '${full.split('\n').first}\n',
+    LlmProvider.onDevice => throw UnsupportedError('No HTTP client'),
   };
 }
 
@@ -121,7 +123,7 @@ Matcher _status(int status) =>
 void main() {
   group('retries', () {
     test('a transient HTTP failure once, for every provider', () async {
-      for (final provider in LlmProvider.values) {
+      for (final provider in httpProviders) {
         for (final status in [429, 500, 502, 503, 504, 529]) {
           final server = FakeServer([
             FakeResponse.json({
@@ -165,7 +167,7 @@ void main() {
     });
 
     test('a connection dropped before any text', () async {
-      for (final provider in LlmProvider.values) {
+      for (final provider in httpProviders) {
         final server = FakeServer([
           FakeResponse(
             () => Stream.error(
@@ -295,7 +297,7 @@ void main() {
 
   group('does not retry', () {
     test('once text was delivered', () async {
-      for (final provider in LlmProvider.values) {
+      for (final provider in httpProviders) {
         final server = FakeServer([
           FakeResponse(() async* {
             yield utf8.encode(_firstDelta(provider));

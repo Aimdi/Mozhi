@@ -14,6 +14,7 @@ import sys
 import tempfile
 import threading
 import unittest
+import urllib.parse
 from contextlib import redirect_stderr, redirect_stdout
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -193,6 +194,23 @@ class MirrorModelsTest(unittest.TestCase):
                 }
             )
         self.phrasebook = {"schemaVersion": 1, "packs": phrasebooks}
+
+        llm_models = []
+        for model_id, name in (
+            ("hy-mt2-1.8b-q4", "Hy-MT2-1.8B-Q4_K_M.gguf"),
+            ("qwen3-1.7b-q4", "Qwen3-1.7B-Q4_K_M.gguf"),
+        ):
+            data = f"gguf {model_id}".encode() * 300
+            llm_models.append(
+                {
+                    "id": model_id,
+                    "name": name,
+                    "url": publish(f"/hf/{model_id}/resolve/{'c' * 40}/{name}", data),
+                    "size": len(data),
+                    "sha256": _sha256(data),
+                }
+            )
+        self.llm = {"schemaVersion": 1, "models": llm_models}
         self.write_catalogs()
 
     def write_catalogs(self) -> None:
@@ -202,6 +220,7 @@ class MirrorModelsTest(unittest.TestCase):
             ("tesseract", self.tesseract),
             ("dictionary", self.dictionary),
             ("phrasebook", self.phrasebook),
+            ("llm", self.llm),
         ):
             (self.tmp / f"{name}.json").write_text(json.dumps(catalog))
 
@@ -221,6 +240,8 @@ class MirrorModelsTest(unittest.TestCase):
                     str(self.tmp / "dictionary.json"),
                     "--phrasebook-catalog",
                     str(self.tmp / "phrasebook.json"),
+                    "--llm-catalog",
+                    str(self.tmp / "llm.json"),
                     "--jobs",
                     "2",
                     *args,
@@ -239,7 +260,7 @@ class MirrorModelsTest(unittest.TestCase):
         code, output = self.run_tool()
         self.assertEqual(code, 0, output)
         files = self.mirrored()
-        self.assertEqual(len(files), 12 + 2 + 3 + 2 + 2)
+        self.assertEqual(len(files), 12 + 2 + 3 + 2 + 2 + 2)
         # The layout of bergamotMirrorUrl, whisperMirrorUrl, tessdataMirrorUrl.
         self.assertIn("bergamot/en-de/run_ende/model.ende.intgemm.alphas.bin.gz", files)
         self.assertIn("bergamot/de-en/run_de/vocab.deen.spm.gz", files)
@@ -247,12 +268,47 @@ class MirrorModelsTest(unittest.TestCase):
         self.assertIn("tesseract/chi_tra.traineddata", files)
         self.assertIn("dictionary/es.mzd", files)
         self.assertIn("phrasebooks/ja.json.gz", files)
+        self.assertIn("llm/Hy-MT2-1.8B-Q4_K_M.gguf", files)
         self.assertEqual(
             (self.out / "tesseract/deu.traineddata").read_bytes(),
             self.server.files["/tessdata/abc123/deu.traineddata"],
         )
         self.assertFalse([name for name in files if name.endswith(".part")])
-        self.assertIn("21 downloaded, 0 already in place, 0 failed", output)
+        self.assertIn("23 downloaded, 0 already in place, 0 failed", output)
+
+    def test_mirrors_on_device_ai_models(self) -> None:
+        code, output = self.run_tool("--only", "llm")
+        self.assertEqual(code, 0, output)
+        self.assertEqual(
+            self.mirrored(),
+            {"llm/Hy-MT2-1.8B-Q4_K_M.gguf", "llm/Qwen3-1.7B-Q4_K_M.gguf"},
+        )
+        url = urllib.parse.urlsplit(self.llm["models"][0]["url"]).path
+        self.assertEqual(
+            (self.out / "llm/Hy-MT2-1.8B-Q4_K_M.gguf").read_bytes(),
+            self.server.files[url],
+        )
+
+        self.out = self.tmp / "by-id"
+        code, _ = self.run_tool("--only", "llm", "--llm", "qwen3-1.7b-q4")
+        self.assertEqual(code, 0)
+        self.assertEqual(self.mirrored(), {"llm/Qwen3-1.7B-Q4_K_M.gguf"})
+
+        # Like the Whisper models, --languages keeps them; --llm "" none.
+        self.out = self.tmp / "languages"
+        code, _ = self.run_tool("--only", "llm,whisper", "--languages", "de", "--llm", "")
+        self.assertEqual(code, 0)
+        self.assertEqual(
+            self.mirrored(), {"whisper/ggml-tiny.bin", "whisper/ggml-vad.bin"}
+        )
+
+    def test_a_damaged_on_device_model_is_not_mirrored(self) -> None:
+        path = urllib.parse.urlsplit(self.llm["models"][1]["url"]).path
+        self.server.files[path] = b"x" + self.server.files[path][1:]
+        code, output = self.run_tool("--only", "llm")
+        self.assertEqual(code, 1)
+        self.assertIn("FAILED llm/Qwen3-1.7B-Q4_K_M.gguf", output)
+        self.assertEqual(self.mirrored(), {"llm/Hy-MT2-1.8B-Q4_K_M.gguf"})
 
     def test_filters_by_language_pair_id_and_kind(self) -> None:
         code, _ = self.run_tool("--languages", "de", "--whisper", "tiny")
@@ -260,7 +316,8 @@ class MirrorModelsTest(unittest.TestCase):
         self.assertEqual(
             {path.split("/")[0] + "/" + path.split("/")[1] for path in self.mirrored()},
             {"bergamot/de-en", "bergamot/en-de", "whisper/ggml-tiny.bin",
-             "tesseract/deu.traineddata"},
+             "tesseract/deu.traineddata", "llm/Hy-MT2-1.8B-Q4_K_M.gguf",
+             "llm/Qwen3-1.7B-Q4_K_M.gguf"},
         )
 
         self.out = self.tmp / "only"
@@ -503,6 +560,13 @@ class MirrorModelsTest(unittest.TestCase):
                 url=self.server.base + "/pt.json"
             ),
             "phrasebook size": lambda: self.phrasebook["packs"][0].update(size=-1),
+            "llm name": lambda: self.llm["models"][0].update(name="../x.gguf"),
+            "llm not gguf": lambda: self.llm["models"][0].update(name="x.bin"),
+            "llm url": lambda: self.llm["models"][0].update(
+                url=self.server.base + "/other.gguf"
+            ),
+            "llm sha": lambda: self.llm["models"][0].update(sha256="0" * 63),
+            "llm size": lambda: self.llm["models"][0].update(size="1"),
         }
         originals = (
             json.dumps(self.bergamot),
@@ -510,6 +574,7 @@ class MirrorModelsTest(unittest.TestCase):
             json.dumps(self.tesseract),
             json.dumps(self.dictionary),
             json.dumps(self.phrasebook),
+            json.dumps(self.llm),
         )
         for name, change in cases.items():
             with self.subTest(name):
@@ -519,6 +584,7 @@ class MirrorModelsTest(unittest.TestCase):
                     self.tesseract,
                     self.dictionary,
                     self.phrasebook,
+                    self.llm,
                 ) = (json.loads(text) for text in originals)
                 change()
                 self.write_catalogs()
@@ -532,6 +598,7 @@ class MirrorModelsTest(unittest.TestCase):
             self.tesseract,
             self.dictionary,
             self.phrasebook,
+            self.llm,
         ) = (json.loads(text) for text in originals)
         self.write_catalogs()
         self.assertEqual(self.run_tool("--only", "fonts")[0], 2)
@@ -543,13 +610,18 @@ class MirrorModelsTest(unittest.TestCase):
         self.write_catalogs()
         (self.tmp / "phrasebook.json").write_text("{not json")
         self.assertEqual(self.run_tool("--list")[0], 2)
+        self.write_catalogs()
+        (self.tmp / "llm.json").write_text("{not json")
+        self.assertEqual(self.run_tool("--list")[0], 2)
 
     def test_reads_the_bundled_catalogues(self) -> None:
         catalogs = mirror.load_catalogs(mirror.parser().parse_args(["out"]))
         args = mirror.parser().parse_args(["out"])
         files = mirror.select(args, catalogs)
         kinds = {file.kind for file in files}
-        self.assertEqual(kinds, {"bergamot", "whisper", "tesseract"})
+        # The on-device AI catalogue is empty until CI resolves it.
+        self.assertLessEqual({"bergamot", "whisper", "tesseract"}, kinds)
+        self.assertLessEqual(kinds, {"bergamot", "whisper", "tesseract", "llm"})
         self.assertTrue(all(file.url.startswith("https://") for file in files))
         paths = {file.path for file in files}
         self.assertIn("whisper/ggml-base.bin", paths)

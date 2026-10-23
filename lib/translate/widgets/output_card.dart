@@ -6,6 +6,7 @@ import 'package:flutter/semantics.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/core/haptics.dart';
+import 'package:mozhi/core/on_device_ai_engine.dart';
 import 'package:mozhi/core/widgets/consent_prompt.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/history/cubit/history_cubit.dart';
@@ -18,6 +19,7 @@ import 'package:mozhi/phrasebook/widgets/phrasebook_labels.dart'
     show maybePhrasebookRepository;
 import 'package:mozhi/platform/android_device.dart';
 import 'package:mozhi/platform/clipboard_service.dart';
+import 'package:mozhi/platform/device_conditions.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
@@ -34,6 +36,7 @@ import 'package:mozhi/translate/widgets/listen_button.dart';
 import 'package:mozhi/translate/widgets/meaning_check_panel.dart';
 import 'package:mozhi/translate/widgets/offline_offer.dart';
 import 'package:mozhi/translate/widgets/offline_only_notice.dart';
+import 'package:mozhi/translate/widgets/on_device_ai_loading.dart';
 import 'package:mozhi/translate/widgets/romanization_line.dart';
 import 'package:mozhi/translate/widgets/short_query_panel.dart';
 import 'package:mozhi/translate/widgets/show_mode.dart';
@@ -186,12 +189,14 @@ bool outputIsStreaming(TranslateState state) =>
 ///
 /// **Instant and still:** as soon as a translation is queued or running
 /// (`TranslateState.isPending`) without text yet, the header and three
-/// placeholder lines show (no extra delay). While a new translation of the
-/// same input runs, the previous one stays, dimmed ([outputIsRefreshing];
-/// a thin bar shows once it takes [loadingRevealDelay]). The actions keep
-/// their place while text streams in (hidden until it is complete, then
-/// they fade in over 150 ms and, on Android, a light haptic tick says it
-/// is done when the haptic feedback setting is on). What only a finished
+/// placeholder lines show (no extra delay); while on-device AI loads its
+/// model they say so, with Cancel ([OnDeviceAiLoadingNotice]). While a new
+/// translation of the same input runs, the previous one stays, dimmed
+/// ([outputIsRefreshing]; a thin bar shows once it takes
+/// [loadingRevealDelay]). The actions keep their place while text streams
+/// in (hidden until it is complete, then they fade in over 150 ms and, on
+/// Android, a light haptic tick says it is done when the haptic feedback
+/// setting is on). What only a finished
 /// translation has (the checks' findings, other likely source languages,
 /// refinement chips, the short-input panel) comes under the actions. The
 /// detected language is in the language bar, not repeated here. A new
@@ -319,11 +324,17 @@ class _OutputCardState extends State<OutputCard>
   TranslationResult? _alignmentAskedFor;
 
   /// Whether the AI extras of [state] may be reloaded without a user
-  /// action: they cost nothing (a local assist engine), or the user asked
-  /// for the translation (not an instant one, nor the automatic one of
-  /// external text).
-  static bool _mayReload(TranslateState state) =>
-      !state.instantResult || (state.assistEngine?.isLocal ?? false);
+  /// action: they cost nothing (a local assist engine, but not on-device
+  /// AI while the phone is hot or saving battery: [DeviceConditions]), or
+  /// the user asked for the translation (not an instant one, nor the
+  /// automatic one of external text).
+  static bool _mayReload(TranslateState state) {
+    if (!state.instantResult) return true;
+    final assist = state.assistEngine;
+    if (assist == null || !assist.isLocal) return false;
+    return !isOnDeviceAiEngine(assist) ||
+        DeviceConditions.instance.latest.strain == null;
+  }
 
   /// The same for the romanization, which is also free when the result
   /// has a transliteration of its own.
@@ -780,6 +791,11 @@ class _OutputCardState extends State<OutputCard>
       // Queued or running without text yet: the header and placeholder
       // lines at once, with the actions' room kept, so nothing moves when
       // the text arrives.
+      final skeleton = TranslateOutputSkeleton(
+        label: context.l10n.translateTranslating,
+      );
+      final engine = state.engine;
+      final onDeviceAi = engine != null && isOnDeviceAiEngine(engine);
       return Column(
         key: const Key('translate_output_loading'),
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -788,7 +804,13 @@ class _OutputCardState extends State<OutputCard>
           const SizedBox(height: 8),
           _surface(
             context,
-            TranslateOutputSkeleton(label: context.l10n.translateTranslating),
+            // The first request after a pause loads the model.
+            onDeviceAi
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [const OnDeviceAiLoadingNotice(), skeleton],
+                  )
+                : skeleton,
           ),
           const SizedBox(height: 4 + 48),
         ],

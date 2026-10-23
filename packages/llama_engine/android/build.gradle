@@ -1,0 +1,93 @@
+// Builds the on-device AI engine (../native/CMakeLists.txt: llama.cpp with
+// the ggml CPU backend + the C API the Dart code calls through dart:ffi)
+// with the NDK, once per ABI. Flutter packs the libraries into the APK under
+// lib/<abi>/:
+//   arm64-v8a  libmozhi_llama.so (ARMv8.0-A), libmozhi_llama_dotprod.so
+//              (ARMv8.2-A + dotprod + fp16), libmozhi_llama_i8mm.so
+//              (ARMv8.6-A + dotprod + fp16 + i8mm); Dart picks one from
+//              /proc/cpuinfo;
+//   x86_64     libmozhi_llama.so (SSE4.2): the variants exist only for
+//              arm64; x86_64's configure gives their target names to empty
+//              static libraries, which are not packaged.
+//
+// Needs the native sources first: ../tool/fetch_native_deps.sh (initialises
+// the pinned submodule; nothing is downloaded during the build).
+
+group = "io.github.aimdi.mozhi.llama_engine"
+version = "1.0"
+
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+
+    dependencies {
+        // Same Android Gradle Plugin as the app (android/settings.gradle.kts).
+        classpath("com.android.tools.build:gradle:9.4.1")
+    }
+}
+
+rootProject.allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+apply plugin: "com.android.library"
+
+android {
+    namespace = "io.github.aimdi.mozhi.llama_engine"
+
+    compileSdk = 36
+
+    // Pinned for reproducible builds (F-Droid). It is Flutter 3.47's default
+    // (flutter.ndkVersion), so the app needs no second NDK. Bump together
+    // with the CI job that builds the native libraries for Android.
+    ndkVersion = "28.2.13676358"
+
+    defaultConfig {
+        minSdk = 24
+
+        ndk {
+            // 64-bit only: a 1-2 GB model cannot be mapped into a 32-bit
+            // address space reliably, so there is no armeabi-v7a build
+            // (Dart reports the engine unsupported there).
+            abiFilters "arm64-v8a", "x86_64"
+        }
+
+        externalNativeBuild {
+            cmake {
+                // arm64-v8a: the baseline and the two CPU variants, which
+                // Dart picks from at run time (lib/src/engine/
+                // cpu_features.dart); x86_64: the baseline (the other two
+                // are empty static stand-ins there, see ../native).
+                targets "mozhi_llama", "mozhi_llama_dotprod", "mozhi_llama_i8mm"
+                arguments(
+                    // Always optimised: a Debug (-O0) engine is unusably
+                    // slow, also in debug builds of the app.
+                    "-DCMAKE_BUILD_TYPE=Release",
+                    // The C API is the only interface, so libc++ is linked
+                    // statically and hidden by the version script.
+                    "-DANDROID_STL=c++_static",
+                    // 16 KB page sizes (Android 15+).
+                    "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON"
+                )
+            }
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = "../native/CMakeLists.txt"
+            // The Android SDK's CMake; ../native needs >= 3.22.
+            version = "3.22.1"
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+}

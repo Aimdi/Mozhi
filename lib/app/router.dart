@@ -33,6 +33,8 @@ import 'package:mozhi/image_translate/view/image_translate_page.dart'
     show ImageTranslatePage;
 import 'package:mozhi/offline/view/offline_models_page.dart'
     deferred as offline_page;
+import 'package:mozhi/on_device_ai/view/on_device_ai_page.dart'
+    deferred as on_device_ai_page;
 import 'package:mozhi/onboarding/onboarding_redirect.dart';
 import 'package:mozhi/onboarding/view/onboarding_page.dart'
     deferred as onboarding_page;
@@ -135,6 +137,9 @@ abstract final class AppRoutes {
 
   /// Voice input settings (the offline speech models).
   static const String voiceSettings = VoiceInputButton.settingsLocation;
+
+  /// On-device AI: its models (download, import, delete, the ones in use).
+  static const onDeviceAi = '/settings/on-device-ai';
 
   /// First-run flow (full screen, outside the tabs).
   static const String onboarding = onboardingLocation;
@@ -278,6 +283,7 @@ abstract final class DeferredFeatures {
       quality_page.loadLibrary(),
       tab_order_page.loadLibrary(),
       voice_settings_page.loadLibrary(),
+      on_device_ai_page.loadLibrary(),
       about_page.loadLibrary(),
       network_page.loadLibrary(),
     ]),
@@ -616,6 +622,11 @@ GoRouter createAppRouter({
             'voice',
             DeferredFeatures.settings,
             (context, state) => voice_settings_page.VoiceInputSettingsPage(),
+          ),
+          deferredRoute(
+            'on-device-ai',
+            DeferredFeatures.settings,
+            (context, state) => on_device_ai_page.OnDeviceAiPage(),
           ),
           deferredRoute(
             'usage',

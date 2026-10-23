@@ -36,6 +36,15 @@ const whisperEngineLicensePackage = 'Whisper speech recognition (whisper.cpp)';
 /// Package name of the notice of the offline speech recognition models.
 const whisperModelsLicensePackage = 'Whisper speech models (OpenAI)';
 
+/// Package name of the on-device AI engine's notice
+/// (`libmozhi_llama*.so`, packages/llama_engine).
+const llamaEngineLicensePackage = 'On-device AI engine (llama.cpp)';
+
+/// Package name of the notice of the on-device AI models
+/// (packages/llama_engine/assets/models.json).
+const onDeviceAiModelsLicensePackage =
+    'On-device AI models (Hy-MT2, Gemma 4, Qwen3)';
+
 /// Package name of the notice of the practice scheduler
 /// (`lib/practice/data/fsrs.dart`, a port of py-fsrs).
 const fsrsLicensePackage = 'FSRS spaced repetition scheduler (py-fsrs)';
@@ -284,7 +293,10 @@ with the app and kept on this device.''';
 const whisperEngineLicenseText = '''
 Offline voice input runs OpenAI's Whisper speech recognition with
 whisper.cpp and its ggml tensor library (CPU only), compiled into one
-native library (libmozhi_whisper.so).
+native library (libmozhi_whisper.so; on 64-bit ARM also
+libmozhi_whisper_dotprod.so and libmozhi_whisper_i8mm.so, the same code
+built for newer processors, of which the app loads the fastest one the
+phone supports).
 
 Source code: https://github.com/ggml-org/whisper.cpp (tag v1.9.5), pinned
 as a git submodule in packages/whisper_speech/native/third_party/ of the
@@ -319,10 +331,11 @@ SOFTWARE.''';
 
 /// The notice of the Whisper models (`ggml-tiny.bin`, `ggml-base.bin`).
 const whisperModelsLicenseText = '''
-The offline speech models are OpenAI's Whisper tiny and base models
-(https://github.com/openai/whisper), converted to the ggml format by the
-whisper.cpp project, licensed under the MIT License, Copyright (c) 2022
-OpenAI.
+The offline speech models are OpenAI's Whisper tiny, base, small and
+large-v3-turbo models (https://github.com/openai/whisper), converted to the
+ggml format (base, small and large-v3-turbo also quantized, q5_1 and q5_0)
+by the whisper.cpp project, licensed under the MIT License, Copyright (c)
+2022 OpenAI.
 
 The speech detector, which tells speech from noise so that text appears
 phrase by phrase, is Silero VAD v6.2.0
@@ -335,6 +348,28 @@ it, from Hugging Face (huggingface.co/ggerganov/whisper.cpp) or the mirror
 chosen in Settings > Translation engines > Model source, or imported from a
 file, checked against the SHA-256 and SHA-1 checksums bundled with the app
 and kept on this device.''';
+
+/// The notice of the on-device AI models (the catalogue of
+/// packages/llama_engine: GGUF files on Hugging Face).
+const onDeviceAiModelsLicenseText = '''
+On-device AI runs these models on this device, as GGUF files in the
+Q4_K_M quantization:
+- Hy-MT2 1.8B, the translation model: Copyright (C) 2026 Tencent, licensed
+  under the Apache License 2.0
+  (https://github.com/Tencent-Hunyuan/Hy-MT2).
+- Gemma 4 E2B, an assistant model: by Google, licensed under the Apache
+  License 2.0 (https://huggingface.co/google/gemma-4-E2B-it).
+- Qwen3 1.7B, a smaller assistant model: by the Qwen team (Alibaba Cloud),
+  licensed under the Apache License 2.0
+  (https://huggingface.co/Qwen/Qwen3-1.7B).
+
+Apache License 2.0: https://www.apache.org/licenses/LICENSE-2.0
+
+They are not part of the app: a model is downloaded only when you choose
+it, from Hugging Face (huggingface.co, pinned to one commit of its
+repository) or the mirror chosen in Settings > Translation engines > Model
+source, or imported from a file, checked against the size and SHA-256
+checksum bundled with the app and kept on this device.''';
 
 /// The notice of py-fsrs, which the practice scheduler is ported from.
 const fsrsLicenseText = '''
@@ -365,12 +400,96 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.''';
 
+/// The notices of `libmozhi_llama*.so`, from
+/// `packages/llama_engine/native/THIRD_PARTY_NOTICES.md`.
+const llamaEngineLicenseText = '''
+On-device AI runs language models with llama.cpp and its ggml tensor
+library (CPU only), compiled into native libraries (libmozhi_llama.so; on
+64-bit ARM phones also libmozhi_llama_dotprod.so and libmozhi_llama_i8mm.so,
+the same code built for newer processors, of which the app loads the
+fastest one the phone supports).
+
+Source code: https://github.com/ggml-org/llama.cpp (tag v0.6.0), pinned as
+a git submodule in packages/llama_engine/native/third_party/ of the Mozhi
+repository (https://github.com/Aimdi/Mozhi), together with the build
+files.
+
+Components and their licenses:
+- llama.cpp and ggml: MIT, Copyright (c) 2023-2026 The ggml authors
+- YaRN RoPE scaling in ggml: MIT, Copyright (c) 2023 Jeffrey Quesnelle and Bowen Peng
+- Unicode character tables in llama.cpp: Unicode License v3, Copyright © 1991-2026 Unicode, Inc.
+- LLVM libc++ (Android NDK, linked statically): Apache-2.0 WITH LLVM-exception
+- The mozhi_llama interface: MIT, like the app
+
+MIT License
+
+Copyright (c) 2023-2026 The ggml authors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+UNICODE LICENSE V3
+
+COPYRIGHT AND PERMISSION NOTICE
+
+Copyright © 1991-2026 Unicode, Inc.
+
+NOTICE TO USER: Carefully read the following legal agreement. BY
+DOWNLOADING, INSTALLING, COPYING OR OTHERWISE USING DATA FILES, AND/OR
+SOFTWARE, YOU UNEQUIVOCALLY ACCEPT, AND AGREE TO BE BOUND BY, ALL OF THE
+TERMS AND CONDITIONS OF THIS AGREEMENT. IF YOU DO NOT AGREE, DO NOT
+DOWNLOAD, INSTALL, COPY, DISTRIBUTE OR USE THE DATA FILES OR SOFTWARE.
+
+Permission is hereby granted, free of charge, to any person obtaining a
+copy of data files and any associated documentation (the "Data Files") or
+software and any associated documentation (the "Software") to deal in the
+Data Files or Software without restriction, including without limitation
+the rights to use, copy, modify, merge, publish, distribute, and/or sell
+copies of the Data Files or Software, and to permit persons to whom the
+Data Files or Software are furnished to do so, provided that either (a)
+this copyright and permission notice appear with all copies of the Data
+Files or Software, or (b) this copyright and permission notice appear in
+associated Documentation.
+
+THE DATA FILES AND SOFTWARE ARE PROVIDED "AS IS", WITHOUT WARRANTY OF ANY
+KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT OF
+THIRD PARTY RIGHTS.
+
+IN NO EVENT SHALL THE COPYRIGHT HOLDER OR HOLDERS INCLUDED IN THIS NOTICE
+BE LIABLE FOR ANY CLAIM, OR ANY SPECIAL INDIRECT OR CONSEQUENTIAL DAMAGES,
+OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS,
+WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION,
+ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THE DATA
+FILES OR SOFTWARE.
+
+Except as contained in this notice, the name of a copyright holder shall
+not be used in advertising or otherwise to promote the sale, use or other
+dealings in these Data Files or Software without prior written
+authorization of the copyright holder.''';
+
 bool _registered = false;
 
 /// Adds the notices Flutter does not collect from pub packages (the app's
 /// own license, the offline translation engine and models, the text
 /// recognition engine and data, the offline speech recognition engine and
-/// models, the practice scheduler, ML Kit and native platform libraries) to
+/// models, the on-device AI models, the practice scheduler, ML Kit and
+/// native platform libraries) to
 /// the [LicenseRegistry] shown by `showLicensePage`. Safe to call
 /// repeatedly.
 ///
@@ -408,6 +527,12 @@ void registerThirdPartyLicenses({
       const LicenseEntryWithLineBreaks([
         whisperModelsLicensePackage,
       ], whisperModelsLicenseText),
+      const LicenseEntryWithLineBreaks([
+        llamaEngineLicensePackage,
+      ], llamaEngineLicenseText),
+      const LicenseEntryWithLineBreaks([
+        onDeviceAiModelsLicensePackage,
+      ], onDeviceAiModelsLicenseText),
       const LicenseEntryWithLineBreaks([fsrsLicensePackage], fsrsLicenseText),
       if (includeMlKit)
         const LicenseEntryWithLineBreaks([

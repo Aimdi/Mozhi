@@ -504,11 +504,30 @@ void main() {
       expect(
         await offer({
           'items': [
-            {'kind': 'apps', 'key': 'x', 'files': <Object?>[]},
+            {'kind': 'ocr', 'key': '../x', 'files': <Object?>[]},
           ],
         }),
         isA<PairingProtocolException>(),
       );
+      expect(
+        await offer({
+          'items': [
+            {'kind': 3, 'key': 'x', 'files': <Object?>[]},
+          ],
+        }),
+        isA<PairingProtocolException>(),
+      );
+    });
+
+    test('leaves out kinds of a newer Mozhi and plans the rest', () async {
+      await senderChannel.send('offer', {
+        'items': [
+          {'kind': 'apps', 'key': 'x', 'files': <Object?>[]},
+          item,
+        ],
+      });
+      final offered = await receiver().offer();
+      expect(offered.single.item.kind, PairingItemKind.ocr);
     });
 
     test('for kinds it has no packs for', () async {

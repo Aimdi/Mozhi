@@ -14,6 +14,7 @@ Translate.
 | [Features](features.md) | A tour of everything the app can do |
 | [AI providers](ai-providers.md) | Keys, base URLs, models and costs for every provider; local models with Ollama, LM Studio, llama.cpp and vLLM; which model fits your hardware |
 | [Self-hosting Mozhi](self-hosting-mozhi.md) | Run your own Mozhi instance with Docker Compose, HTTPS, LAN and Tor use, troubleshooting |
+| [On-device AI](on-device-ai.md) | AI translation and extras that run on the phone without a network: the models (Hy-MT2, Gemma 4, Qwen3), sizes and which phones they fit, speed, battery and heat, privacy, import and mirrors, troubleshooting |
 | [Voice input](voice-input.md) | Dictation with the system recognizer or offline with Whisper: models, languages, privacy, import from files |
 | [Text recognition](text-recognition.md) | Reading text in photos on the phone with Tesseract: languages, sizes, where the data comes from, import from files |
 | [Offline dictionaries](dictionary-packs.md) | Wiktionary dictionaries for the Dictionary tab without AI or a network: what's in a pack, downloads, attribution, building and publishing packs |

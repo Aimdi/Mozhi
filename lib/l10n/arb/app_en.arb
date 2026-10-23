@@ -12037,5 +12037,504 @@
   "settingsDeleteAllDataPractice": "{count, plural, =1{Practice progress of 1 card} other{Practice progress of {count} cards}}",
   "@settingsDeleteAllDataPractice": {
     "description": "settingsDeleteAllDataPractice"
+  },
+  "settingsProviderTypeOnDevice": "On this device",
+  "@settingsProviderTypeOnDevice": {
+    "description": "Provider type of AI models that run inside the app, on this phone (on-device AI)"
+  },
+  "commonDestinationOnDeviceAi": "On this device",
+  "@commonDestinationOnDeviceAi": {
+    "description": "commonDestinationOnDeviceAi"
+  },
+  "commonDestinationOnDeviceAiBody": "An AI model on this device did the work. Your text isn’t sent anywhere.",
+  "@commonDestinationOnDeviceAiBody": {
+    "description": "commonDestinationOnDeviceAiBody"
+  },
+  "translateAddOnDeviceAi": "Add on-device AI…",
+  "@translateAddOnDeviceAi": {
+    "description": "translateAddOnDeviceAi"
+  },
+  "translateAddOnDeviceAiSubtitle": "AI that runs on this phone, without the network",
+  "@translateAddOnDeviceAiSubtitle": {
+    "description": "translateAddOnDeviceAiSubtitle"
+  },
+  "translateOnDeviceAiLoading": "Loading the on-device model…",
+  "@translateOnDeviceAiLoading": {
+    "description": "translateOnDeviceAiLoading"
+  },
+  "translateOnDeviceAiLoadingHint": "The first translation after a pause takes a few seconds.",
+  "@translateOnDeviceAiLoadingHint": {
+    "description": "translateOnDeviceAiLoadingHint"
+  },
+  "translateOnDeviceAiPausedHeat": "Your phone is hot, so on-device AI waits until you press Enter or Translate.",
+  "@translateOnDeviceAiPausedHeat": {
+    "description": "translateOnDeviceAiPausedHeat"
+  },
+  "translateOnDeviceAiPausedBatterySaver": "Battery saver is on, so on-device AI waits until you press Enter or Translate.",
+  "@translateOnDeviceAiPausedBatterySaver": {
+    "description": "translateOnDeviceAiPausedBatterySaver"
+  },
+  "translateOnDeviceAiOfferTitle": "Translate and explain with AI that stays on your phone",
+  "@translateOnDeviceAiOfferTitle": {
+    "description": "translateOnDeviceAiOfferTitle"
+  },
+  "translateOnDeviceAiOfferBody": "Choose a model on the next screen. Nothing downloads until you do, and your text never leaves the phone.",
+  "@translateOnDeviceAiOfferBody": {
+    "description": "translateOnDeviceAiOfferBody"
+  },
+  "translateOnDeviceAiOfferBodySize": "Choose a model on the next screen (from {size}). Nothing downloads until you do, and your text never leaves the phone.",
+  "@translateOnDeviceAiOfferBodySize": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "translateOnDeviceAiOfferOpen": "See models",
+  "@translateOnDeviceAiOfferOpen": {
+    "description": "translateOnDeviceAiOfferOpen"
+  },
+  "translateOnDeviceAiOfferNotNow": "Not now",
+  "@translateOnDeviceAiOfferNotNow": {
+    "description": "translateOnDeviceAiOfferNotNow"
+  },
+  "translateOnDeviceAiOfferNever": "Don’t show again",
+  "@translateOnDeviceAiOfferNever": {
+    "description": "translateOnDeviceAiOfferNever"
+  },
+  "settingsOnDeviceAi": "On-device AI",
+  "@settingsOnDeviceAi": {
+    "description": "settingsOnDeviceAi"
+  },
+  "settingsOnDeviceAiSubtitle": "AI translation and extras that run on this phone, without the network",
+  "@settingsOnDeviceAiSubtitle": {
+    "description": "settingsOnDeviceAiSubtitle"
+  },
+  "settingsOnDeviceAiInUse": "In use: {models}",
+  "@settingsOnDeviceAiInUse": {
+    "placeholders": {
+      "models": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsOnDeviceAiUnavailable": "Needs the Android app on a 64-bit phone",
+  "@settingsOnDeviceAiUnavailable": {
+    "description": "settingsOnDeviceAiUnavailable"
+  },
+  "settingsOnDeviceAiKeywords": "offline AI, local model, LLM, llama.cpp, Hy-MT2, Gemma, Qwen",
+  "@settingsOnDeviceAiKeywords": {
+    "description": "settingsOnDeviceAiKeywords"
+  },
+  "offlineOnDeviceAiTitle": "On-device AI",
+  "@offlineOnDeviceAiTitle": {
+    "description": "offlineOnDeviceAiTitle"
+  },
+  "offlineOnDeviceAiSubtitle": "AI translation and extras without the network (larger downloads)",
+  "@offlineOnDeviceAiSubtitle": {
+    "description": "offlineOnDeviceAiSubtitle"
+  },
+  "onDeviceAiTitle": "On-device AI",
+  "@onDeviceAiTitle": {
+    "description": "onDeviceAiTitle"
+  },
+  "onDeviceAiIntro": "AI translation and the AI extras can run on this phone: nothing you type leaves it, and they work offline. The models are big downloads (1 to 3 GB), and while they work they use a lot of memory and battery.",
+  "@onDeviceAiIntro": {
+    "description": "onDeviceAiIntro"
+  },
+  "onDeviceAiWebUnavailable": "On-device AI needs the Android app.",
+  "@onDeviceAiWebUnavailable": {
+    "description": "onDeviceAiWebUnavailable"
+  },
+  "onDeviceAiDeviceUnavailable": "This device can't run on-device AI: it needs a 64-bit Android phone.",
+  "@onDeviceAiDeviceUnavailable": {
+    "description": "onDeviceAiDeviceUnavailable"
+  },
+  "onDeviceAiNoModels": "This version of Mozhi has no on-device models to offer yet.",
+  "@onDeviceAiNoModels": {
+    "description": "onDeviceAiNoModels"
+  },
+  "onDeviceAiTranslationSection": "Translation model",
+  "@onDeviceAiTranslationSection": {
+    "description": "onDeviceAiTranslationSection"
+  },
+  "onDeviceAiTranslationDescription": "Translates on this phone, without a network.",
+  "@onDeviceAiTranslationDescription": {
+    "description": "onDeviceAiTranslationDescription"
+  },
+  "onDeviceAiAssistantSection": "Assistant model",
+  "@onDeviceAiAssistantSection": {
+    "description": "onDeviceAiAssistantSection"
+  },
+  "onDeviceAiAssistantDescription": "For refine, explain, dictionary, proofread and the other AI extras.",
+  "@onDeviceAiAssistantDescription": {
+    "description": "onDeviceAiAssistantDescription"
+  },
+  "onDeviceAiFitOk": "Fits this phone",
+  "@onDeviceAiFitOk": {
+    "description": "onDeviceAiFitOk"
+  },
+  "onDeviceAiFitSlow": "May be slow on this phone",
+  "@onDeviceAiFitSlow": {
+    "description": "onDeviceAiFitSlow"
+  },
+  "onDeviceAiFitTooBig": "Needs more memory",
+  "@onDeviceAiFitTooBig": {
+    "description": "onDeviceAiFitTooBig"
+  },
+  "onDeviceAiInUse": "In use",
+  "@onDeviceAiInUse": {
+    "description": "onDeviceAiInUse"
+  },
+  "onDeviceAiLanguages": "{count, plural, =1{1 language} other{{count} languages}}",
+  "@onDeviceAiLanguages": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "onDeviceAiDownloading": "Downloading… {percent}%",
+  "@onDeviceAiDownloading": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "onDeviceAiPaused": "Paused at {percent}%: download to continue",
+  "@onDeviceAiPaused": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "onDeviceAiDownloadTooltip": "Download {model}",
+  "@onDeviceAiDownloadTooltip": {
+    "placeholders": {
+      "model": {
+        "type": "String"
+      }
+    }
+  },
+  "onDeviceAiCancelTooltip": "Stop downloading {model}",
+  "@onDeviceAiCancelTooltip": {
+    "placeholders": {
+      "model": {
+        "type": "String"
+      }
+    }
+  },
+  "onDeviceAiDeleteTooltip": "Delete {model}",
+  "@onDeviceAiDeleteTooltip": {
+    "placeholders": {
+      "model": {
+        "type": "String"
+      }
+    }
+  },
+  "onDeviceAiAboutTooltip": "About {model}",
+  "@onDeviceAiAboutTooltip": {
+    "placeholders": {
+      "model": {
+        "type": "String"
+      }
+    }
+  },
+  "onDeviceAiDeleteTitle": "Delete {model}?",
+  "@onDeviceAiDeleteTitle": {
+    "placeholders": {
+      "model": {
+        "type": "String"
+      }
+    }
+  },
+  "onDeviceAiDeleteBody": "It is removed from this phone. You can download or import it again later.",
+  "@onDeviceAiDeleteBody": {
+    "description": "onDeviceAiDeleteBody"
+  },
+  "onDeviceAiDownloadDone": "{model} is ready",
+  "@onDeviceAiDownloadDone": {
+    "placeholders": {
+      "model": {
+        "type": "String"
+      }
+    }
+  },
+  "onDeviceAiDownloadStopped": "Stopped downloading {model}. Download it again to continue.",
+  "@onDeviceAiDownloadStopped": {
+    "placeholders": {
+      "model": {
+        "type": "String"
+      }
+    }
+  },
+  "onDeviceAiDeleteDone": "{model} was deleted",
+  "@onDeviceAiDeleteDone": {
+    "placeholders": {
+      "model": {
+        "type": "String"
+      }
+    }
+  },
+  "onDeviceAiDeleteFailed": "Couldn’t delete {model}",
+  "@onDeviceAiDeleteFailed": {
+    "placeholders": {
+      "model": {
+        "type": "String"
+      }
+    }
+  },
+  "onDeviceAiErrorChecksum": "{model} didn’t download correctly, so it was discarded. Try again.",
+  "@onDeviceAiErrorChecksum": {
+    "placeholders": {
+      "model": {
+        "type": "String"
+      }
+    }
+  },
+  "onDeviceAiErrorChecksumMirror": "{model} didn’t download correctly from {mirror}, so it was discarded. The mirror may be out of date.",
+  "@onDeviceAiErrorChecksumMirror": {
+    "placeholders": {
+      "model": {
+        "type": "String"
+      },
+      "mirror": {
+        "type": "String"
+      }
+    }
+  },
+  "onDeviceAiErrorServer": "Couldn’t download {model}: the server answered with error {status}.",
+  "@onDeviceAiErrorServer": {
+    "placeholders": {
+      "model": {
+        "type": "String"
+      },
+      "status": {
+        "type": "int"
+      }
+    }
+  },
+  "onDeviceAiErrorServerMirror": "Couldn’t download {model} from {mirror}: it answered with error {status}. The mirror may not have it yet; ask its owner or change the model source.",
+  "@onDeviceAiErrorServerMirror": {
+    "placeholders": {
+      "model": {
+        "type": "String"
+      },
+      "mirror": {
+        "type": "String"
+      },
+      "status": {
+        "type": "int"
+      }
+    }
+  },
+  "onDeviceAiErrorNetwork": "Couldn’t download {model}. Check your connection and try again: the download continues where it stopped.",
+  "@onDeviceAiErrorNetwork": {
+    "placeholders": {
+      "model": {
+        "type": "String"
+      }
+    }
+  },
+  "onDeviceAiErrorNetworkMirror": "Couldn’t reach {mirror} to download {model}. Check your connection or the model source.",
+  "@onDeviceAiErrorNetworkMirror": {
+    "placeholders": {
+      "model": {
+        "type": "String"
+      },
+      "mirror": {
+        "type": "String"
+      }
+    }
+  },
+  "onDeviceAiErrorStorage": "Couldn’t save {model}. Free up some storage and try again.",
+  "@onDeviceAiErrorStorage": {
+    "placeholders": {
+      "model": {
+        "type": "String"
+      }
+    }
+  },
+  "onDeviceAiErrorTooBig": "{model} needs more memory than this phone has.",
+  "@onDeviceAiErrorTooBig": {
+    "placeholders": {
+      "model": {
+        "type": "String"
+      }
+    }
+  },
+  "onDeviceAiErrorUnknown": "Couldn’t download {model}. Try again.",
+  "@onDeviceAiErrorUnknown": {
+    "placeholders": {
+      "model": {
+        "type": "String"
+      }
+    }
+  },
+  "onDeviceAiMeteredBody": "You’re on mobile data or a metered network. {model} needs about {size}.",
+  "@onDeviceAiMeteredBody": {
+    "placeholders": {
+      "model": {
+        "type": "String"
+      },
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "onDeviceAiImportSubtitle": "Install a model file (.gguf) you downloaded yourself. Mozhi doesn’t go online for this.",
+  "@onDeviceAiImportSubtitle": {
+    "description": "onDeviceAiImportSubtitle"
+  },
+  "onDeviceAiImportInstalled": "Installed {model}",
+  "@onDeviceAiImportInstalled": {
+    "placeholders": {
+      "model": {
+        "type": "String"
+      }
+    }
+  },
+  "onDeviceAiImportAlreadyInstalled": "{model} was already installed",
+  "@onDeviceAiImportAlreadyInstalled": {
+    "placeholders": {
+      "model": {
+        "type": "String"
+      }
+    }
+  },
+  "onDeviceAiImportDamaged": "The file for {model} is damaged (checksum mismatch)",
+  "@onDeviceAiImportDamaged": {
+    "placeholders": {
+      "model": {
+        "type": "String"
+      }
+    }
+  },
+  "onDeviceAiImportTooBig": "{model} needs more memory than this phone has: it may not run, or be very slow.",
+  "@onDeviceAiImportTooBig": {
+    "placeholders": {
+      "model": {
+        "type": "String"
+      }
+    }
+  },
+  "onDeviceAiImportNothing": "None of the files is an on-device model this version of Mozhi knows",
+  "@onDeviceAiImportNothing": {
+    "description": "onDeviceAiImportNothing"
+  },
+  "onDeviceAiImportFailed": "Couldn’t import the files",
+  "@onDeviceAiImportFailed": {
+    "description": "onDeviceAiImportFailed"
+  },
+  "onDeviceAiCopyLinksSubtitle": "To download the models on another device and import them here",
+  "@onDeviceAiCopyLinksSubtitle": {
+    "description": "onDeviceAiCopyLinksSubtitle"
+  },
+  "onDeviceAiAboutParameters": "{parameters} parameters, {quantization}",
+  "@onDeviceAiAboutParameters": {
+    "placeholders": {
+      "parameters": {
+        "type": "String"
+      },
+      "quantization": {
+        "type": "String"
+      }
+    }
+  },
+  "onDeviceAiAboutMemory": "Memory: at least {minimum}, best with {recommended}",
+  "@onDeviceAiAboutMemory": {
+    "placeholders": {
+      "minimum": {
+        "type": "String"
+      },
+      "recommended": {
+        "type": "String"
+      }
+    }
+  },
+  "onDeviceAiAboutLicense": "License: {license}",
+  "@onDeviceAiAboutLicense": {
+    "placeholders": {
+      "license": {
+        "type": "String"
+      }
+    }
+  },
+  "onDeviceAiAboutSource": "Source",
+  "@onDeviceAiAboutSource": {
+    "description": "onDeviceAiAboutSource"
+  },
+  "onDeviceAiAboutLanguages": "Languages",
+  "@onDeviceAiAboutLanguages": {
+    "description": "onDeviceAiAboutLanguages"
+  },
+  "onDeviceAiSizeGigabytes": "{size} GB",
+  "@onDeviceAiSizeGigabytes": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsDeleteAllDataOnDeviceAi": "{count, plural, =1{1 on-device AI model ({size})} other{{count} on-device AI models ({size})}}",
+  "@settingsDeleteAllDataOnDeviceAi": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "pairingItemOnDeviceAi": "On-device AI: {model}",
+  "@pairingItemOnDeviceAi": {
+    "placeholders": {
+      "model": {
+        "type": "String"
+      }
+    }
+  },
+  "onDeviceAiDiscardAction": "Discard download",
+  "@onDeviceAiDiscardAction": {
+    "description": "onDeviceAiDiscardAction"
+  },
+  "onDeviceAiAboutSize": "Download: {size}",
+  "@onDeviceAiAboutSize": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "voiceModelBetterCompact": "Better (compact)",
+  "@voiceModelBetterCompact": {
+    "description": "Name of the quantized Whisper base speech model (base-q5_1): about as accurate as Better, a smaller download"
+  },
+  "voiceModelBetterCompactDescription": "Smaller download, about as accurate",
+  "@voiceModelBetterCompactDescription": {
+    "description": "Subtitle of the Better (compact) speech model, before its size"
+  },
+  "voiceModelBest": "Best",
+  "@voiceModelBest": {
+    "description": "Name of the Whisper small speech model (small-q5_1): more accurate than Better, needs more memory and time"
+  },
+  "voiceModelBestDescription": "Very accurate, needs a recent phone",
+  "@voiceModelBestDescription": {
+    "description": "Subtitle of the Best speech model, before its size"
+  },
+  "voiceModelLarge": "Large",
+  "@voiceModelLarge": {
+    "description": "Name of the Whisper large-v3-turbo speech model: the most accurate, offered only on phones with 8 GB of RAM"
+  },
+  "voiceModelLargeDescription": "Most accurate, for high-end phones",
+  "@voiceModelLargeDescription": {
+    "description": "Subtitle of the Large speech model, before its size"
+  },
+  "settingsAssistEngineAutomaticOnDeviceSubtitle": "The on-device model when your text should stay on this device, else the first enabled AI provider",
+  "@settingsAssistEngineAutomaticOnDeviceSubtitle": {
+    "description": "Subtitle of the Automatic choice of the AI assistant for insights when an on-device assistant model is installed"
   }
 }

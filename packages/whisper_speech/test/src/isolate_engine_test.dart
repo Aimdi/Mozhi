@@ -8,11 +8,13 @@
 @Timeout(Duration(minutes: 3))
 library;
 
+import 'dart:io';
 import 'dart:isolate';
 import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:path/path.dart' as p;
 import 'package:whisper_speech/src/engine/engine_factory_stub.dart' as stub;
 import 'package:whisper_speech/src/engine/ffi/bindings.dart';
 import 'package:whisper_speech/src/engine/ffi/isolate_engine.dart';
@@ -89,8 +91,61 @@ void main() {
         ),
       );
       // Nothing started, nothing to cancel, release or stop.
+      expect(await engine.library, isNull);
       await engine.cancel();
       await engine.release('model.bin');
+      await engine.dispose();
+    });
+
+    test('a library resolver that fails is reported', () async {
+      final engine = IsolateWhisperEngine(
+        resolveLibrary: (_) => throw StateError('no CPU'),
+      );
+      final transcription = engine.transcribe('model.bin', Float32List(1));
+      // Asked while the isolate starts: none, once it failed.
+      final library = engine.library;
+      await expectLater(
+        transcription,
+        throwsA(
+          isA<WhisperEngineException>().having(
+            (error) => error.message,
+            'message',
+            'Cannot load the native engine: Bad state: no CPU',
+          ),
+        ),
+      );
+      expect(await library, isNull);
+      final vad = IsolateWhisperVadEngine(libraryPath: '/no/such/lib.so');
+      await expectLater(
+        vad.detect('vad.bin', Float32List(1)),
+        throwsA(isA<WhisperEngineException>()),
+      );
+      expect(await vad.library, isNull);
+      await engine.dispose();
+      await vad.dispose();
+    });
+
+    test('the resolver gets the explicit path', () async {
+      String? asked;
+      final engine = IsolateWhisperEngine(
+        libraryPath: '/no/such/lib.so',
+        resolveLibrary: (path) {
+          asked = path;
+          return '/no/such/variant.so';
+        },
+      );
+      await expectLater(
+        engine.transcribe('model.bin', Float32List(1)),
+        throwsA(
+          isA<WhisperEngineException>().having(
+            (error) => error.message,
+            'message',
+            contains('/no/such/variant.so'),
+          ),
+        ),
+      );
+      // In the worker isolate: this one's copy is untouched.
+      expect(asked, isNull);
       await engine.dispose();
     });
 
@@ -171,6 +226,54 @@ void main() {
         ),
       );
       engine.dispose();
+    });
+
+    test('reports the library its isolates opened', () async {
+      final engine = IsolateWhisperEngine(libraryPath: library);
+      final vad = IsolateWhisperVadEngine(libraryPath: library);
+      expect(await engine.library, isNull);
+      await engine.transcribe(model, Float32List(1600), language: 'en');
+      await vad.reset();
+      expect(await engine.library, library);
+      expect(await vad.library, isNull);
+      await engine.dispose();
+      expect(await engine.library, isNull);
+      await vad.dispose();
+    });
+
+    test('opens the variant the resolver picks and cancels in it', () async {
+      // A copy of the library under a variant's name: another library in
+      // the process (its own cancel state), as the variants are on a phone.
+      final directory = Directory.systemTemp.createTempSync('whisper_cpu_');
+      addTearDown(() => directory.deleteSync(recursive: true));
+      final variant = p.join(
+        directory.path,
+        WhisperLibraryVariant.dotprod.fileName,
+      );
+      File(library).copySync(variant);
+      final engine = IsolateWhisperEngine(resolveLibrary: (_) => variant);
+
+      // Two windows. The engine checks for a cancel between its graph
+      // computations (a window's encoder is a few): a cancel that reaches
+      // the library ends the call within the first window.
+      final samples = noise(whisperWindow * 2);
+      final full = Stopwatch()..start();
+      await engine.transcribe(model, samples, language: 'en');
+      full.stop();
+      expect(await engine.library, variant);
+
+      final running = engine.transcribe(model, samples);
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      await engine.cancel();
+      await expectLater(running, throwsA(isA<WhisperCancelledException>()));
+      // The worker is free again within a window, not after both: the
+      // cancel reached the library it runs (a cancel in the baseline
+      // leaves it running to the end).
+      final afterCancel = Stopwatch()..start();
+      await engine.release(model);
+      afterCancel.stop();
+      expect(afterCancel.elapsed, lessThan(full.elapsed * 0.6));
+      await engine.dispose();
     });
 
     test('runs in a background isolate', () async {

@@ -24,6 +24,7 @@ updates:
     directories:
       - "/"
       - "/packages/bergamot_translator"
+      - "/packages/llama_engine"
       - "/packages/llm_api"
       - "/packages/mlkit_translator"
       - "/packages/mozhi_api"
@@ -52,6 +53,7 @@ updates:
     directories:
       - "/android"
       - "/packages/bergamot_translator/android"
+      - "/packages/llama_engine/android"
       - "/packages/tesseract_ocr/android"
       - "/packages/whisper_speech/android"
     schedule:

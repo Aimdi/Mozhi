@@ -37,7 +37,9 @@ const speechModelIdleTimeout = Duration(seconds: 60);
 /// The model (75-150 MB) is unloaded after [speechModelIdleTimeout]
 /// without a transcription, when the app goes to the background and on
 /// memory pressure ([memoryBudget], default [NativeMemoryBudget.instance]);
-/// the next transcription loads it again.
+/// the next transcription loads it again. The device's memory
+/// ([deviceMemory], default [DeviceMemory.query], asked while the catalog
+/// loads) decides which models are offered ([OfflineSpeech.fits]).
 Future<OfflineSpeech?> createOfflineSpeech({
   required KeyValueStore store,
   AssetBundle? bundle,
@@ -48,12 +50,14 @@ Future<OfflineSpeech?> createOfflineSpeech({
   bool? isAvailable,
   WhisperEngine? engine,
   NativeMemoryBudget? memoryBudget,
+  Future<DeviceMemory?> Function()? deviceMemory,
 }) async {
   if (!(isAvailable ?? whisperPlatformSupported)) return null;
   try {
-    final (catalog, support) = await (
+    final (catalog, support, memory) = await (
       loadBundledWhisperCatalog(bundle: bundle),
       supportDirectory(),
+      (deviceMemory ?? DeviceMemory.query)(),
     ).wait;
     final whisper = WhisperSpeech(
       catalog: catalog,
@@ -74,6 +78,7 @@ Future<OfflineSpeech?> createOfflineSpeech({
       store: store,
       isMeteredConnection:
           isMeteredConnection ?? MeteredNetwork.instance.isMetered,
+      memory: memory,
     );
   } on Object catch (error, stackTrace) {
     final cause = error is ParallelWaitError ? error.errors : error;

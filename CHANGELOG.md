@@ -3,7 +3,7 @@
 All notable changes to Mozhi, by release tag on GitHub (pre-releases end
 in `-rc.N`).
 
-## Unreleased
+## 0.1.0-rc.3
 
 ### Added
 
@@ -17,7 +17,8 @@ in `-rc.N`).
   wrong language, a garbled result or a chat-style reply instead of a
   translation, Mozhi tries another engine you already allowed, on this
   device first, and says so. Paid AI providers are never tried on their
-  own.
+  own, and text translated on this device (offline translation or
+  on-device AI) is only tried again on this device.
 - **Hide personal data from online engines** (on by default, Settings ›
   Privacy & data). E-mail addresses, phone numbers, IBANs, card numbers and
   IP addresses are replaced before text leaves the device and put back into
@@ -164,6 +165,30 @@ in `-rc.N`).
   serves the page on the local network, so there is no app to install and
   no server; guests scan a QR code and enter a PIN. See
   [Shared conversation](docs/features.md#shared-conversation).
+- **On-device AI** (Android, 64-bit phones; Settings › AI › On-device
+  AI): translation and every AI extra (refine, alternatives, insights,
+  explanations, dictionary, proofreading, meaning checks) with a language
+  model that runs on your phone, so no text leaves it and no network or
+  account is needed. Hy-MT2 1.8B (Tencent, Apache-2.0, 33 languages)
+  translates; Gemma 4 E2B or Qwen3 1.7B (Apache-2.0) handle the extras.
+  Downloads are 1.1 to 3.1 GB, only when you ask, from the model source
+  you chose, and checked against checksums built into the app; or import
+  a file, or receive one from another phone. Each model says whether it
+  fits your phone's memory. On-device engines read **On this device**
+  everywhere, work in **Offline only**, and never ask for consent. While
+  the phone is very hot or in battery saver, translating as you type
+  doesn't start on-device AI (Enter still does). Chat markers in the text
+  (from a document or a web page, say) are read as plain text, so they
+  can't pose as the app's own prompt, and a reply that runs far longer
+  than the text is cut short. Runs on llama.cpp (MIT), in three builds
+  for older and newer ARM processors. See
+  [On-device AI](docs/on-device-ai.md).
+- **Faster offline voice input** on phones from about 2019 on: Whisper now
+  uses the processor's dot-product, half-precision and matrix
+  instructions when the phone has them. New voice models: **Better
+  (compact)** (base, 60 MB), **Best** (small, 190 MB) and **Large**
+  (large-v3-turbo, 574 MB, for phones with 8 GB or more), each offered
+  only on phones with enough memory.
 
 ### Changed
 
@@ -278,6 +303,9 @@ in `-rc.N`).
 
 ### Fixed
 
+- **Phone to phone between app versions:** a phone now leaves out what it
+  doesn't know how to receive (an on-device AI model from a newer Mozhi)
+  instead of refusing the whole transfer.
 - **Saving in the web app** (exporting favorites, a phrasebook collection
   or flashcards, saving a document) now says it was saved: the browser's
   download used to count as cancelled.

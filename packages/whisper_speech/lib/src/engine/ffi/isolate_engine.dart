@@ -6,25 +6,43 @@ import 'package:whisper_speech/src/engine/ffi/bindings.dart';
 import 'package:whisper_speech/src/engine/ffi/native_engine.dart';
 import 'package:whisper_speech/src/engine/whisper_engine.dart';
 
+/// Picks the library a worker isolate opens from the engine's explicit
+/// `libraryPath` (default [WhisperBindings.resolve]: the fastest variant
+/// the CPU runs). Runs in the worker isolate.
+typedef WhisperLibraryResolver = String Function(String? libraryPath);
+
+String _resolveLibrary(String? libraryPath) =>
+    WhisperBindings.resolve(path: libraryPath);
+
 /// [WhisperEngine] running the native engine in one long-lived background
 /// isolate, so model loading and transcription never block the UI isolate.
 ///
-/// The isolate starts on first use, keeps the last used model loaded and
-/// handles one request at a time, in order. [cancel] aborts the running
-/// transcription in the native engine (it checks between computation
-/// steps) and fails every waiting one at once. [dispose] stops the
-/// isolate; a later call starts a new one. If the isolate dies, pending
-/// requests fail with [WhisperEngineException] and the next call starts a
-/// new one.
+/// The isolate starts on first use, opens the library its
+/// `resolveLibrary` picks (the variant for the CPU:
+/// [WhisperBindings.resolve]), keeps the
+/// last used model loaded and handles one request at a time, in order.
+/// [cancel] aborts the running transcription in that same library (it
+/// checks between computation steps) and fails every waiting one at once.
+/// [dispose] stops the isolate; a later call starts a new one. If the
+/// isolate dies, pending requests fail with [WhisperEngineException] and
+/// the next call starts a new one.
 final class IsolateWhisperEngine implements WhisperEngine {
-  new({this.libraryPath});
+  new({this.libraryPath, WhisperLibraryResolver? resolveLibrary})
+    : _resolve = resolveLibrary ?? _resolveLibrary;
 
   /// Explicit path of `libmozhi_whisper.so` (desktop tests); null uses
-  /// `$WHISPER_LIBRARY_PATH` or the library bundled with the app.
+  /// `$WHISPER_LIBRARY_PATH` or the library bundled with the app for this
+  /// CPU.
   final String? libraryPath;
 
+  final WhisperLibraryResolver _resolve;
   Future<_Worker>? _worker;
+  String? _cancelLibrary;
   WhisperBindings? _cancelBindings;
+
+  /// The library the running worker isolate opened (a file name in the
+  /// APK, or a path); null while none runs.
+  Future<String?> get library => _libraryOf(_worker);
 
   @override
   Future<WhisperTranscription> transcribe(
@@ -56,11 +74,16 @@ final class IsolateWhisperEngine implements WhisperEngine {
     );
     if (started == null) return;
     // The worker isolate is busy inside the native call: abort it from
-    // here (the library is loaded in the process already).
+    // here, in the library it opened (loaded in the process already; a
+    // variant has its own cancel state).
     try {
-      (_cancelBindings ??= WhisperBindings(
-        WhisperBindings.open(libraryPath),
-      )).cancel();
+      if (_cancelLibrary != started.library) {
+        _cancelBindings = WhisperBindings(
+          WhisperBindings.open(started.library),
+        );
+        _cancelLibrary = started.library;
+      }
+      _cancelBindings?.cancel();
     } on Object {
       // Without the library nothing can be running.
     }
@@ -95,7 +118,7 @@ final class IsolateWhisperEngine implements WhisperEngine {
       if (identical(_worker, started)) _worker = null;
     }
 
-    started = _Worker.spawn(libraryPath, onExit: forget);
+    started = _Worker.spawn(libraryPath, _resolve, onExit: forget);
     _worker = started;
     // A failed start must not stick: the next call tries again.
     unawaited(started.then<void>((_) {}, onError: (Object _) => forget()));
@@ -113,13 +136,19 @@ final class IsolateWhisperEngine implements WhisperEngine {
 /// stream). If the isolate dies, pending requests fail with
 /// [WhisperEngineException] and the next call starts a new one.
 final class IsolateWhisperVadEngine implements WhisperVadEngine {
-  new({this.libraryPath});
+  new({this.libraryPath, WhisperLibraryResolver? resolveLibrary})
+    : _resolve = resolveLibrary ?? _resolveLibrary;
 
   /// Explicit path of `libmozhi_whisper.so` (desktop tests); null uses
-  /// `$WHISPER_LIBRARY_PATH` or the library bundled with the app.
+  /// `$WHISPER_LIBRARY_PATH` or the library bundled with the app for this
+  /// CPU.
   final String? libraryPath;
 
+  final WhisperLibraryResolver _resolve;
   Future<_Worker>? _worker;
+
+  /// The library the running worker isolate opened; null while none runs.
+  Future<String?> get library => _libraryOf(_worker);
 
   @override
   Future<WhisperVadFrames> detect(String modelPath, Float32List samples) async {
@@ -164,20 +193,41 @@ final class IsolateWhisperVadEngine implements WhisperVadEngine {
       if (identical(_worker, started)) _worker = null;
     }
 
-    started = _Worker.spawn(libraryPath, onExit: forget, name: 'whisper vad');
+    started = _Worker.spawn(
+      libraryPath,
+      _resolve,
+      onExit: forget,
+      name: 'whisper vad',
+    );
     _worker = started;
     unawaited(started.then<void>((_) {}, onError: (Object _) => forget()));
     return started;
   }
 }
 
+Future<String?> _libraryOf(Future<_Worker>? worker) async {
+  if (worker == null) return null;
+  try {
+    return (await worker).library;
+  } on WhisperEngineException {
+    return null;
+  }
+}
+
 final class _Worker {
-  new _(this._isolate, this._requests, this._responses, this._onExit) {
+  new _(
+    this._isolate,
+    this._requests,
+    this.library,
+    this._responses,
+    this._onExit,
+  ) {
     _subscription = _responses.listen(_handle);
   }
 
   static Future<_Worker> spawn(
-    String? libraryPath, {
+    String? libraryPath,
+    WhisperLibraryResolver resolve, {
     required void Function() onExit,
     String name = 'whisper',
   }) async {
@@ -187,7 +237,7 @@ final class _Worker {
     try {
       isolate = await Isolate.spawn(
         _main,
-        _Start(responses.sendPort, libraryPath),
+        _Start(responses.sendPort, libraryPath, resolve),
         debugName: name,
         onExit: exits.sendPort,
         onError: exits.sendPort,
@@ -199,19 +249,19 @@ final class _Worker {
     }
     final stream = responses.asBroadcastStream();
     final exitEvents = exits.asBroadcastStream();
-    // The isolate's SendPort, or why it could not start (an engine error,
-    // or the isolate died before answering).
+    // The isolate's SendPort and library, or why it could not start (an
+    // engine error, or the isolate died before answering).
     final first = await Future.any([
       stream.first,
       exitEvents.first.then((event) => 'The engine isolate exited: $event'),
     ]);
-    if (first is! SendPort) {
+    if (first is! _Ready) {
       responses.close();
       exits.close();
       throw WhisperEngineException(first is String ? first : '$first');
     }
     late final _Worker worker;
-    worker = _Worker._(isolate, first, stream, () {
+    worker = _Worker._(isolate, first.requests, first.library, stream, () {
       exits.close();
       responses.close();
       onExit();
@@ -222,6 +272,10 @@ final class _Worker {
 
   final Isolate _isolate;
   final SendPort _requests;
+
+  /// The library the isolate opened.
+  final String library;
+
   final Stream<Object?> _responses;
   final void Function() _onExit;
   late final StreamSubscription<Object?> _subscription;
@@ -287,13 +341,19 @@ final class _Worker {
     _onExit();
   }
 
-  /// The isolate's entry point: owns the [NativeWhisperEngine].
+  /// The isolate's entry point: picks the library and owns the
+  /// [NativeWhisperEngine].
   static void _main(_Start start) {
+    final String library;
     final NativeWhisperEngine engine;
     try {
-      engine = NativeWhisperEngine.open(libraryPath: start.libraryPath);
+      library = start.resolve(start.libraryPath);
+      engine = NativeWhisperEngine.open(libraryPath: library);
     } on WhisperEngineException catch (error) {
       start.responses.send(error.message);
+      return;
+    } on Object catch (error) {
+      start.responses.send('Cannot load the native engine: $error');
       return;
     }
     final requests = RawReceivePort();
@@ -342,15 +402,25 @@ final class _Worker {
     }
 
     requests.handler = handle;
-    start.responses.send(requests.sendPort);
+    start.responses.send(_Ready(requests.sendPort, library));
   }
 }
 
 final class _Start {
-  const new(this.responses, this.libraryPath);
+  const new(this.responses, this.libraryPath, this.resolve);
 
   final SendPort responses;
   final String? libraryPath;
+  final WhisperLibraryResolver resolve;
+}
+
+/// The worker's first message: where to send requests, and the library it
+/// opened.
+final class _Ready {
+  const new(this.requests, this.library);
+
+  final SendPort requests;
+  final String library;
 }
 
 final class _Request {

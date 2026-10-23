@@ -232,6 +232,41 @@ void main() {
       expect(find.byKey(const Key('voice_offline_only_note')), findsNothing);
     });
 
+    testWidgets('names and describes the quantized models', (tester) async {
+      WhisperCatalogModel quantized(String id, int size) => WhisperCatalogModel(
+        id: id,
+        name: 'ggml-$id.bin',
+        url: Uri.parse('https://models.example/ggml-$id.bin'),
+        size: size,
+        sha1: 'd' * 40,
+      );
+      final models = [
+        quantized('base-q5_1', 60000000),
+        quantized('small-q5_1', 190000000),
+        quantized('large-v3-turbo-q5_0', 574000000),
+      ];
+      when(() => offline.models).thenReturn(models);
+      await pumpSection(tester);
+      final descriptions = {
+        l10n.voiceModelBetterCompact: l10n.voiceModelBetterCompactDescription,
+        l10n.voiceModelBest: l10n.voiceModelBestDescription,
+        l10n.voiceModelLarge: l10n.voiceModelLargeDescription,
+      };
+      for (final (index, MapEntry(key: name, value: description))
+          in descriptions.entries.indexed) {
+        expect(find.text(name), findsOneWidget);
+        expect(
+          find.text(
+            l10n.voiceModelSubtitle(
+              description,
+              formatStoredSize(l10n, models[index].size),
+            ),
+          ),
+          findsOneWidget,
+        );
+      }
+    });
+
     testWidgets('switches to the offline engine', (tester) async {
       await pumpSection(tester);
       await tester.tap(find.byKey(const Key('voice_engine')));
@@ -560,6 +595,9 @@ void main() {
       expect(voiceModelName(l10n, 'tiny'), l10n.voiceModelFast);
       expect(voiceModelName(l10n, 'base'), l10n.voiceModelBetter);
       expect(voiceModelName(l10n, 'silero-vad'), l10n.voiceModelVoiceDetection);
+      expect(voiceModelName(l10n, 'base-q5_1'), l10n.voiceModelBetterCompact);
+      expect(voiceModelName(l10n, 'small-q5_1'), l10n.voiceModelBest);
+      expect(voiceModelName(l10n, 'large-v3-turbo-q5_0'), l10n.voiceModelLarge);
       expect(voiceModelName(l10n, 'small'), 'small');
     });
 

@@ -79,12 +79,13 @@ packages included. Native commits are the gitlinks recorded in git.
 | `flutter_localizations` | Flutter 3.47.7 (SDK) | BSD-3-Clause | Localised framework strings for the UI languages. |
 | `flutter_secure_storage` | 11.2.0 | BSD-3-Clause | API keys, credentials and the history key in the platform keystore. |
 | `flutter_tts` | 4.2.5 | MIT | Device text-to-speech voices. |
-| `go_router` | 18.0.2 | BSD-3-Clause | Routing and deep links. |
+| `go_router` | 18.1.0 | BSD-3-Clause | Routing and deep links. |
 | `http` | 1.6.0 | BSD-3-Clause | Every HTTP request (Mozhi, AI providers, DeepL, LibreTranslate, model downloads). |
 | `image_picker` | 1.2.4 | Apache-2.0 | Picks or takes a photo for image translation. |
 | `intl` | 0.20.3 | BSD-3-Clause | Date and number formatting, generated localisations. |
+| `llama_engine` | 0.1.0+1 (`packages/llama_engine`) | MIT | On-device AI: language models with llama.cpp over dart:ffi. |
 | `llm_api` | 0.1.0+1 (`packages/llm_api`) | MIT | Streaming clients for AI providers. |
-| `material_ui` | 1.6.0 | BSD-3-Clause | Material 3 widgets (decoupled Material library). |
+| `material_ui` | 1.7.0 | BSD-3-Clause | Material 3 widgets (decoupled Material library). |
 | `mozhi_api` | 0.1.0+1 (`packages/mozhi_api`) | MIT | Client for the Mozhi REST API. |
 | `package_info_plus` | 10.2.2 | BSD-3-Clause | App version on the About page (local only). |
 | `path_provider` | 2.1.6 | BSD-3-Clause | App-private directory for the offline models. |
@@ -117,19 +118,19 @@ Dev dependencies (not shipped):
 | `args` | 2.7.0 | BSD-3-Clause | mozhi_cli | Command-line parsing (mozhi_cli). |
 | `cli_completion` | 0.6.0 | MIT | mozhi_cli | Shell completion (mozhi_cli). |
 | `collection` | 1.19.1 | BSD-3-Clause | translation_repository | Collection helpers. |
-| `crypto` | 3.0.7 | BSD-3-Clause | bergamot_translator, tesseract_ocr, whisper_speech | SHA-256 checks of model downloads. |
-| `ffi` | 2.2.0 | BSD-3-Clause | bergamot_translator, tesseract_ocr, whisper_speech | Native strings and memory for dart:ffi. |
-| `flutter` | Flutter 3.47.7 (SDK) | BSD-3-Clause | bergamot_translator, mlkit_translator, tesseract_ocr, whisper_speech | The UI framework. |
+| `crypto` | 3.0.7 | BSD-3-Clause | bergamot_translator, llama_engine, tesseract_ocr, whisper_speech | SHA-256 checks of model downloads. |
+| `ffi` | 2.2.0 | BSD-3-Clause | bergamot_translator, llama_engine, tesseract_ocr, whisper_speech | Native strings and memory for dart:ffi. |
+| `flutter` | Flutter 3.47.7 (SDK) | BSD-3-Clause | bergamot_translator, llama_engine, mlkit_translator, tesseract_ocr, whisper_speech | The UI framework. |
 | `google_mlkit_language_id` | 0.15.1 | MIT | mlkit_translator | ML Kit language ID. **No build uses it** (mlkit_translator is kept for reference). |
 | `google_mlkit_translation` | 0.15.1 | MIT | mlkit_translator | ML Kit translation. **No build uses it** (mlkit_translator is kept for reference). |
-| `http` | 1.6.0 | BSD-3-Clause | bergamot_translator, llm_api, mozhi_api, mt_api, tesseract_ocr, whisper_speech | Every HTTP request (Mozhi, AI providers, DeepL, LibreTranslate, model downloads). |
+| `http` | 1.6.0 | BSD-3-Clause | bergamot_translator, llama_engine, llm_api, mozhi_api, mt_api, tesseract_ocr, whisper_speech | Every HTTP request (Mozhi, AI providers, DeepL, LibreTranslate, model downloads). |
 | `http_parser` | 4.1.2 | BSD-3-Clause | mozhi_api | Media types and multipart parsing (image upload). |
 | `llm_api` | 0.1.0+1 (`packages/llm_api`) | MIT | mozhi_cli, translation_repository | Streaming clients for AI providers. |
 | `mason_logger` | 0.3.6 | MIT | mozhi_cli | Terminal output (mozhi_cli). |
-| `meta` | 1.19.0 | BSD-3-Clause | bergamot_translator, llm_api, mozhi_api, mt_api, tesseract_ocr, translation_repository, whisper_speech | Annotations (`@immutable`, `@visibleForTesting`). |
+| `meta` | 1.19.0 | BSD-3-Clause | bergamot_translator, llama_engine, llm_api, mozhi_api, mt_api, tesseract_ocr, translation_repository, whisper_speech | Annotations (`@immutable`, `@visibleForTesting`). |
 | `mozhi_api` | 0.1.0+1 (`packages/mozhi_api`) | MIT | mozhi_cli, translation_repository | Client for the Mozhi REST API. |
 | `mt_api` | 0.1.0+1 (`packages/mt_api`) | MIT | translation_repository | DeepL and LibreTranslate clients. |
-| `path` | 1.9.1 | BSD-3-Clause | bergamot_translator, tesseract_ocr, whisper_speech | Path handling for the model store. |
+| `path` | 1.9.1 | BSD-3-Clause | bergamot_translator, llama_engine, tesseract_ocr, whisper_speech | Path handling for the model store. |
 | `translation_repository` | 0.1.0+1 (`packages/translation_repository`) | MIT | bergamot_translator, mlkit_translator, mozhi_cli | Domain models and the repository that unifies all engines. |
 
 ### Packages, dev dependencies (not shipped)
@@ -139,10 +140,10 @@ Dev dependencies (not shipped):
 | `build_runner` | 2.16.2 | BSD-3-Clause | mozhi_cli | Generates the CLI's version file. |
 | `build_verify` | 3.1.1 | MIT | mozhi_cli | Checks the generated files are up to date. |
 | `build_version` | 2.1.3 | BSD-3-Clause | mozhi_cli | Writes the version into the CLI. |
-| `flutter_test` | Flutter 3.47.7 (SDK) | BSD-3-Clause | bergamot_translator, mlkit_translator, tesseract_ocr, whisper_speech | Widget and unit tests. |
-| `mocktail` | 1.0.5 | MIT | bergamot_translator, llm_api, mlkit_translator, mozhi_api, mozhi_cli, mt_api, tesseract_ocr, translation_repository, whisper_speech | Mocks in tests. |
+| `flutter_test` | Flutter 3.47.7 (SDK) | BSD-3-Clause | bergamot_translator, llama_engine, mlkit_translator, tesseract_ocr, whisper_speech | Widget and unit tests. |
+| `mocktail` | 1.0.5 | MIT | bergamot_translator, llama_engine, llm_api, mlkit_translator, mozhi_api, mozhi_cli, mt_api, tesseract_ocr, translation_repository, whisper_speech | Mocks in tests. |
 | `test` | 1.33.0 | BSD-3-Clause | llm_api, mozhi_api, mozhi_cli, mt_api, translation_repository | Dart unit tests. |
-| `very_good_analysis` | 11.0.0 | MIT | bergamot_translator, llm_api, mlkit_translator, mozhi_api, mozhi_cli, mt_api, tesseract_ocr, translation_repository, whisper_speech | Lint rules. |
+| `very_good_analysis` | 11.0.0 | MIT | bergamot_translator, llama_engine, llm_api, mlkit_translator, mozhi_api, mozhi_cli, mt_api, tesseract_ocr, translation_repository, whisper_speech | Lint rules. |
 
 ### Play variant only (`tool/play_prepare.sh`)
 
@@ -165,6 +166,12 @@ Dev dependencies (not shipped):
 | `ruy` | `translations/inference/marian-fork/src/3rd_party/ruy` | `2d950b3bfa7e` | Apache-2.0 | int8 matrix multiply on ARM, float everywhere. |
 | `simd_utils` | `translations/inference/marian-fork/src/3rd_party/simd_utils` | `d0793d86aea9` | BSD-2-Clause | SSE intrinsics on NEON (ARM). |
 | `cpuinfo` | `translations/inference/marian-fork/src/3rd_party/ruy/third_party/cpuinfo` | `5916273f79a2` | BSD-2-Clause | CPU feature detection for ruy. |
+
+### On-device AI (`libmozhi_llama*.so`): submodules
+
+| Component | Source | Commit | Licence | Why |
+| --- | --- | --- | --- | --- |
+| `llama.cpp` | https://github.com/ggml-org/llama.cpp | `d81235049384` | MIT | llama.cpp and ggml: language model inference on the CPU. |
 
 ### Text recognition (`libmozhi_tesseract.so`): submodules
 

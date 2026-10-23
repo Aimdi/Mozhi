@@ -38,19 +38,20 @@ gaps that matter:
   unchanged, drop placeholders or answer instead of translating are shown
   as if they were right.
 - **Offline everywhere:** no offline engine in the web app, no on-device
-  AI, dictionary data only from AI (the first and last closed in wave 3).
+  AI, dictionary data only from AI (closed in waves 3 and 5; on-device AI
+  is Android-only so far).
 - **Reach:** no image or file share target, quick translate opens the full
   app, no camera overlay, no continuous transcription (all but a live
   camera overlay closed in waves 1 to 3).
 - **Continuity:** no encrypted backup or sync, favorites aren't a
   phrasebook, no learning tools (all closed in wave 4).
 
-## Done: waves 1 to 4
+## Done: waves 1 to 5
 
 Wave 1 (trust, speed and transparency), wave 2 (feel like the best app),
-wave 3 (offline everywhere) and wave 4 (continuity and learning) are
-built; the
-[changelog](../CHANGELOG.md) lists what changed (Unreleased). Wave 3
+wave 3 (offline everywhere), wave 4 (continuity and learning) and wave 5
+(offline AI) are built; the
+[changelog](../CHANGELOG.md) lists what changed (0.1.0-rc.3). Wave 3
 brought offline translation to the web app (Bergamot and CLD2 as
 WebAssembly in a worker, models in the browser's private storage), a model
 source setting with self-hosted mirrors, the translation drawn over photos,
@@ -78,6 +79,18 @@ led to transfers that restore only what was offered, merges that never
 add a translation server and keep API keys with their own server, limits
 on what guests can make the host's engine do, and stricter limits on
 backup files.
+
+Wave 5 brought every AI feature to the phone itself: llama.cpp in a new
+`llama_engine` package, built three times for older and newer ARM
+processors and picked at run time, runs Hy-MT2 1.8B for translation and
+Gemma 4 E2B or Qwen3 1.7B for the extras, as an "On this device" AI
+provider that works in Offline only with no consent and no network. The
+models are downloaded only when asked (or imported, or received from
+another phone), pinned to a commit and checked against checksums built
+into the app; each one says whether it fits the phone's memory, and
+translating as you type pauses on-device AI when the phone is hot or in
+battery saver. Whisper got the same run-time CPU variants and three
+quantized voice models.
 
 Carried over to later waves:
 
@@ -141,22 +154,27 @@ Carried over to later waves:
   keeps changing addresses is held back only by the room-wide limits;
   a guest microphone needs a recogniser that doesn't send speech to the
   browser's maker.
+- **On-device AI:** speed and memory measured on real phones (the speed
+  table in docs/on-device-ai.md is from published figures); the 2-bit and
+  1.25-bit Hy-MT2 files once llama.cpp ships Tencent's STQ kernel (440 MB
+  instead of 1.1 GB); GPU and NPU backends (OpenCL on Adreno, Vulkan);
+  on-device AI in the web app (llama.cpp as WebAssembly, models in the
+  browser's private storage); images for the vision-capable models;
+  pushed (not polled) heat and battery saver changes; a free-space check
+  before a download; hashing and import checks off the UI thread; an
+  import that doesn't first copy the file into the cache; the loading
+  notice for the extras too; a guard that falls back to the baseline
+  library if a phone misreports its CPU features; pausing a long
+  translation that is already running (a document or web page, part by
+  part) when the phone gets hot.
+- **Voice:** measure the CPU variants and the quantized models on phones,
+  and try q8_0 models.
 - **Not done on purpose:** measuring instance speed automatically during
-  setup. It contacts every listed volunteer server, so it stays a button
-  ("Find the fastest server").
-
-## Wave 5: offline AI
-
-- **On-device AI:** an in-repo `llama_engine` package (llama.cpp, MIT)
-  exposed as an on-device AI provider, so every AI feature (refine,
-  alternatives, insights, dictionary, proofread, meaning check) works
-  without a network.
-  - Translation: Hy-MT2-1.8B (Apache-2.0, 33 languages).
-  - General extras: Gemma 4 E2B/E4B (Apache-2.0).
-  - Only on devices with enough memory, after the memory budget from
-    Wave 1.
-- **Faster CPU kernels:** dotprod and i8mm variants for ggml (also used by
-  Whisper).
+  setup (it contacts every listed volunteer server, so it stays a button:
+  "Find the fastest server"); on-device AI as an automatic fallback (it
+  would load a 1-3 GB model unasked); sending text translated on this
+  device to a server or provider on its own (as a fallback, or for the
+  automatic romanization).
 
 ## Later, or with owner sign-off
 

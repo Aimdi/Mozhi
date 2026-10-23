@@ -336,6 +336,69 @@ void main() {
       },
     );
 
+    group('of a translation made on this device', () {
+      const onDeviceAi = TranslationEngine(
+        id: 'ai:device-hy-mt2-1.8b-q4',
+        kind: EngineKind.ai,
+        name: 'Hy-MT2 1.8B',
+        providerId: 'device-hy-mt2-1.8b-q4',
+        isLocal: true,
+        onDevice: true,
+      );
+
+      blocTest<TranslateCubit, TranslateState>(
+        'is not requested from a server on the network',
+        setUp: () => stubJapanese(onDeviceAi),
+        build: () => mocks.build(),
+        seed: () => readyState(
+          engine: onDeviceAi,
+          engines: const [onDeviceAi, local],
+          assistEngine: local,
+          input: 'Hello',
+          target: ja,
+        ),
+        act: (cubit) async {
+          await cubit.translate();
+          await Future<void>.delayed(Duration.zero);
+        },
+        verify: (cubit) {
+          expect(cubit.state.romanization, isNull);
+          expect(cubit.state.canRomanize, isTrue);
+          verifyNoRomanize();
+        },
+      );
+
+      blocTest<TranslateCubit, TranslateState>(
+        'runs with an extras engine on this device',
+        setUp: () {
+          stubJapanese(onDeviceAi);
+          stubRomanize('konnichiwa');
+        },
+        build: () => mocks.build(),
+        seed: () => readyState(
+          engine: onDeviceAi,
+          engines: const [onDeviceAi, local],
+          assistEngine: onDeviceAi,
+          input: 'Hello',
+          target: ja,
+        ),
+        act: (cubit) async {
+          await cubit.translate();
+          await Future<void>.delayed(Duration.zero);
+        },
+        verify: (cubit) {
+          expect(cubit.state.romanization, 'konnichiwa');
+          verify(
+            () => mocks.repository.romanize(
+              onDeviceAi,
+              text: 'こんにちは',
+              language: ja,
+            ),
+          ).called(1);
+        },
+      );
+    });
+
     blocTest<TranslateCubit, TranslateState>(
       'is not requested from cloud engines',
       setUp: () => stubJapanese(claude),

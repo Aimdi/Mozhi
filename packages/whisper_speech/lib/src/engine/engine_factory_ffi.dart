@@ -33,11 +33,14 @@ bool _hasVfpv4() {
   }
 }
 
-/// The engine: a background isolate running `libmozhi_whisper`.
+/// The engine: a background isolate running `libmozhi_whisper` ([libraryPath],
+/// else the fastest build the CPU runs: `libmozhi_whisper_i8mm.so` or
+/// `libmozhi_whisper_dotprod.so` on newer arm64 phones, falling back to
+/// the baseline `libmozhi_whisper.so`; see `WhisperBindings.resolve`).
 WhisperEngine createWhisperEngine({String? libraryPath}) =>
     IsolateWhisperEngine(libraryPath: libraryPath);
 
 /// The voice activity detector: another background isolate running
-/// `libmozhi_whisper`.
+/// `libmozhi_whisper` (the same build as [createWhisperEngine]'s).
 WhisperVadEngine createWhisperVadEngine({String? libraryPath}) =>
     IsolateWhisperVadEngine(libraryPath: libraryPath);

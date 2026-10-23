@@ -267,7 +267,11 @@ class PairingReceiver {
     if (items is! List<Object?> || items.length > maxItems) {
       throw const PairingProtocolException('Invalid offer');
     }
-    final parsed = [for (final item in items) PairingItem.fromJson(item)];
+    final parsed = [
+      for (final item in items)
+        // Kinds of a newer Mozhi are left out, so the rest still moves.
+        if (!_newerKind(item)) PairingItem.fromJson(item),
+    ];
     if ({for (final item in parsed) item.id}.length != parsed.length) {
       throw const PairingProtocolException('Duplicate item');
     }
@@ -276,6 +280,13 @@ class PairingReceiver {
         PairingOfferedItem(item, await _library.plan(item)),
     ];
   }
+
+  /// Whether [item] names a kind this version doesn't know (a string that
+  /// isn't a [PairingItemKind]); any other invalid item stays an error.
+  static bool _newerKind(Object? item) =>
+      item is Map<String, Object?> &&
+      item['kind'] is String &&
+      PairingItemKind.tryParse(item['kind']) == null;
 
   /// Says no to the offer and closes the connection.
   Future<void> decline() async {
