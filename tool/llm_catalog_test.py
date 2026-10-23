@@ -171,6 +171,11 @@ def _sources() -> dict:
 
 class LlmCatalogTest(unittest.TestCase):
     def setUp(self) -> None:
+        # The same output in and out of GitHub Actions (its warnings).
+        environment = mock.patch.dict(os.environ)
+        environment.start()
+        self.addCleanup(environment.stop)
+        os.environ.pop("GITHUB_ACTIONS", None)
         self.hub = _Hub()
         self.addCleanup(self.hub.close)
         self.tmp = Path(tempfile.mkdtemp(prefix="llm_catalog_"))
@@ -481,6 +486,14 @@ class LlmCatalogTest(unittest.TestCase):
         code, out, _ = self.run_tool("check", "--catalog", models)
         self.assertEqual(code, 1)
         self.assertIn("qwen3-1.7b-q4: the catalogue says", out)
+
+        # Only HEAD requests: nothing is downloaded, on any Python version.
+        self.assertFalse(
+            [path for method, path in self.hub.requests if method == "GET" and "/cdn/" in path]
+        )
+        self.assertTrue(
+            [path for method, path in self.hub.requests if method == "HEAD" and "/cdn/" in path]
+        )
 
         self.hub.length.clear()
         del self.hub.repos["tencent/Hy-MT2-1.8B-GGUF"]

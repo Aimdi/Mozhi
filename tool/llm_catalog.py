@@ -570,6 +570,17 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
+class _KeepHead(urllib.request.HTTPRedirectHandler):
+    """Follows redirects with HEAD: Python before 3.13 turns a redirected
+    HEAD into a GET, which would start downloading the model."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: D102
+        new = super().redirect_request(req, fp, code, msg, headers, newurl)
+        if new is not None and req.get_method() == "HEAD":
+            new.method = "HEAD"
+        return new
+
+
 def head(url: str) -> tuple[int | None, dict[str, str]]:
     """The final size (Content-Length after redirects) of [url] and the
     headers of the first answer (Hugging Face puts X-Linked-* there)."""
@@ -584,7 +595,8 @@ def head(url: str) -> tuple[int | None, dict[str, str]]:
         if error.code not in (301, 302, 303, 307, 308):
             raise
         first = {k.lower(): v for k, v in error.headers.items()}
-    with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
+    opener = urllib.request.build_opener(_KeepHead)
+    with opener.open(request, timeout=TIMEOUT) as response:
         length = response.headers.get("Content-Length")
     return (int(length) if length is not None else None), first
 
