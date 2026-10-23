@@ -79,7 +79,11 @@ test('a backup brings the history back after the site data is cleared', async ({
   ).not.toBeChecked();
   await fillField(page.getByLabel(/^Passphrase/), PASSPHRASE);
   await fillField(page.getByLabel(/^Repeat the passphrase/), PASSPHRASE);
-  await expect(page.getByText('Passphrase strength: Strong')).toBeVisible();
+  // The strength is a live region: its text is also in the polite
+  // announcement once Flutter makes it.
+  await expect(
+    page.getByText('Passphrase strength: Strong').first(),
+  ).toBeVisible();
   const download = page.waitForEvent('download', { timeout: CRYPTO_TIMEOUT });
   await page.getByRole('button', { name: 'Create backup' }).click();
   const backup = await download;
@@ -126,7 +130,7 @@ test('a backup brings the history back after the site data is cleared', async ({
   await fillField(page.getByLabel(/^Passphrase/), 'not the passphrase');
   await page.getByRole('button', { name: 'Unlock' }).click();
   await expect(
-    page.getByText('Wrong passphrase, or the file is damaged.'),
+    page.getByText('Wrong passphrase, or the file is damaged.').first(),
   ).toBeVisible({ timeout: CRYPTO_TIMEOUT });
 
   await fillField(page.getByLabel(/^Passphrase/), PASSPHRASE);
