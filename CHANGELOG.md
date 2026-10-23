@@ -177,8 +177,11 @@ in `-rc.N`).
   fits your phone's memory. On-device engines read **On this device**
   everywhere, work in **Offline only**, and never ask for consent. While
   the phone is very hot or in battery saver, translating as you type
-  doesn't start on-device AI (Enter still does). Runs on llama.cpp
-  (MIT), in three builds for older and newer ARM processors. See
+  doesn't start on-device AI (Enter still does). Chat markers in the text
+  (from a document or a web page, say) are read as plain text, so they
+  can't pose as the app's own prompt, and a reply that runs far longer
+  than the text is cut short. Runs on llama.cpp (MIT), in three builds
+  for older and newer ARM processors. See
   [On-device AI](docs/on-device-ai.md).
 - **Faster offline voice input** on phones from about 2019 on: Whisper now
   uses the processor's dot-product, half-precision and matrix
