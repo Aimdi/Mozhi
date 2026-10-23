@@ -33,8 +33,8 @@ The language **models** are never bundled: they are downloaded at run time
 their own licenses (Hy-MT2 1.8B by Tencent, Gemma 4 E2B by Google and
 Qwen3 1.7B by the Qwen team: Apache-2.0; listed in the catalogue and on the
 app's licenses page). The tests' tiny models (`../tool/make_test_model.py`)
-borrow the vocabulary of `third_party/llama.cpp/models/ggml-vocab-llama-spm.gguf`
-and are never shipped.
+borrow the vocabularies of `third_party/llama.cpp/models/ggml-vocab-llama-spm.gguf`,
+`ggml-vocab-qwen2.gguf` and `ggml-vocab-gemma-4.gguf` and are never shipped.
 
 The `mozhi_llama` shim itself (`src/`, `tool/`) is MIT, like the app.
 

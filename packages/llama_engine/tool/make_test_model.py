@@ -3,10 +3,13 @@
 
 Usage:
   tool/make_test_model.py OUT.gguf [--chat-template NAME]
+  tool/make_test_model.py OUT.gguf --vocab-model NAME
   tool/make_test_model.py --all DIR
 
-NAME is one of chatml (default), qwen3, gemma4, hunyuan-dense or none (no
-template). --all writes every one of them to DIR as llama-test-<NAME>.gguf.
+--chat-template NAME is one of chatml (default), qwen3, gemma4,
+hunyuan-dense, llama3 or none (no template); --vocab-model NAME one of
+qwen2-vocab or gemma4-vocab (see below). --all writes every one of them to
+DIR as llama-test-<NAME>.gguf.
 
 The models (about 3 MB each) borrow the vocabulary of LLaMA's
 SentencePiece tokenizer from the llama.cpp checkout
@@ -30,6 +33,15 @@ engine returns:
     length limits);
   * "{" is the second choice after "\\n", "}" follows "{" and the end of
     text follows "}": with the JSON grammar the answer is "{}".
+
+The --vocab-model models instead borrow the vocabulary of a real chat model
+(Qwen2's byte-level BPE, models/ggml-vocab-qwen2.gguf, with Qwen3's chat
+template; Gemma 4's, models/ggml-vocab-gemma-4.gguf, with Gemma 4's), whose
+chat markers (<|im_start|>, <|im_end|>, <|turn>, <turn|>, ...) are special
+tokens, for the tests of how prompts are tokenized. Their weights are
+random and small (tied embeddings: about 9 and 21 MB, mostly the
+vocabulary), with no script: they are only tokenized and run for a token
+or two.
 
 Needs Python 3.9+ and numpy (gguf-py's only dependency; PyYAML is replaced
 by a stub when missing, gguf-py only needs it for model cards).
@@ -116,8 +128,30 @@ CHAT_TEMPLATES = {
         "'<｜hy_place▁holder▁no▁2｜>' }}{% endif %}{% endfor %}"
         "{% if add_generation_prompt %}{{ '<｜hy_Assistant｜>' }}{% endif %}"
     ),
+    # Llama 3: llama.cpp's built-in trims the contents.
+    "llama3": (
+        "{% for message in messages %}"
+        "{{ '<|start_header_id|>' + message['role'] + '<|end_header_id|>\\n\\n'"
+        " + message['content'] | trim + '<|eot_id|>' }}{% endfor %}"
+        "{% if add_generation_prompt %}"
+        "{{ '<|start_header_id|>assistant<|end_header_id|>\\n\\n' }}"
+        "{% endif %}"
+    ),
     "none": None,
 }
+
+# name: (vocabulary in llama.cpp's models/, chat template).
+VOCAB_MODELS = {
+    # <|im_start|>, <|im_end|> and <|endoftext|> are control tokens.
+    "qwen2-vocab": ("ggml-vocab-qwen2.gguf", "qwen3"),
+    # <|turn>, <turn|>, <bos> and <eos> are control tokens, <|channel> and
+    # <channel|> user-defined ones.
+    "gemma4-vocab": ("ggml-vocab-gemma-4.gguf", "gemma4"),
+}
+
+# The --vocab-model models: one small layer, tied embeddings.
+VOCAB_N_EMBD = 32
+VOCAB_N_FF = 32
 
 
 def import_gguf():
@@ -136,9 +170,9 @@ def import_gguf():
     return gguf
 
 
-def read_vocab(gguf):
+def read_vocab(gguf, vocab=VOCAB):
     """The tokenizer.* key/values of the borrowed vocabulary, in order."""
-    reader = gguf.GGUFReader(str(VOCAB))
+    reader = gguf.GGUFReader(str(vocab))
     fields = []
     for key, field in reader.fields.items():
         if not key.startswith("tokenizer."):
@@ -254,24 +288,98 @@ def write_model(path: Path, template: str) -> None:
     writer.close()
 
 
+def write_vocab_model(path: Path, name: str) -> None:
+    """A random model with the vocabulary and template of VOCAB_MODELS[name]."""
+    gguf = import_gguf()
+    import numpy as np  # noqa: PLC0415
+
+    vocab, template = VOCAB_MODELS[name]
+    fields, ids = read_vocab(gguf, LLAMA_CPP / "models" / vocab)
+    n_vocab = len(ids)
+    random = np.random.RandomState(SEED)
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    writer = gguf.GGUFWriter(str(path), "llama")
+    writer.add_name(f"Mozhi test model ({name})")
+    writer.add_file_type(gguf.LlamaFileType.MOSTLY_Q4_0)
+    writer.add_quantization_version(gguf.GGML_QUANT_VERSION)
+    writer.add_vocab_size(n_vocab)
+    writer.add_context_length(CONTEXT_LENGTH)
+    writer.add_embedding_length(VOCAB_N_EMBD)
+    writer.add_block_count(1)
+    writer.add_feed_forward_length(VOCAB_N_FF)
+    writer.add_head_count(1)
+    writer.add_head_count_kv(1)
+    writer.add_rope_dimension_count(VOCAB_N_EMBD)
+    writer.add_layer_norm_rms_eps(1e-5)
+    for key, value, value_type, sub_type in fields:
+        if key == "tokenizer.chat_template":
+            continue
+        writer.add_key_value(key, value, value_type, sub_type=sub_type)
+    writer.add_chat_template(CHAT_TEMPLATES[template])
+
+    def noise(*shape, scale=0.02):
+        return random.normal(0.0, scale, shape).astype(np.float32)
+
+    def add(name, array, qtype):
+        if qtype is None:
+            writer.add_tensor(name, array)
+        else:
+            writer.add_tensor(name, gguf.quants.quantize(array, qtype),
+                              raw_dtype=qtype)
+
+    q4 = gguf.GGMLQuantizationType.Q4_0
+    q8 = gguf.GGMLQuantizationType.Q8_0
+    ones = np.ones(VOCAB_N_EMBD, dtype=np.float32)
+    # No output.weight: llama.cpp uses the token embeddings (tied).
+    add("token_embd.weight", noise(n_vocab, VOCAB_N_EMBD, scale=1.0), q4)
+    add("output_norm.weight", ones, None)
+    for tensor, shape in [
+        ("attn_q", (VOCAB_N_EMBD, VOCAB_N_EMBD)),
+        ("attn_k", (VOCAB_N_EMBD, VOCAB_N_EMBD)),
+        ("attn_v", (VOCAB_N_EMBD, VOCAB_N_EMBD)),
+        ("attn_output", (VOCAB_N_EMBD, VOCAB_N_EMBD)),
+        ("ffn_gate", (VOCAB_N_FF, VOCAB_N_EMBD)),
+        ("ffn_up", (VOCAB_N_FF, VOCAB_N_EMBD)),
+        ("ffn_down", (VOCAB_N_EMBD, VOCAB_N_FF)),
+    ]:
+        add(f"blk.0.{tensor}.weight", noise(*shape), q8)
+    add("blk.0.attn_norm.weight", ones, None)
+    add("blk.0.ffn_norm.weight", ones, None)
+
+    writer.write_header_to_file()
+    writer.write_kv_data_to_file()
+    writer.write_tensors_to_file()
+    writer.close()
+
+
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("out", nargs="?", help="the GGUF file to write")
     parser.add_argument("--chat-template", default="chatml",
                         choices=sorted(CHAT_TEMPLATES))
+    parser.add_argument("--vocab-model", choices=sorted(VOCAB_MODELS),
+                        help="a model with a real chat vocabulary instead")
     parser.add_argument("--all", metavar="DIR",
-                        help="write every template variant to DIR")
+                        help="write every model variant to DIR")
     args = parser.parse_args(argv)
     if args.all:
         for template in sorted(CHAT_TEMPLATES):
             out = Path(args.all) / f"llama-test-{template}.gguf"
             write_model(out, template)
             print(f"{out} ({out.stat().st_size} bytes)")
+        for name in sorted(VOCAB_MODELS):
+            out = Path(args.all) / f"llama-test-{name}.gguf"
+            write_vocab_model(out, name)
+            print(f"{out} ({out.stat().st_size} bytes)")
         return 0
     if not args.out:
         parser.error("OUT.gguf or --all DIR is required")
     out = Path(args.out)
-    write_model(out, args.chat_template)
+    if args.vocab_model:
+        write_vocab_model(out, args.vocab_model)
+    else:
+        write_model(out, args.chat_template)
     print(f"{out} ({out.stat().st_size} bytes)")
     return 0
 

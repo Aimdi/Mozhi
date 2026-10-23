@@ -61,9 +61,11 @@ class MakeTestModelTest(unittest.TestCase):
         self.assertIn("blk.1.ffn_down.weight", names)
 
     def test_every_template_variant(self) -> None:
-        self.assertEqual(make_test_model.main(["--all", str(self.root)]), 0)
+        # (--all also writes the vocabulary models: test_vocab_model.)
         for template, text in make_test_model.CHAT_TEMPLATES.items():
-            reader = self.read(self.root / f"llama-test-{template}.gguf")
+            path = self.root / f"llama-test-{template}.gguf"
+            make_test_model.write_model(path, template)
+            reader = self.read(path)
             field = reader.fields.get("tokenizer.chat_template")
             if text is None:
                 self.assertIsNone(field, template)
@@ -74,6 +76,38 @@ class MakeTestModelTest(unittest.TestCase):
             "<｜hy_place▁holder▁no▁3｜>",
             make_test_model.CHAT_TEMPLATES["hunyuan-dense"],
         )
+        self.assertIn("| trim", make_test_model.CHAT_TEMPLATES["llama3"])
+
+    def test_vocab_model(self) -> None:
+        path = self.root / "qwen.gguf"
+        self.assertEqual(
+            make_test_model.main([str(path), "--vocab-model", "qwen2-vocab"]),
+            0,
+        )
+        reader = self.read(path)
+        fields = reader.fields
+        self.assertEqual(fields["general.architecture"].contents(), "llama")
+        self.assertEqual(fields["tokenizer.ggml.model"].contents(), "gpt2")
+        self.assertEqual(
+            fields["tokenizer.chat_template"].contents(),
+            make_test_model.CHAT_TEMPLATES["qwen3"],
+        )
+        tokens = fields["tokenizer.ggml.tokens"].contents()
+        types = fields["tokenizer.ggml.token_type"].contents()
+        control = 3  # gguf.TokenType.CONTROL
+        for marker in ["<|im_start|>", "<|im_end|>", "<|endoftext|>"]:
+            self.assertEqual(types[tokens.index(marker)], control, marker)
+        names = {tensor.name for tensor in reader.tensors}
+        # Tied embeddings: no output.weight.
+        self.assertEqual(len(names), 2 + 9)
+        self.assertNotIn("output.weight", names)
+        self.assertLess(path.stat().st_size, 10 * 1024 * 1024)
+        self.assertEqual(
+            set(make_test_model.VOCAB_MODELS), {"qwen2-vocab", "gemma4-vocab"}
+        )
+        for vocab, template in make_test_model.VOCAB_MODELS.values():
+            self.assertTrue((make_test_model.LLAMA_CPP / "models" / vocab).is_file())
+            self.assertIn(template, make_test_model.CHAT_TEMPLATES)
 
     def test_the_script_fits_the_embedding(self) -> None:
         inputs = {token for token, _, _ in make_test_model.SCRIPT}

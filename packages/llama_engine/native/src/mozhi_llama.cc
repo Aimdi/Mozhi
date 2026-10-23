@@ -16,6 +16,7 @@
 #include <exception>
 #include <mutex>
 #include <new>
+#include <random>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -106,10 +107,45 @@ void AbortMessage(const char* message) {
   std::fprintf(stderr, "mozhi_llama: %s\n", message);
 }
 
+// std::terminate() (an exception nothing caught: a bug) ends the process
+// like abort() does, with a message and without anything else.
+[[noreturn]] void QuietTerminate() {
+  AbortMessage("terminate called (an exception was not caught)");
+  std::abort();
+}
+
+// ggml_print_backtrace() fork()s the process and runs gdb or lldb on it
+// (ggml/src/ggml.c). Two paths lead there, and neither may be taken in the
+// app (GGML_NO_BACKTRACE, the only switch, is an environment variable):
+//  * ggml_abort() without an abort callback (a failed GGML_ASSERT). The
+//    callback is a plain pointer in ggml.c, so it is set when this library
+//    is loaded, before any ggml code can run, whatever the order of the
+//    static initialisers.
+//  * ggml.cpp's std::terminate handler, installed by a static initialiser.
+//    ggml.cpp is a member of libggml-base.a that nothing references, so it
+//    is not linked into this library at all; in case that ever changes,
+//    QuietTerminate() replaces whatever handler is installed when the
+//    library is loaded and again on the first call of the API (by then
+//    every static initialiser has run).
+// With libc++ linked statically (Android) the terminate handler is this
+// library's own; the host build shares libstdc++'s with its process.
+void InstallHandlers() {
+  ggml_set_abort_callback(AbortMessage);
+  std::set_terminate(QuietTerminate);
+}
+
+const bool g_handlers_at_load = (InstallHandlers(), true);
+
+// Called first by every function of the API.
+void EnsureHandlers() {
+  static const bool installed = (InstallHandlers(), true);
+  static_cast<void>(installed);
+  static_cast<void>(g_handlers_at_load);
+}
+
 void Setup() {
   std::call_once(g_setup_once, [] {
     llama_log_set(SilentLog, nullptr);  // Also sets ggml's log callback.
-    ggml_set_abort_callback(AbortMessage);
     llama_backend_init();
   });
 }
@@ -300,51 +336,237 @@ int32_t ApplyLlamaTemplate(const std::string& tmpl,
   return length;
 }
 
+// A formatted conversation is a sequence of parts: the chat template's own
+// text, whose special-token text ("<|im_start|>", "<turn|>", ...) becomes
+// special tokens, and the messages' contents as the template inserts them,
+// which are untrusted text (documents, web pages, OCR) and always stay
+// plain text. Formatting and tokenizing work on the parts, so what a
+// content contains never decides where a turn begins or ends.
+struct ChatPart {
+  std::string text;
+  bool content = false;
+};
+
+using ChatParts = std::vector<ChatPart>;
+
+void AddPart(ChatParts* parts, const std::string& text, bool content) {
+  if (text.empty()) return;
+  if (!parts->empty() && parts->back().content == content) {
+    parts->back().text += text;
+  } else {
+    parts->push_back({text, content});
+  }
+}
+
+std::string JoinParts(const ChatParts& parts) {
+  std::string out;
+  for (const ChatPart& part : parts) out += part.text;
+  return out;
+}
+
+// The characters llama.cpp's chat templates trim (isspace()).
+bool IsTemplateSpace(char c) {
+  return c == ' ' || c == '\t' || c == '\n' || c == '\v' || c == '\f' ||
+         c == '\r';
+}
+
+uint64_t RandomNonce() {
+  static std::atomic<uint64_t> counter{0};
+  uint64_t x = counter.fetch_add(1) ^
+               static_cast<uint64_t>(
+                   std::chrono::steady_clock::now().time_since_epoch().count());
+  try {
+    std::random_device device;
+    x ^= (static_cast<uint64_t>(device()) << 32) ^ device();
+  } catch (...) {
+    // The clock and the counter alone: a clash is still detected.
+  }
+  // splitmix64's finaliser.
+  x += 0x9E3779B97F4A7C15ull;
+  x = (x ^ (x >> 30)) * 0xBF58476D1CE4E5B9ull;
+  x = (x ^ (x >> 27)) * 0x94D049BB133111EBull;
+  return x ^ (x >> 31);
+}
+
+// Private-use characters around a sentinel.
+constexpr char kSentinelOpen[] = "\xEE\x80\x80";   // U+E000
+constexpr char kSentinelClose[] = "\xEE\x80\x81";  // U+E001
+
+// Formats `messages` with llama_chat_apply_template() into parts. Each
+// content is replaced by a sentinel first, "\v" U+E000 <nonce> "#" <index>
+// U+E001 "\v" with a random 64-bit nonce that no content contains (checked;
+// a clash picks another nonce), and the template's output is split at the
+// sentinels: the text between them is the template's, and each sentinel is
+// replaced by its message's content. A template that trims contents (some
+// of llama.cpp's do) trims a sentinel's "\v" as well, which tells which
+// side of the content to trim. Returns < 0 when the template cannot be
+// applied or its output is not understood.
+int32_t ApplyLlamaTemplateParts(const std::string& tmpl,
+                                const std::vector<llama_chat_message>& messages,
+                                bool add_assistant, ChatParts* parts) {
+  for (int attempt = 0; attempt < 8; ++attempt) {
+    char nonce[17];
+    std::snprintf(nonce, sizeof(nonce), "%016llx",
+                  static_cast<unsigned long long>(RandomNonce()));
+    const std::string marker = std::string(kSentinelOpen) + nonce + "#";
+    const bool clash = std::any_of(
+        messages.begin(), messages.end(), [&](const llama_chat_message& m) {
+          return std::strstr(m.content, marker.c_str()) != nullptr;
+        });
+    if (clash) continue;
+    std::vector<std::string> sentinels;
+    sentinels.reserve(messages.size());
+    std::vector<llama_chat_message> masked = messages;
+    for (size_t i = 0; i < messages.size(); ++i) {
+      sentinels.push_back("\v" + marker + std::to_string(i) + kSentinelClose +
+                          "\v");
+    }
+    for (size_t i = 0; i < messages.size(); ++i) {
+      masked[i].content = sentinels[i].c_str();
+    }
+    std::string formatted;
+    const int32_t status =
+        ApplyLlamaTemplate(tmpl, masked, add_assistant, &formatted);
+    if (status < 0) return status;
+
+    parts->clear();
+    const size_t close_size = std::strlen(kSentinelClose);
+    size_t position = 0;
+    size_t at = 0;
+    while ((at = formatted.find(marker, position)) != std::string::npos) {
+      const size_t digits = at + marker.size();
+      const size_t close = formatted.find(kSentinelClose, digits);
+      if (close == std::string::npos || close == digits ||
+          close - digits > 9) {
+        return -1;
+      }
+      size_t index = 0;
+      for (size_t k = digits; k < close; ++k) {
+        if (formatted[k] < '0' || formatted[k] > '9') return -1;
+        index = index * 10 + static_cast<size_t>(formatted[k] - '0');
+      }
+      if (index >= messages.size()) return -1;
+      std::string before = formatted.substr(position, at - position);
+      const bool keep_leading = !before.empty() && before.back() == '\v';
+      if (keep_leading) before.pop_back();
+      size_t after = close + close_size;
+      const bool keep_trailing =
+          after < formatted.size() && formatted[after] == '\v';
+      if (keep_trailing) ++after;
+
+      std::string content(messages[index].content);
+      if (!keep_trailing) {
+        while (!content.empty() && IsTemplateSpace(content.back())) {
+          content.pop_back();
+        }
+      }
+      size_t start = 0;
+      if (!keep_leading) {
+        while (start < content.size() && IsTemplateSpace(content[start])) {
+          ++start;
+        }
+      }
+      AddPart(parts, before, false);
+      AddPart(parts, content.substr(start), true);
+      position = after;
+    }
+    AddPart(parts, formatted.substr(position), false);
+    // A template that changed a sentinel (other than trimming it) would
+    // leave pieces of it in its text.
+    for (const ChatPart& part : *parts) {
+      if (!part.content && part.text.find(nonce) != std::string::npos) {
+        return -1;
+      }
+    }
+    return 0;
+  }
+  return -1;
+}
+
 // Gemma 4 (google/gemma-4-*-it chat_template.jinja, text only, thinking
 // off): an optional system turn, then <|turn>{user|model}\n{content}<turn|>\n
 // per message, and an empty thought channel after the answer's turn. The
 // template's {{ bos_token }} is left out: tokenizing adds the BOS token.
-std::string FormatGemma4(const std::vector<llama_chat_message>& messages,
-                         bool add_assistant) {
-  std::string out;
+ChatParts FormatGemma4(const std::vector<llama_chat_message>& messages,
+                       bool add_assistant) {
+  ChatParts parts;
   size_t first = 0;
   if (!messages.empty() && std::strcmp(messages[0].role, "system") == 0) {
-    out += "<|turn>system\n" + Trim(messages[0].content) + "<turn|>\n";
+    AddPart(&parts, "<|turn>system\n", false);
+    AddPart(&parts, Trim(messages[0].content), true);
+    AddPart(&parts, "<turn|>\n", false);
     first = 1;
   }
   for (size_t i = first; i < messages.size(); ++i) {
     const bool model = std::strcmp(messages[i].role, "assistant") == 0;
-    out += "<|turn>";
-    out += model ? "model" : messages[i].role;
-    out += "\n" + Trim(messages[i].content) + "<turn|>\n";
+    AddPart(&parts,
+            std::string("<|turn>") + (model ? "model" : messages[i].role) +
+                "\n",
+            false);
+    AddPart(&parts, Trim(messages[i].content), true);
+    AddPart(&parts, "<turn|>\n", false);
   }
-  if (add_assistant) out += "<|turn>model\n<|channel>thought\n<channel|>";
-  return out;
+  if (add_assistant) {
+    AddPart(&parts, "<|turn>model\n<|channel>thought\n<channel|>", false);
+  }
+  return parts;
 }
 
+// `messages` formatted with `tmpl`, as parts. Returns < 0 when the model
+// has no supported template or it cannot be applied.
 int32_t FormatChat(const ChatTemplate& tmpl,
                    const std::vector<llama_chat_message>& messages,
-                   bool add_assistant, std::string* out) {
+                   bool add_assistant, ChatParts* parts) {
   switch (tmpl.kind) {
     case TemplateKind::kNone:
       return -1;
     case TemplateKind::kGemma4:
-      *out = FormatGemma4(messages, add_assistant);
-      return static_cast<int32_t>(out->size());
+      *parts = FormatGemma4(messages, add_assistant);
+      return 0;
     case TemplateKind::kQwen3: {
       // Qwen3's template with enable_thinking=false: the answer starts
       // after an empty think block (no slow, verbose reasoning first).
-      const int32_t length =
-          ApplyLlamaTemplate("chatml", messages, add_assistant, out);
-      if (length < 0) return length;
-      if (add_assistant) *out += "<think>\n\n</think>\n\n";
-      return static_cast<int32_t>(out->size());
+      const int32_t status =
+          ApplyLlamaTemplateParts("chatml", messages, add_assistant, parts);
+      if (status < 0) return status;
+      if (add_assistant) AddPart(parts, "<think>\n\n</think>\n\n", false);
+      return 0;
     }
     case TemplateKind::kLlama:
-      return ApplyLlamaTemplate(tmpl.template_text, messages, add_assistant,
-                                out);
+      return ApplyLlamaTemplateParts(tmpl.template_text, messages,
+                                     add_assistant, parts);
   }
   return -1;
+}
+
+bool IsRole(const char* role) {
+  return std::strcmp(role, "system") == 0 || std::strcmp(role, "user") == 0 ||
+         std::strcmp(role, "assistant") == 0;
+}
+
+// The `n` messages of `roles` and `contents`; false (with the error set)
+// when they are invalid. Roles are the template's text, so only the three
+// known ones are accepted.
+bool ReadMessages(const char* const* roles, const char* const* contents,
+                  int32_t n, std::vector<llama_chat_message>* messages) {
+  if (n < 0 || (n > 0 && (roles == nullptr || contents == nullptr))) {
+    SetError("model and messages are required");
+    return false;
+  }
+  messages->reserve(static_cast<size_t>(n));
+  for (int32_t i = 0; i < n; ++i) {
+    if (roles[i] == nullptr || contents[i] == nullptr) {
+      SetError("message " + std::to_string(i) + " has no role or content");
+      return false;
+    }
+    if (!IsRole(roles[i])) {
+      SetError("message " + std::to_string(i) +
+               " has an unknown role (system, user or assistant)");
+      return false;
+    }
+    messages->push_back({roles[i], contents[i]});
+  }
+  return true;
 }
 
 std::string ModelMeta(const llama_model* model, const char* key) {
@@ -458,6 +680,13 @@ struct MozhiLlamaModel {
   int32_t n_ctx = 0;
   int32_t n_threads = 0;
   ChatTemplate chat_template;
+  // What llama_tokenize() adds around a prompt with add_special (usually
+  // the BOS token before it), and the text of every token it treats as
+  // special (control, user-defined and unknown tokens) that is longer than
+  // one character. Set at load time, read-only afterwards.
+  std::vector<llama_token> prompt_prefix;
+  std::vector<llama_token> prompt_suffix;
+  std::vector<std::string> special_texts;
   std::vector<llama_token_data> candidates;
   // The context's abort callback reads these from ggml's threads.
   std::atomic<bool> abort_armed{false};
@@ -469,6 +698,205 @@ struct MozhiLlamaModel {
 };
 
 namespace {
+
+// --- Prompt tokens -----------------------------------------------------------
+
+// A prompt that cannot be tokenized; code() is the MOZHI_LLAMA_E_* to
+// return.
+class PromptError : public std::runtime_error {
+ public:
+  PromptError(int32_t code, const std::string& message)
+      : std::runtime_error(message), code_(code) {}
+
+  int32_t code() const { return code_; }
+
+ private:
+  int32_t code_;
+};
+
+constexpr int kSpecialAttributes = LLAMA_TOKEN_ATTR_CONTROL |
+                                   LLAMA_TOKEN_ATTR_USER_DEFINED |
+                                   LLAMA_TOKEN_ATTR_UNKNOWN;
+
+// Appends the tokens of `text` to `out`.
+void Tokenize(const llama_vocab* vocab, const std::string& text,
+              bool add_special, bool parse_special,
+              std::vector<llama_token>* out) {
+  if (text.empty() && !add_special) return;
+  if (text.size() > static_cast<size_t>(INT32_MAX) - 8) {
+    throw PromptError(MOZHI_LLAMA_E_CONTEXT, "the prompt is too long");
+  }
+  const auto length = static_cast<int32_t>(text.size());
+  const size_t start = out->size();
+  // At most a token per byte, plus BOS/EOS and a SentencePiece space.
+  int32_t capacity = length + 4;
+  out->resize(start + static_cast<size_t>(capacity));
+  int32_t count = llama_tokenize(vocab, text.data(), length, out->data() + start,
+                                 capacity, add_special, parse_special);
+  if (count < 0 && count != INT32_MIN) {
+    capacity = -count;
+    out->resize(start + static_cast<size_t>(capacity));
+    count = llama_tokenize(vocab, text.data(), length, out->data() + start,
+                           capacity, add_special, parse_special);
+  }
+  if (count == INT32_MIN) {
+    throw PromptError(MOZHI_LLAMA_E_CONTEXT, "the prompt is too long");
+  }
+  if (count < 0) {
+    throw PromptError(MOZHI_LLAMA_E_ERROR, "the prompt cannot be tokenized");
+  }
+  out->resize(start + static_cast<size_t>(count));
+}
+
+size_t Utf8CharLength(unsigned char lead) {
+  if (lead >= 0xF0) return 4;
+  if (lead >= 0xE0) return 3;
+  if (lead >= 0xC0) return 2;
+  return 1;
+}
+
+// Reads what the tokenizer needs from the model (see MozhiLlamaModel).
+void PrepareTokenizer(MozhiLlamaModel* handle) {
+  const llama_vocab* vocab = handle->vocab;
+  // add_special's tokens: around "x", with and without it.
+  std::vector<llama_token> plain;
+  std::vector<llama_token> special;
+  Tokenize(vocab, "x", false, false, &plain);
+  Tokenize(vocab, "x", true, false, &special);
+  const auto at =
+      std::search(special.begin(), special.end(), plain.begin(), plain.end());
+  if (!plain.empty() && at != special.end()) {
+    handle->prompt_prefix.assign(special.begin(), at);
+    handle->prompt_suffix.assign(at + static_cast<std::ptrdiff_t>(plain.size()),
+                                 special.end());
+  } else {
+    if (llama_vocab_get_add_bos(vocab) &&
+        llama_vocab_bos(vocab) != LLAMA_TOKEN_NULL) {
+      handle->prompt_prefix.push_back(llama_vocab_bos(vocab));
+    }
+    if (llama_vocab_get_add_eos(vocab) &&
+        llama_vocab_eos(vocab) != LLAMA_TOKEN_NULL) {
+      handle->prompt_suffix.push_back(llama_vocab_eos(vocab));
+    }
+  }
+  const int32_t n_vocab = llama_vocab_n_tokens(vocab);
+  for (llama_token id = 0; id < n_vocab; ++id) {
+    if ((llama_vocab_get_attr(vocab, id) & kSpecialAttributes) == 0) continue;
+    const char* text = llama_vocab_get_text(vocab, id);
+    if (text == nullptr) continue;
+    const size_t size = std::strlen(text);
+    if (size > Utf8CharLength(static_cast<unsigned char>(text[0]))) {
+      handle->special_texts.emplace_back(text, size);
+    }
+  }
+  std::sort(handle->special_texts.begin(), handle->special_texts.end());
+  handle->special_texts.erase(std::unique(handle->special_texts.begin(),
+                                          handle->special_texts.end()),
+                              handle->special_texts.end());
+}
+
+// Appends the tokens of `text` as plain text: with parse_special off, so
+// control tokens are not matched, and split after the first character of
+// every special token's text in it, so neither user-defined tokens (which
+// llama_tokenize() matches even then, e.g. Gemma 4's <|channel>) nor a
+// tokenizer's merges can turn it into a special token.
+void AppendPlain(const MozhiLlamaModel* handle, const std::string& text,
+                 std::vector<llama_token>* out) {
+  if (text.empty()) return;
+  std::vector<size_t> cuts;
+  for (const std::string& special : handle->special_texts) {
+    const size_t first =
+        Utf8CharLength(static_cast<unsigned char>(special[0]));
+    for (size_t at = text.find(special); at != std::string::npos;
+         at = text.find(special, at + 1)) {
+      cuts.push_back(at + first);
+    }
+  }
+  std::sort(cuts.begin(), cuts.end());
+  size_t start = 0;
+  for (const size_t cut : cuts) {
+    if (cut <= start || cut >= text.size()) continue;
+    Tokenize(handle->vocab, text.substr(start, cut - start), false, false, out);
+    start = cut;
+  }
+  Tokenize(handle->vocab, text.substr(start), false, false, out);
+}
+
+// The tokens of a formatted conversation, as llama_tokenize() with
+// add_special and parse_special would give for the joined parts, except
+// that only the template's text can contain special tokens: those
+// llama.cpp finds in a template part (parse_special) are kept, and all
+// other text - the template's between them and the contents - is
+// tokenized as plain text (AppendPlain), in runs from one special token to
+// the next, as llama.cpp would. Whitespace next to a special token with
+// lstrip/rstrip is dropped as llama.cpp does.
+std::vector<llama_token> TokenizeChat(const MozhiLlamaModel* handle,
+                                      const ChatParts& parts) {
+  const llama_vocab* vocab = handle->vocab;
+  std::vector<llama_token> tokens(handle->prompt_prefix);
+  std::string run;  // Plain text since the last special token.
+  bool strip_leading = false;
+  auto append = [&](const std::string& text, size_t from, size_t size) {
+    size_t skip = 0;
+    if (strip_leading) {
+      while (skip < size && IsTemplateSpace(text[from + skip])) ++skip;
+      if (skip < size) strip_leading = false;
+    }
+    run.append(text, from + skip, size - skip);
+  };
+  for (const ChatPart& part : parts) {
+    if (part.content) {
+      append(part.text, 0, part.text.size());
+      continue;
+    }
+    std::vector<llama_token> found;
+    Tokenize(vocab, part.text, false, true, &found);
+    size_t offset = 0;
+    for (const llama_token token : found) {
+      const int attributes = llama_vocab_get_attr(vocab, token);
+      if ((attributes & kSpecialAttributes) == 0) continue;
+      const char* text = llama_vocab_get_text(vocab, token);
+      if (text == nullptr || *text == '\0') continue;
+      const size_t at = part.text.find(text, offset);
+      if (at == std::string::npos) continue;  // Not one of the partition's.
+      append(part.text, offset, at - offset);
+      if ((attributes & LLAMA_TOKEN_ATTR_LSTRIP) != 0) {
+        while (!run.empty() && IsTemplateSpace(run.back())) run.pop_back();
+      }
+      AppendPlain(handle, run, &tokens);
+      run.clear();
+      tokens.push_back(token);
+      offset = at + std::strlen(text);
+      strip_leading = (attributes & LLAMA_TOKEN_ATTR_RSTRIP) != 0;
+    }
+    append(part.text, offset, part.text.size() - offset);
+  }
+  AppendPlain(handle, run, &tokens);
+  tokens.insert(tokens.end(), handle->prompt_suffix.begin(),
+                handle->prompt_suffix.end());
+  return tokens;
+}
+
+// The tokens of the conversation `roles`/`contents` with the model's chat
+// template; false (with the error set) when the arguments are invalid or
+// the template cannot be applied.
+bool ChatTokens(const MozhiLlamaModel* handle, const char* const* roles,
+                const char* const* contents, int32_t n, bool add_assistant,
+                std::vector<llama_token>* tokens) {
+  std::vector<llama_chat_message> messages;
+  if (!ReadMessages(roles, contents, n, &messages)) return false;
+  if (handle->chat_template.kind == TemplateKind::kNone) {
+    SetError("the model has no supported chat template");
+    return false;
+  }
+  ChatParts parts;
+  if (FormatChat(handle->chat_template, messages, add_assistant, &parts) < 0) {
+    SetError("the model's chat template cannot be applied");
+    return false;
+  }
+  *tokens = TokenizeChat(handle, parts);
+  return true;
+}
 
 bool FlagSet(const volatile int32_t* flag) {
   return flag != nullptr && __atomic_load_n(flag, __ATOMIC_RELAXED) != 0;
@@ -701,267 +1129,56 @@ std::string CpuFeatures() {
          (features.empty() ? std::string("none") : features);
 }
 
-}  // namespace
-
-extern "C" {
-
-int32_t mozhi_llama_abi_version(void) { return MOZHI_LLAMA_ABI_VERSION; }
-
-const char* mozhi_llama_version(void) {
-  static const std::string version =
-      std::string("llama.cpp ") + MOZHI_LLAMA_ENGINE_VERSION + " (ggml " +
-      ggml_version() + ", CPU " + MOZHI_LLAMA_CPU + ")";
-  return version.c_str();
-}
-
-const char* mozhi_llama_cpu_features(void) {
-  static const std::string features = CpuFeatures();
-  return features.c_str();
-}
-
-const char* mozhi_llama_json_grammar(void) { return kJsonGrammar; }
-
-MozhiLlamaModel* mozhi_llama_model_load(const char* path, int32_t n_threads,
-                                        int32_t n_ctx, int32_t use_mmap) {
-  ClearError();
-  tls_log_error.clear();
-  if (path == nullptr || *path == '\0') {
-    SetError("path is required");
-    return nullptr;
-  }
-  try {
-    Setup();
-    llama_model_params model_params = llama_model_default_params();
-    model_params.n_gpu_layers = 0;  // Only the CPU backend is compiled in.
-    model_params.load_mode =
-        use_mmap != 0 ? LLAMA_LOAD_MODE_MMAP : LLAMA_LOAD_MODE_NONE;
-    llama_model* model = llama_model_load_from_file(path, model_params);
-    if (model == nullptr) {
-      SetErrorWithLog(std::string("cannot load the model ") + path);
-      return nullptr;
-    }
-    if (llama_model_has_encoder(model) || !llama_model_has_decoder(model)) {
-      llama_model_free(model);
-      SetError(
-          "not a text generation model (encoder models are not "
-          "supported)");
-      return nullptr;
-    }
-    auto* handle = new (std::nothrow) MozhiLlamaModel();
-    if (handle == nullptr) {
-      llama_model_free(model);
-      SetError("out of memory");
-      return nullptr;
-    }
-    const int32_t trained = llama_model_n_ctx_train(model);
-    int32_t context_size = n_ctx > 0 ? n_ctx : trained;
-    if (trained > 0) context_size = std::min(context_size, trained);
-    if (context_size <= 0) context_size = 4096;
-    handle->n_threads = n_threads > 0 ? n_threads : DefaultThreads();
-
-    llama_context_params context_params = llama_context_default_params();
-    context_params.n_ctx = static_cast<uint32_t>(context_size);
-    context_params.n_batch =
-        static_cast<uint32_t>(std::min<int32_t>(context_size, 512));
-    context_params.n_ubatch = context_params.n_batch;
-    context_params.n_seq_max = 1;
-    context_params.n_threads = handle->n_threads;
-    context_params.n_threads_batch = handle->n_threads;
-    context_params.no_perf = true;
-    context_params.embeddings = false;
-    context_params.abort_callback = ShouldAbort;
-    context_params.abort_callback_data = handle;
-    llama_context* context = llama_init_from_model(model, context_params);
-    if (context == nullptr) {
-      llama_model_free(model);
-      delete handle;
-      SetErrorWithLog("cannot create a context of " +
-                      std::to_string(context_size) + " tokens");
-      return nullptr;
-    }
-    handle->model = model;
-    handle->context = context;
-    handle->vocab = llama_model_get_vocab(model);
-    handle->n_ctx = static_cast<int32_t>(llama_n_ctx(context));
-    handle->chat_template = ResolveChatTemplate(model);
-    return handle;
-  } catch (const std::bad_alloc&) {
-    SetError("out of memory");
-  } catch (const std::exception& error) {
-    SetError(error.what());
-  } catch (...) {
-    SetError("unknown engine error");
-  }
-  return nullptr;
-}
-
-void mozhi_llama_model_free(MozhiLlamaModel* handle) {
-  ClearError();
-  if (handle == nullptr) return;
-  {
-    std::lock_guard<std::mutex> lock(handle->mutex);
-    EndGeneration(handle);
-    llama_free(handle->context);
-    llama_model_free(handle->model);
-    handle->context = nullptr;
-    handle->model = nullptr;
-  }
-  delete handle;
-}
-
-char* mozhi_llama_model_info(MozhiLlamaModel* handle) {
-  ClearError();
-  if (handle == nullptr) {
-    SetError("model is required");
-    return nullptr;
-  }
-  try {
-    std::lock_guard<std::mutex> lock(handle->mutex);
-    const llama_model* model = handle->model;
-    char description[256] = {0};
-    llama_model_desc(model, description, sizeof(description));
-    const ChatTemplate& tmpl = handle->chat_template;
-    std::string json = "{";
-    json += "\"architecture\":" +
-            JsonString(ModelMeta(model, "general.architecture"));
-    json += ",\"name\":" + JsonString(ModelMeta(model, "general.name"));
-    json += ",\"description\":" + JsonString(description);
-    json +=
-        ",\"n_ctx_train\":" + std::to_string(llama_model_n_ctx_train(model));
-    json += ",\"n_ctx\":" + std::to_string(handle->n_ctx);
-    json += ",\"n_params\":" + std::to_string(llama_model_n_params(model));
-    json += ",\"size\":" + std::to_string(llama_model_size(model));
-    json +=
-        ",\"n_vocab\":" + std::to_string(llama_vocab_n_tokens(handle->vocab));
-    json += ",\"n_layer\":" + std::to_string(llama_model_n_layer(model));
-    json += ",\"n_embd\":" + std::to_string(llama_model_n_embd(model));
-    json += ",\"chat_template\":";
-    json += tmpl.kind == TemplateKind::kNone ? "false" : "true";
-    json += ",\"chat_template_name\":";
-    json += tmpl.name.empty() ? "null" : JsonString(tmpl.name);
-    json += "}";
-    return CopyString(json);
-  } catch (const std::bad_alloc&) {
-    SetError("out of memory");
-  } catch (const std::exception& error) {
-    SetError(error.what());
-  } catch (...) {
-    SetError("unknown engine error");
-  }
-  return nullptr;
-}
-
-char* mozhi_llama_chat_format(MozhiLlamaModel* handle, const char* const* roles,
-                              const char* const* contents, int32_t n,
-                              int32_t add_assistant) {
-  ClearError();
-  if (handle == nullptr || n < 0 ||
-      (n > 0 && (roles == nullptr || contents == nullptr))) {
-    SetError("model and messages are required");
-    return nullptr;
-  }
-  try {
-    std::vector<llama_chat_message> messages;
-    messages.reserve(static_cast<size_t>(n));
-    for (int32_t i = 0; i < n; ++i) {
-      if (roles[i] == nullptr || contents[i] == nullptr) {
-        SetError("message " + std::to_string(i) + " has no role or content");
-        return nullptr;
-      }
-      messages.push_back({roles[i], contents[i]});
-    }
-    std::lock_guard<std::mutex> lock(handle->mutex);
-    if (handle->chat_template.kind == TemplateKind::kNone) {
-      SetError("the model has no supported chat template");
-      return nullptr;
-    }
-    std::string prompt;
-    if (FormatChat(handle->chat_template, messages, add_assistant != 0,
-                   &prompt) < 0) {
-      SetError("the model's chat template cannot be applied");
-      return nullptr;
-    }
-    return CopyString(prompt);
-  } catch (const std::bad_alloc&) {
-    SetError("out of memory");
-  } catch (const std::exception& error) {
-    SetError(error.what());
-  } catch (...) {
-    SetError("unknown engine error");
-  }
-  return nullptr;
-}
-
-int32_t mozhi_llama_tokenize_count(MozhiLlamaModel* handle, const char* text) {
-  ClearError();
-  if (handle == nullptr || text == nullptr) {
-    SetError("model and text are required");
-    return -1;
-  }
-  const size_t length = std::strlen(text);
-  if (length > static_cast<size_t>(INT32_MAX)) {
-    SetError("text too long");
-    return -1;
-  }
-  const int32_t count =
-      llama_tokenize(handle->vocab, text, static_cast<int32_t>(length), nullptr,
-                     0, /*add_special=*/true, /*parse_special=*/true);
-  if (count == INT32_MIN) {
-    SetError("text too long");
-    return -1;
-  }
-  return count < 0 ? -count : count;
-}
-
-int32_t mozhi_llama_generate_begin(MozhiLlamaModel* handle, const char* prompt,
-                                   const MozhiLlamaParams* params) {
-  ClearError();
-  tls_log_error.clear();
-  if (handle == nullptr || prompt == nullptr || params == nullptr) {
-    SetError("model, prompt and parameters are required");
-    return MOZHI_LLAMA_E_ERROR;
-  }
+// The stop strings of `params`; false (with the error set) when they are
+// invalid.
+bool ReadStops(const MozhiLlamaParams* params,
+               std::vector<std::string>* stops) {
   if (params->n_stop < 0 || (params->n_stop > 0 && params->stop == nullptr)) {
     SetError("invalid stop strings");
-    return MOZHI_LLAMA_E_ERROR;
+    return false;
   }
+  for (int32_t i = 0; i < params->n_stop; ++i) {
+    if (params->stop[i] == nullptr || *params->stop[i] == '\0') continue;
+    std::string stop(params->stop[i]);
+    if (!IsValidUtf8(stop)) {
+      SetError("a stop string is not valid UTF-8");
+      return false;
+    }
+    stops->push_back(std::move(stop));
+  }
+  return true;
+}
+
+// Starts a generation from the prompt tokens that `make_tokens` writes
+// (called with the handle's lock held; it returns false with the error
+// set, or throws PromptError, when there is no prompt). The common part of
+// mozhi_llama_generate_begin() and mozhi_llama_chat_generate_begin().
+template <typename MakeTokens>
+int32_t BeginGeneration(MozhiLlamaModel* handle,
+                        const MozhiLlamaParams* params,
+                        MakeTokens make_tokens) {
   // Read before anything else: a cancel from now on aborts this generation.
   const uint64_t snapshot = g_cancel_generation.load();
   try {
+    std::vector<std::string> stops;
+    if (!ReadStops(params, &stops)) return MOZHI_LLAMA_E_ERROR;
     std::lock_guard<std::mutex> lock(handle->mutex);
     Generation& generation = handle->generation;
     if (generation.active) {
       SetError("a generation is already running");
       return MOZHI_LLAMA_E_ERROR;
     }
-    std::vector<std::string> stops;
-    for (int32_t i = 0; i < params->n_stop; ++i) {
-      if (params->stop[i] == nullptr || *params->stop[i] == '\0') continue;
-      std::string stop(params->stop[i]);
-      if (!IsValidUtf8(stop)) {
-        SetError("a stop string is not valid UTF-8");
-        return MOZHI_LLAMA_E_ERROR;
-      }
-      stops.push_back(std::move(stop));
+    std::vector<llama_token> tokens;
+    if (!make_tokens(&tokens)) return MOZHI_LLAMA_E_ERROR;
+    if (tokens.empty()) {
+      SetError("the prompt is empty");
+      return MOZHI_LLAMA_E_ERROR;
     }
-
-    const size_t length = std::strlen(prompt);
-    if (length == 0 || length > static_cast<size_t>(INT32_MAX)) {
-      SetError(length == 0 ? "the prompt is empty" : "the prompt is too long");
-      return length == 0 ? MOZHI_LLAMA_E_ERROR : MOZHI_LLAMA_E_CONTEXT;
-    }
-    const auto text_length = static_cast<int32_t>(length);
-    const int32_t needed = llama_tokenize(handle->vocab, prompt, text_length,
-                                          nullptr, 0, true, true);
-    if (needed == INT32_MIN) {
+    if (tokens.size() > static_cast<size_t>(INT32_MAX)) {
       SetError("the prompt is too long");
       return MOZHI_LLAMA_E_CONTEXT;
     }
-    int32_t count = -needed;
-    if (count <= 0) {
-      SetError("the prompt cannot be tokenized");
-      return MOZHI_LLAMA_E_ERROR;
-    }
+    const auto count = static_cast<int32_t>(tokens.size());
     const int32_t limit = params->max_tokens > 0
                               ? handle->n_ctx - params->max_tokens
                               : handle->n_ctx - 1;
@@ -971,14 +1188,6 @@ int32_t mozhi_llama_generate_begin(MozhiLlamaModel* handle, const char* prompt,
                " with room for the answer");
       return MOZHI_LLAMA_E_CONTEXT;
     }
-    std::vector<llama_token> tokens(static_cast<size_t>(count));
-    count = llama_tokenize(handle->vocab, prompt, text_length, tokens.data(),
-                           count, true, true);
-    if (count <= 0) {
-      SetError("the prompt cannot be tokenized");
-      return MOZHI_LLAMA_E_ERROR;
-    }
-    tokens.resize(static_cast<size_t>(count));
 
     llama_sampler* grammar = nullptr;
     if (params->grammar != nullptr && *params->grammar != '\0') {
@@ -1010,6 +1219,9 @@ int32_t mozhi_llama_generate_begin(MozhiLlamaModel* handle, const char* prompt,
     handle->abort_flag.store(params->cancel_flag);
     handle->abort_armed.store(true);
     return MOZHI_LLAMA_OK;
+  } catch (const PromptError& error) {
+    SetError(error.what());
+    return error.code();
   } catch (const std::bad_alloc&) {
     SetError("out of memory");
   } catch (const std::exception& error) {
@@ -1020,8 +1232,319 @@ int32_t mozhi_llama_generate_begin(MozhiLlamaModel* handle, const char* prompt,
   return MOZHI_LLAMA_E_ERROR;
 }
 
+void SetErrorFrom(const std::exception_ptr& exception) {
+  try {
+    std::rethrow_exception(exception);
+  } catch (const std::bad_alloc&) {
+    SetError("out of memory");
+  } catch (const std::exception& error) {
+    SetError(error.what());
+  } catch (...) {
+    SetError("unknown engine error");
+  }
+}
+
+}  // namespace
+
+extern "C" {
+
+int32_t mozhi_llama_abi_version(void) {
+  EnsureHandlers();
+  return MOZHI_LLAMA_ABI_VERSION;
+}
+
+const char* mozhi_llama_version(void) {
+  EnsureHandlers();
+  try {
+    static const std::string version =
+        std::string("llama.cpp ") + MOZHI_LLAMA_ENGINE_VERSION + " (ggml " +
+        ggml_version() + ", CPU " + MOZHI_LLAMA_CPU + ")";
+    return version.c_str();
+  } catch (...) {
+    return "llama.cpp " MOZHI_LLAMA_ENGINE_VERSION;
+  }
+}
+
+const char* mozhi_llama_cpu_features(void) {
+  EnsureHandlers();
+  try {
+    static const std::string features = CpuFeatures();
+    return features.c_str();
+  } catch (...) {
+    return MOZHI_LLAMA_CPU;
+  }
+}
+
+const char* mozhi_llama_json_grammar(void) {
+  EnsureHandlers();
+  return kJsonGrammar;
+}
+
+MozhiLlamaModel* mozhi_llama_model_load(const char* path, int32_t n_threads,
+                                        int32_t n_ctx, int32_t use_mmap) {
+  EnsureHandlers();
+  ClearError();
+  tls_log_error.clear();
+  if (path == nullptr || *path == '\0') {
+    SetError("path is required");
+    return nullptr;
+  }
+  llama_model* model = nullptr;
+  MozhiLlamaModel* handle = nullptr;
+  try {
+    Setup();
+    llama_model_params model_params = llama_model_default_params();
+    model_params.n_gpu_layers = 0;  // Only the CPU backend is compiled in.
+    model_params.load_mode =
+        use_mmap != 0 ? LLAMA_LOAD_MODE_MMAP : LLAMA_LOAD_MODE_NONE;
+    model = llama_model_load_from_file(path, model_params);
+    if (model == nullptr) {
+      SetErrorWithLog(std::string("cannot load the model ") + path);
+      return nullptr;
+    }
+    if (llama_model_has_encoder(model) || !llama_model_has_decoder(model)) {
+      llama_model_free(model);
+      SetError(
+          "not a text generation model (encoder models are not "
+          "supported)");
+      return nullptr;
+    }
+    handle = new MozhiLlamaModel();
+    const int32_t trained = llama_model_n_ctx_train(model);
+    int32_t context_size = n_ctx > 0 ? n_ctx : trained;
+    if (trained > 0) context_size = std::min(context_size, trained);
+    if (context_size <= 0) context_size = 4096;
+    handle->n_threads = n_threads > 0 ? n_threads : DefaultThreads();
+
+    llama_context_params context_params = llama_context_default_params();
+    context_params.n_ctx = static_cast<uint32_t>(context_size);
+    context_params.n_batch =
+        static_cast<uint32_t>(std::min<int32_t>(context_size, 512));
+    context_params.n_ubatch = context_params.n_batch;
+    context_params.n_seq_max = 1;
+    context_params.n_threads = handle->n_threads;
+    context_params.n_threads_batch = handle->n_threads;
+    context_params.no_perf = true;
+    context_params.embeddings = false;
+    context_params.abort_callback = ShouldAbort;
+    context_params.abort_callback_data = handle;
+    llama_context* context = llama_init_from_model(model, context_params);
+    if (context == nullptr) {
+      llama_model_free(model);
+      delete handle;
+      SetErrorWithLog("cannot create a context of " +
+                      std::to_string(context_size) + " tokens");
+      return nullptr;
+    }
+    handle->model = model;
+    handle->context = context;
+    handle->vocab = llama_model_get_vocab(model);
+    handle->n_ctx = static_cast<int32_t>(llama_n_ctx(context));
+    handle->chat_template = ResolveChatTemplate(model);
+    PrepareTokenizer(handle);
+    return handle;
+  } catch (...) {
+    SetErrorFrom(std::current_exception());
+  }
+  if (handle != nullptr) {
+    // Owns the model and the context once they are set.
+    if (handle->context != nullptr) llama_free(handle->context);
+    delete handle;
+  }
+  if (model != nullptr) llama_model_free(model);
+  return nullptr;
+}
+
+void mozhi_llama_model_free(MozhiLlamaModel* handle) {
+  EnsureHandlers();
+  ClearError();
+  if (handle == nullptr) return;
+  try {
+    {
+      std::lock_guard<std::mutex> lock(handle->mutex);
+      EndGeneration(handle);
+      llama_free(handle->context);
+      llama_model_free(handle->model);
+      handle->context = nullptr;
+      handle->model = nullptr;
+    }
+    delete handle;
+  } catch (...) {
+    SetErrorFrom(std::current_exception());
+  }
+}
+
+char* mozhi_llama_model_info(MozhiLlamaModel* handle) {
+  EnsureHandlers();
+  ClearError();
+  if (handle == nullptr) {
+    SetError("model is required");
+    return nullptr;
+  }
+  try {
+    std::lock_guard<std::mutex> lock(handle->mutex);
+    const llama_model* model = handle->model;
+    char description[256] = {0};
+    llama_model_desc(model, description, sizeof(description));
+    const ChatTemplate& tmpl = handle->chat_template;
+    std::string json = "{";
+    json += "\"architecture\":" +
+            JsonString(ModelMeta(model, "general.architecture"));
+    json += ",\"name\":" + JsonString(ModelMeta(model, "general.name"));
+    json += ",\"description\":" + JsonString(description);
+    json +=
+        ",\"n_ctx_train\":" + std::to_string(llama_model_n_ctx_train(model));
+    json += ",\"n_ctx\":" + std::to_string(handle->n_ctx);
+    json += ",\"n_params\":" + std::to_string(llama_model_n_params(model));
+    json += ",\"size\":" + std::to_string(llama_model_size(model));
+    json +=
+        ",\"n_vocab\":" + std::to_string(llama_vocab_n_tokens(handle->vocab));
+    json += ",\"n_layer\":" + std::to_string(llama_model_n_layer(model));
+    json += ",\"n_embd\":" + std::to_string(llama_model_n_embd(model));
+    json += ",\"chat_template\":";
+    json += tmpl.kind == TemplateKind::kNone ? "false" : "true";
+    json += ",\"chat_template_name\":";
+    json += tmpl.name.empty() ? "null" : JsonString(tmpl.name);
+    json += "}";
+    return CopyString(json);
+  } catch (...) {
+    SetErrorFrom(std::current_exception());
+  }
+  return nullptr;
+}
+
+char* mozhi_llama_chat_format(MozhiLlamaModel* handle, const char* const* roles,
+                              const char* const* contents, int32_t n,
+                              int32_t add_assistant) {
+  EnsureHandlers();
+  ClearError();
+  if (handle == nullptr) {
+    SetError("model and messages are required");
+    return nullptr;
+  }
+  try {
+    std::vector<llama_chat_message> messages;
+    if (!ReadMessages(roles, contents, n, &messages)) return nullptr;
+    if (handle->chat_template.kind == TemplateKind::kNone) {
+      SetError("the model has no supported chat template");
+      return nullptr;
+    }
+    ChatParts parts;
+    if (FormatChat(handle->chat_template, messages, add_assistant != 0,
+                   &parts) < 0) {
+      SetError("the model's chat template cannot be applied");
+      return nullptr;
+    }
+    return CopyString(JoinParts(parts));
+  } catch (...) {
+    SetErrorFrom(std::current_exception());
+  }
+  return nullptr;
+}
+
+int32_t mozhi_llama_chat_tokenize(MozhiLlamaModel* handle,
+                                  const char* const* roles,
+                                  const char* const* contents, int32_t n,
+                                  int32_t add_assistant, int32_t* tokens,
+                                  int32_t n_tokens_max) {
+  EnsureHandlers();
+  ClearError();
+  tls_log_error.clear();
+  if (handle == nullptr) {
+    SetError("model and messages are required");
+    return MOZHI_LLAMA_E_ERROR;
+  }
+  if (n_tokens_max < 0 || (n_tokens_max > 0 && tokens == nullptr)) {
+    SetError("invalid token buffer");
+    return MOZHI_LLAMA_E_ERROR;
+  }
+  try {
+    std::vector<llama_token> result;
+    if (!ChatTokens(handle, roles, contents, n, add_assistant != 0, &result)) {
+      return MOZHI_LLAMA_E_ERROR;
+    }
+    if (result.size() > static_cast<size_t>(INT32_MAX)) {
+      SetError("the prompt is too long");
+      return MOZHI_LLAMA_E_ERROR;
+    }
+    std::copy_n(result.begin(),
+                std::min(result.size(), static_cast<size_t>(n_tokens_max)),
+                tokens);
+    return static_cast<int32_t>(result.size());
+  } catch (...) {
+    SetErrorFrom(std::current_exception());
+  }
+  return MOZHI_LLAMA_E_ERROR;
+}
+
+int32_t mozhi_llama_tokenize_count(MozhiLlamaModel* handle, const char* text) {
+  EnsureHandlers();
+  ClearError();
+  if (handle == nullptr || text == nullptr) {
+    SetError("model and text are required");
+    return -1;
+  }
+  try {
+    std::vector<llama_token> tokens;
+    Tokenize(handle->vocab, text, /*add_special=*/true, /*parse_special=*/true,
+             &tokens);
+    if (tokens.size() > static_cast<size_t>(INT32_MAX)) {
+      SetError("text too long");
+      return -1;
+    }
+    return static_cast<int32_t>(tokens.size());
+  } catch (const PromptError&) {
+    SetError("text too long");
+  } catch (...) {
+    SetErrorFrom(std::current_exception());
+  }
+  return -1;
+}
+
+int32_t mozhi_llama_generate_begin(MozhiLlamaModel* handle, const char* prompt,
+                                   const MozhiLlamaParams* params) {
+  EnsureHandlers();
+  ClearError();
+  tls_log_error.clear();
+  if (handle == nullptr || prompt == nullptr || params == nullptr) {
+    SetError("model, prompt and parameters are required");
+    return MOZHI_LLAMA_E_ERROR;
+  }
+  return BeginGeneration(
+      handle, params, [&](std::vector<llama_token>* tokens) {
+        if (*prompt == '\0') {
+          SetError("the prompt is empty");
+          return false;
+        }
+        // A raw prompt: special-token text anywhere in it is parsed.
+        Tokenize(handle->vocab, prompt, /*add_special=*/true,
+                 /*parse_special=*/true, tokens);
+        return true;
+      });
+}
+
+int32_t mozhi_llama_chat_generate_begin(MozhiLlamaModel* handle,
+                                        const char* const* roles,
+                                        const char* const* contents,
+                                        int32_t n, int32_t add_assistant,
+                                        const MozhiLlamaParams* params) {
+  EnsureHandlers();
+  ClearError();
+  tls_log_error.clear();
+  if (handle == nullptr || params == nullptr) {
+    SetError("model, messages and parameters are required");
+    return MOZHI_LLAMA_E_ERROR;
+  }
+  return BeginGeneration(
+      handle, params, [&](std::vector<llama_token>* tokens) {
+        return ChatTokens(handle, roles, contents, n, add_assistant != 0,
+                          tokens);
+      });
+}
+
 int32_t mozhi_llama_generate_next(MozhiLlamaModel* handle, char* buf,
                                   int32_t size) {
+  EnsureHandlers();
   ClearError();
   tls_log_error.clear();
   if (handle == nullptr || buf == nullptr ||
@@ -1074,50 +1597,64 @@ int32_t mozhi_llama_generate_next(MozhiLlamaModel* handle, char* buf,
         generation.generate_ms = MillisecondsSince(generation.started);
       }
     }
-  } catch (const std::bad_alloc&) {
-    SetError("out of memory");
-  } catch (const std::exception& error) {
-    SetError(error.what());
   } catch (...) {
-    SetError("unknown engine error");
+    SetErrorFrom(std::current_exception());
   }
   return MOZHI_LLAMA_E_ERROR;
 }
 
 void mozhi_llama_generate_end(MozhiLlamaModel* handle) {
+  EnsureHandlers();
   ClearError();
   if (handle == nullptr) return;
-  std::lock_guard<std::mutex> lock(handle->mutex);
-  Generation& generation = handle->generation;
-  if (generation.active && generation.prompt_done && !generation.finished) {
-    generation.generate_ms = MillisecondsSince(generation.started);
+  try {
+    std::lock_guard<std::mutex> lock(handle->mutex);
+    Generation& generation = handle->generation;
+    if (generation.active && generation.prompt_done && !generation.finished) {
+      generation.generate_ms = MillisecondsSince(generation.started);
+    }
+    EndGeneration(handle);
+  } catch (...) {
+    SetErrorFrom(std::current_exception());
   }
-  EndGeneration(handle);
 }
 
 int32_t mozhi_llama_generate_stats(MozhiLlamaModel* handle,
                                    MozhiLlamaStats* stats) {
+  EnsureHandlers();
   ClearError();
   if (handle == nullptr || stats == nullptr) {
     SetError("model and stats are required");
     return MOZHI_LLAMA_E_ERROR;
   }
-  std::lock_guard<std::mutex> lock(handle->mutex);
-  const Generation& generation = handle->generation;
-  stats->prompt_tokens = generation.prompt_tokens;
-  stats->generated_tokens = generation.generated;
-  stats->finish_reason = generation.finish_reason;
-  stats->reserved = 0;
-  stats->prompt_ms = generation.prompt_ms;
-  stats->generate_ms = generation.generate_ms;
-  return MOZHI_LLAMA_OK;
+  try {
+    std::lock_guard<std::mutex> lock(handle->mutex);
+    const Generation& generation = handle->generation;
+    stats->prompt_tokens = generation.prompt_tokens;
+    stats->generated_tokens = generation.generated;
+    stats->finish_reason = generation.finish_reason;
+    stats->reserved = 0;
+    stats->prompt_ms = generation.prompt_ms;
+    stats->generate_ms = generation.generate_ms;
+    return MOZHI_LLAMA_OK;
+  } catch (...) {
+    SetErrorFrom(std::current_exception());
+  }
+  return MOZHI_LLAMA_E_ERROR;
 }
 
-void mozhi_llama_cancel(void) { g_cancel_generation.fetch_add(1); }
+void mozhi_llama_cancel(void) {
+  EnsureHandlers();
+  g_cancel_generation.fetch_add(1);
+}
 
-void mozhi_llama_free_string(char* text) { std::free(text); }
+void mozhi_llama_free_string(char* text) {
+  EnsureHandlers();
+  std::free(text);
+}
 
 const char* mozhi_llama_last_error(void) {
+  EnsureHandlers();
   return tls_has_error ? tls_error.c_str() : nullptr;
 }
 

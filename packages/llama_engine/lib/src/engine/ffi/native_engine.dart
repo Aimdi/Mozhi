@@ -5,6 +5,12 @@ import 'package:ffi/ffi.dart';
 import 'package:llama_engine/src/engine/ffi/bindings.dart';
 import 'package:llama_engine/src/engine/llama_engine.dart';
 
+/// [text] without U+0000 characters. C strings end at their first NUL, so
+/// one in a message would silently cut it short: they are removed from
+/// every text passed to the engine.
+String withoutNul(String text) =>
+    text.contains('\u0000') ? text.replaceAll('\u0000', '') : text;
+
 /// The synchronous engine the worker isolate drives: one loaded model and
 /// at most one generation. [NativeLlamaEngine] in the app; tests use fakes
 /// to check the isolate protocol without the library.
@@ -164,23 +170,16 @@ final class NativeLlamaEngine implements LlamaNative {
     _info = null;
   }
 
-  /// [messages] formatted with the model's chat template.
+  /// [messages] formatted with the model's chat template (for display and
+  /// diagnostics: [begin] and [countTokens] tokenize the messages
+  /// themselves, see [chatTokens]).
   String formatChat(
     List<LlamaChatMessage> messages, {
     bool addAssistant = true,
   }) {
     final model = _requireModel();
     return using((arena) {
-      final roles = arena<Pointer<Utf8>>(
-        messages.isEmpty ? 1 : messages.length,
-      );
-      final contents = arena<Pointer<Utf8>>(
-        messages.isEmpty ? 1 : messages.length,
-      );
-      for (var i = 0; i < messages.length; i++) {
-        roles[i] = messages[i].role.name.toNativeUtf8(allocator: arena);
-        contents[i] = messages[i].content.toNativeUtf8(allocator: arena);
-      }
+      final (roles, contents) = _messages(messages, arena);
       return _takeString(
         _bindings.chatFormat(
           model,
@@ -194,26 +193,79 @@ final class NativeLlamaEngine implements LlamaNative {
     });
   }
 
-  /// Tokens of [prompt] as the engine would tokenize it.
+  /// The token ids of [messages] as [begin] sends them to the model: the
+  /// chat template's markers are special tokens, the contents plain text
+  /// (text in them that looks like a special token never becomes one).
+  List<int> chatTokens(
+    List<LlamaChatMessage> messages, {
+    bool addAssistant = true,
+  }) {
+    final model = _requireModel();
+    return using((arena) {
+      final (roles, contents) = _messages(messages, arena);
+      final count = _bindings.chatTokenize(
+        model,
+        roles,
+        contents,
+        messages.length,
+        addAssistant ? 1 : 0,
+        nullptr,
+        0,
+      );
+      if (count < 0) _fail('count tokens');
+      final tokens = arena<Int32>(count == 0 ? 1 : count);
+      final written = _bindings.chatTokenize(
+        model,
+        roles,
+        contents,
+        messages.length,
+        addAssistant ? 1 : 0,
+        tokens,
+        count,
+      );
+      if (written != count) _fail('count tokens');
+      return List<int>.unmodifiable(tokens.asTypedList(count));
+    });
+  }
+
+  /// Tokens of [prompt] as a raw prompt: special-token text anywhere in it
+  /// counts as special tokens (trusted text only; conversations are
+  /// counted by [countTokens]).
   int tokenCount(String prompt) {
     final model = _requireModel();
     final count = using(
-      (arena) =>
-          _bindings.tokenizeCount(model, prompt.toNativeUtf8(allocator: arena)),
+      (arena) => _bindings.tokenizeCount(
+        model,
+        withoutNul(prompt).toNativeUtf8(allocator: arena),
+      ),
     );
     if (count < 0) _fail('count tokens');
     return count;
   }
 
   @override
-  int countTokens(List<LlamaChatMessage> messages) =>
-      tokenCount(formatChat(messages));
+  int countTokens(List<LlamaChatMessage> messages) {
+    final model = _requireModel();
+    final count = using((arena) {
+      final (roles, contents) = _messages(messages, arena);
+      return _bindings.chatTokenize(
+        model,
+        roles,
+        contents,
+        messages.length,
+        1,
+        nullptr,
+        0,
+      );
+    });
+    if (count < 0) _fail('count tokens');
+    return count;
+  }
 
   @override
   void begin(LlamaGenerateRequest request, {int cancelFlag = 0}) {
     final model = _requireModel();
     end();
-    final prompt = formatChat(request.messages);
     final status = using((arena) {
       final params = arena<NativeLlamaParams>();
       final sampling = request.sampling;
@@ -233,19 +285,23 @@ final class NativeLlamaEngine implements LlamaNative {
         request.stop.isEmpty ? 1 : request.stop.length,
       );
       for (var i = 0; i < request.stop.length; i++) {
-        stops[i] = request.stop[i].toNativeUtf8(allocator: arena);
+        stops[i] = withoutNul(request.stop[i]).toNativeUtf8(allocator: arena);
       }
       params.ref.stop = stops;
-      return _bindings.generateBegin(
+      final (roles, contents) = _messages(request.messages, arena);
+      return _bindings.chatGenerateBegin(
         model,
-        prompt.toNativeUtf8(allocator: arena),
+        roles,
+        contents,
+        request.messages.length,
+        1,
         params,
       );
     });
     if (status == LlamaBindings.contextFull) {
       throw LlamaContextException(
         _lastError(),
-        promptTokens: tokenCount(prompt),
+        promptTokens: countTokens(request.messages),
         contextSize: _info?.contextSize,
       );
     }
@@ -307,6 +363,24 @@ final class NativeLlamaEngine implements LlamaNative {
     unload();
     if (_piece != nullptr) calloc.free(_piece);
     _piece = nullptr;
+  }
+
+  /// The roles and contents of [messages] as C strings (NUL characters
+  /// removed), allocated in [arena].
+  (Pointer<Pointer<Utf8>>, Pointer<Pointer<Utf8>>) _messages(
+    List<LlamaChatMessage> messages,
+    Arena arena,
+  ) {
+    final roles = arena<Pointer<Utf8>>(messages.isEmpty ? 1 : messages.length);
+    final contents = arena<Pointer<Utf8>>(
+      messages.isEmpty ? 1 : messages.length,
+    );
+    for (var i = 0; i < messages.length; i++) {
+      roles[i] = messages[i].role.name.toNativeUtf8(allocator: arena);
+      contents[i] = withoutNul(messages[i].content)
+          .toNativeUtf8(allocator: arena);
+    }
+    return (roles, contents);
   }
 
   Pointer<NativeLlamaModel> _requireModel() {

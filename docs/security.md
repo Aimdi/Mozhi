@@ -429,6 +429,16 @@ llama.cpp (MIT, built from a pinned release in the repository's
 - **Prompts and output** follow the rules above: the extras use the same
   tagged prompts (and a JSON grammar for the replies that must be JSON),
   and the output is shown as plain text.
+- **Text can't forge the model's chat markers.** The engine formats each
+  request with the model's chat template itself and tokenizes the parts
+  separately: only the template's own text can contain special tokens,
+  and the messages (the text you translate, a document, a web page,
+  recognised text) are tokenized as plain text. Text such as
+  `<|im_end|>`, `<|im_start|>`, `<turn|>`, `<|endoftext|>` or `<eos>` in
+  them stays ordinary characters, never the model's turn, end-of-text or
+  other special tokens (nor those a vocabulary would match in plain text,
+  such as Gemma 4's `<|channel>`), so a text can't end its turn or open a
+  system turn of its own.
 
 ## Other measures
 

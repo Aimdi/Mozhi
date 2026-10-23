@@ -186,10 +186,13 @@ final class LlamaImportResult {
 ///   `manifest.json`). The directory appears atomically (a rename from
 ///   staging), so a model is either completely installed or absent.
 /// * `<root>/models/.staging/`: models being installed.
-/// * `<root>/models/.downloads/<id>/<file>.part`: downloads in progress.
-///   Kept when a download is interrupted or [cancel]led and resumed with
-///   an HTTP `Range` request next time (the bytes already on disk are
-///   hashed again, so the final checksum covers the whole file).
+/// * `<root>/models/.downloads/<id>/<file>.part`: downloads in progress,
+///   with `<file>.part.source` naming where the bytes came from (URL and
+///   checksum). Kept when a download is interrupted or [cancel]led and
+///   resumed with an HTTP `Range` request next time, from the same URL
+///   only (the bytes already on disk are hashed again, so the final
+///   checksum covers the whole file); a download from another source (the
+///   [mirror] changed, or the catalog's file) starts over.
 ///
 /// Every download is checked against the catalog's size and SHA-256
 /// before it is installed. The [http.Client] is injectable (tests use
@@ -272,7 +275,8 @@ class LlamaModelManager {
   bool isInstalling(String id) => _installing.containsKey(id);
 
   /// Bytes already downloaded of an interrupted download of [model] (0
-  /// when none), which [install] resumes.
+  /// when none), which [install] resumes when it downloads from the same
+  /// URL (else it starts over).
   Future<int> partialBytes(LlamaCatalogModel model) async {
     _checkSafe(model.id);
     final part = _partFile(model);
@@ -430,6 +434,15 @@ class LlamaModelManager {
   File _partFile(LlamaCatalogModel model) =>
       File(p.join(_downloadsDirectory.path, model.id, '${model.name}.part'));
 
+  /// Where the bytes of [_partFile] came from (see [_PartSource]).
+  File _sourceFile(LlamaCatalogModel model) =>
+      File('${_partFile(model).path}.source');
+
+  Future<void> _deletePart(LlamaCatalogModel model) async {
+    await _deleteQuietly(_partFile(model));
+    await _deleteQuietly(_sourceFile(model));
+  }
+
   Future<InstalledLlamaModel> _install(
     LlamaCatalogModel model,
     void Function(LlamaDownloadProgress progress)? onProgress,
@@ -507,9 +520,9 @@ class LlamaModelManager {
     }
   }
 
-  /// Downloads [model] into its `.part` file (resuming a partial download)
-  /// from [mirror] or the catalog's URL (see [llamaDownloadUrls]) and
-  /// verifies its size and SHA-256. Stops with a
+  /// Downloads [model] into its `.part` file (resuming a partial download
+  /// from the same URL) from [mirror] or the catalog's URL (see
+  /// [llamaDownloadUrls]) and verifies its size and SHA-256. Stops with a
   /// [LlamaDownloadCancelledException] when [cancelled] completes.
   Future<File> _download(
     LlamaCatalogModel model,
@@ -522,30 +535,48 @@ class LlamaModelManager {
     await part.parent.create(recursive: true);
     var existing = part.existsSync() ? part.lengthSync() : 0;
     if (existing > model.size) {
-      await part.delete();
+      await _deletePart(model);
       existing = 0;
     }
+    // Where the bytes on disk came from; null when unknown (then they are
+    // only used when complete: the checksum decides).
+    final recorded = existing > 0
+        ? await _PartSource.read(_sourceFile(model), model)
+        : null;
 
     final hasher = _Hasher(model);
     var received = 0;
     // The mirror the bytes come from (null: the catalog's URL).
-    Uri? source;
+    var source = recorded?.mirror;
 
     if (existing < model.size) {
-      final (response, from) = await _request(
+      final (response, from, resumed) = await _request(
         model,
         existing,
+        recorded,
         cancelled,
         mirror: mirror,
         fallbackToDefault: fallbackToDefault,
       );
-      source = from;
-      final resumed = existing > 0 && response.statusCode == 206;
+      source = from.mirror;
       if (resumed) {
-        // Hash what is already on disk, then append.
+        // The same source as the bytes on disk: hash them, then append.
         await for (final chunk in part.openRead()) {
           hasher.add(chunk);
           received += chunk.length;
+        }
+      } else {
+        // From the start: no byte of another source is kept.
+        try {
+          await _deletePart(model);
+          await from.write(_sourceFile(model), model);
+        } on Object catch (error) {
+          unawaited(response.stream.listen(null).cancel());
+          throw LlamaDownloadException(
+            model.id,
+            '${model.name}${_from(source)}: $error',
+            mirror: source,
+          );
         }
       }
       report(received);
@@ -572,7 +603,7 @@ class LlamaModelManager {
         }
       } on LlamaChecksumException {
         await sink.close();
-        await _deleteQuietly(part);
+        await _deletePart(model);
         rethrow;
       } on _Cancelled {
         // Stopped by the user: keep the part for resuming.
@@ -602,7 +633,7 @@ class LlamaModelManager {
     }
 
     if (hasher.close(received) case final mismatch?) {
-      await _deleteQuietly(part);
+      await _deletePart(model);
       throw LlamaChecksumException(
         model.id,
         '${model.name}${_from(source)}: $mismatch',
@@ -612,15 +643,18 @@ class LlamaModelManager {
     return part;
   }
 
-  /// Sends the request for [model] (from byte [existing] on) to each URL of
-  /// [llamaDownloadUrls] in turn until one answers with its contents
-  /// (200, or 206 when resuming): the response and the mirror it came from
-  /// (null: the catalog's URL). Throws the last URL's
+  /// Sends the request for [model] to each URL of [llamaDownloadUrls] in
+  /// turn until one answers with its contents: the response, where it came
+  /// from, and whether it continues the [existing] bytes on disk. Those
+  /// are resumed (`Range`) only from the URL [recorded] for them, and only
+  /// a 206 whose `Content-Range` starts at byte [existing] continues them;
+  /// any other 206 is asked again from the start. Throws the last URL's
   /// [LlamaDownloadException], or a [LlamaDownloadCancelledException] when
   /// [cancelled] completes first.
-  Future<(http.StreamedResponse, Uri?)> _request(
+  Future<(http.StreamedResponse, _PartSource, bool)> _request(
     LlamaCatalogModel model,
     int existing,
+    _PartSource? recorded,
     Future<void> cancelled, {
     required Uri? mirror,
     required bool fallbackToDefault,
@@ -630,12 +664,18 @@ class LlamaModelManager {
       mirror: mirror,
       fallbackToDefault: fallbackToDefault,
     );
+    var resumeFromStart = false;
     for (var i = 0; ; i++) {
       final url = urls[i];
       final source = i == 0 ? mirror : null;
+      final origin = _PartSource(url: url, mirror: source);
       final last = i == urls.length - 1;
+      final offset = !resumeFromStart && existing > 0 && origin.sameAs(recorded)
+          ? existing
+          : 0;
+      resumeFromStart = false;
       final request = http.Request('GET', url);
-      if (existing > 0) request.headers['Range'] = 'bytes=$existing-';
+      if (offset > 0) request.headers['Range'] = 'bytes=$offset-';
       final http.StreamedResponse response;
       final sent = _client.send(request).timeout(requestTimeout);
       final stopped = cancelled.then<http.StreamedResponse?>((_) => null);
@@ -670,11 +710,19 @@ class LlamaModelManager {
         );
       }
       final status = response.statusCode;
-      if (status == 200 || (existing > 0 && status == 206)) {
-        return (response, source);
+      if (status == 200) return (response, origin, false);
+      final partial = status == 206 && offset > 0;
+      if (partial && _rangeStart(response, model) == offset) {
+        return (response, origin, true);
       }
       // Drain so the connection can be reused.
       await response.stream.drain<void>().catchError((_) {});
+      if (partial) {
+        // Not the bytes that were asked for: the whole file, again.
+        resumeFromStart = true;
+        i--;
+        continue;
+      }
       if (last) {
         throw LlamaDownloadException(
           model.id,
@@ -684,6 +732,30 @@ class LlamaModelManager {
         );
       }
     }
+  }
+
+  /// The first byte of a 206 [response] (`Content-Range: bytes F-L/T`),
+  /// or null when the header is missing, malformed or for a file of
+  /// another size than [model]'s.
+  static int? _rangeStart(
+    http.StreamedResponse response,
+    LlamaCatalogModel model,
+  ) {
+    final header = response.headers.entries
+        .where((entry) => entry.key.toLowerCase() == 'content-range')
+        .firstOrNull
+        ?.value;
+    if (header == null) return null;
+    final match = RegExp(r'^\s*bytes\s+(\d+)-(\d+)/(\d+|\*)\s*$')
+        .firstMatch(header);
+    if (match == null) return null;
+    final first = int.parse(match[1]!);
+    final lastByte = int.parse(match[2]!);
+    final total = int.tryParse(match[3]!);
+    if (lastByte < first || (total != null && total != model.size)) {
+      return null;
+    }
+    return first;
   }
 
   /// [source] until [cancelled] completes: then the subscription to
@@ -920,6 +992,51 @@ class LlamaModelManager {
       if (entity.existsSync()) await entity.delete(recursive: true);
     } on FileSystemException {
       // Best effort: leftovers are removed by the next cleanUp().
+    }
+  }
+}
+
+/// Where the bytes of a partial download came from: the URL, and the
+/// mirror it belongs to (null: the catalog's URL). Stored next to the
+/// `.part` file with the catalog's size and SHA-256 of the file, so a
+/// download is only resumed from the source that sent its first bytes.
+@immutable
+final class _PartSource {
+  const new({required this.url, required this.mirror});
+
+  final Uri url;
+  final Uri? mirror;
+
+  /// Whether [other] is this source.
+  bool sameAs(_PartSource? other) => other != null && other.url == url;
+
+  Future<void> write(File file, LlamaCatalogModel model) => file.writeAsString(
+    jsonEncode({
+      'url': url.toString(),
+      'mirror': mirror?.toString(),
+      'size': model.size,
+      'sha256': model.sha256,
+    }),
+    flush: true,
+  );
+
+  /// The source recorded in [file] for [model]'s file; null when there is
+  /// none (or it cannot be read, or it was for another file).
+  static Future<_PartSource?> read(File file, LlamaCatalogModel model) async {
+    try {
+      final json = jsonDecode(await file.readAsString());
+      if (json is! Map<String, Object?> ||
+          json['size'] != model.size ||
+          json['sha256'] != model.sha256) {
+        return null;
+      }
+      final mirror = json['mirror'];
+      return _PartSource(
+        url: Uri.parse(json['url']! as String),
+        mirror: mirror is String ? Uri.parse(mirror) : null,
+      );
+    } on Object {
+      return null;
     }
   }
 }

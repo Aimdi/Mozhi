@@ -228,10 +228,11 @@ on-device models:
   keeps the files in an `llm/` folder (`<mirror>/llm/<file name>`); how to
   fill one: [Mirror the on-device models](self-hosting-mozhi.md#mirror-the-on-device-models).
 
-An interrupted download resumes where it stopped. Every file is checked
-against the size and SHA-256 fingerprint built into the app before it is
-used and installed in one step, so a model is either complete or absent,
-and a mirror can't change a file.
+An interrupted download resumes where it stopped (from the same source;
+another model source starts it over). Every file is checked against the
+size and SHA-256 fingerprint built into the app before it is used and
+installed in one step, so a model is either complete or absent, and a
+mirror can't change a file.
 
 ## Import from files
 

@@ -69,22 +69,44 @@ template is reported by `LlamaModelInfo.chatTemplate == false` and cannot
 chat. When the embedded template is unknown, the architecture decides
 (`gemma4`, `qwen3`, `hunyuan-dense`).
 
+Message contents are untrusted text (documents, web pages, OCR), so they
+are never parsed for special tokens: the shim formats the template with a
+random sentinel in place of each content (a template that trims contents
+trims the sentinel's `\v` too), splits the result into the template's
+text and the contents, and tokenizes only the template's text with
+special tokens. The contents, and the template's text between its special
+tokens, are plain text (`parse_special` off, and split after the first
+character of any special token's text, so neither a control token such as
+`<|im_end|>`, `<turn|>`, `<|endoftext|>`, `<eos>` nor a user-defined one
+such as Gemma 4's `<|channel>` can come out of them). The BOS token is
+added once, at the start. For ordinary text the tokens are the same as
+for the formatted prompt as a whole. NUL characters are removed from
+messages and stop strings before they reach the C API.
+
 ## Native library
 
 `libmozhi_llama*.so` export only the C API in
 [`native/src/mozhi_llama.h`](native/src/mozhi_llama.h) (`mozhi_llama_*`,
-ABI version 1; version script `native/src/mozhi_llama.map`):
+ABI version 2; version script `native/src/mozhi_llama.map`):
 
 | Function | What |
 | --- | --- |
 | `abi_version`, `version`, `cpu_features` | Checks and diagnostics (`cpu_features`: the compiled architecture and what ggml finds at run time) |
 | `model_load(path, n_threads, n_ctx, use_mmap)`, `model_free`, `model_info` | One handle = the weights + one context; `n_ctx` is capped at the training context (llama.cpp rounds it up to a multiple of 256); `model_info` returns JSON |
-| `chat_format(handle, roles[], contents[], n, add_assistant)` | The prompt, or NULL + `last_error` when the model has no supported template |
-| `tokenize_count(handle, text)` | Tokens of a prompt (BOS and special tokens included) |
-| `generate_begin(handle, prompt, params)`, `generate_next(handle, buf, size)`, `generate_end(handle)`, `generate_stats(handle, stats)` | A generation: `begin` clears the KV cache and checks the prompt fits (`MOZHI_LLAMA_E_CONTEXT` when it has more than `n_ctx - max_tokens` tokens); each `next` returns the next piece (> 0 bytes, never part of a UTF-8 character; invalid bytes become U+FFFD), 0 at the end, -1 on errors, -2 when cancelled; text that may start a stop string is held back until it is known not to |
+| `chat_format(handle, roles[], contents[], n, add_assistant)` | The prompt as text (display, diagnostics), or NULL + `last_error` when the model has no supported template; roles `system`, `user`, `assistant` only |
+| `chat_tokenize(handle, roles[], contents[], n, add_assistant, tokens, n_max)` | The prompt's tokens (and their count) as `chat_generate_begin` uses them: template markers special, contents plain text (see Chat templates) |
+| `chat_generate_begin(handle, roles[], contents[], n, add_assistant, params)`, `generate_next(handle, buf, size)`, `generate_end(handle)`, `generate_stats(handle, stats)` | A generation: `begin` clears the KV cache and checks the prompt fits (`MOZHI_LLAMA_E_CONTEXT` when it has more than `n_ctx - max_tokens` tokens); each `next` returns the next piece (> 0 bytes, never part of a UTF-8 character; invalid bytes become U+FFFD), 0 at the end, -1 on errors, -2 when cancelled; text that may start a stop string is held back until it is known not to |
+| `generate_begin(handle, prompt, params)`, `tokenize_count(handle, text)` | The same for a raw prompt, whose special-token text is parsed everywhere: trusted text only (the CLI's `--raw`); the Dart engine never uses them for messages |
 | `json_grammar` | llama.cpp's `grammars/json.gbnf` (embedded at configure time from the pinned checkout) for `params.grammar` |
 | `cancel()`, `params.cancel_flag` | The global cancel (every generation running now) and a per-generation flag another thread sets; both are checked between tokens and, through ggml's abort callback, during prompt processing |
 | `free_string`, `last_error` | Memory and errors (thread-local) |
+
+Calls on one handle are serialised by its lock, except `model_free`, which
+must not race another call on the same handle (the Dart engine makes all
+calls from its isolate). No exception crosses the C API; a failed ggml
+assertion or an exception that escapes anyway aborts with a message (the
+shim sets ggml's abort callback and its own `std::terminate` handler, so
+ggml never `fork()`s the app for a debugger's backtrace).
 
 Sampling runs repetition penalty (the prompt's last tokens count too, as in
 Hugging Face's `repetition_penalty`), top-k, top-p, min-p, temperature and
@@ -150,7 +172,12 @@ small "script" so the tests can check exact output: after a ChatML or
 Qwen3 prompt the model writes `abcdefghijklmnopqrstuvwxyz中` (中 as three
 byte tokens) and ends, after a Gemma 4 prompt it counts digits forever,
 and with the JSON grammar it answers `{}`. One file per chat template
-(`llama-test-chatml.gguf`, `-qwen3`, `-gemma4`, `-hunyuan-dense`, `-none`).
+(`llama-test-chatml.gguf`, `-qwen3`, `-gemma4`, `-hunyuan-dense`,
+`-llama3`, `-none`). Two more borrow the vocabularies of real chat models,
+whose markers are special tokens (`llama-test-qwen2-vocab.gguf`, about
+9 MB, with Qwen3's template, and `-gemma4-vocab.gguf`, about 21 MB, with
+Gemma 4's; random weights, no script), for the tests that special-token
+text in a message stays plain text.
 `test/src/engine/native_engine_test.dart` uses them for loading, model
 info, chat formats, token counts, streaming and UTF-8 pieces, stop
 strings, `maxTokens`, JSON output, context errors, cancellation (per

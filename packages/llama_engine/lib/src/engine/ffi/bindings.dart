@@ -94,6 +94,73 @@ typedef ChatFormatFunction = Pointer<Utf8> Function(
   int count,
   int addAssistant,
 );
+typedef _ChatTokenizeNative = Int32 Function(
+  Pointer<NativeLlamaModel>,
+  Pointer<Pointer<Utf8>>,
+  Pointer<Pointer<Utf8>>,
+  Int32,
+  Int32,
+  Pointer<Int32>,
+  Int32,
+);
+
+/// `mozhi_llama_chat_tokenize`.
+typedef ChatTokenizeFunction = int Function(
+  Pointer<NativeLlamaModel> model,
+  Pointer<Pointer<Utf8>> roles,
+  Pointer<Pointer<Utf8>> contents,
+  int count,
+  int addAssistant,
+  Pointer<Int32> tokens,
+  int capacity,
+);
+typedef _ChatGenerateBeginNative = Int32 Function(
+  Pointer<NativeLlamaModel>,
+  Pointer<Pointer<Utf8>>,
+  Pointer<Pointer<Utf8>>,
+  Int32,
+  Int32,
+  Pointer<NativeLlamaParams>,
+);
+
+/// `mozhi_llama_chat_generate_begin`.
+typedef ChatGenerateBeginFunction = int Function(
+  Pointer<NativeLlamaModel> model,
+  Pointer<Pointer<Utf8>> roles,
+  Pointer<Pointer<Utf8>> contents,
+  int count,
+  int addAssistant,
+  Pointer<NativeLlamaParams> params,
+);
+
+// Only reached with a library older than these bindings, which
+// NativeLlamaEngine.openFirst rejects (the tests have none).
+//
+// coverage:ignore-start
+Never _missing(String function) => throw StateError(
+  '$function is missing: the library is older than ABI '
+  '${LlamaBindings.expectedAbiVersion}',
+);
+
+int _missingChatTokenize(
+  Pointer<NativeLlamaModel> model,
+  Pointer<Pointer<Utf8>> roles,
+  Pointer<Pointer<Utf8>> contents,
+  int count,
+  int addAssistant,
+  Pointer<Int32> tokens,
+  int capacity,
+) => _missing('mozhi_llama_chat_tokenize');
+
+int _missingChatGenerateBegin(
+  Pointer<NativeLlamaModel> model,
+  Pointer<Pointer<Utf8>> roles,
+  Pointer<Pointer<Utf8>> contents,
+  int count,
+  int addAssistant,
+  Pointer<NativeLlamaParams> params,
+) => _missing('mozhi_llama_chat_generate_begin');
+// coverage:ignore-end
 
 /// The functions of `libmozhi_llama`.
 final class LlamaBindings {
@@ -130,6 +197,20 @@ final class LlamaBindings {
           .lookupFunction<_ChatFormatNative, ChatFormatFunction>(
             'mozhi_llama_chat_format',
           ),
+      // ABI 2's functions: an older library still opens (and fails the
+      // ABI check of NativeLlamaEngine.openFirst instead of a lookup).
+      chatTokenize = library.providesSymbol('mozhi_llama_chat_tokenize')
+          ? library.lookupFunction<_ChatTokenizeNative, ChatTokenizeFunction>(
+              'mozhi_llama_chat_tokenize',
+            )
+          : _missingChatTokenize,
+      chatGenerateBegin =
+          library.providesSymbol('mozhi_llama_chat_generate_begin')
+          ? library.lookupFunction<
+              _ChatGenerateBeginNative,
+              ChatGenerateBeginFunction
+            >('mozhi_llama_chat_generate_begin')
+          : _missingChatGenerateBegin,
       tokenizeCount = library
           .lookupFunction<
             Int32 Function(Pointer<NativeLlamaModel>, Pointer<Utf8>),
@@ -180,7 +261,7 @@ final class LlamaBindings {
           );
 
   /// MOZHI_LLAMA_ABI_VERSION these bindings were written for.
-  static const expectedAbiVersion = 1;
+  static const expectedAbiVersion = 2;
 
   /// File name of the baseline library (Android packs it into the APK per
   /// ABI; arm64-v8a also has [dotprodLibraryName] and [i8mmLibraryName]).
@@ -225,6 +306,14 @@ final class LlamaBindings {
   final void Function(Pointer<NativeLlamaModel> model) modelFree;
   final Pointer<Utf8> Function(Pointer<NativeLlamaModel> model) modelInfo;
   final ChatFormatFunction chatFormat;
+
+  /// `mozhi_llama_chat_tokenize`: the tokens of a conversation, contents
+  /// as plain text.
+  final ChatTokenizeFunction chatTokenize;
+
+  /// `mozhi_llama_chat_generate_begin`: a generation answering a
+  /// conversation, tokenized like [chatTokenize].
+  final ChatGenerateBeginFunction chatGenerateBegin;
   final int Function(Pointer<NativeLlamaModel> model, Pointer<Utf8> text)
   tokenizeCount;
   final int Function(

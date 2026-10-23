@@ -15,7 +15,9 @@ String? nativeLibraryPath() {
 
 /// A model written by `tool/make_test_model.py --all build/test_models`
 /// (or `$LLAMA_TEST_MODELS`) with the chat template [template]: chatml,
-/// qwen3, gemma4, hunyuan-dense or none. Null when it is missing.
+/// qwen3, gemma4, hunyuan-dense, llama3 or none, or one of its models with
+/// a real chat vocabulary: qwen2-vocab or gemma4-vocab. Null when it is
+/// missing.
 String? testModelPath([String template = 'chatml']) {
   final directory =
       Platform.environment['LLAMA_TEST_MODELS'] ??
@@ -38,6 +40,20 @@ Object nativeLibrarySkip() {
   ]) {
     if (testModelPath(template) == null) {
       return 'test models missing '
+          '(tool/make_test_model.py --all build/test_models)';
+    }
+  }
+  return false;
+}
+
+/// Skip reason for tests that also need the test models [names] (see
+/// [testModelPath]), e.g. ones a newer `tool/make_test_model.py` writes.
+Object testModelsSkip(List<String> names) {
+  final skip = nativeLibrarySkip();
+  if (skip != false) return skip;
+  for (final name in names) {
+    if (testModelPath(name) == null) {
+      return 'test model $name missing '
           '(tool/make_test_model.py --all build/test_models)';
     }
   }

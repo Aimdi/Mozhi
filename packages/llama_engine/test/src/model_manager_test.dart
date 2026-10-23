@@ -11,16 +11,22 @@ import 'package:path/path.dart' as p;
 
 import '../helpers/fake_llama_models.dart';
 
-/// Serves [files] by URL path, honouring `Range: bytes=N-` unless
-/// [ignoreRange]. [failAfter] cuts a response after that many bytes;
-/// [stallAfter] stops sending after that many bytes (until [release]);
-/// [status] replaces the status code; [corrupt] flips the last byte.
+/// Serves [files] by URL path, honouring `Range: bytes=N-` (a 206 with its
+/// `Content-Range`) unless [ignoreRange]. [failAfter] cuts a response
+/// after that many bytes; [stallAfter] stops sending after that many bytes
+/// (until [release]); [status] replaces the status code; [corrupt] flips
+/// the last byte. A [contentRange] function replaces the `Content-Range`
+/// of 206 responses (null: none), and [rangeFromStart] answers a range
+/// request with a 206 of the whole file.
 class _Server {
   new(this.files);
 
   final Map<String, Uint8List> files;
   final List<http.BaseRequest> requests = [];
   bool ignoreRange = false;
+  bool rangeFromStart = false;
+  String? Function(int start, int total)? contentRange;
+  String contentRangeName = 'content-range';
   int? failAfter;
   int? stallAfter;
   int? status;
@@ -42,11 +48,17 @@ class _Server {
     var bytes = Uint8List.fromList([...body, ...extra]);
     if (corrupt) bytes[bytes.length - 1] ^= 0xff;
     var code = 200;
+    final headers = <String, String>{};
     final range = request.headers['Range'];
     if (range != null && !ignoreRange) {
-      final start = int.parse(RegExp(r'bytes=(\d+)-').firstMatch(range)![1]!);
+      final total = bytes.length;
+      final start = rangeFromStart
+          ? 0
+          : int.parse(RegExp(r'bytes=(\d+)-').firstMatch(range)![1]!);
       bytes = bytes.sublist(start);
       code = 206;
+      final value = (contentRange ?? _contentRange)(start, total);
+      if (value != null) headers[contentRangeName] = value;
     }
     final cut = failAfter;
     final stall = stallAfter;
@@ -65,8 +77,11 @@ class _Server {
       throw const SocketException('connection reset');
     }
 
-    return http.StreamedResponse(stream(), code);
+    return http.StreamedResponse(stream(), code, headers: headers);
   });
+
+  static String _contentRange(int start, int total) =>
+      'bytes $start-${total - 1}/$total';
 }
 
 void main() {
@@ -207,11 +222,13 @@ void main() {
     });
 
     test('starts over when the server ignores Range', () async {
-      part(hy)
-        ..parent.createSync(recursive: true)
-        ..writeAsBytesSync(hyBytes.sublist(0, 100));
-      server.ignoreRange = true;
+      server.failAfter = 100;
+      await expectLater(manager.install(hy), throwsA(anything));
+      server
+        ..failAfter = null
+        ..ignoreRange = true;
       final installed = await manager.install(hy);
+      expect(server.requests.last.headers['Range'], 'bytes=100-');
       expect(File(installed.path).readAsBytesSync(), hyBytes);
     });
 
@@ -524,6 +541,175 @@ void main() {
         ),
       );
       expect(await manager.partialBytes(hy), 100);
+    });
+  });
+
+  group('resume', () {
+    final mirror = Uri.parse('https://mirror.example/models/');
+    const mirrorPath = '/models/llm/Hy-MT2-1.8B-Q4_K_M.gguf';
+
+    File source(LlamaCatalogModel model) => File('${part(model).path}.source');
+
+    List<String?> ranges() => [
+      for (final request in server.requests) request.headers['Range'],
+    ];
+
+    /// An interrupted download of [hy] from [from] (null: the catalog's
+    /// URL) after [bytes] bytes.
+    Future<void> interrupt({Uri? from, int bytes = 1000}) async {
+      manager.mirror = from;
+      server.failAfter = bytes;
+      await expectLater(
+        manager.install(hy),
+        throwsA(isA<LlamaDownloadException>()),
+      );
+      server.failAfter = null;
+      expect(part(hy).lengthSync(), bytes);
+    }
+
+    test('records where the bytes of a partial download came from', () async {
+      server.files[mirrorPath] = hyBytes;
+      await interrupt(from: mirror);
+      final recorded =
+          jsonDecode(source(hy).readAsStringSync()) as Map<String, Object?>;
+      expect(recorded, {
+        'url': 'https://mirror.example$mirrorPath',
+        'mirror': mirror.toString(),
+        'size': hy.size,
+        'sha256': hy.sha256,
+      });
+      await manager.install(hy);
+      expect(ranges(), [null, 'bytes=1000-']);
+      expect(source(hy).existsSync(), isFalse);
+    });
+
+    test(
+      'a poisoned partial download does not survive a change of source',
+      () async {
+        // The mirror sends bytes of another file, then the connection breaks.
+        server.files[mirrorPath] = qwenBytes.sublist(0, hyBytes.length);
+        await interrupt(from: mirror);
+        // Back to Hugging Face: the whole file again, from there.
+        manager.mirror = null;
+        final installed = await manager.install(hy);
+        expect(File(installed.path).readAsBytesSync(), hyBytes);
+        expect(server.requests.last.url.path, hyPath());
+        expect(ranges().last, isNull);
+      },
+    );
+
+    test(
+      'resumes from the URL the bytes came from, also as a fallback',
+      () async {
+        await interrupt();
+        manager
+          ..mirror = mirror
+          ..fallbackToDefault = true;
+        // The mirror lacks the file: asked from the start (not its bytes), then
+        // the catalog's URL resumes its own.
+        await manager.install(hy);
+        expect(
+          [for (final r in server.requests) r.url.path],
+          [hyPath(), mirrorPath, hyPath()],
+        );
+        expect(ranges(), [null, null, 'bytes=1000-']);
+      },
+    );
+
+    test('starts over without a record of the source', () async {
+      for (final record in [
+        null,
+        'not json',
+        '[]',
+        jsonEncode({
+          'url': hy.url.toString(),
+          'mirror': null,
+          'size': hy.size,
+          'sha256': 'b' * 64,
+        }),
+      ]) {
+        part(hy)
+          ..parent.createSync(recursive: true)
+          ..writeAsBytesSync(hyBytes.sublist(0, 100));
+        if (record != null) source(hy).writeAsStringSync(record);
+        server.requests.clear();
+        await manager.install(hy);
+        expect(ranges(), [null], reason: record);
+        await manager.delete(hy.id);
+      }
+    });
+
+    test('reads Content-Range whatever its case', () async {
+      await interrupt();
+      server.contentRangeName = 'Content-Range';
+      await manager.install(hy);
+      expect(ranges(), [null, 'bytes=1000-']);
+    });
+
+    test('a 206 from another offset starts over', () async {
+      for (final misbehave in <void Function()>[
+        // The whole file as "partial content".
+        () => server.rangeFromStart = true,
+        // No Content-Range at all.
+        () => server.contentRange = (_, _) => null,
+        // A range of a file of another size.
+        () =>
+            server.contentRange = (start, total) =>
+                'bytes $start-${total - 1}/${total + 1}',
+        // Garbage.
+        () => server.contentRange = (_, _) => 'bytes */*',
+        () => server.contentRange = (start, _) => 'bytes $start-1/*',
+      ]) {
+        await interrupt();
+        misbehave();
+        final installed = await manager.install(hy);
+        expect(File(installed.path).readAsBytesSync(), hyBytes);
+        expect(ranges().sublist(ranges().length - 2), ['bytes=1000-', null]);
+        server
+          ..rangeFromStart = false
+          ..contentRange = null;
+        await manager.delete(hy.id);
+      }
+    });
+
+    test(
+      'a complete partial download that does not match names its source',
+      () async {
+        server
+          ..files[mirrorPath] = hyBytes
+          ..corrupt = true;
+        // Every byte arrives, then the connection breaks.
+        await interrupt(from: mirror, bytes: hyBytes.length);
+        server.corrupt = false;
+        manager.mirror = null;
+        final requests = server.requests.length;
+        await expectLater(
+          manager.install(hy),
+          throwsA(
+            isA<LlamaChecksumException>()
+                .having((e) => e.mirror, 'mirror', mirror)
+                .having(
+                  (e) => e.message,
+                  'message',
+                  contains('from the mirror https://mirror.example/models/'),
+                ),
+          ),
+        );
+        expect(server.requests, hasLength(requests));
+        expect(part(hy).existsSync(), isFalse);
+        expect(source(hy).existsSync(), isFalse);
+        // The next install downloads it again.
+        expect((await manager.install(hy)).matches(hy), isTrue);
+      },
+    );
+
+    test('fails when the source cannot be recorded', () async {
+      Directory(source(hy).path).createSync(recursive: true);
+      await expectLater(
+        manager.install(hy),
+        throwsA(isA<LlamaDownloadException>()),
+      );
+      expect(await manager.isInstalled(hy), isFalse);
     });
   });
 

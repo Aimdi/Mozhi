@@ -867,9 +867,9 @@ jobs:
             package: packages/llama_engine
             exports: >-
               abi_version version cpu_features json_grammar model_load
-              model_free model_info chat_format tokenize_count generate_begin
-              generate_next generate_end generate_stats cancel free_string
-              last_error
+              model_free model_info chat_format chat_tokenize tokenize_count
+              chat_generate_begin generate_begin generate_next generate_end
+              generate_stats cancel free_string last_error
             # liblog: assertion messages go to logcat.
             needed: libc.so libm.so libdl.so liblog.so
             # arm64-v8a also builds libmozhi_llama_<variant>.so (and its CLI)

@@ -10,7 +10,8 @@
  *
  * Options:
  *   --system TEXT    a system message before the prompt
- *   --raw            use PROMPT as it is (no chat template)
+ *   --raw            use PROMPT as it is (no chat template; special-token
+ *                    text in it is parsed)
  *   --json           JSON output (the built-in grammar)
  *   --max N          tokens to generate at most (default 256)
  *   --ctx N          context size (default 4096, capped at the model's)
@@ -132,9 +133,15 @@ int main(int argc, char** argv) {
     return 0;
   }
 
-  char* formatted = NULL;
-  const char* prompt = prompt_text;
-  if (!raw) {
+  if (json) params.grammar = mozhi_llama_json_grammar();
+  params.stop = stops;
+  params.n_stop = n_stop;
+
+  int32_t begun;
+  if (raw) {
+    begun = mozhi_llama_generate_begin(model, prompt_text, &params);
+  } else {
+    /* The messages are tokenized with their text kept plain text. */
     const char* roles[2];
     const char* contents[2];
     int32_t n = 0;
@@ -144,15 +151,9 @@ int main(int argc, char** argv) {
     }
     roles[n] = "user";
     contents[n++] = prompt_text;
-    formatted = mozhi_llama_chat_format(model, roles, contents, n, 1);
-    if (formatted == NULL) return fail("chat template");
-    prompt = formatted;
+    begun = mozhi_llama_chat_generate_begin(model, roles, contents, n, 1,
+                                            &params);
   }
-  if (json) params.grammar = mozhi_llama_json_grammar();
-  params.stop = stops;
-  params.n_stop = n_stop;
-
-  const int32_t begun = mozhi_llama_generate_begin(model, prompt, &params);
   if (begun != MOZHI_LLAMA_OK) return fail("generate");
   char piece[256];
   int32_t status;
@@ -181,7 +182,6 @@ int main(int argc, char** argv) {
           stats.finish_reason == MOZHI_LLAMA_FINISH_STOP     ? "stop"
           : stats.finish_reason == MOZHI_LLAMA_FINISH_LENGTH ? "length"
                                                              : "none");
-  mozhi_llama_free_string(formatted);
   mozhi_llama_model_free(model);
   return status < 0 ? 1 : 0;
 }
