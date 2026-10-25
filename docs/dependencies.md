@@ -67,6 +67,7 @@ packages included. Native commits are the gitlinks recorded in git.
 
 | Package | Version | Licence | Why |
 | --- | --- | --- | --- |
+| `archive` | 4.5.2 | MIT | Reading and writing office documents and e-books (ZIP packages). |
 | `audioplayers` | 6.8.1 | MIT | Plays the MP3 clips of Mozhi text-to-speech. |
 | `bergamot_translator` | 0.1.0+1 (`packages/bergamot_translator`) | MIT | Offline translation (Mozilla Bergamot over dart:ffi). |
 | `bloc` | 9.2.1 | MIT | State management (Cubits). |
@@ -97,6 +98,7 @@ packages included. Native commits are the gitlinks recorded in git.
 | `translation_repository` | 0.1.0+1 (`packages/translation_repository`) | MIT | Domain models and the repository that unifies all engines. |
 | `url_launcher` | 6.3.3 | BSD-3-Clause | Opens links in the browser (user taps only). |
 | `whisper_speech` | 0.1.0+1 (`packages/whisper_speech`) | MIT | Offline voice input (whisper.cpp over dart:ffi). |
+| `xml` | 7.1.0 | MIT | Reading and writing the XML of documents and localisation files. |
 
 Dev dependencies (not shipped):
 

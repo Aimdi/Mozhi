@@ -65,6 +65,7 @@ CI_WORKFLOW = Path(".github/workflows/main.yaml")
 # submodule path relative to its parent repository (native).
 PURPOSE = {
     # App runtime.
+    "archive": "Reading and writing office documents and e-books (ZIP packages).",
     "audioplayers": "Plays the MP3 clips of Mozhi text-to-speech.",
     "bergamot_translator": "Offline translation (Mozilla Bergamot over dart:ffi).",
     "bloc": "State management (Cubits).",
@@ -95,6 +96,7 @@ PURPOSE = {
     "translation_repository": "Domain models and the repository that unifies all engines.",
     "url_launcher": "Opens links in the browser (user taps only).",
     "whisper_speech": "Offline voice input (whisper.cpp over dart:ffi).",
+    "xml": "Reading and writing the XML of documents and localisation files.",
     # Dev only.
     "bloc_lint": "Bloc lint rules.",
     "bloc_test": "Tests for Cubits.",
