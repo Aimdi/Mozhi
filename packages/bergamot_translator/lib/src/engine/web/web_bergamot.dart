@@ -25,9 +25,10 @@ export 'package:bergamot_translator/src/engine/web/worker_language_identifier.da
 /// [isAvailable] comes from [probeBergamotWorker]. [isMeteredConnection]
 /// defaults to "never" (most browsers cannot tell);
 /// [requestPersistence] asks the browser to keep the models (see
-/// `requestPersistentBrowserStorage`). The worker keeps [maxLoadedModels]
-/// models loaded and drops the engine after [idleTimeout] without a
-/// request (see [WorkerBergamotEngine]).
+/// `requestPersistentBrowserStorage`); [freeSpace] (the storage quota
+/// left) refuses downloads that would not fit. The worker keeps
+/// [maxLoadedModels] models loaded and drops the engine after
+/// [idleTimeout] without a request (see [WorkerBergamotEngine]).
 BergamotTranslator createWebBergamotTranslator({
   required ModelCatalog catalog,
   required BergamotWorkerChannel channel,
@@ -37,6 +38,7 @@ BergamotTranslator createWebBergamotTranslator({
   Future<bool> Function()? requestPersistence,
   int maxLoadedModels = 2,
   Duration idleTimeout = const Duration(minutes: 5),
+  Future<int?> Function()? freeSpace,
 }) => BergamotTranslator(
   catalog: catalog,
   root: Directory(OpfsModelManager.rootFolder),
@@ -45,6 +47,7 @@ BergamotTranslator createWebBergamotTranslator({
     channel: channel,
     httpClient: httpClient,
     requestPersistence: requestPersistence,
+    freeSpace: freeSpace,
   ),
   engine: WorkerBergamotEngine(
     channel,

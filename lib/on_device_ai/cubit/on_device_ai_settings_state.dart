@@ -4,6 +4,7 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter/foundation.dart';
 import 'package:llama_engine/llama_engine.dart';
 import 'package:mozhi/on_device_ai/data/on_device_models.dart';
+import 'package:mozhi/platform/free_space.dart';
 
 enum OnDeviceAiSettingsStatus { initial, loading, ready }
 
@@ -34,6 +35,11 @@ enum OnDeviceModelErrorKind {
   /// The model could not be written (usually a full disk).
   storage,
 
+  /// The free space was checked first and is too little for the model
+  /// ([OnDeviceModelError.space] says how much it needs): nothing was
+  /// downloaded.
+  space,
+
   /// Anything else.
   unknown,
 }
@@ -41,7 +47,7 @@ enum OnDeviceModelErrorKind {
 /// A failed model operation, classified for the user.
 @immutable
 class OnDeviceModelError extends Equatable {
-  const new(this.kind, {this.statusCode, this.mirror});
+  const new(this.kind, {this.statusCode, this.mirror, this.space});
 
   /// Classifies [error] (thrown by [OnDeviceModels.download] or
   /// [OnDeviceModels.delete]).
@@ -51,6 +57,11 @@ class OnDeviceModelError extends Equatable {
     ),
     OnDeviceModelTooBigException() => const OnDeviceModelError(
       OnDeviceModelErrorKind.tooBig,
+    ),
+    LlamaInsufficientSpaceException(:final mirror) => OnDeviceModelError(
+      OnDeviceModelErrorKind.space,
+      mirror: mirror?.host,
+      space: SpaceShortfall.of(error),
     ),
     LlamaDownloadCancelledException(:final mirror) => OnDeviceModelError(
       OnDeviceModelErrorKind.cancelled,
@@ -85,8 +96,11 @@ class OnDeviceModelError extends Equatable {
   /// model source setting); null for the default host.
   final String? mirror;
 
+  /// What an [OnDeviceModelErrorKind.space] failure needs and has.
+  final SpaceShortfall? space;
+
   @override
-  List<Object?> get props => [kind, statusCode, mirror];
+  List<Object?> get props => [kind, statusCode, mirror, space];
 }
 
 /// Result of a finished download or deletion, shown once by the view.
@@ -122,6 +136,7 @@ class OnDeviceImportOutcome extends Equatable {
     this.unmatchedFiles = 0,
     this.tooBig = const {},
     this.failed = false,
+    this.space,
   });
 
   /// What happened per model id that a picked file belongs to.
@@ -136,8 +151,12 @@ class OnDeviceImportOutcome extends Equatable {
   /// The import as a whole failed (the files could not be read).
   final bool failed;
 
+  /// Too little free space for a model of the import (it failed): how
+  /// much it needs and has.
+  final SpaceShortfall? space;
+
   @override
-  List<Object?> get props => [models, unmatchedFiles, tooBig, failed];
+  List<Object?> get props => [models, unmatchedFiles, tooBig, failed, space];
 }
 
 class OnDeviceAiSettingsState extends Equatable {
@@ -152,9 +171,13 @@ class OnDeviceAiSettingsState extends Equatable {
     this.importing = false,
     this.outcome,
     this.importOutcome,
+    this.engineBuild,
   });
 
   final OnDeviceAiSettingsStatus status;
+
+  /// Which build of the engine library runs on this processor (for
+  /// support); null when not known.
 
   /// Whether on-device AI runs on this device (the Android app on a 64-bit
   /// CPU).
@@ -184,6 +207,8 @@ class OnDeviceAiSettingsState extends Equatable {
   /// The latest finished import (null once another starts).
   final OnDeviceImportOutcome? importOutcome;
 
+  final LlamaEngineBuild? engineBuild;
+
   /// The model [id], if listed.
   OnDeviceModel? model(String id) =>
       models.where((model) => model.id == id).firstOrNull;
@@ -208,6 +233,7 @@ class OnDeviceAiSettingsState extends Equatable {
     bool? importing,
     ValueGetter<OnDeviceModelOutcome?>? outcome,
     ValueGetter<OnDeviceImportOutcome?>? importOutcome,
+    ValueGetter<LlamaEngineBuild?>? engineBuild,
   }) => OnDeviceAiSettingsState(
     status: status ?? this.status,
     supported: supported ?? this.supported,
@@ -223,6 +249,7 @@ class OnDeviceAiSettingsState extends Equatable {
     importing: importing ?? this.importing,
     outcome: outcome != null ? outcome() : this.outcome,
     importOutcome: importOutcome != null ? importOutcome() : this.importOutcome,
+    engineBuild: engineBuild != null ? engineBuild() : this.engineBuild,
   );
 
   @override
@@ -237,5 +264,6 @@ class OnDeviceAiSettingsState extends Equatable {
     importing,
     outcome,
     importOutcome,
+    engineBuild,
   ];
 }

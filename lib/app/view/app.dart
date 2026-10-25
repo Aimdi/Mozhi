@@ -10,6 +10,7 @@ import 'package:mozhi/app/router.dart';
 import 'package:mozhi/app/shared_text_handler.dart';
 import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/app/translate_link.dart';
+import 'package:mozhi/app_lock/app_lock.dart';
 import 'package:mozhi/backup/data/backup_registry.dart';
 import 'package:mozhi/backup/view/backup_restore_listener.dart';
 import 'package:mozhi/core/key_value_store.dart';
@@ -33,6 +34,7 @@ import 'package:mozhi/presets/view/presets_providers.dart';
 import 'package:mozhi/presets/widgets/saved_glossaries_binding.dart';
 import 'package:mozhi/quick_translate/quick_translate_host.dart';
 import 'package:mozhi/quick_translate/view/quick_translate_sheet.dart';
+import 'package:mozhi/screen_translate/screen_translate_host.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/data/settings_repository.dart';
 import 'package:mozhi/settings/models/app_languages.dart';
@@ -67,6 +69,10 @@ class _AppState extends State<App> {
   late final TranslateCubit _translateCubit;
   late final GoRouter _router;
 
+  /// The app lock of this window (`lib/app_lock`), gating the router.
+  late final AppLockController _appLock;
+  final AppLockWindow _lockWindow = AppLockWindow.current();
+
   /// The on-device models' providers as they change (see
   /// [_applyEngineConfiguration]).
   StreamSubscription<List<AiProviderConfig>>? _onDeviceProviders;
@@ -85,6 +91,15 @@ class _AppState extends State<App> {
       // default quality mode.
       initial: _deps.settings.atLaunch(),
     );
+    // Before anything is shown: whether it may be. A provided lock starts
+    // with the settings' timeout too.
+    _appLock =
+        _deps.appLock ??
+        AppLockController(
+          platform: createAppLockPlatform(),
+          timeout: _settingsCubit.state.appLock,
+          protectWindow: _lockWindow.protectsWindow,
+        );
     _historyCubit = HistoryCubit(
       repository: _deps.historyRepository,
       maxAge: _settingsCubit.state.historyRetention.maxAge,
@@ -127,6 +142,10 @@ class _AppState extends State<App> {
                 homeRedirect(_settingsCubit.state, location),
     );
     if (webLink != null) _openLink(webLink); // coverage:ignore-line
+    // Links that arrive while the app lock hides the router still reach
+    // it: the route information provider only listens to the platform
+    // while it has a listener.
+    _router.routeInformationProvider.addListener(_keepRouteLinks);
 
     _sharedText = SharedTextHandler(
       service: _deps.sharedTextService,
@@ -156,9 +175,13 @@ class _AppState extends State<App> {
   /// Android may end the app while the camera is open (it needs a lot of
   /// memory): a photo taken then opens on the image screen.
   Future<void> _recoverLostPhoto() async {
-    // The quick translate window shows only its sheet: the photo is left
-    // for the main window.
-    if (!runsOnAndroid || QuickTranslateHost.instance.isActive) return;
+    // The quick translate and screen-translate windows show only their
+    // own page: the photo is left for the main window.
+    if (!runsOnAndroid ||
+        QuickTranslateHost.instance.isActive ||
+        ScreenTranslateHost.instance.isActive) {
+      return;
+    }
     // coverage:ignore-start
     try {
       await lost_image.loadLibrary();
@@ -171,10 +194,16 @@ class _AppState extends State<App> {
     // coverage:ignore-end
   }
 
+  /// See [initState]: nothing to do, the router reads the latest link
+  /// when it is shown again.
+  void _keepRouteLinks() {}
+
   @override
   void dispose() {
     unawaited(_sharedText.dispose());
+    _router.routeInformationProvider.removeListener(_keepRouteLinks);
     _router.dispose();
+    unawaited(_appLock.dispose());
     unawaited(_translateCubit.close());
     unawaited(_historyCubit.close());
     unawaited(_settingsCubit.close());
@@ -199,6 +228,9 @@ class _AppState extends State<App> {
   /// Text selected in another app: the quick translate sheet (dialog on
   /// wide windows) above whatever is shown.
   Future<void> _showQuickTranslate(QuickTranslateRequest request) async {
+    // The app lock first: nothing of the app shows while it is locked.
+    await _appLock.untilUnlocked();
+    if (!mounted) return;
     var context = _navigatorKey.currentContext;
     // coverage:ignore-start
     if (context == null) {
@@ -328,6 +360,7 @@ class _AppState extends State<App> {
         RepositoryProvider<SharedTextService>.value(
           value: _deps.sharedTextService,
         ),
+        RepositoryProvider<AppLock>.value(value: _appLock),
       ],
       child: MultiBlocProvider(
         providers: [
@@ -351,6 +384,12 @@ class _AppState extends State<App> {
                       listenWhen: engineConfigurationChanged,
                       listener: (context, settings) =>
                           _applyEngineConfiguration(settings),
+                    ),
+                    BlocListener<SettingsCubit, AppSettings>(
+                      listenWhen: (previous, current) =>
+                          previous.appLock != current.appLock,
+                      listener: (context, settings) =>
+                          _appLock.configure(settings.appLock),
                     ),
                   ],
                   child: BlocBuilder<SettingsCubit, AppSettings>(
@@ -390,7 +429,20 @@ class _AppState extends State<App> {
                                   // Syncs at start and after changes.
                                   child: SyncScope.wrap(
                                     service: _deps.syncService,
-                                    child: child ?? const SizedBox.shrink(),
+                                    // No route is built while locked.
+                                    child: AppLockGate(
+                                      lock: _appLock,
+                                      compact:
+                                          _lockWindow ==
+                                          AppLockWindow.quickTranslate,
+                                      blocking:
+                                          _lockWindow !=
+                                          AppLockWindow.screenTranslate,
+                                      onClose: () => unawaited(
+                                        QuickTranslateHost.instance.close(),
+                                      ),
+                                      child: child ?? const SizedBox.shrink(),
+                                    ),
                                   ),
                                 ),
                               ),

@@ -77,7 +77,8 @@ void main() {
       final data = await section.export(includeSecrets: false);
       final text = jsonEncode(data);
 
-      expect(data, {'settings': mine.toJson()});
+      // Without the device-only app lock (test/app_lock covers it).
+      expect(data, {'settings': mine.toJson()..remove('appLock')});
       expect(text, isNot(contains('key-a')));
       expect(text, isNot(contains('pw@')));
       expect(text, isNot(contains('X-Org')));

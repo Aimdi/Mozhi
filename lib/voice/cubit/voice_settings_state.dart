@@ -2,6 +2,7 @@ import 'dart:io' show FileSystemException;
 
 import 'package:equatable/equatable.dart';
 import 'package:flutter/foundation.dart';
+import 'package:mozhi/platform/free_space.dart';
 import 'package:mozhi/voice/offline/offline_speech.dart';
 import 'package:mozhi/voice/speech_input_service.dart';
 import 'package:whisper_speech/whisper_speech.dart';
@@ -28,6 +29,11 @@ enum VoiceModelErrorKind {
   /// The model could not be written (usually a full disk).
   storage,
 
+  /// The free space was checked first and is too little for the model
+  /// ([VoiceModelError.space] says how much it needs): nothing was
+  /// downloaded.
+  space,
+
   /// Anything else.
   unknown,
 }
@@ -35,13 +41,18 @@ enum VoiceModelErrorKind {
 /// A failed model operation, classified for the user.
 @immutable
 class VoiceModelError extends Equatable {
-  const new(this.kind, {this.statusCode, this.mirror});
+  const new(this.kind, {this.statusCode, this.mirror, this.space});
 
   /// Classifies [error] (thrown by [OfflineSpeech.download] or
   /// [OfflineSpeech.delete]).
   factory of(Object error) => switch (error) {
     VoiceModelMeteredException() => const VoiceModelError(
       VoiceModelErrorKind.metered,
+    ),
+    WhisperInsufficientSpaceException(:final mirror) => VoiceModelError(
+      VoiceModelErrorKind.space,
+      mirror: mirror?.host,
+      space: SpaceShortfall.of(error),
     ),
     WhisperChecksumException(:final mirror) => VoiceModelError(
       VoiceModelErrorKind.checksum,
@@ -70,8 +81,11 @@ class VoiceModelError extends Equatable {
   /// model source setting); null for the default host.
   final String? mirror;
 
+  /// What a [VoiceModelErrorKind.space] failure needs and has.
+  final SpaceShortfall? space;
+
   @override
-  List<Object?> get props => [kind, statusCode, mirror];
+  List<Object?> get props => [kind, statusCode, mirror, space];
 }
 
 /// A downloadable speech model as the settings show it.
@@ -124,10 +138,15 @@ class VoiceImportOutcome extends Equatable {
     this.models = const {},
     this.unmatchedFiles = 0,
     this.failed = false,
+    this.space,
   });
 
   /// What happened per model id that a picked file belongs to.
   final Map<String, WhisperImportStatus> models;
+
+  /// Too little free space for a model of the import (it failed): how
+  /// much it needs and has.
+  final SpaceShortfall? space;
 
   /// Picked files that are no Whisper model.
   final int unmatchedFiles;
@@ -136,7 +155,7 @@ class VoiceImportOutcome extends Equatable {
   final bool failed;
 
   @override
-  List<Object?> get props => [models, unmatchedFiles, failed];
+  List<Object?> get props => [models, unmatchedFiles, failed, space];
 }
 
 class VoiceSettingsState extends Equatable {
@@ -154,9 +173,14 @@ class VoiceSettingsState extends Equatable {
     this.importOutcome,
     this.voiceDetection,
     this.voiceDetectionInstalled = false,
+    this.engineBuild,
   });
 
   final VoiceSettingsStatus status;
+
+  /// Which build of the Whisper engine library runs on this processor
+  /// (for support); null when not known or Whisper does not run here.
+  final WhisperEngineBuild? engineBuild;
 
   /// The "Speech recognition" choice.
   final VoiceInputEngine engine;
@@ -224,6 +248,7 @@ class VoiceSettingsState extends Equatable {
     ValueGetter<VoiceImportOutcome?>? importOutcome,
     ValueGetter<VoiceModel?>? voiceDetection,
     bool? voiceDetectionInstalled,
+    ValueGetter<WhisperEngineBuild?>? engineBuild,
   }) => VoiceSettingsState(
     status: status ?? this.status,
     engine: engine ?? this.engine,
@@ -241,6 +266,7 @@ class VoiceSettingsState extends Equatable {
         : this.voiceDetection,
     voiceDetectionInstalled:
         voiceDetectionInstalled ?? this.voiceDetectionInstalled,
+    engineBuild: engineBuild != null ? engineBuild() : this.engineBuild,
   );
 
   @override
@@ -258,5 +284,6 @@ class VoiceSettingsState extends Equatable {
     importOutcome,
     voiceDetection,
     voiceDetectionInstalled,
+    engineBuild,
   ];
 }

@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:mozhi/image_translate/data/rgba_image_decoder.dart';
 import 'package:mozhi/image_translate/data/tesseract_text_recognition_service.dart';
 import 'package:mozhi/image_translate/data/text_recognition_service.dart';
+import 'package:mozhi/platform/free_space.dart';
 import 'package:mozhi/platform/metered_network.dart';
 import 'package:mozhi/platform/offline_engine_io.dart'
     show CurrentSessionClient;
@@ -35,7 +36,8 @@ TextRecognitionService defaultTextRecognitionService() =>
 ///
 /// Nothing is loaded until the recognizer is first used; then leftovers of
 /// interrupted installs are removed in the background. [isAvailable],
-/// [engine] and [decoder] replace the platform's (tests).
+/// [engine] and [decoder] replace the platform's (tests). A download first
+/// checks the free space ([freeSpace], default [FreeSpace.instance]).
 TesseractTextRecognitionService createTesseractTextRecognitionService({
   AssetBundle? bundle,
   Future<Directory> Function() supportDirectory =
@@ -45,6 +47,7 @@ TesseractTextRecognitionService createTesseractTextRecognitionService({
   bool? isAvailable,
   OcrEngine? engine,
   RgbaImageDecoder decoder = const UiRgbaImageDecoder(),
+  FreeSpace? freeSpace,
 }) => TesseractTextRecognitionService(
   open: () async {
     final (catalog, support) = await (
@@ -59,6 +62,8 @@ TesseractTextRecognitionService createTesseractTextRecognitionService({
       httpClient: httpClient ?? CurrentSessionClient(),
       engine: engine,
       isAvailable: isAvailable,
+      // Every download and import first checks that it fits.
+      freeSpace: (freeSpace ?? FreeSpace.instance).call,
     );
     unawaited(_cleanUp(ocr));
     return ocr;

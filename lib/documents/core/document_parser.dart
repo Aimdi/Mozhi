@@ -29,7 +29,7 @@ ParsedDocument parseDocument(
   DocumentFormat.markdown => parseMarkdown(text),
   DocumentFormat.srt || DocumentFormat.vtt => parseSubtitles(text, format),
   DocumentFormat.json => parseJson(text),
-  DocumentFormat.html => parseHtml(text),
+  DocumentFormat.html => parseHtml(text, targetLanguage: targetLanguage),
   DocumentFormat.xliff => parseXliff(text, targetLanguage: targetLanguage),
   DocumentFormat.androidStrings => parseAndroidStrings(text),
   DocumentFormat.po => parsePo(text, targetLanguage: targetLanguage),

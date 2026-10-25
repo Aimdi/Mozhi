@@ -3,9 +3,9 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
-import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:llama_engine/src/catalog.dart';
+import 'package:llama_engine/src/file_hashing.dart';
 import 'package:llama_engine/src/model_source.dart';
 import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
@@ -55,6 +55,45 @@ final class LlamaDownloadCancelledException extends LlamaModelInstallException {
 
   @override
   String get _name => 'LlamaDownloadCancelledException';
+}
+
+/// There is not enough free storage for the model ([requiredBytes]: what
+/// is left to download or copy plus a margin, see
+/// [LlamaModelManager.requiredSpace]); nothing was downloaded or copied.
+final class LlamaInsufficientSpaceException extends LlamaModelInstallException {
+  const new(
+    super.model,
+    super.message, {
+    required this.requiredBytes,
+    required this.availableBytes,
+  });
+
+  /// Free bytes the download or import needs.
+  final int requiredBytes;
+
+  /// Free bytes there are.
+  final int availableBytes;
+
+  @override
+  String get _name => 'LlamaInsufficientSpaceException';
+}
+
+/// A file to import that is read through [copyTo] rather than from a path:
+/// a document the user picked (an Android content URI), copied straight
+/// into the manager's staging folder ([LlamaModelManager.importSources]),
+/// so no other copy of a few GB is made first.
+abstract interface class LlamaImportSource {
+  /// The file's name, matched against the catalog's (ignoring case).
+  String get name;
+
+  /// Its size in bytes; null when unknown (it is then matched by [name]
+  /// only).
+  int? get length;
+
+  /// Writes its bytes to [destination] (a new file), at most
+  /// `maxBytes + 1` of them, and returns how many it wrote. Throws when it
+  /// cannot be read or written.
+  Future<int> copyTo(File destination, {required int maxBytes});
 }
 
 /// Progress of [LlamaModelManager.install].
@@ -203,17 +242,47 @@ final class LlamaImportResult {
 /// only, the device's memory, the privacy settings) is the app's decision:
 /// this class downloads when asked. [importFiles] installs files copied to
 /// the device by hand instead, through the same checks and staging,
-/// without any network request.
+/// without any network request ([importSources]: picked documents, copied
+/// straight into staging).
+///
+/// Before a download or an import writes anything, the free space is
+/// checked (with `freeSpace`): what is left to write plus a margin
+/// ([requiredSpace]); too little fails with a
+/// [LlamaInsufficientSpaceException]. A download goes to its `.part` file
+/// and is renamed into place, so it needs room for the file once. Hashing
+/// (a download's bytes as they arrive, the part of a resumed download, an
+/// imported file) runs off the UI isolate ([hashing]).
 class LlamaModelManager {
+  /// `freeSpace` answers the free bytes of the file system of a path (null
+  /// when unknown, e.g. the app's `FreeSpace`); without it no download or
+  /// import checks for room first. [hashing] decides where files are
+  /// hashed (background isolates by default).
   new({
     required this.root,
     http.Client? httpClient,
     this.requestTimeout = const Duration(seconds: 60),
+    this._freeSpace,
+    this.hashing = const FileHashing.isolate(),
   }) : _client = httpClient ?? http.Client(),
        _ownsClient = httpClient == null;
 
   /// App-private directory (e.g. `<support>/llm`).
   final Directory root;
+
+  /// Where model files are hashed: off the UI isolate unless
+  /// [FileHashing.inline].
+  final FileHashing hashing;
+
+  final Future<int?> Function(String path)? _freeSpace;
+
+  /// The smallest margin of free space a download or import keeps (on top
+  /// of the bytes it writes): 50 MiB.
+  static const int spaceMarginBytes = 50 << 20;
+
+  /// The free space writing [bytes] needs: the bytes plus a margin of 5 %,
+  /// at least [spaceMarginBytes], so the phone is not left full.
+  static int requiredSpace(int bytes) =>
+      bytes + max(spaceMarginBytes, bytes ~/ 20);
 
   /// Maximum wait for response headers and between chunks of a download.
   final Duration requestTimeout;
@@ -287,6 +356,17 @@ class LlamaModelManager {
     }
   }
 
+  /// Throws a [LlamaInsufficientSpaceException] when a download of [model]
+  /// would not fit now (what is left to download plus a margin, see
+  /// [requiredSpace]): for asking before anything else (a metered network
+  /// prompt). [install] checks again. Passes without a `freeSpace`.
+  Future<void> checkSpace(LlamaCatalogModel model) async {
+    _checkSafe(model.id);
+    final part = _partFile(model);
+    final existing = part.existsSync() ? await _lengthOf(part) : 0;
+    await _checkSpace(model, model.size - existing.clamp(0, model.size));
+  }
+
   /// Downloads and installs [model], replacing another file installed
   /// under the same id. Returns at once when it is already installed.
   /// Concurrent calls for the same model share one download; [cancel]
@@ -315,18 +395,40 @@ class LlamaModelManager {
   /// [files] are only read and copied, never changed, unless [move]: then
   /// a verified file is moved into place instead of copied when it is on
   /// the same file system (for temporary copies such as a file picker's,
-  /// which saves writing a few GB again). Problems with a file or a model
-  /// do not throw: they are reported in the [LlamaImportResult].
+  /// which saves writing a few GB again). A copy needs free space for the
+  /// file (else a [LlamaInsufficientSpaceException] for that model).
+  /// Problems with a file or a model do not throw: they are reported in
+  /// the [LlamaImportResult].
   Future<LlamaImportResult> importFiles(
     Iterable<File> files, {
     required LlamaModelCatalog catalog,
     bool move = false,
-  }) async {
-    final named = <LlamaCatalogModel, List<File>>{};
-    final sized = <LlamaCatalogModel, List<File>>{};
+  }) => _import([
+    for (final file in files) _FileInput(file, move: move),
+  ], catalog);
+
+  /// Installs models from [sources] (documents the user picked) like
+  /// [importFiles], without any network request: each one is copied
+  /// straight into the staging folder ([LlamaImportSource.copyTo], after
+  /// the free-space check), verified there and moved into place, so no
+  /// other copy of it is made. A source of unknown length is matched by
+  /// name only. In the result, [LlamaImportOutcome.damaged] and
+  /// [LlamaImportResult.unmatched] hold a [File] named like the source
+  /// (not a path on this device).
+  Future<LlamaImportResult> importSources(
+    Iterable<LlamaImportSource> sources, {
+    required LlamaModelCatalog catalog,
+  }) => _import([for (final source in sources) _SourceInput(source)], catalog);
+
+  Future<LlamaImportResult> _import(
+    List<_ImportInput> inputs,
+    LlamaModelCatalog catalog,
+  ) async {
+    final named = <LlamaCatalogModel, List<_ImportInput>>{};
+    final sized = <LlamaCatalogModel, List<_ImportInput>>{};
     final unmatched = <File>[];
-    for (final input in files) {
-      final name = p.basename(input.path).toLowerCase();
+    for (final input in inputs) {
+      final name = input.name.toLowerCase();
       final byName = catalog.models
           .where((model) => model.name.toLowerCase() == name)
           .firstOrNull;
@@ -334,12 +436,12 @@ class LlamaModelManager {
         (named[byName] ??= []).add(input);
         continue;
       }
-      final length = await _lengthOf(input);
+      final length = await input.length();
       final bySize = catalog.models
           .where((model) => model.size == length)
           .firstOrNull;
       if (bySize == null) {
-        unmatched.add(input);
+        unmatched.add(input.file);
       } else {
         (sized[bySize] ??= []).add(input);
       }
@@ -361,14 +463,14 @@ class LlamaModelManager {
       final damaged = <File>[];
       LlamaImportOutcome? outcome;
       for (final input in candidates) {
-        final result = await _importFile(model, input, move: move);
+        final result = await _importFile(model, input);
         if (result == null) {
           // Not the model's file: damaged when it was named like it, a
           // file of the same size that is something else otherwise.
           if (named[model]?.contains(input) ?? false) {
-            damaged.add(input);
+            damaged.add(input.file);
           } else {
-            unmatched.add(input);
+            unmatched.add(input.file);
           }
           continue;
         }
@@ -461,7 +563,10 @@ class LlamaModelManager {
 
     final cancelled = _cancels[model.id] = Completer<void>();
     try {
-      final part = await _download(
+      // A resumed download needs room for the rest; one that starts over
+      // deletes the part first.
+      await checkSpace(model);
+      final downloaded = await _download(
         model,
         report,
         cancelled.future,
@@ -469,7 +574,7 @@ class LlamaModelManager {
         fallbackToDefault: fallbackToDefault,
       );
       return await _installStaged(model, (staging) async {
-        await part.rename(p.join(staging.path, model.name));
+        await downloaded.rename(p.join(staging.path, model.name));
       });
     } finally {
       if (identical(_cancels[model.id], cancelled)) _cancels.remove(model.id);
@@ -544,10 +649,10 @@ class LlamaModelManager {
         ? await _PartSource.read(_sourceFile(model), model)
         : null;
 
-    final hasher = _Hasher(model);
     var received = 0;
     // The mirror the bytes come from (null: the catalog's URL).
     var source = recorded?.mirror;
+    final FileDigest digest;
 
     if (existing < model.size) {
       final (response, from, resumed) = await _request(
@@ -559,80 +664,93 @@ class LlamaModelManager {
         fallbackToDefault: fallbackToDefault,
       );
       source = from.mirror;
-      if (resumed) {
-        // The same source as the bytes on disk: hash them, then append.
-        await for (final chunk in part.openRead()) {
-          hasher.add(chunk);
-          received += chunk.length;
-        }
-      } else {
-        // From the start: no byte of another source is kept.
-        try {
-          await _deletePart(model);
-          await from.write(_sourceFile(model), model);
-        } on Object catch (error) {
-          unawaited(response.stream.listen(null).cancel());
-          throw LlamaDownloadException(
-            model.id,
-            '${model.name}${_from(source)}: $error',
-            mirror: source,
-          );
-        }
-      }
-      report(received);
-      final sink = part.openWrite(
-        mode: resumed ? FileMode.writeOnlyAppend : FileMode.writeOnly,
-      );
+      final StreamHasher hasher;
       try {
-        final chunks = _untilCancelled(
-          response.stream.timeout(requestTimeout),
-          cancelled,
-        );
-        await for (final chunk in chunks) {
-          received += chunk.length;
-          if (received > model.size) {
-            throw LlamaChecksumException(
-              model.id,
-              '${model.name}${_from(source)}: more than ${model.size} bytes',
-              mirror: source,
-            );
-          }
-          hasher.add(chunk);
-          sink.add(chunk);
-          report(received);
-        }
-      } on LlamaChecksumException {
-        await sink.close();
-        await _deletePart(model);
-        rethrow;
-      } on _Cancelled {
-        // Stopped by the user: keep the part for resuming.
-        await sink.close();
-        throw LlamaDownloadCancelledException(
-          model.id,
-          '${model.name}${_from(source)}: cancelled',
-          mirror: source,
-        );
+        hasher = await hashing.stream();
       } on Object catch (error) {
-        // Interrupted: keep the part for resuming.
-        await sink.close();
+        unawaited(response.stream.listen(null).cancel());
         throw LlamaDownloadException(
           model.id,
           '${model.name}${_from(source)}: $error',
           mirror: source,
         );
       }
-      await sink.flush();
-      await sink.close();
-    } else {
-      await for (final chunk in part.openRead()) {
-        hasher.add(chunk);
-        received += chunk.length;
+      try {
+        if (resumed) {
+          // The same source as the bytes on disk: hash them (in the
+          // background), then append.
+          received = await hasher.addFile(part.path);
+        } else {
+          // From the start: no byte of another source is kept.
+          try {
+            await _deletePart(model);
+            await from.write(_sourceFile(model), model);
+          } on Object catch (error) {
+            unawaited(response.stream.listen(null).cancel());
+            throw LlamaDownloadException(
+              model.id,
+              '${model.name}${_from(source)}: $error',
+              mirror: source,
+            );
+          }
+        }
+        report(received);
+        final sink = part.openWrite(
+          mode: resumed ? FileMode.writeOnlyAppend : FileMode.writeOnly,
+        );
+        try {
+          final chunks = _untilCancelled(
+            response.stream.timeout(requestTimeout),
+            cancelled,
+          );
+          await for (final chunk in chunks) {
+            received += chunk.length;
+            if (received > model.size) {
+              throw LlamaChecksumException(
+                model.id,
+                '${model.name}${_from(source)}: more than ${model.size} '
+                'bytes',
+                mirror: source,
+              );
+            }
+            sink.add(chunk);
+            await hasher.add(chunk);
+            report(received);
+          }
+        } on LlamaChecksumException {
+          await sink.close();
+          await _deletePart(model);
+          rethrow;
+        } on _Cancelled {
+          // Stopped by the user: keep the part for resuming.
+          await sink.close();
+          throw LlamaDownloadCancelledException(
+            model.id,
+            '${model.name}${_from(source)}: cancelled',
+            mirror: source,
+          );
+        } on Object catch (error) {
+          // Interrupted: keep the part for resuming.
+          await sink.close();
+          throw LlamaDownloadException(
+            model.id,
+            '${model.name}${_from(source)}: $error',
+            mirror: source,
+          );
+        }
+        await sink.flush();
+        await sink.close();
+        digest = await hasher.close();
+      } finally {
+        hasher.abort();
       }
+    } else {
+      digest = await hashing.hashFile(part.path);
+      received = digest.size;
       report(received);
     }
 
-    if (hasher.close(received) case final mismatch?) {
+    if (_mismatch(model, digest) case final mismatch?) {
       await _deletePart(model);
       throw LlamaChecksumException(
         model.id,
@@ -642,6 +760,14 @@ class LlamaModelManager {
     }
     return part;
   }
+
+  /// Null when [digest] is [model]'s file (size and SHA-256), else what
+  /// differs.
+  static String? _mismatch(LlamaCatalogModel model, FileDigest digest) =>
+      digest.size == model.size && digest.sha256 == model.sha256
+      ? null
+      : 'got ${digest.size} bytes with SHA-256 ${digest.sha256}, '
+            'expected ${model.size} bytes with SHA-256 ${model.sha256}';
 
   /// Sends the request for [model] to each URL of [llamaDownloadUrls] in
   /// turn until one answers with its contents: the response, where it came
@@ -797,14 +923,37 @@ class LlamaModelManager {
   static String _from(Uri? mirror) =>
       mirror == null ? '' : ' from the mirror $mirror';
 
+  /// Throws a [LlamaInsufficientSpaceException] when the file system of
+  /// [modelsDirectory] has less free space than writing [bytes] for
+  /// [model] needs ([requiredSpace]). Nothing to write, or an unknown free
+  /// space, passes.
+  Future<void> _checkSpace(LlamaCatalogModel model, int bytes) async {
+    final freeSpace = _freeSpace;
+    if (freeSpace == null || bytes <= 0) return;
+    int? available;
+    try {
+      available = await freeSpace(modelsDirectory.path);
+    } on Object {
+      // Not known: the write itself fails on a full disk.
+    }
+    final needed = requiredSpace(bytes);
+    if (available == null || available >= needed) return;
+    throw LlamaInsufficientSpaceException(
+      model.id,
+      '${model.name}: needs $needed bytes of free space, $available free',
+      requiredBytes: needed,
+      availableBytes: available,
+    );
+  }
+
   /// Installs [model] from [input] when its size and SHA-256 match; null
   /// when they do not (or it cannot be read).
   Future<LlamaImportOutcome?> _importFile(
     LlamaCatalogModel model,
-    File input, {
-    required bool move,
-  }) async {
-    if (await _lengthOf(input) != model.size) return null;
+    _ImportInput input,
+  ) async {
+    final length = await input.length();
+    if (length != null && length != model.size) return null;
     try {
       _checkSafe(model.id);
       // A download of the same model that is running finishes first; when
@@ -825,16 +974,8 @@ class LlamaModelManager {
       await _exclusive(
         model,
         () => _installStaged(model, (staging) async {
-          if (move) {
-            if (!await _verify(model, input)) throw const _NotTheModel();
-            try {
-              await input.rename(p.join(staging.path, model.name));
-              return;
-            } on FileSystemException {
-              // Another file system: copied (and hashed again) below.
-            }
-          }
-          if (!await _copyVerified(model, input, staging)) {
+          final target = File(p.join(staging.path, model.name));
+          if (!await input.stage(this, model, target)) {
             throw const _NotTheModel();
           }
         }),
@@ -852,49 +993,6 @@ class LlamaModelManager {
         error: error,
       );
     }
-  }
-
-  /// Whether [input] is [model]'s file (size and SHA-256).
-  Future<bool> _verify(LlamaCatalogModel model, File input) async {
-    final hasher = _Hasher(model);
-    var size = 0;
-    try {
-      await for (final chunk in input.openRead()) {
-        size += chunk.length;
-        if (size > model.size) return false;
-        hasher.add(chunk);
-      }
-    } on FileSystemException {
-      return false;
-    }
-    return hasher.close(size) == null;
-  }
-
-  /// Copies [input] into [staging] as [LlamaCatalogModel.name] while
-  /// hashing it; whether it matched the catalog's size and SHA-256.
-  Future<bool> _copyVerified(
-    LlamaCatalogModel model,
-    File input,
-    Directory staging,
-  ) async {
-    final output = File(p.join(staging.path, model.name));
-    final hasher = _Hasher(model);
-    var size = 0;
-    final sink = output.openWrite();
-    try {
-      await for (final chunk in input.openRead()) {
-        size += chunk.length;
-        if (size > model.size) break;
-        hasher.add(chunk);
-        sink.add(chunk);
-      }
-    } on FileSystemException {
-      await sink.close();
-      return false;
-    }
-    await sink.flush();
-    await sink.close();
-    return hasher.close(size) == null;
   }
 
   /// Moves [staging] to [destination] with a rename (atomic on one file
@@ -1051,33 +1149,101 @@ final class _Cancelled implements Exception {
   const new();
 }
 
-/// The SHA-256 of a model file, fed chunk by chunk.
-class _Hasher {
-  new(this.model);
+/// One file of an import: a local file or an [LlamaImportSource].
+sealed class _ImportInput {
+  /// The name it is matched by.
+  String get name;
 
-  final LlamaCatalogModel model;
-  final _sink = _DigestSink();
-  late final ByteConversionSink _sha256 = sha256.startChunkedConversion(_sink);
+  /// The file in the import's result.
+  File get file;
 
-  void add(List<int> chunk) => _sha256.add(chunk);
+  /// Its size; -1 when it cannot be read, null when unknown.
+  Future<int?> length();
 
-  /// Finishes hashing [size] bytes: null when they are [model]'s file,
-  /// else what differs.
-  String? close(int size) {
-    _sha256.close();
-    final digest = _sink.value.toString();
-    if (size == model.size && digest == model.sha256) return null;
-    return 'got $size bytes with SHA-256 $digest, '
-        'expected ${model.size} bytes with SHA-256 ${model.sha256}';
+  /// Writes [model]'s file from this input into [target] (in staging) and
+  /// verifies it: false when it is not [model]'s file.
+  Future<bool> stage(
+    LlamaModelManager manager,
+    LlamaCatalogModel model,
+    File target,
+  );
+}
+
+final class _FileInput extends _ImportInput {
+  new(this.file, {required this.move});
+
+  @override
+  final File file;
+
+  /// Whether a verified file is moved instead of copied.
+  final bool move;
+
+  @override
+  String get name => p.basename(file.path);
+
+  @override
+  Future<int?> length() => LlamaModelManager._lengthOf(file);
+
+  @override
+  Future<bool> stage(
+    LlamaModelManager manager,
+    LlamaCatalogModel model,
+    File target,
+  ) async {
+    final hashing = manager.hashing;
+    try {
+      if (move) {
+        final digest = await hashing.hashFile(file.path, maxBytes: model.size);
+        if (LlamaModelManager._mismatch(model, digest) != null) return false;
+        try {
+          await file.rename(target.path);
+          return true;
+        } on FileSystemException {
+          // Another file system: copied (and hashed again) below.
+        }
+      }
+      await manager._checkSpace(model, model.size);
+      final copied = await hashing.copyFile(
+        file.path,
+        target.path,
+        maxBytes: model.size,
+      );
+      return LlamaModelManager._mismatch(model, copied) == null;
+    } on FileSystemException catch (error) {
+      // The file cannot be read: not the model (a full disk is a failure).
+      if (error.path == file.path) return false;
+      rethrow;
+    }
   }
 }
 
-class _DigestSink implements Sink<Digest> {
-  late Digest value;
+final class _SourceInput extends _ImportInput {
+  new(this.source);
+
+  final LlamaImportSource source;
 
   @override
-  void add(Digest data) => value = data;
+  String get name => p.basename(source.name);
 
   @override
-  void close() {}
+  File get file => File(source.name);
+
+  @override
+  Future<int?> length() async => source.length;
+
+  @override
+  Future<bool> stage(
+    LlamaModelManager manager,
+    LlamaCatalogModel model,
+    File target,
+  ) async {
+    await manager._checkSpace(model, model.size);
+    final written = await source.copyTo(target, maxBytes: model.size);
+    if (written != model.size) return false;
+    final digest = await manager.hashing.hashFile(
+      target.path,
+      maxBytes: model.size,
+    );
+    return LlamaModelManager._mismatch(model, digest) == null;
+  }
 }

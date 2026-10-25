@@ -4,7 +4,7 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:bergamot_translator/src/catalog.dart';
-import 'package:crypto/crypto.dart';
+import 'package:bergamot_translator/src/file_hashing.dart';
 import 'package:http/http.dart' as http;
 import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
@@ -45,6 +45,28 @@ final class ModelDownloadException extends ModelInstallException {
 
   @override
   String get _name => 'ModelDownloadException';
+}
+
+/// There is not enough free storage for the model ([requiredBytes]: what
+/// is left to download plus the decompressed files and a margin, see
+/// [BergamotModelManager.requiredSpace]); nothing was downloaded or
+/// written.
+final class ModelInsufficientSpaceException extends ModelInstallException {
+  const new(
+    super.model,
+    super.message, {
+    required this.requiredBytes,
+    required this.availableBytes,
+  });
+
+  /// Free bytes the download or import needs.
+  final int requiredBytes;
+
+  /// Free bytes there are.
+  final int availableBytes;
+
+  @override
+  String get _name => 'ModelInsufficientSpaceException';
 }
 
 /// Progress of [BergamotModelManager.install].
@@ -235,16 +257,44 @@ final class ModelImportResult {
 /// apply.
 /// [importFiles] installs files copied to the device by hand instead,
 /// through the same checks and staging, without any network request.
+///
+/// Before a download or an import writes anything, the free space is
+/// checked (with `freeSpace`): what is left to download, plus the
+/// decompressed files (the downloads stay until the model is installed),
+/// plus a margin ([requiredSpace]); too little fails with a
+/// [ModelInsufficientSpaceException]. Hashing and decompressing run off
+/// the UI isolate ([hashing]).
 class BergamotModelManager {
+  /// `freeSpace` answers the free bytes of the file system of a path (null
+  /// when unknown, e.g. the app's `FreeSpace`); without it no download or
+  /// import checks for room first. [hashing] decides where files are
+  /// hashed and decompressed (background isolates by default).
   new({
     required this.root,
     http.Client? httpClient,
     this.requestTimeout = const Duration(seconds: 60),
+    this._freeSpace,
+    this.hashing = const FileHashing.isolate(),
   }) : _client = httpClient ?? http.Client(),
        _ownsClient = httpClient == null;
 
   /// App-private directory (e.g. `getApplicationSupportDirectory()`).
   final Directory root;
+
+  /// Where model files are hashed and decompressed: off the UI isolate
+  /// unless [FileHashing.inline].
+  final FileHashing hashing;
+
+  final Future<int?> Function(String path)? _freeSpace;
+
+  /// The smallest margin of free space a download or import keeps (on top
+  /// of the bytes it writes): 50 MiB.
+  static const int spaceMarginBytes = 50 << 20;
+
+  /// The free space writing [bytes] needs: the bytes plus a margin of 5 %,
+  /// at least [spaceMarginBytes], so the phone is not left full.
+  static int requiredSpace(int bytes) =>
+      bytes + max(spaceMarginBytes, bytes ~/ 20);
 
   /// Maximum wait for response headers and between chunks of a download.
   final Duration requestTimeout;
@@ -472,6 +522,15 @@ class BergamotModelManager {
       p.join(_downloadsDirectory.path, model.pair, model.version),
     );
     await downloads.create(recursive: true);
+    // Room for what is left to download and for the decompressed files.
+    var needed = 0;
+    for (final file in model.files.values) {
+      final part = _partOf(downloads, file);
+      final existing = part.existsSync() ? await _lengthOf(part) : 0;
+      needed +=
+          file.size - existing.clamp(0, file.size) + file.uncompressedSize;
+    }
+    await _checkSpace(model, needed);
 
     // Every file of the model comes from the source chosen at the start.
     final mirror = this.mirror;
@@ -499,12 +558,7 @@ class BergamotModelManager {
           fallbackToDefault: fallbackToDefault,
         );
         try {
-          await _writeVerified(
-            model,
-            file,
-            gz.openRead().transform(gzip.decoder),
-            staging,
-          );
+          await _writeVerified(model, file, gz, staging, compressed: true);
         } on ModelChecksumException {
           // A verified download that does not decompress to the catalog's
           // file: download it again next time.
@@ -581,18 +635,17 @@ class BergamotModelManager {
     Uri? mirror,
     bool fallbackToDefault = false,
   }) async {
-    final part = File(p.join(downloads.path, '${file.name}.gz.part'));
+    final part = _partOf(downloads, file);
     var existing = part.existsSync() ? part.lengthSync() : 0;
     if (existing > file.size) {
       await part.delete();
       existing = 0;
     }
 
-    final digestSink = _DigestSink();
-    final hasher = sha256.startChunkedConversion(digestSink);
     var received = 0;
     // The mirror the bytes come from (null: the catalog's URL).
     Uri? source;
+    final FileDigest digest;
 
     if (existing < file.size) {
       final (response, from) = await _request(
@@ -604,67 +657,81 @@ class BergamotModelManager {
       );
       source = from;
       final resumed = existing > 0 && response.statusCode == 206;
-      if (resumed) {
-        // Hash what is already on disk, then append.
-        await for (final chunk in part.openRead()) {
-          hasher.add(chunk);
-          received += chunk.length;
-        }
-      }
-      report(file.kind, received);
-      final sink = part.openWrite(
-        mode: resumed ? FileMode.writeOnlyAppend : FileMode.writeOnly,
-      );
+      final StreamHasher hasher;
       try {
-        await for (final chunk in response.stream.timeout(requestTimeout)) {
-          received += chunk.length;
-          if (received > file.size) {
-            throw ModelChecksumException(
-              model.pair,
-              '${file.name}${_from(source)}: more than ${file.size} bytes',
-              mirror: source,
-            );
-          }
-          hasher.add(chunk);
-          sink.add(chunk);
-          report(file.kind, received);
-        }
-      } on ModelInstallException {
-        await sink.close();
-        await _deleteQuietly(part);
-        rethrow;
+        hasher = await hashing.stream();
       } on Object catch (error) {
-        // Interrupted: keep the part for resuming.
-        await sink.close();
+        unawaited(response.stream.listen(null).cancel());
         throw ModelDownloadException(
           model.pair,
           '${file.name}${_from(source)}: $error',
           mirror: source,
         );
       }
-      await sink.flush();
-      await sink.close();
-    } else {
-      await for (final chunk in part.openRead()) {
-        hasher.add(chunk);
-        received += chunk.length;
+      try {
+        if (resumed) {
+          // Hash what is already on disk (in the background), then append.
+          received = await hasher.addFile(part.path);
+        }
+        report(file.kind, received);
+        final sink = part.openWrite(
+          mode: resumed ? FileMode.writeOnlyAppend : FileMode.writeOnly,
+        );
+        try {
+          await for (final chunk in response.stream.timeout(requestTimeout)) {
+            received += chunk.length;
+            if (received > file.size) {
+              throw ModelChecksumException(
+                model.pair,
+                '${file.name}${_from(source)}: more than ${file.size} bytes',
+                mirror: source,
+              );
+            }
+            sink.add(chunk);
+            await hasher.add(chunk);
+            report(file.kind, received);
+          }
+        } on ModelInstallException {
+          await sink.close();
+          await _deleteQuietly(part);
+          rethrow;
+        } on Object catch (error) {
+          // Interrupted: keep the part for resuming.
+          await sink.close();
+          throw ModelDownloadException(
+            model.pair,
+            '${file.name}${_from(source)}: $error',
+            mirror: source,
+          );
+        }
+        await sink.flush();
+        await sink.close();
+        digest = await hasher.close();
+      } finally {
+        hasher.abort();
       }
+    } else {
+      digest = await hashing.hashFile(part.path);
+      received = digest.size;
       report(file.kind, received);
     }
-    hasher.close();
 
-    final digest = digestSink.value.toString();
-    if (received != file.size || digest != file.sha256) {
+    if (digest.size != file.size || digest.sha256 != file.sha256) {
       await _deleteQuietly(part);
       throw ModelChecksumException(
         model.pair,
-        '${file.name}${_from(source)}: got $received bytes with SHA-256 '
-        '$digest, expected ${file.size} bytes with SHA-256 ${file.sha256}',
+        '${file.name}${_from(source)}: got ${digest.size} bytes with SHA-256 '
+        '${digest.sha256}, expected ${file.size} bytes with SHA-256 '
+        '${file.sha256}',
         mirror: source,
       );
     }
     return part;
   }
+
+  /// The partial download of [file] in [downloads].
+  static File _partOf(Directory downloads, CatalogFile file) =>
+      File(p.join(downloads.path, '${file.name}.gz.part'));
 
   /// Sends the request for [file] (from byte [existing] on) to each URL of
   /// [bergamotDownloadUrls] in turn until one answers with its contents
@@ -722,40 +789,59 @@ class BergamotModelManager {
   static String _from(Uri? mirror) =>
       mirror == null ? '' : ' from the mirror $mirror';
 
-  /// Writes [contents] (the decompressed bytes of [file]: a verified
-  /// download through `gzip.decoder`, or an imported decompressed file)
-  /// into [staging] and verifies their size and SHA-256.
+  /// Throws a [ModelInsufficientSpaceException] when the file system of
+  /// [modelsDirectory] has less free space than writing [bytes] for
+  /// [model] needs ([requiredSpace]). Nothing to write, or an unknown free
+  /// space, passes.
+  Future<void> _checkSpace(CatalogModel model, int bytes) async {
+    final freeSpace = _freeSpace;
+    if (freeSpace == null || bytes <= 0) return;
+    int? available;
+    try {
+      available = await freeSpace(modelsDirectory.path);
+    } on Object {
+      // Not known: the write itself fails on a full disk.
+    }
+    final needed = requiredSpace(bytes);
+    if (available == null || available >= needed) return;
+    throw ModelInsufficientSpaceException(
+      model.pair,
+      '${model.pair}: needs $needed bytes of free space, $available free',
+      requiredBytes: needed,
+      availableBytes: available,
+    );
+  }
+
+  /// Writes the decompressed bytes of [file] from [input] (a verified
+  /// download, gzip-compressed when [compressed], or an imported file as
+  /// published or decompressed) into [staging] and verifies their size and
+  /// SHA-256; decompressing and hashing run in the background ([hashing]).
   Future<File> _writeVerified(
     CatalogModel model,
     CatalogFile file,
-    Stream<List<int>> contents,
-    Directory staging,
-  ) async {
+    File input,
+    Directory staging, {
+    required bool compressed,
+  }) async {
     final output = File(p.join(staging.path, file.name));
-    final digestSink = _DigestSink();
-    final hasher = sha256.startChunkedConversion(digestSink);
-    var size = 0;
-    final sink = output.openWrite();
+    final FileDigest digest;
     try {
-      await for (final chunk in contents) {
-        size += chunk.length;
-        if (size > file.uncompressedSize) break;
-        hasher.add(chunk);
-        sink.add(chunk);
-      }
+      digest = await hashing.copyFile(
+        input.path,
+        output.path,
+        maxBytes: file.uncompressedSize,
+        gunzip: compressed,
+      );
     } on FormatException catch (error) {
       throw ModelChecksumException(model.pair, '${file.name}: $error');
-    } finally {
-      await sink.close();
     }
-    hasher.close();
-    final digest = digestSink.value.toString();
-    if (size != file.uncompressedSize || digest != file.uncompressedSha256) {
+    if (digest.size != file.uncompressedSize ||
+        digest.sha256 != file.uncompressedSha256) {
       throw ModelChecksumException(
         model.pair,
-        '${file.name}: decompressed to $size bytes with SHA-256 $digest, '
-        'expected ${file.uncompressedSize} bytes with SHA-256 '
-        '${file.uncompressedSha256}',
+        '${file.name}: decompressed to ${digest.size} bytes with SHA-256 '
+        '${digest.sha256}, expected ${file.uncompressedSize} bytes with '
+        'SHA-256 ${file.uncompressedSha256}',
       );
     }
     return output;
@@ -884,18 +970,22 @@ class BergamotModelManager {
           status: ModelImportStatus.alreadyInstalled,
         );
       }
+      await _checkSpace(
+        model,
+        model.files.values.fold(0, (sum, file) => sum + file.uncompressedSize),
+      );
       await _exclusive(
         model,
         () => _installStaged(model, (staging) async {
           for (final file in model.files.values) {
             writing = file;
             final source = files[file.kind]!;
-            final contents = source.file.openRead();
             await _writeVerified(
               model,
               file,
-              source.compressed ? contents.transform(gzip.decoder) : contents,
+              source.file,
               staging,
+              compressed: source.compressed,
             );
           }
         }),
@@ -926,7 +1016,7 @@ class BergamotModelManager {
 
   /// Whether [input] is [file] as published (true: gzip) or decompressed
   /// (false); null when it is neither or cannot be read.
-  static Future<bool?> _identify(File input, CatalogFile file) async {
+  Future<bool?> _identify(File input, CatalogFile file) async {
     final length = await _lengthOf(input);
     // Only a file of the right size is worth hashing.
     if (length != file.size && length != file.uncompressedSize) return null;
@@ -949,21 +1039,15 @@ class BergamotModelManager {
     _ => null,
   };
 
-  /// Size and SHA-256 of [file]'s contents; null when it cannot be read.
-  static Future<({int size, String sha256})?> _fingerprint(File file) async {
-    final digestSink = _DigestSink();
-    final hasher = sha256.startChunkedConversion(digestSink);
-    var size = 0;
+  /// Size and SHA-256 of [file]'s contents (hashed in the background);
+  /// null when it cannot be read.
+  Future<({int size, String sha256})?> _fingerprint(File file) async {
     try {
-      await for (final chunk in file.openRead()) {
-        size += chunk.length;
-        hasher.add(chunk);
-      }
+      final digest = await hashing.hashFile(file.path);
+      return (size: digest.size, sha256: digest.sha256);
     } on FileSystemException {
       return null;
     }
-    hasher.close();
-    return (size: size, sha256: digestSink.value.toString());
   }
 
   /// The length of [file]; -1 when it cannot be read.
@@ -1004,13 +1088,3 @@ class BergamotModelManager {
 
 /// A verified imported file: gzip-compressed as published, or decompressed.
 typedef _ImportedFile = ({File file, bool compressed});
-
-class _DigestSink implements Sink<Digest> {
-  late Digest value;
-
-  @override
-  void add(Digest data) => value = data;
-
-  @override
-  void close() {}
-}

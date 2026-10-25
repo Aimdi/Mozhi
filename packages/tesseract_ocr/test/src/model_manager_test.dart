@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:path/path.dart' as p;
+import 'package:tesseract_ocr/src/file_hashing.dart';
 import 'package:tesseract_ocr/tesseract_ocr.dart';
 
 import '../helpers/fake_tessdata.dart';
@@ -584,6 +585,99 @@ void main() {
   test('close closes only a client it created', () {
     TessdataManager(root: root).close();
     manager.close();
+  });
+
+  group('free space', () {
+    TessdataManager spaced(int? free) => TessdataManager(
+      root: root,
+      httpClient: server.client,
+      freeSpace: (_) async => free,
+    );
+
+    test('the margin is 5 %, at least 50 MiB', () {
+      expect(TessdataManager.requiredSpace(10), 10 + (50 << 20));
+      const large = 4 << 30;
+      expect(TessdataManager.requiredSpace(large), large + large ~/ 20);
+    });
+
+    test('refuses a download without room, before any request', () async {
+      await expectLater(
+        spaced(100).install(deu.language),
+        throwsA(
+          isA<TessdataInsufficientSpaceException>()
+              .having((e) => e.availableBytes, 'availableBytes', 100)
+              .having(
+                (e) => e.requiredBytes,
+                'requiredBytes',
+                TessdataManager.requiredSpace(deu.bytes.length),
+              )
+              .having(
+                (e) => e.toString(),
+                'toString',
+                startsWith('TessdataInsufficientSpaceException(deu'),
+              ),
+        ),
+      );
+      expect(server.requests, isEmpty);
+    });
+
+    test('downloads with room, unknown or failing free space', () async {
+      expect(
+        (await spaced(TessdataManager.requiredSpace(deu.bytes.length))
+                .install(deu.language))
+            .code,
+        'deu',
+      );
+      expect((await spaced(null).install(eng.language)).code, 'eng');
+      final failing = TessdataManager(
+        root: root,
+        httpClient: server.client,
+        freeSpace: (_) async => throw const FileSystemException('statfs'),
+      );
+      expect((await failing.install(chi.language)).code, 'chi_sim');
+    });
+
+    test('a resumed download needs room for the rest only', () async {
+      server.cutAfter = 1000;
+      await expectLater(
+        manager.install(deu.language),
+        throwsA(isA<TessdataDownloadException>()),
+      );
+      final rest = deu.bytes.length - 1000;
+      expect(
+        (await spaced(TessdataManager.requiredSpace(rest))
+                .install(deu.language))
+            .code,
+        'deu',
+      );
+    });
+
+    test('an import refuses a copy without room', () async {
+      final file = File(p.join(root.path, 'deu.traineddata'))
+        ..writeAsBytesSync(deu.bytes);
+      final result = await spaced(1)
+          .importFiles([file], catalog: fakeCatalog([deu]));
+      expect(result.languages.single.status, TessdataImportStatus.failed);
+      expect(
+        result.languages.single.error,
+        isA<TessdataInsufficientSpaceException>(),
+      );
+    });
+  });
+
+  test('hashes inline as in the background', () async {
+    final inline = TessdataManager(
+      root: root,
+      httpClient: server.client,
+      hashing: const FileHashing.inline(),
+    );
+    expect((await inline.install(deu.language)).code, 'deu');
+    final file = File(p.join(root.path, 'renamed.traineddata'))
+      ..writeAsBytesSync(eng.bytes);
+    final result = await inline.importFiles([
+      file,
+    ], catalog: fakeCatalog([eng]));
+    expect(result.installed, [eng.language]);
   });
 }
 

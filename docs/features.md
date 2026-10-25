@@ -1211,6 +1211,33 @@ and **Data** (details in [Privacy](privacy.md)):
   and keyboards are asked not to learn what you type.
 - **Hide content in recents & block screenshots** (Android): also blocks
   screen recording and screen sharing.
+- **App lock** (Android): Mozhi asks for your fingerprint, face or the
+  phone's screen lock (PIN, pattern or password) when it starts and when
+  you come back to it after the time you choose: **Immediately**, **After
+  1 minute**, **After 5 minutes** or **After 15 minutes**. Until you
+  unlock, it shows only **Mozhi is locked** and **Unlock** (the prompt
+  opens by itself once each time you come back; if you cancel it, tap
+  **Unlock**). Nothing of the app is opened behind it, and Recents shows
+  no preview of Mozhi while the lock is on (on Android 12 and older that
+  also blocks screenshots of Mozhi, as **Hide content in recents** does).
+  - Turning it on asks you to unlock once, so you can't lock yourself out.
+    It needs a screen lock on the phone; without one the row says so, and
+    it isn't available in the web app.
+  - Opening the camera, a file picker or a save dialog from Mozhi gives
+    you at least 5 minutes before it locks, so a photo or file you pick
+    isn't lost to the lock.
+  - Text selected in another app (**Translate with Mozhi**, **Translate
+    offline**) and **Translate screen** ask you to unlock first when the
+    app is locked: their windows would otherwise show your languages and
+    let anyone use your AI providers. Unlocking there unlocks the app. The
+    home-screen widget only has buttons and never shows your text, so it
+    stays the same.
+  - Locking closes the screens behind it, as closing the app does: a
+    conversation, a document being translated, a shared conversation or
+    Transcribe end. The text in the translator, the history and everything
+    saved stay, and the screen you were on opens again after you unlock.
+  - It is a setting of this phone: backups, sync and Phone to phone never
+    carry it, and restoring one doesn't change it.
 - **Network > HTTP proxy** (Android): every request goes through it, for
   example Orbot's `127.0.0.1:8118` for Tor; needed for `.onion` and `.i2p`
   servers. Applies after restarting the app.
@@ -1319,6 +1346,37 @@ has a text-to-speech engine (Android and most browsers). The settings are kept o
   **Open in app** continues in the full translator.
 - **Quick Settings tile** and the **Translate clipboard** app shortcut open
   the translator with the clipboard text.
+- **Translate screen**: translate what is on the screen, in any app, like
+  a camera translator for the screen. Start it from the **Translate
+  screen** Quick Settings tile (on Android 13 and later **Settings >
+  General > Add the Quick Settings tile** adds it for you), the
+  **Translate screen** app shortcut (long-press the app icon; it comes
+  fifth, so launchers that show four leave it out) or the bubble (below).
+  Android asks every time whether Mozhi may capture the screen; Mozhi then
+  takes one screenshot, stops the capture, reads the text on the phone
+  (on-device text recognition, as for [photos](#image-translation)) and
+  draws the translation over the screenshot, full screen. Tap a paragraph
+  for its original and translation, press and hold **Original** to see
+  the screen without the translation, **Show as text** for all of it,
+  **Copy translation**, or **Open in Mozhi** to continue with the
+  recognised text in the translator. The languages at the top work as on
+  the image screen. ✕ or Back returns to the app. The screenshot never
+  leaves the phone: only the recognised text goes to your translation
+  engine, with your [privacy mode](privacy.md#privacy-modes). An app that
+  blocks screenshots (many banking apps do) comes out black, and Mozhi
+  says so. With the [app lock](#privacy-controls) on, Mozhi asks to
+  unlock before it shows anything.
+- **Translate bubble** (**Settings > General > Android integration**,
+  off by default): a small round button floating over other apps. Tap it
+  to translate the screen, press and hold it to translate the clipboard
+  in the quick translate sheet, drag it anywhere (it snaps to the nearest
+  side) and drop it on the ✕ that appears at the bottom to remove it.
+  Turning it on asks once for **Display over other apps** and, on Android
+  13 and later, for notifications: while the bubble is on, a notification
+  says so and has **Stop**. The bubble hides while a Mozhi window is on
+  the screen, and it doesn't come back after the phone restarts. With a
+  screen reader, double-tap it to translate the screen; its actions are
+  **Translate clipboard** and **Remove the bubble**.
 - **Home-screen widget**: long-press the home screen, choose **Widgets**
   and add **Mozhi**. It has three buttons:
   - **Clipboard** opens the translator with the clipboard text, like the
@@ -1451,8 +1509,8 @@ field, then eight categories, each on a page of its own:
 
 | Category | What it holds |
 | --- | --- |
-| **General** | App language, tab order, haptic feedback, multiline input |
-| **Privacy & data** | **Privacy** (privacy mode, incognito, screenshot blocking, hiding personal data), **History** (saving, automatic deletion, export and import, the phrasebook, recent language pairs), **Network** (approved pairs and cloud providers, HTTP proxy, network activity) and **Data** (**Clear history** and **Delete all local data**, last and in red) |
+| **General** | App language, tab order, haptic feedback, multiline input; **Android integration**: [Translate screen](#android-integration) (with **Add the Quick Settings tile** on Android 13+) and the **Translate bubble** |
+| **Privacy & data** | **Privacy** (privacy mode, incognito, screenshot blocking, [app lock](#privacy-controls), hiding personal data), **History** (saving, automatic deletion, export and import, the phrasebook, recent language pairs), **Network** (approved pairs and cloud providers, HTTP proxy, network activity) and **Data** (**Clear history** and **Delete all local data**, last and in red) |
 | **Backup & sync** | **Encrypted backup** ([**Back up now**](#backup-and-restore) with the date of the last backup, **Restore from a backup**), then sync and phone to phone |
 | **Translation engines** | Offline languages, on-device AI, Mozhi instances, translation services (DeepL API, LibreTranslate), quality modes, **Remember quality selection** and **Instant translate** |
 | **AI** (marked **Advanced**) | On-device AI, AI providers, the AI assistant for insights, presets, glossaries, usage & costs |

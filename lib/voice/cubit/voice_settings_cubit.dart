@@ -1,5 +1,6 @@
 import 'package:bloc/bloc.dart';
-import 'package:mozhi/offline/data/offline_model_file_picker.dart';
+import 'package:mozhi/platform/free_space.dart';
+import 'package:mozhi/platform/model_file_picker.dart';
 import 'package:mozhi/voice/cubit/voice_settings_state.dart';
 import 'package:mozhi/voice/offline/offline_speech.dart';
 import 'package:mozhi/voice/speech_input_service.dart';
@@ -24,15 +25,16 @@ export 'voice_settings_state.dart';
 /// they are reported as a [VoiceModelOutcome] or [VoiceImportOutcome];
 /// errors other than a metered network also go to `addError`.
 class VoiceSettingsCubit extends Cubit<VoiceSettingsState> {
-  new({
-    required this._speechInput,
-    this._offline,
-    this._picker = const OfflineModelFilePicker(),
-  }) : super(const VoiceSettingsState());
+  /// [picker] (default [ModelFilePicker]) hands out the picked files: on
+  /// Android documents read in place and copied straight into the models
+  /// folder ([OfflineSpeech.importSources]), with no copy in the cache.
+  new({required this._speechInput, this._offline, ModelFilePicker? picker})
+    : _picker = picker ?? ModelFilePicker(),
+      super(const VoiceSettingsState());
 
   final SpeechInputService _speechInput;
   final OfflineSpeech? _offline;
-  final OfflineModelFilePicker _picker;
+  final ModelFilePicker _picker;
 
   Future<void> load() async {
     emit(state.copyWith(status: VoiceSettingsStatus.loading));
@@ -63,6 +65,7 @@ class VoiceSettingsCubit extends Cubit<VoiceSettingsState> {
             ? null
             : VoiceModel(id: vad.id, sizeBytes: vad.size, url: vad.url),
         voiceDetectionInstalled: vadInstalled,
+        engineBuild: () => supported ? offline.engineBuild : null,
       ),
     );
   }
@@ -146,8 +149,8 @@ class VoiceSettingsCubit extends Cubit<VoiceSettingsState> {
 
     VoiceImportOutcome outcome;
     try {
-      final paths = await _picker.pick(onCopying: start);
-      if (paths.isEmpty) {
+      final files = await _picker.pick(onCopying: start);
+      if (files.isEmpty) {
         if (!isClosed && state.importing) {
           emit(state.copyWith(importing: false));
         }
@@ -155,7 +158,10 @@ class VoiceSettingsCubit extends Cubit<VoiceSettingsState> {
       }
       start();
       try {
-        final result = await offline.importFiles(paths);
+        final paths = [for (final file in files) ?file.path];
+        final result = paths.length == files.length
+            ? await offline.importFiles(paths)
+            : await offline.importSources(files);
         final vadId = state.voiceDetection?.id;
         final speech = result.models.where((entry) => entry.model.id != vadId);
         outcome = VoiceImportOutcome(
@@ -165,6 +171,9 @@ class VoiceSettingsCubit extends Cubit<VoiceSettingsState> {
               entry.model.id: entry.status,
           },
           unmatchedFiles: result.unmatched.length,
+          space: [
+            for (final entry in result.models) SpaceShortfall.of(entry.error),
+          ].nonNulls.firstOrNull,
         );
       } finally {
         await _clearPickedCopies();

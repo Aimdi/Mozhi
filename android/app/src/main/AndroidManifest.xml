@@ -17,6 +17,27 @@
     <!-- RECORD_AUDIO implies a required microphone; keep the app installable
          on devices without one (voice input is optional). -->
     <uses-feature android:name="android.hardware.microphone" android:required="false"/>
+    <!-- App lock (AppLockPlugin.kt): the framework BiometricPrompt asks for
+         a fingerprint, face or the screen lock. A normal permission:
+         granted at install, no prompt. Nothing else is needed (the screen
+         lock fallback, KeyguardManager, needs no permission). -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
+    <!-- Translate screen (ScreenTranslateActivity.kt, docs/privacy.md):
+         - FOREGROUND_SERVICE + FOREGROUND_SERVICE_MEDIA_PROJECTION: the one
+           screenshot is taken by a foreground service of the type
+           mediaProjection (ScreenCaptureService), after the system's
+           screen-capture consent, which Android asks every time.
+         - SYSTEM_ALERT_WINDOW ("Display over other apps") +
+           FOREGROUND_SERVICE_SPECIAL_USE: the opt-in translate bubble
+           (TranslateBubbleService). Granted by the user in Android's
+           settings, only when the bubble is turned on.
+         - POST_NOTIFICATIONS (Android 13+): asked only when the bubble is
+           turned on, for its notification with Stop. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
     <!-- Backup policy ("history stays on device", reviews/security.md W7,
          docs/audit/2026-audit.md):
@@ -207,6 +228,70 @@
             android:exported="true"
             android:icon="@drawable/ic_tile_translate"
             android:label="@string/tile_translate_label"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE"/>
+            </intent-filter>
+        </service>
+        <!-- Translate screen: a translucent window (ScreenTranslateActivity.kt,
+             a MainActivity with its own Flutter engine at the route
+             /screen-translate) that asks for the screen-capture consent,
+             takes one screenshot through ScreenCaptureService and draws its
+             translation over it. Started only by Mozhi's own tile, bubble
+             and launcher shortcut (not exported), in a task of its own that
+             stays out of recents. -->
+        <activity
+            android:name=".ScreenTranslateActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:theme="@style/TransparentTheme"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize">
+            <meta-data
+                android:name="io.flutter.embedding.android.NormalTheme"
+                android:resource="@style/TransparentTheme"
+                />
+            <meta-data
+                android:name="flutter_deeplinking_enabled"
+                android:value="false" />
+        </activity>
+        <!-- The bubble's long press: an invisible window that reads the
+             clipboard once it has focus and opens it in the quick translate
+             window (BubbleClipboardActivity.kt). Not exported. -->
+        <activity
+            android:name=".BubbleClipboardActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@style/TransparentTheme"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode" />
+        <!-- The one-shot screenshot of Translate screen (a media projection,
+             stopped right after one frame). Not exported. -->
+        <service
+            android:name=".ScreenCaptureService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection" />
+        <!-- The opt-in translate bubble over other apps (Display over other
+             apps). Not exported; stopped from its notification, the
+             settings or by dragging it onto ×. -->
+        <service
+            android:name=".TranslateBubbleService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="A floating button the user turned on, shown over other apps until they stop it: a tap translates the screen (after the system's screen-capture consent), a long press the clipboard." />
+        </service>
+        <!-- Quick Settings tile "Translate screen" (TranslateScreenTileService):
+             opens ScreenTranslateActivity. -->
+        <service
+            android:name=".TranslateScreenTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_tile_translate_screen"
+            android:label="@string/tile_translate_screen_label"
             android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
             <intent-filter>
                 <action android:name="android.service.quicksettings.action.QS_TILE"/>

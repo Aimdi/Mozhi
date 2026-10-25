@@ -22,4 +22,21 @@
     <string name="widget_type_description">Ketik teks yang akan diterjemahkan</string>
     <string name="widget_camera_label">Kamera</string>
     <string name="widget_camera_description">Terjemahkan dengan kamera</string>
+    <string name="tile_translate_screen_label">Terjemahkan layar</string>
+    <string name="tile_translate_screen_description">Terjemahkan isi layar dengan Mozhi</string>
+    <string name="shortcut_translate_screen_short">Layar</string>
+    <string name="shortcut_translate_screen_long">Terjemahkan layar</string>
+    <string name="notification_channel_screen_capture">Terjemahan layar</string>
+    <string name="notification_channel_screen_capture_description">Muncul sebentar saat Mozhi mengambil screenshot untuk diterjemahkan</string>
+    <string name="notification_screen_capture_title">Membaca layar</string>
+    <string name="notification_channel_bubble">Gelembung terjemahan</string>
+    <string name="notification_channel_bubble_description">Muncul selama gelembung terjemahan aktif</string>
+    <string name="notification_bubble_title">Gelembung terjemahan aktif</string>
+    <string name="notification_bubble_text">Ketuk gelembung untuk menerjemahkan layar, tahan untuk menerjemahkan papan klip.</string>
+    <string name="notification_bubble_stop">Hentikan</string>
+    <string name="bubble_description">Terjemahkan layar</string>
+    <string name="bubble_long_press_action">Terjemahkan papan klip</string>
+    <string name="bubble_remove_action">Hapus gelembung</string>
+    <string name="bubble_remove_target">Hapus</string>
+    <string name="bubble_clipboard_empty">Papan klip kosong</string>
 </resources>

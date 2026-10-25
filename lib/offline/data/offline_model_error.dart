@@ -4,10 +4,12 @@ import 'package:bergamot_translator/bergamot_translator.dart';
 import 'package:equatable/equatable.dart';
 import 'package:flutter/foundation.dart';
 import 'package:mozhi/core/network/network_policy.dart';
+import 'package:mozhi/platform/free_space.dart';
 import 'package:tesseract_ocr/tesseract_ocr.dart'
     show
         TessdataChecksumException,
         TessdataDownloadException,
+        TessdataInsufficientSpaceException,
         TessdataMissingException;
 import 'package:translation_repository/translation_repository.dart';
 
@@ -30,6 +32,11 @@ enum OfflineModelErrorKind {
   /// The models could not be written (usually a full disk).
   storage,
 
+  /// The free space was checked first and is too little for the download
+  /// or import ([OfflineModelError.space] says how much it needs): nothing
+  /// was written.
+  space,
+
   /// The native engine failed.
   engine,
 
@@ -43,7 +50,13 @@ enum OfflineModelErrorKind {
 /// A failure of an offline model operation, classified for the user.
 @immutable
 class OfflineModelError extends Equatable {
-  const new(this.kind, {this.statusCode, this.networkPolicy, this.mirror});
+  const new(
+    this.kind, {
+    this.statusCode,
+    this.networkPolicy,
+    this.mirror,
+    this.space,
+  });
 
   /// Classifies [error] (thrown by `OfflineTranslator.downloadLanguage`,
   /// `deleteLanguage`, `OfflineModelDetails.download` or the text
@@ -51,6 +64,12 @@ class OfflineModelError extends Equatable {
   factory of(Object error) => switch (error) {
     MeteredConnectionException() => const OfflineModelError(
       OfflineModelErrorKind.metered,
+    ),
+    ModelInsufficientSpaceException() ||
+    TessdataInsufficientSpaceException() ||
+    NotEnoughSpaceException() => OfflineModelError(
+      OfflineModelErrorKind.space,
+      space: SpaceShortfall.of(error),
     ),
     ModelChecksumException(:final mirror) ||
     TessdataChecksumException(:final mirror) => OfflineModelError(
@@ -107,6 +126,9 @@ class OfflineModelError extends Equatable {
   /// download came from; null for the original publishers.
   final String? mirror;
 
+  /// What a [OfflineModelErrorKind.space] failure needs and has.
+  final SpaceShortfall? space;
+
   /// [mirror] as shown to the user: its host, and its port when it has
   /// one; null for none.
   static String? mirrorName(Uri? mirror) => switch (mirror) {
@@ -116,5 +138,5 @@ class OfflineModelError extends Equatable {
   };
 
   @override
-  List<Object?> get props => [kind, statusCode, networkPolicy, mirror];
+  List<Object?> get props => [kind, statusCode, networkPolicy, mirror, space];
 }

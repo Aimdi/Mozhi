@@ -345,6 +345,7 @@ the fastest server** during setup.
 | Sync setup | App preferences (server address, user name, folder, what to sync, the last sync's time and result, the sync file's ETag and a fingerprint of the synced data); secure storage (the app password and the key derived from your passphrase) | Never the passphrase. In the web app the app password and the key last as long as the tab. **Turn off sync** and **Delete all local data** forget all of it. |
 | Offline language models | App storage (`<app files>/bergamot`); in the web app the browser's private storage for the site (the Origin Private File System, folder `bergamot`), which no other site and no page script outside the app can read | About 50 MB to download and 73 MB on disk per language. Delete them under **Settings > Translation engines > Offline languages**; in the web app clearing the site's data deletes them too. |
 | Text recognition data | App storage (`<app files>/tesseract`) | 0.4 to 12 MB per language (median 2.4 MB). Delete it under **Settings > Translation engines > Offline languages > Text recognition**. |
+| Screenshots of Translate screen | App cache (`<cache>/screen_translate`) | One PNG of the screen for the second it takes to read it into memory, then deleted; leftovers are deleted when the window closes and when the next one opens. Never in the gallery, shared storage or a backup. |
 | On-device AI models | App storage (`<app files>/llm`) | One to a few GB per model (the On-device AI page shows each size). Delete them under **Settings > On-device AI**. Which model translates and which does the extras is kept in the app preferences. |
 
 **History encryption.** Each history value is encrypted with AES-256-GCM (a
@@ -446,11 +447,52 @@ In the web app, clearing the site's data does the same.
 - **Hide content in recents & block screenshots** (Android): sets
   `FLAG_SECURE` on the app's window, which also blocks screen recording and
   screen sharing of the app.
+- **App lock** (**Settings > Privacy & data**, Android): Mozhi asks for
+  the phone's own biometrics or screen lock, through Android's system
+  prompt (`BiometricPrompt`, or the screen lock's own screen on Android 7
+  and 8), when it starts and after it was in the background for the time
+  you choose. Mozhi never sees your fingerprint, face or PIN: Android only
+  tells it whether you passed. Until then nothing of the app is opened,
+  the quick translate and Translate screen windows ask first, and Recents
+  shows no preview of Mozhi while the lock is on (Android 13+:
+  `setRecentsScreenshotEnabled(false)`; older versions: `FLAG_SECURE`, so
+  screenshots are blocked too). The time away is measured with Android's
+  clock since boot, so changing the phone's clock doesn't get round it.
+  The setting stays on this phone: it is not in backups, sync or Phone to
+  phone. See [Security](security.md#data-on-the-device) for what it does
+  and doesn't protect.
 - **Sensitive clipboard** (Android 13+): text you copy from the app is
   marked sensitive (`ClipDescription.EXTRA_IS_SENSITIVE`), so the system's
   copy preview and keyboard clipboard suggestions don't show it. The system
   then confirms the copy itself, so the app doesn't add its own "Copied"
   message. Clipboard managers can still read it.
+- **Translate screen** (Android, [details](features.md#android-integration)):
+  the screen is captured only when you start it (the Quick Settings tile,
+  the app shortcut or the bubble), and Android asks for your consent every
+  time. Mozhi takes one frame and stops the capture at once; nothing is
+  recorded. The frame is written as a PNG into the app's private cache
+  (`<cache>/screen_translate`: no gallery, no shared storage, never backed
+  up), read into memory and deleted right away (a leftover is deleted when
+  the window closes and when the next one opens). It stays in memory only
+  while the window is open, and the window closes as soon as you leave it.
+  The text is recognised on the phone; only that text goes to the
+  translation engine you chose, under your [privacy mode](#privacy-modes)
+  (Offline first asks before it goes online, Offline only keeps it on the
+  phone) and the [personal data shield](#personal-data-shield). The
+  screenshot itself is never uploaded, saved, shared or logged (no AI
+  vision, no Google Translate image upload for screenshots), and
+  [Network activity](#network-activity) lists the translation like any
+  other. Apps that block screenshots (`FLAG_SECURE`) stay black, so Mozhi
+  can't read them. With the app lock on, nothing is shown before you
+  unlock.
+- **Translate bubble** (Android, off by default): to float over other apps
+  it needs **Display over other apps** (`SYSTEM_ALERT_WINDOW`), which you
+  grant in Android's settings when you turn it on; on Android 13+ it also
+  asks for notifications, for its notification with **Stop**. The bubble
+  reads nothing by itself: a tap starts Translate screen (with Android's
+  consent, as above), and a press and hold reads the clipboard once and
+  opens it in the quick translate sheet. Turning it off, dragging it onto
+  ✕ or **Stop** removes it; it never starts by itself after a restart.
 - **Reading the clipboard.** The app reads the clipboard only when you tap
   **Paste**, **Translate clipboard** or the start screen's **Paste and
   translate** (**Paste copied text**) chip. To offer that chip, the Android

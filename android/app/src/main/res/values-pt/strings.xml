@@ -22,4 +22,21 @@
     <string name="widget_type_description">Digitar texto para traduzir</string>
     <string name="widget_camera_label">Câmera</string>
     <string name="widget_camera_description">Traduzir com a câmera</string>
+    <string name="tile_translate_screen_label">Traduzir tela</string>
+    <string name="tile_translate_screen_description">Traduzir o que está na tela com o Mozhi</string>
+    <string name="shortcut_translate_screen_short">Tela</string>
+    <string name="shortcut_translate_screen_long">Traduzir a tela</string>
+    <string name="notification_channel_screen_capture">Tradução da tela</string>
+    <string name="notification_channel_screen_capture_description">Aparece por um instante enquanto o Mozhi captura a tela para traduzir</string>
+    <string name="notification_screen_capture_title">Lendo a tela</string>
+    <string name="notification_channel_bubble">Bolha de tradução</string>
+    <string name="notification_channel_bubble_description">Aparece enquanto a bolha de tradução está ativada</string>
+    <string name="notification_bubble_title">A bolha de tradução está ativada</string>
+    <string name="notification_bubble_text">Toque na bolha para traduzir a tela, mantenha pressionada para traduzir a área de transferência.</string>
+    <string name="notification_bubble_stop">Parar</string>
+    <string name="bubble_description">Traduzir tela</string>
+    <string name="bubble_long_press_action">Traduzir a área de transferência</string>
+    <string name="bubble_remove_action">Remover a bolha</string>
+    <string name="bubble_remove_target">Remover</string>
+    <string name="bubble_clipboard_empty">A área de transferência está vazia</string>
 </resources>

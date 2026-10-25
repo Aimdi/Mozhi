@@ -4,7 +4,9 @@ import 'dart:typed_data';
 import 'dart:ui';
 
 import 'package:bloc/bloc.dart';
+import 'package:flutter/foundation.dart' show compute;
 import 'package:mozhi/documents/core/core.dart';
+import 'package:mozhi/documents/core/office/office.dart';
 import 'package:mozhi/documents/cubit/document_translate_state.dart';
 import 'package:mozhi/documents/data/document_file_service.dart';
 import 'package:mozhi/usage/usage.dart';
@@ -19,6 +21,13 @@ export 'document_translate_state.dart';
 /// * A document comes from a picked file ([pickFile] / [loadFile]) or
 ///   pasted text ([setText]); it is parsed into segments and planned into
 ///   chunks right away (format, size, counts and an estimate are shown).
+/// * Office documents and e-books ([DocumentFormat.isBinary]) are read as
+///   bytes ([parsePackagedDocument]); large ones are parsed and written off
+///   the UI isolate. They are never pasted, and they are saved in their own
+///   format with their formatting.
+/// * Formats that record the target language
+///   ([DocumentFormat.usesTargetLanguage], office documents) are parsed for
+///   the current target, and again when it changes.
 /// * [translate] runs the [DocumentTranslator]; progress, partial output
 ///   and failed chunks update live. [cancel] stops the run (keeping what
 ///   is done); [retryFailed]/[retryChunk] translate what is missing.
@@ -30,6 +39,9 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
     DocumentTranslator? translator,
     this._chunker = const Chunker(),
     this.maxBytes = DocumentTranslateCubitDefaults.maxBytes,
+    this.maxPackageBytes = DocumentTranslateCubitDefaults.maxPackageBytes,
+    this.backgroundBytes = DocumentTranslateCubitDefaults.backgroundBytes,
+    this._parser = parseDocument,
     List<TranslationEngine> engines = const [],
     TranslationEngine? engine,
     List<Language> sourceLanguages = const [],
@@ -78,10 +90,30 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
   final Chunker _chunker;
   final DocumentTranslator _translator;
 
-  /// Largest accepted file in bytes.
+  final TextDocumentParser _parser;
+
+  /// Largest accepted text file in bytes.
   // Immutable configuration passed to the constructor, not state.
   // ignore: avoid_public_fields
   final int maxBytes;
+
+  /// Largest accepted office document or e-book in bytes.
+  // Immutable configuration passed to the constructor, not state.
+  // ignore: avoid_public_fields
+  final int maxPackageBytes;
+
+  /// Office documents and e-books from this size on are parsed and
+  /// rendered in a background isolate.
+  // Immutable configuration passed to the constructor, not state.
+  // ignore: avoid_public_fields
+  final int backgroundBytes;
+
+  /// Incremented with every file that is loaded, so that a background
+  /// parse of an older one is ignored.
+  int _loadRequest = 0;
+
+  /// The target language the current text document was parsed for.
+  String? _parsedTarget;
 
   /// Whether engine/languages still mirror the translate screen.
   bool _followTranslate = true;
@@ -128,15 +160,17 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
         source != null && source != state.source ||
         target != null && target != state.target;
     emit(
-      (changed ? _withoutTranslation(state) : state).copyWith(
-        engines: engines,
-        engine: () => engine,
-        sourceLanguages: sourceLanguages,
-        targetLanguages: targetLanguages,
-        source: source,
-        target: target,
-        options: options,
-        languagesLoading: false,
+      _retargeted(
+        (changed ? _withoutTranslation(state) : state).copyWith(
+          engines: engines,
+          engine: () => engine,
+          sourceLanguages: sourceLanguages,
+          targetLanguages: targetLanguages,
+          source: source,
+          target: target,
+          options: options,
+          languagesLoading: false,
+        ),
       ),
     );
   }
@@ -191,12 +225,14 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
         targetMatch ??
         LanguageMatcher.match(_english, targets) ??
         (targets.isEmpty ? _english : targets.first);
-    return state.copyWith(
-      sourceLanguages: sources,
-      targetLanguages: targets,
-      source: source,
-      target: target,
-      languagesLoading: false,
+    return _retargeted(
+      state.copyWith(
+        sourceLanguages: sources,
+        targetLanguages: targets,
+        source: source,
+        target: target,
+        languagesLoading: false,
+      ),
     );
   }
 
@@ -213,7 +249,7 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
       return;
     }
     _followTranslate = false;
-    emit(_withoutTranslation(state).copyWith(target: language));
+    emit(_retargeted(_withoutTranslation(state).copyWith(target: language)));
   }
 
   /// Swaps source and target (not with "Detect language" or a custom
@@ -227,7 +263,11 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
     final target =
         LanguageMatcher.match(state.source, state.targetLanguages) ??
         state.source;
-    emit(_withoutTranslation(state).copyWith(source: source, target: target));
+    emit(
+      _retargeted(
+        _withoutTranslation(state).copyWith(source: source, target: target),
+      ),
+    );
   }
 
   // ---------------------------------------------------------------------
@@ -244,6 +284,8 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
         final file = _file;
         if (file == null) {
           emit(_cleared(base));
+        } else if (file.package case final package?) {
+          emit(_retargeted(_packageState(base, file, package)));
         } else {
           _load(
             base,
@@ -286,6 +328,7 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
   /// Loads a file's content (from the picker, a share intent or a drop).
   void loadFile(String name, Uint8List bytes) {
     if (state.isTranslating) return;
+    _loadRequest++;
     final base = _cleared(state).copyWith(
       mode: DocumentInputMode.file,
       fileName: () => name,
@@ -294,6 +337,10 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
     final format = DocumentFormat.fromFileName(name);
     if (format == null) {
       emit(base.copyWith(error: () => DocumentError.unsupportedFormat));
+      return;
+    }
+    if (format.isBinary) {
+      _loadPackage(base, name, bytes, format);
       return;
     }
     if (bytes.length > maxBytes) {
@@ -331,6 +378,161 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
     );
   }
 
+  /// Reads an office document or e-book: right away when it is small, in a
+  /// background isolate otherwise.
+  void _loadPackage(
+    DocumentTranslateState base,
+    String name,
+    Uint8List bytes,
+    DocumentFormat format,
+  ) {
+    final start = base.copyWith(format: () => format);
+    if (bytes.length > maxPackageBytes) {
+      emit(start.copyWith(error: () => DocumentError.tooLarge));
+      return;
+    }
+    final target = _targetLanguage(base.target);
+    if (bytes.length < backgroundBytes) {
+      emit(
+        _parsedPackage(
+          start,
+          name,
+          bytes,
+          format,
+          () => parsePackagedDocument(bytes, format, targetLanguage: target),
+        ),
+      );
+      return;
+    }
+    final request = _loadRequest;
+    emit(start.copyWith(status: DocumentStatus.loading));
+    unawaited(
+      _parseInBackground(bytes, format, target).then((result) {
+        if (isClosed || request != _loadRequest) return;
+        final next = _parsedPackage(start, name, bytes, format, result);
+        // Pasted text was opened meanwhile: the file waits in file mode.
+        if (state.mode == DocumentInputMode.file) emit(next);
+      }),
+    );
+  }
+
+  /// Parses in an isolate; the result (or the error) is replayed by the
+  /// returned function.
+  static Future<PackagedDocument Function()> _parseInBackground(
+    Uint8List bytes,
+    DocumentFormat format,
+    String? target,
+  ) async {
+    try {
+      final document = await compute(_parsePackage, (bytes, format, target));
+      return () => document;
+    } on Object catch (error, stackTrace) {
+      return () => Error.throwWithStackTrace(error, stackTrace);
+    }
+  }
+
+  /// The state for the file [name] once [parse] ran (the document, or why
+  /// it cannot be read); remembers the file for the file mode.
+  DocumentTranslateState _parsedPackage(
+    DocumentTranslateState base,
+    String name,
+    Uint8List bytes,
+    DocumentFormat format,
+    PackagedDocument Function() parse,
+  ) {
+    final PackagedDocument package;
+    try {
+      package = parse();
+    } on Object catch (error) {
+      _file = null;
+      return base.copyWith(
+        status: DocumentStatus.empty,
+        error: () => switch (error) {
+          PackageParseException(problem: PackageProblem.encrypted) =>
+            DocumentError.encrypted,
+          PackageParseException(problem: PackageProblem.unsafe) =>
+            DocumentError.unsafeFile,
+          // Damaged, or any other failure on a damaged file.
+          _ => DocumentError.damagedFile,
+        },
+      );
+    }
+    final file = _FileInput(
+      name: name,
+      text: '',
+      format: format,
+      encoding: TextEncoding.utf8,
+      sizeBytes: bytes.length,
+      package: package,
+    );
+    _file = file;
+    return _packageState(base, file, package);
+  }
+
+  /// [base] showing [package] (the file [file]).
+  DocumentTranslateState _packageState(
+    DocumentTranslateState base,
+    _FileInput file,
+    PackagedDocument package,
+  ) => _withoutTranslation(base).copyWith(
+    status: DocumentStatus.ready,
+    fileName: () => file.name,
+    text: segmentsPreview(package.segments),
+    encoding: TextEncoding.utf8,
+    sizeBytes: file.sizeBytes,
+    format: () => package.format,
+    document: () => null,
+    packagedDocument: () => package,
+    plan: () => _chunker.planSegments(
+      package.segments,
+      Chunker.encodingFor(package.format),
+    ),
+    error: () => package.isEmpty ? DocumentError.nothingToTranslate : null,
+  );
+
+  /// [next] with its document parsed for [DocumentTranslateState.target],
+  /// when its format records the target language.
+  DocumentTranslateState _retargeted(DocumentTranslateState next) {
+    final target = _targetLanguage(next.target);
+    final package = next.packagedDocument;
+    if (package is OfficePackage) {
+      if (package.language?.bcp47 == LanguageTag.tryParse(target)?.bcp47) {
+        return next;
+      }
+      final updated = package.withTargetLanguage(target);
+      final file = _file;
+      if (file != null && identical(file.package, package)) {
+        _file = file.withPackage(updated);
+      }
+      return next.copyWith(packagedDocument: () => updated);
+    }
+    final document = next.document;
+    final format = next.format;
+    if (document == null ||
+        format == null ||
+        !format.usesTargetLanguage ||
+        target == _parsedTarget) {
+      return next;
+    }
+    final ParsedDocument reparsed;
+    try {
+      reparsed = _parser(next.text, format, targetLanguage: target);
+    } on Object {
+      return next;
+    }
+    _parsedTarget = target;
+    return next.copyWith(
+      document: () => reparsed,
+      plan: () => _chunker.plan(reparsed),
+      translations: next.translations,
+    );
+  }
+
+  /// The BCP 47 code written into documents for [target] (none for custom
+  /// AI "languages").
+  static String? _targetLanguage(Language target) =>
+      target.isCustom || target.isAuto ? null : target.code;
+
   /// Uses pasted/typed [text] as the document (format detected unless
   /// chosen with [setFormat]).
   void setText(String text) {
@@ -359,14 +561,15 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
   /// Reads the current input as [format] (e.g. a `.txt` file that is
   /// really Markdown, or pasted text that was detected wrongly).
   void setFormat(DocumentFormat format) {
-    if (_busy || format == state.format) return;
+    // Office documents and e-books are what their file is.
+    if (_busy || format == state.format || format.isBinary) return;
     if (state.mode == DocumentInputMode.text) {
       _pastedFormat = format;
       _loadPasted(state);
       return;
     }
     final file = _file;
-    if (file == null) return;
+    if (file == null || file.package != null) return;
     _file = file.withFormat(format);
     _load(
       state,
@@ -381,6 +584,8 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
   /// Removes the current input.
   void clear() {
     _stop();
+    // A file still being read is forgotten too.
+    _loadRequest++;
     if (state.mode == DocumentInputMode.file) {
       _file = null;
     } else {
@@ -421,21 +626,27 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
       encoding: encoding,
       sizeBytes: sizeBytes,
       format: () => format,
+      packagedDocument: () => null,
     );
+    final target = _targetLanguage(base.target);
     final ParsedDocument document;
     try {
-      document = parseDocument(text, format);
-    } on DocumentParseException {
+      document = _parser(text, format, targetLanguage: target);
+      // A parser's failure on unexpected input is reported the same way.
+    } on Object {
       emit(
         next.copyWith(
           status: DocumentStatus.empty,
           document: () => null,
           plan: () => null,
-          error: () => DocumentError.invalidJson,
+          error: () => format == DocumentFormat.json
+              ? DocumentError.invalidJson
+              : DocumentError.invalidFormat,
         ),
       );
       return;
     }
+    _parsedTarget = target;
     emit(
       next.copyWith(
         status: DocumentStatus.ready,
@@ -551,13 +762,27 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
   // Export
   // ---------------------------------------------------------------------
 
-  /// The translated document encoded like the original file.
+  /// The translated document encoded like the original file (an office
+  /// document or e-book in its own format).
   // Read-only query derived from state; it changes nothing.
   // ignore: prefer_void_public_cubit_methods
-  Uint8List get outputBytes => encodeText(
-    state.output,
-    state.mode == DocumentInputMode.file ? state.encoding : TextEncoding.utf8,
-  );
+  Uint8List get outputBytes {
+    final package = state.packagedDocument;
+    if (package != null) return package.render(state.translations);
+    return encodeText(
+      state.output,
+      state.mode == DocumentInputMode.file ? state.encoding : TextEncoding.utf8,
+    );
+  }
+
+  /// [outputBytes], rendered off the UI isolate for large packages.
+  Future<Uint8List> _exportBytes() async {
+    final package = state.packagedDocument;
+    if (package == null || state.sizeBytes < backgroundBytes) {
+      return outputBytes;
+    }
+    return await compute(_renderPackage, (package, state.translations));
+  }
 
   /// Saves the translated document (download on the web).
   Future<void> save() async {
@@ -565,7 +790,7 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
     try {
       final saved = await _files.saveFile(
         fileName: state.outputFileName,
-        bytes: outputBytes,
+        bytes: await _exportBytes(),
         mimeType: (state.format ?? DocumentFormat.plainText).mimeType,
       );
       if (saved) _notify(DocumentNotice.saved);
@@ -580,7 +805,7 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
     try {
       await _files.shareFile(
         fileName: state.outputFileName,
-        bytes: outputBytes,
+        bytes: await _exportBytes(),
         mimeType: (state.format ?? DocumentFormat.plainText).mimeType,
         origin: origin,
       );
@@ -613,6 +838,15 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
 
   /// [base] with output re-rendered from its translations.
   DocumentTranslateState _rendered(DocumentTranslateState base) {
+    final package = base.packagedDocument;
+    if (package != null) {
+      // The file is rendered when it is saved; the preview shows the text.
+      return base.copyWith(
+        output: base.results.isEmpty
+            ? ''
+            : segmentsPreview(package.segments, base.translations),
+      );
+    }
     final document = base.document;
     if (document == null || base.results.isEmpty) {
       return base.copyWith(output: '');
@@ -628,7 +862,7 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
   /// [base] without translation results (stopping a running translation).
   DocumentTranslateState _withoutTranslation(DocumentTranslateState base) {
     if (base.isTranslating) _stop();
-    final hasInput = base.document != null;
+    final hasInput = base.hasDocument;
     return base.copyWith(
       status: switch (base.status) {
         DocumentStatus.translating ||
@@ -652,6 +886,7 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
         sizeBytes: 0,
         format: () => null,
         document: () => null,
+        packagedDocument: () => null,
         plan: () => null,
         error: () => null,
       );
@@ -663,6 +898,22 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
   }
 }
 
+/// Parses a text document (`parseDocument`, replaceable in tests).
+typedef TextDocumentParser =
+    ParsedDocument Function(
+      String text,
+      DocumentFormat format, {
+      String? targetLanguage,
+    });
+
+PackagedDocument _parsePackage(
+  (Uint8List bytes, DocumentFormat format, String? target) job,
+) => parsePackagedDocument(job.$1, job.$2, targetLanguage: job.$3);
+
+Uint8List _renderPackage(
+  (PackagedDocument document, List<String?> translations) job,
+) => job.$1.render(job.$2);
+
 class _FileInput {
   const new({
     required this.name,
@@ -670,6 +921,7 @@ class _FileInput {
     required this.format,
     required this.encoding,
     required this.sizeBytes,
+    this.package,
   });
 
   final String name;
@@ -678,11 +930,23 @@ class _FileInput {
   final TextEncoding encoding;
   final int sizeBytes;
 
+  /// The parsed office document or e-book (null for text files).
+  final PackagedDocument? package;
+
   _FileInput withFormat(DocumentFormat format) => _FileInput(
     name: name,
     text: text,
     format: format,
     encoding: encoding,
     sizeBytes: sizeBytes,
+  );
+
+  _FileInput withPackage(PackagedDocument package) => _FileInput(
+    name: name,
+    text: text,
+    format: format,
+    encoding: encoding,
+    sizeBytes: sizeBytes,
+    package: package,
   );
 }

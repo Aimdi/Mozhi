@@ -22,4 +22,21 @@
     <string name="widget_type_description">Escribir texto para traducir</string>
     <string name="widget_camera_label">Cámara</string>
     <string name="widget_camera_description">Traducir con la cámara</string>
+    <string name="tile_translate_screen_label">Traducir pantalla</string>
+    <string name="tile_translate_screen_description">Traducir lo que hay en la pantalla con Mozhi</string>
+    <string name="shortcut_translate_screen_short">Pantalla</string>
+    <string name="shortcut_translate_screen_long">Traducir la pantalla</string>
+    <string name="notification_channel_screen_capture">Traducción de pantalla</string>
+    <string name="notification_channel_screen_capture_description">Se muestra un momento mientras Mozhi toma la captura para traducirla</string>
+    <string name="notification_screen_capture_title">Leyendo la pantalla</string>
+    <string name="notification_channel_bubble">Burbuja de traducción</string>
+    <string name="notification_channel_bubble_description">Se muestra mientras la burbuja de traducción está activada</string>
+    <string name="notification_bubble_title">La burbuja de traducción está activada</string>
+    <string name="notification_bubble_text">Toca la burbuja para traducir la pantalla, mantenla pulsada para traducir el portapapeles.</string>
+    <string name="notification_bubble_stop">Detener</string>
+    <string name="bubble_description">Traducir pantalla</string>
+    <string name="bubble_long_press_action">Traducir el portapapeles</string>
+    <string name="bubble_remove_action">Quitar la burbuja</string>
+    <string name="bubble_remove_target">Quitar</string>
+    <string name="bubble_clipboard_empty">El portapapeles está vacío</string>
 </resources>

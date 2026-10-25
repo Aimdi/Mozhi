@@ -72,21 +72,29 @@ String documentEstimateLabel(AppLocalizations l10n, Duration estimate) {
   return l10n.documentsEstimateMinutes((estimate.inSeconds / 60).round());
 }
 
-/// Message for a load error.
+/// Message for a load error of a file in [format] (when known).
 String documentErrorLabel(
   BuildContext context,
   DocumentError error, {
   required int maxBytes,
+  DocumentFormat? format,
 }) {
   final l10n = context.l10n;
+  final formatName = format == null
+      ? l10n.documentsFormatPlainText
+      : documentFormatLabel(l10n, format);
   return switch (error) {
-    DocumentError.unsupportedFormat => l10n.documentsErrorUnsupported,
+    DocumentError.unsupportedFormat => l10n.documentsErrorUnsupportedFile,
     DocumentError.tooLarge => l10n.documentsErrorTooLarge(
       documentSizeLabel(context, maxBytes),
     ),
     DocumentError.notText => l10n.documentsErrorNotText,
     DocumentError.readFailed => l10n.documentsErrorRead,
     DocumentError.invalidJson => l10n.documentsErrorInvalidJson,
+    DocumentError.invalidFormat => l10n.documentsErrorInvalidFormat(formatName),
+    DocumentError.damagedFile => l10n.documentsErrorDamaged(formatName),
+    DocumentError.encrypted => l10n.documentsErrorEncrypted,
+    DocumentError.unsafeFile => l10n.documentsErrorUnsafe,
     DocumentError.nothingToTranslate => l10n.documentsErrorNothing,
   };
 }

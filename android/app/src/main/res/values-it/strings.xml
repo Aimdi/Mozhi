@@ -22,4 +22,21 @@
     <string name="widget_type_description">Digita il testo da tradurre</string>
     <string name="widget_camera_label">Fotocamera</string>
     <string name="widget_camera_description">Traduci con la fotocamera</string>
+    <string name="tile_translate_screen_label">Traduci schermo</string>
+    <string name="tile_translate_screen_description">Traduci ciò che è sullo schermo con Mozhi</string>
+    <string name="shortcut_translate_screen_short">Schermo</string>
+    <string name="shortcut_translate_screen_long">Traduci lo schermo</string>
+    <string name="notification_channel_screen_capture">Traduzione dello schermo</string>
+    <string name="notification_channel_screen_capture_description">Mostrata per un attimo mentre Mozhi cattura lo schermo da tradurre</string>
+    <string name="notification_screen_capture_title">Lettura dello schermo</string>
+    <string name="notification_channel_bubble">Bolla di traduzione</string>
+    <string name="notification_channel_bubble_description">Mostrata finché la bolla di traduzione è attiva</string>
+    <string name="notification_bubble_title">La bolla di traduzione è attiva</string>
+    <string name="notification_bubble_text">Tocca la bolla per tradurre lo schermo, tienila premuta per tradurre gli appunti.</string>
+    <string name="notification_bubble_stop">Interrompi</string>
+    <string name="bubble_description">Traduci schermo</string>
+    <string name="bubble_long_press_action">Traduci gli appunti</string>
+    <string name="bubble_remove_action">Rimuovi la bolla</string>
+    <string name="bubble_remove_target">Rimuovi</string>
+    <string name="bubble_clipboard_empty">Gli appunti sono vuoti</string>
 </resources>

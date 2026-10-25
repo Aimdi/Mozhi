@@ -116,11 +116,14 @@ final class OnDeviceAiError extends OnDeviceAiStatus {
 /// the background and on memory pressure (`memoryBudget`); a running
 /// request finishes first.
 class OnDeviceAi {
+  /// [engineBuild] tells which build of the engine library runs on this
+  /// processor ([LlamaEngineBuild], for support; null: not known).
   new({
     required this.models,
     required LlamaEngine engine,
     NativeMemoryBudget? memoryBudget,
     Duration idleUnloadAfter = defaultIdleUnloadAfter,
+    this._engineBuild,
   }) : runtime = OnDeviceRuntime(
          engine: engine,
          catalog: models.catalog,
@@ -147,6 +150,18 @@ class OnDeviceAi {
 
   /// The engine, its queue and its status.
   final OnDeviceRuntime runtime;
+
+  final LlamaEngineBuild Function()? _engineBuild;
+
+  /// Which build of the engine library runs on this processor (shown on
+  /// the On-device AI page for support); null when not known.
+  LlamaEngineBuild? get engineBuild {
+    try {
+      return _engineBuild?.call();
+    } on Object {
+      return null;
+    }
+  }
 
   late List<AiProviderConfig> _providers;
   late final StreamSubscription<void> _changes;

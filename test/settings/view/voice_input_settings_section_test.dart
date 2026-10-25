@@ -7,7 +7,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/l10n/l10n.dart';
-import 'package:mozhi/offline/data/offline_model_file_picker.dart';
+import 'package:mozhi/platform/model_file_picker.dart';
 import 'package:mozhi/settings/view/widgets/delete_local_data.dart'
     show formatStoredSize;
 import 'package:mozhi/settings/view/widgets/voice_input_settings_section.dart';
@@ -22,7 +22,7 @@ import '../../voice/helpers/fake_speech_recognizer.dart';
 
 class _MockOfflineSpeech extends Mock implements OfflineSpeech;
 
-class _MockPicker extends Mock implements OfflineModelFilePicker;
+class _MockPicker extends Mock implements ModelFilePicker;
 
 final _tiny = WhisperCatalogModel(
   id: 'tiny',
@@ -500,8 +500,9 @@ void main() {
     });
 
     testWidgets('imports models from files', (tester) async {
-      when(() => picker.pick(onCopying: any(named: 'onCopying')))
-          .thenAnswer((_) async => ['/picked/ggml-base.bin']);
+      when(() => picker.pick(onCopying: any(named: 'onCopying'))).thenAnswer(
+        (_) async => [PickedModelFile.local('/picked/ggml-base.bin')],
+      );
       when(() => offline.importFiles(any())).thenAnswer((_) async {
         installed.add('base');
         return WhisperImportResult(

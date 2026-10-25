@@ -22,4 +22,21 @@
     <string name="widget_type_description">Saisir du texte à traduire</string>
     <string name="widget_camera_label">Photo</string>
     <string name="widget_camera_description">Traduire avec l’appareil photo</string>
+    <string name="tile_translate_screen_label">Traduire l\'écran</string>
+    <string name="tile_translate_screen_description">Traduire ce qui est à l\'écran avec Mozhi</string>
+    <string name="shortcut_translate_screen_short">Écran</string>
+    <string name="shortcut_translate_screen_long">Traduire l\'écran</string>
+    <string name="notification_channel_screen_capture">Traduction de l\'écran</string>
+    <string name="notification_channel_screen_capture_description">Affichée un instant pendant que Mozhi prend la capture à traduire</string>
+    <string name="notification_screen_capture_title">Lecture de l\'écran</string>
+    <string name="notification_channel_bubble">Bulle de traduction</string>
+    <string name="notification_channel_bubble_description">Affichée tant que la bulle de traduction est activée</string>
+    <string name="notification_bubble_title">La bulle de traduction est activée</string>
+    <string name="notification_bubble_text">Appuyez sur la bulle pour traduire l\'écran, maintenez-la pour traduire le presse-papiers.</string>
+    <string name="notification_bubble_stop">Arrêter</string>
+    <string name="bubble_description">Traduire l\'écran</string>
+    <string name="bubble_long_press_action">Traduire le presse-papiers</string>
+    <string name="bubble_remove_action">Retirer la bulle</string>
+    <string name="bubble_remove_target">Retirer</string>
+    <string name="bubble_clipboard_empty">Le presse-papiers est vide</string>
 </resources>

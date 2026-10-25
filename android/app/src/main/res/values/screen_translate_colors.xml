@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The translate bubble (TranslateBubbleService): the launcher
+         shortcuts' indigo with a white glyph and a light ring, so it stands
+         out on light and dark apps alike. The remove target is a dark
+         translucent circle with a white ×. -->
+    <color name="bubble_background">#FF3F51B5</color>
+    <color name="bubble_ring">#E6FFFFFF</color>
+    <color name="bubble_ripple">#40FFFFFF</color>
+    <color name="bubble_glyph">#FFFFFFFF</color>
+    <color name="bubble_remove_background">#CC202124</color>
+</resources>

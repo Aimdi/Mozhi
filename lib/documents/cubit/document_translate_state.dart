@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 import 'package:mozhi/documents/core/core.dart';
+import 'package:mozhi/documents/core/office/office.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 /// Where the document comes from.
@@ -40,6 +41,19 @@ enum DocumentError {
   /// The JSON is invalid.
   invalidJson,
 
+  /// The text is not valid in its format (other than JSON).
+  invalidFormat,
+
+  /// An office document or e-book is damaged, or not of its format.
+  damagedFile,
+
+  /// An office document or e-book is password-protected or has DRM.
+  encrypted,
+
+  /// An office document or e-book was refused to protect the device (it
+  /// unpacks to far too much data, has too many parts or unsafe names).
+  unsafeFile,
+
   /// The document holds no translatable text.
   nothingToTranslate,
 }
@@ -65,6 +79,7 @@ class DocumentTranslateState extends Equatable {
     this.sizeBytes = 0,
     this.format,
     this.document,
+    this.packagedDocument,
     this.plan,
     this.error,
     this.engines = const [],
@@ -90,14 +105,19 @@ class DocumentTranslateState extends Equatable {
   /// Name of the picked file (null for pasted text).
   final String? fileName;
 
-  /// The decoded source text.
+  /// The decoded source text (for office documents and e-books, the
+  /// extracted text shown in the preview).
   final String text;
 
   /// Encoding of the picked file (used when writing the translation).
   final TextEncoding encoding;
   final int sizeBytes;
   final DocumentFormat? format;
+  /// A parsed text document.
   final ParsedDocument? document;
+
+  /// A parsed office document or e-book (instead of [document]).
+  final PackagedDocument? packagedDocument;
   final ChunkPlan? plan;
   final DocumentError? error;
 
@@ -119,7 +139,9 @@ class DocumentTranslateState extends Equatable {
   /// Per segment translation (null = not translated yet).
   final List<String?> translations;
 
-  /// The translated document (untranslated parts keep the original).
+  /// The translated document (untranslated parts keep the original); for
+  /// office documents and e-books, the translated text shown in the
+  /// preview (the file itself is rendered when saved).
   final String output;
 
   /// Subtitles only: export original and translation lines.
@@ -130,10 +152,19 @@ class DocumentTranslateState extends Equatable {
   /// Incremented with every [notice] so repeated notices are delivered.
   final int noticeId;
 
-  bool get hasDocument => document != null;
-  int get segmentCount => document?.segments.length ?? 0;
+  bool get hasDocument => document != null || packagedDocument != null;
+
+  /// Whether the input is an office document or e-book (read and written
+  /// as bytes).
+  bool get isBinary => packagedDocument != null || (format?.isBinary ?? false);
+
+  /// The segments of the document.
+  List<Segment> get segments =>
+      document?.segments ?? packagedDocument?.segments ?? const [];
+  int get segmentCount => segments.length;
   int get chunkCount => plan?.chunks.length ?? 0;
-  int get characterCount => document?.characterCount ?? 0;
+  int get characterCount =>
+      document?.characterCount ?? packagedDocument?.characterCount ?? 0;
   int get doneChunks => results.length;
 
   /// Chunks without a translation (failed, cancelled or not run).
@@ -147,12 +178,22 @@ class DocumentTranslateState extends Equatable {
   bool get canSwap => !source.isAuto && !target.isCustom;
 
   bool get canTranslate =>
-      document != null &&
-      !document!.isEmpty &&
+      hasDocument &&
+      segments.isNotEmpty &&
       engine != null &&
       !languagesLoading &&
       !isTranslating &&
       status != DocumentStatus.loading;
+
+  /// The original of segment [index] as the side-by-side view shows it.
+  String segmentSource(int index) =>
+      document?.segmentSource(index) ??
+      segmentPreview(segments[index].text);
+
+  /// How segment [index] reads with [translation].
+  String segmentOutput(int index, String translation) =>
+      document?.segmentOutput(index, translation) ??
+      segmentPreview(translation);
 
   /// Suggested name of the translated file.
   String get outputFileName => translatedFileName(
@@ -179,6 +220,7 @@ class DocumentTranslateState extends Equatable {
     int? sizeBytes,
     DocumentFormat? Function()? format,
     ParsedDocument? Function()? document,
+    PackagedDocument? Function()? packagedDocument,
     ChunkPlan? Function()? plan,
     DocumentError? Function()? error,
     List<TranslationEngine>? engines,
@@ -206,6 +248,9 @@ class DocumentTranslateState extends Equatable {
       sizeBytes: sizeBytes ?? this.sizeBytes,
       format: format != null ? format() : this.format,
       document: document != null ? document() : this.document,
+      packagedDocument: packagedDocument != null
+          ? packagedDocument()
+          : this.packagedDocument,
       plan: plan != null ? plan() : this.plan,
       error: error != null ? error() : this.error,
       engines: engines ?? this.engines,
@@ -236,6 +281,7 @@ class DocumentTranslateState extends Equatable {
     sizeBytes,
     format,
     document,
+    packagedDocument,
     plan,
     error,
     engines,
@@ -261,6 +307,14 @@ abstract final class DocumentTranslateCubitDefaults {
   /// Requests in flight at once.
   static const concurrency = 2;
 
-  /// Largest accepted file.
+  /// Largest accepted text file.
   static const int maxBytes = 2 * 1024 * 1024;
+
+  /// Largest accepted office document or e-book (images and other entries
+  /// are copied, only the text parts are read).
+  static const int maxPackageBytes = 25 * 1024 * 1024;
+
+  /// Office documents and e-books from this size on are read and written
+  /// off the UI isolate.
+  static const int backgroundBytes = 256 * 1024;
 }

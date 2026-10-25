@@ -22,4 +22,21 @@
     <string name="widget_type_description">كتابة نص لترجمته</string>
     <string name="widget_camera_label">الكاميرا</string>
     <string name="widget_camera_description">ترجمة بالكاميرا</string>
+    <string name="tile_translate_screen_label">ترجمة الشاشة</string>
+    <string name="tile_translate_screen_description">ترجمة ما يظهر على الشاشة باستخدام Mozhi</string>
+    <string name="shortcut_translate_screen_short">الشاشة</string>
+    <string name="shortcut_translate_screen_long">ترجمة الشاشة</string>
+    <string name="notification_channel_screen_capture">ترجمة الشاشة</string>
+    <string name="notification_channel_screen_capture_description">يظهر للحظة بينما يلتقط Mozhi صورة الشاشة لترجمتها</string>
+    <string name="notification_screen_capture_title">جارٍ قراءة الشاشة</string>
+    <string name="notification_channel_bubble">فقاعة الترجمة</string>
+    <string name="notification_channel_bubble_description">يظهر ما دامت فقاعة الترجمة مفعّلة</string>
+    <string name="notification_bubble_title">فقاعة الترجمة مفعّلة</string>
+    <string name="notification_bubble_text">انقر على الفقاعة لترجمة الشاشة، واضغط عليها مطولًا لترجمة الحافظة.</string>
+    <string name="notification_bubble_stop">إيقاف</string>
+    <string name="bubble_description">ترجمة الشاشة</string>
+    <string name="bubble_long_press_action">ترجمة الحافظة</string>
+    <string name="bubble_remove_action">إزالة الفقاعة</string>
+    <string name="bubble_remove_target">إزالة</string>
+    <string name="bubble_clipboard_empty">الحافظة فارغة</string>
 </resources>

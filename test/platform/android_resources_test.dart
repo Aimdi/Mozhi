@@ -103,8 +103,15 @@ List<String> _shortcutLinks() => [
 
 void main() {
   group('launcher shortcuts', () {
-    test('are at most four, as many as launchers show', () {
-      expect(_shortcuts('main'), hasLength(lessThanOrEqualTo(4)));
+    test('are at most five, the tabs among the four launchers show', () {
+      // Android 7 to 9 publish at most five per activity; most launchers
+      // show the first four, so Translate screen comes last.
+      final shortcuts = _shortcuts('main');
+      expect(shortcuts, hasLength(lessThanOrEqualTo(5)));
+      expect(
+        shortcuts.take(4).map((s) => s.shortcut['shortcutId']),
+        isNot(contains('translate_screen')),
+      );
     });
 
     test('are the same in every flavour but for the package', () {
@@ -315,6 +322,16 @@ void main() {
         'android.permission.INTERNET',
         'android.permission.ACCESS_NETWORK_STATE',
         'android.permission.RECORD_AUDIO',
+        // App lock: the system's biometric prompt (a normal permission).
+        'android.permission.USE_BIOMETRIC',
+        // Translate screen: the one-shot screenshot (a mediaProjection
+        // foreground service) and the opt-in bubble (Display over other
+        // apps, a specialUse foreground service, its notification).
+        'android.permission.FOREGROUND_SERVICE',
+        'android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION',
+        'android.permission.FOREGROUND_SERVICE_SPECIAL_USE',
+        'android.permission.SYSTEM_ALERT_WINDOW',
+        'android.permission.POST_NOTIFICATIONS',
       });
       final microphone = _tags(
         manifest,

@@ -199,7 +199,9 @@ the feature graphic exists (see [Listing files](#listing-files)).
       microphone button is pressed). The camera is used through the system
       camera app (`IMAGE_CAPTURE` intent), so there is no `CAMERA`
       permission. `PROCESS_TEXT`, `SEND` and the Quick Settings tile need no
-      declarations.
+      declarations. `USE_BIOMETRIC` (a normal permission) is for the
+      optional app lock (the system's fingerprint, face or screen lock
+      prompt).
 - [ ] Ads: no. Target audience: not designed for children (13+ or 18+ is
       the safer choice because of unfiltered AI output).
 

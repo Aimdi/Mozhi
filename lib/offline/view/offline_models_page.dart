@@ -26,6 +26,7 @@ import 'package:mozhi/offline/widgets/offline_import_summary.dart';
 import 'package:mozhi/offline/widgets/offline_language_tile.dart';
 import 'package:mozhi/offline/widgets/offline_manual_files_sheet.dart';
 import 'package:mozhi/pairing/view/pairing_entries.dart';
+import 'package:mozhi/platform/free_space.dart';
 import 'package:mozhi/platform/mlkit_bindings.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart' show ModelSource;
@@ -240,6 +241,14 @@ String offlineOutcomeMessage(
       null => l10n.offlineErrorNetwork(name),
     },
     OfflineModelErrorKind.storage => l10n.offlineErrorStorage(name),
+    OfflineModelErrorKind.space => switch (error.space) {
+      final space? => l10n.commonNotEnoughSpaceFor(
+        name,
+        formatStorageSize(l10n, space.requiredBytes),
+        formatStorageSize(l10n, space.availableBytes),
+      ),
+      null => l10n.offlineErrorStorage(name),
+    },
     OfflineModelErrorKind.engine => l10n.offlineErrorEngine(name),
     OfflineModelErrorKind.unsupported => l10n.offlineErrorUnsupported(name),
     OfflineModelErrorKind.metered ||

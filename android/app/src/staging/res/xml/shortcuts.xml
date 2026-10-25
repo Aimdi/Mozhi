@@ -64,4 +64,18 @@
             android:targetPackage="io.github.aimdi.mozhi.stg"
             android:targetClass="io.github.aimdi.mozhi.MainActivity" />
     </shortcut>
+    <!-- Translate screen (ScreenTranslateActivity, not exported; shortcuts
+         start with Mozhi's identity): fifth, after the tabs, so launchers
+         that show four leave this one out rather than a tab. -->
+    <shortcut
+        android:shortcutId="translate_screen"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_translate_screen"
+        android:shortcutShortLabel="@string/shortcut_translate_screen_short"
+        android:shortcutLongLabel="@string/shortcut_translate_screen_long">
+        <intent
+            android:action="io.github.aimdi.mozhi.action.TRANSLATE_SCREEN"
+            android:targetPackage="io.github.aimdi.mozhi.stg"
+            android:targetClass="io.github.aimdi.mozhi.ScreenTranslateActivity" />
+    </shortcut>
 </shortcuts>

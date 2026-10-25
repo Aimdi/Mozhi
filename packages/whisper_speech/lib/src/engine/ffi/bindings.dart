@@ -5,6 +5,7 @@ import 'dart:io';
 
 import 'package:ffi/ffi.dart';
 import 'package:whisper_speech/src/engine/cpu_features.dart';
+import 'package:whisper_speech/src/engine/cpu_variant_guard.dart';
 
 /// Opaque `MozhiWhisperModel`.
 final class NativeWhisperModel extends Opaque;
@@ -162,23 +163,33 @@ final class WhisperBindings {
   ///
   /// Deterministic for a device, so every isolate that resolves it opens
   /// the same library.
+  ///
+  /// With [guard], a variant that crashed the app before is not probed
+  /// (the baseline runs), and a marker of [role] is written while one is
+  /// probed ([CpuVariantGuard]).
   static String resolve({
     String? path,
     Map<String, String>? environment,
     ArmCpuFeatures? Function() cpuFeatures = ArmCpuFeatures.current,
     int Function(String library) probe = _abiVersionOf,
+    CpuVariantGuard? guard,
+    String role = 'open',
   }) {
     final explicit =
         path ?? (environment ?? Platform.environment)[libraryPathVariable];
     if (explicit != null) return explicit;
     final variant = WhisperLibraryVariant.forCpu(cpuFeatures());
-    if (variant != WhisperLibraryVariant.baseline) {
+    if (variant != WhisperLibraryVariant.baseline &&
+        (guard?.candidates([variant.fileName]).isNotEmpty ?? true)) {
+      guard?.arm(variant.fileName, role: role);
       try {
         if (probe(variant.fileName) == expectedAbiVersion) {
           return variant.fileName;
         }
       } on Object {
         // Missing from this build, or it does not load: the baseline runs.
+      } finally {
+        guard?.disarm(role: role);
       }
     }
     return libraryName;

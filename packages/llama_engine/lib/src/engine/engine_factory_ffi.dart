@@ -2,6 +2,7 @@ import 'dart:ffi';
 import 'dart:io';
 
 import 'package:llama_engine/src/engine/cpu_features.dart';
+import 'package:llama_engine/src/engine/cpu_variant_guard.dart';
 import 'package:llama_engine/src/engine/ffi/bindings.dart';
 import 'package:llama_engine/src/engine/ffi/isolate_engine.dart';
 import 'package:llama_engine/src/engine/llama_engine.dart';
@@ -26,9 +27,76 @@ bool _detect() {
 /// i8mm, dotprod and fp16; `libmozhi_llama_dotprod.so` with dotprod and
 /// fp16), falling back to the baseline when that one fails to open.
 /// [libraryPath] (or `$LLAMA_LIBRARY_PATH`) picks a library instead.
-LlamaEngine createLlamaEngine({String? libraryPath}) => IsolateLlamaEngine(
+///
+/// With [variantGuardDirectory] (the app's support directory), a faster
+/// build that crashed the app is turned off for good and the next one
+/// (in the end the baseline) is used ([CpuVariantGuard]).
+LlamaEngine createLlamaEngine({
+  String? libraryPath,
+  String? variantGuardDirectory,
+}) => IsolateLlamaEngine(
   libraries: LlamaBindings.candidates(
     path: libraryPath,
     features: ArmCpuFeatures.current(),
   ),
+  variantGuard: variantGuardDirectory == null
+      ? null
+      : llamaVariantGuard(variantGuardDirectory),
 );
+
+/// The [CpuVariantGuard] of `libmozhi_llama`'s faster builds in
+/// [directory].
+CpuVariantGuard llamaVariantGuard(String directory) => CpuVariantGuard(
+  directory: directory,
+  variants: const {
+    LlamaBindings.dotprodLibraryName,
+    LlamaBindings.i8mmLibraryName,
+  },
+);
+
+/// Which build of `libmozhi_llama` the engine uses here, for support (the
+/// On-device AI page): the first of the candidates for this CPU that the
+/// guard in [variantGuardDirectory] has not turned off. Reads
+/// `/proc/cpuinfo` and the guard's state; opens nothing.
+LlamaEngineBuild llamaEngineBuild({
+  String? libraryPath,
+  String? variantGuardDirectory,
+  ArmCpuFeatures? Function() cpuFeatures = ArmCpuFeatures.current,
+  Map<String, String>? environment,
+}) {
+  final candidates = LlamaBindings.candidates(
+    path: libraryPath,
+    features: cpuFeatures(),
+    environment: environment,
+  );
+  final guard = variantGuardDirectory == null
+      ? null
+      : llamaVariantGuard(variantGuardDirectory);
+  final skipped = guard?.read().skipped ?? const <String>{};
+  final library = candidates.firstWhere(
+    (candidate) => !skipped.contains(candidate),
+    orElse: () => LlamaBindings.libraryName,
+  );
+  return LlamaEngineBuild(
+    variant: switch (library) {
+      LlamaBindings.libraryName => LlamaCpuVariant.baseline,
+      LlamaBindings.dotprodLibraryName => LlamaCpuVariant.dotprod,
+      LlamaBindings.i8mmLibraryName => LlamaCpuVariant.i8mm,
+      _ => LlamaCpuVariant.custom,
+    },
+    library: library,
+    skipped: [
+      for (final variant in [
+        LlamaBindings.i8mmLibraryName,
+        LlamaBindings.dotprodLibraryName,
+      ])
+        if (skipped.contains(variant)) ?_variantOf(variant),
+    ],
+  );
+}
+
+LlamaCpuVariant? _variantOf(String library) => switch (library) {
+  LlamaBindings.dotprodLibraryName => LlamaCpuVariant.dotprod,
+  LlamaBindings.i8mmLibraryName => LlamaCpuVariant.i8mm,
+  _ => null,
+};

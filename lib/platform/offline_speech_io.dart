@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:mozhi/core/key_value_store.dart';
+import 'package:mozhi/platform/free_space.dart';
 import 'package:mozhi/platform/metered_network.dart';
 import 'package:mozhi/platform/native_memory.dart';
 import 'package:mozhi/platform/offline_engine_io.dart'
@@ -40,6 +41,11 @@ const speechModelIdleTimeout = Duration(seconds: 60);
 /// the next transcription loads it again. The device's memory
 /// ([deviceMemory], default [DeviceMemory.query], asked while the catalog
 /// loads) decides which models are offered ([OfflineSpeech.fits]).
+///
+/// A download or import first checks the free space ([freeSpace], default
+/// [FreeSpace.instance]); the engine turns off a faster build of its
+/// library that crashed the app (its guard lives in [supportDirectory],
+/// see `CpuVariantGuard`).
 Future<OfflineSpeech?> createOfflineSpeech({
   required KeyValueStore store,
   AssetBundle? bundle,
@@ -51,6 +57,7 @@ Future<OfflineSpeech?> createOfflineSpeech({
   WhisperEngine? engine,
   NativeMemoryBudget? memoryBudget,
   Future<DeviceMemory?> Function()? deviceMemory,
+  FreeSpace? freeSpace,
 }) async {
   if (!(isAvailable ?? whisperPlatformSupported)) return null;
   try {
@@ -68,6 +75,8 @@ Future<OfflineSpeech?> createOfflineSpeech({
       engine: engine,
       isAvailable: true,
       idleUnloadAfter: speechModelIdleTimeout,
+      freeSpace: (freeSpace ?? FreeSpace.instance).call,
+      variantGuardDirectory: support.path,
     );
     unawaited(_cleanUp(whisper));
     (memoryBudget ?? NativeMemoryBudget.instance)
@@ -79,6 +88,8 @@ Future<OfflineSpeech?> createOfflineSpeech({
       isMeteredConnection:
           isMeteredConnection ?? MeteredNetwork.instance.isMetered,
       memory: memory,
+      engineBuild: () =>
+          whisperEngineBuild(variantGuardDirectory: support.path),
     );
   } on Object catch (error, stackTrace) {
     final cause = error is ParallelWaitError ? error.errors : error;

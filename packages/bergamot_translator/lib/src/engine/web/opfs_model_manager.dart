@@ -37,15 +37,26 @@ import 'package:http/http.dart' as http;
 /// does not evict the models under storage pressure.
 ///
 /// [importFiles] is not available: a browser has no file paths.
+///
+/// With [freeSpace] (what the browser's storage quota leaves, e.g. from
+/// `navigator.storage.estimate()`; null when it cannot tell), a download
+/// that would not fit (the compressed files, the decompressed ones and a
+/// margin, see [BergamotModelManager.requiredSpace]) fails at once with a
+/// [ModelInsufficientSpaceException].
 class OpfsModelManager extends BergamotModelManager {
   new({
     required this.channel,
     required http.Client httpClient,
     this.requestPersistence,
     this.writeChunkSize = 1 << 20,
+    this.freeSpace,
     super.requestTimeout,
   }) : _http = httpClient,
        super(root: Directory(rootFolder), httpClient: httpClient);
+
+  /// The bytes the browser still lets this origin store; null when
+  /// unknown.
+  final Future<int?> Function()? freeSpace;
 
   /// The worker's folder in the origin's storage.
   static const rootFolder = 'bergamot';
@@ -162,12 +173,37 @@ class OpfsModelManager extends BergamotModelManager {
     );
   }
 
+  /// Throws a [ModelInsufficientSpaceException] when the storage quota
+  /// left ([freeSpace]) is below what [model] needs: its downloads (a
+  /// partial one counts whole) and its decompressed files, plus a margin.
+  Future<void> _checkQuota(CatalogModel model) async {
+    final query = freeSpace;
+    if (query == null) return;
+    int? available;
+    try {
+      available = await query();
+    } on Object {
+      // Not known: the browser refuses a write that does not fit.
+    }
+    final needed = BergamotModelManager.requiredSpace(
+      model.downloadSize + model.installedSize,
+    );
+    if (available == null || available >= needed) return;
+    throw ModelInsufficientSpaceException(
+      model.pair,
+      '${model.pair}: needs $needed bytes of storage, $available left',
+      requiredBytes: needed,
+      availableBytes: available,
+    );
+  }
+
   Future<InstalledModel> _install(
     CatalogModel model,
     void Function(ModelDownloadProgress progress)? onProgress,
   ) async {
     final current = await installedModel(model.source, model.target);
     if (current != null && current.version == model.version) return current;
+    await _checkQuota(model);
     await _askToPersist();
 
     // Every file of the model comes from the source chosen at the start.

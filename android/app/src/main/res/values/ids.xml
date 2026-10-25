@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Accessibility action "Remove the bubble" of the translate bubble
+         (TranslateBubbleService.BubbleAccessibility). -->
+    <item name="bubble_action_remove" type="id" />
+</resources>

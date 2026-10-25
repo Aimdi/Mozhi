@@ -5,8 +5,19 @@ bool get llamaPlatformSupported => false;
 
 /// An engine that is not available on this platform: every load,
 /// generation and token count fails with [UnsupportedError].
-LlamaEngine createLlamaEngine({String? libraryPath}) =>
-    const UnsupportedLlamaEngine();
+LlamaEngine createLlamaEngine({
+  String? libraryPath,
+  String? variantGuardDirectory,
+}) => const UnsupportedLlamaEngine();
+
+/// No native library on the web: the baseline, which nothing runs.
+LlamaEngineBuild llamaEngineBuild({
+  String? libraryPath,
+  String? variantGuardDirectory,
+}) => const LlamaEngineBuild(
+  variant: LlamaCpuVariant.baseline,
+  library: 'libmozhi_llama.so',
+);
 
 /// The engine on platforms without `dart:ffi` (web).
 final class UnsupportedLlamaEngine implements LlamaEngine {

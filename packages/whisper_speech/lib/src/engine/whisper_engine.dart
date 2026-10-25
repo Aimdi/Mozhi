@@ -126,3 +126,56 @@ abstract interface class WhisperVadEngine {
   /// usable; the next call starts it again.
   Future<void> dispose();
 }
+
+/// The builds of `libmozhi_whisper` for the processor
+/// ([WhisperEngineBuild]).
+enum WhisperCpuVariant {
+  /// ARMv8.0-A on arm64 (and the only build of armeabi-v7a and x86_64).
+  baseline,
+
+  /// ARMv8.2-A with the int8 dot product and half-precision arithmetic.
+  dotprod,
+
+  /// ARMv8.6-A with those and int8 matrix multiplication.
+  i8mm,
+
+  /// A library given by path (`libraryPath`, `$WHISPER_LIBRARY_PATH`).
+  custom,
+}
+
+/// Which build of the native library the engine uses on this device
+/// (`whisperEngineBuild`), for support.
+@immutable
+final class WhisperEngineBuild {
+  const new({
+    required this.variant,
+    required this.library,
+    this.skipped = const [],
+  });
+
+  final WhisperCpuVariant variant;
+
+  /// The library's file name (or path, for [WhisperCpuVariant.custom]).
+  final String library;
+
+  /// Faster builds this device could run that were turned off because the
+  /// app crashed with them, fastest first.
+  final List<WhisperCpuVariant> skipped;
+
+  @override
+  bool operator ==(Object other) =>
+      other is WhisperEngineBuild &&
+      other.variant == variant &&
+      other.library == library &&
+      other.skipped.length == skipped.length &&
+      [for (var i = 0; i < skipped.length; i++) other.skipped[i] == skipped[i]]
+          .every((same) => same);
+
+  @override
+  int get hashCode => Object.hash(variant, library, Object.hashAll(skipped));
+
+  @override
+  String toString() =>
+      'WhisperEngineBuild(${variant.name}, skipped: '
+      '${[for (final s in skipped) s.name]})';
+}

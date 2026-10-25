@@ -22,4 +22,21 @@
     <string name="widget_type_description">Çevrilecek metni yaz</string>
     <string name="widget_camera_label">Kamera</string>
     <string name="widget_camera_description">Kamerayla çevir</string>
+    <string name="tile_translate_screen_label">Ekranı çevir</string>
+    <string name="tile_translate_screen_description">Ekrandakini Mozhi ile çevir</string>
+    <string name="shortcut_translate_screen_short">Ekran</string>
+    <string name="shortcut_translate_screen_long">Ekranı çevir</string>
+    <string name="notification_channel_screen_capture">Ekran çevirisi</string>
+    <string name="notification_channel_screen_capture_description">Mozhi çevrilecek ekran görüntüsünü alırken kısa süre görünür</string>
+    <string name="notification_screen_capture_title">Ekran okunuyor</string>
+    <string name="notification_channel_bubble">Çeviri balonu</string>
+    <string name="notification_channel_bubble_description">Çeviri balonu açıkken görünür</string>
+    <string name="notification_bubble_title">Çeviri balonu açık</string>
+    <string name="notification_bubble_text">Ekranı çevirmek için balona dokunun, panoyu çevirmek için basılı tutun.</string>
+    <string name="notification_bubble_stop">Durdur</string>
+    <string name="bubble_description">Ekranı çevir</string>
+    <string name="bubble_long_press_action">Panoyu çevir</string>
+    <string name="bubble_remove_action">Balonu kaldır</string>
+    <string name="bubble_remove_target">Kaldır</string>
+    <string name="bubble_clipboard_empty">Pano boş</string>
 </resources>

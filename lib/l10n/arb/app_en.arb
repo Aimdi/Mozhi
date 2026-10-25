@@ -12596,5 +12596,338 @@
   "documentsFormatEpub": "EPUB e-book",
   "@documentsFormatEpub": {
     "description": "documentsFormatEpub"
+  },
+  "appLockLockedTitle": "Mozhi is locked",
+  "@appLockLockedTitle": {
+    "description": "appLockLockedTitle"
+  },
+  "appLockLockedBody": "Your translations, history and keys stay hidden until you unlock with your fingerprint, face or screen lock.",
+  "@appLockLockedBody": {
+    "description": "appLockLockedBody"
+  },
+  "appLockQuickBody": "Unlock Mozhi to translate the selected text.",
+  "@appLockQuickBody": {
+    "description": "appLockQuickBody"
+  },
+  "appLockUnlock": "Unlock",
+  "@appLockUnlock": {
+    "description": "appLockUnlock"
+  },
+  "appLockNotUnlocked": "Not unlocked. Tap Unlock to try again.",
+  "@appLockNotUnlocked": {
+    "description": "appLockNotUnlocked"
+  },
+  "appLockPromptTitle": "Unlock Mozhi",
+  "@appLockPromptTitle": {
+    "description": "appLockPromptTitle"
+  },
+  "appLockPromptSubtitle": "Use your fingerprint, face or screen lock",
+  "@appLockPromptSubtitle": {
+    "description": "appLockPromptSubtitle"
+  },
+  "appLockPromptFallback": "Use PIN, pattern or password",
+  "@appLockPromptFallback": {
+    "description": "appLockPromptFallback"
+  },
+  "appLockConfirmTitle": "Turn on app lock",
+  "@appLockConfirmTitle": {
+    "description": "appLockConfirmTitle"
+  },
+  "appLockConfirmSubtitle": "Confirm it is you with your fingerprint, face or screen lock",
+  "@appLockConfirmSubtitle": {
+    "description": "appLockConfirmSubtitle"
+  },
+  "settingsAppLock": "App lock",
+  "@settingsAppLock": {
+    "description": "settingsAppLock"
+  },
+  "settingsAppLockOff": "Off",
+  "@settingsAppLockOff": {
+    "description": "settingsAppLockOff"
+  },
+  "settingsAppLockImmediately": "Immediately",
+  "@settingsAppLockImmediately": {
+    "description": "settingsAppLockImmediately"
+  },
+  "settingsAppLockAfterMinutes": "{minutes, plural, =1{After 1 minute} other{After {minutes} minutes}}",
+  "@settingsAppLockAfterMinutes": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsAppLockDialogBody": "Mozhi asks for your fingerprint, face or screen lock when it starts and when you come back to it after this time. While the lock is on, Recents shows no preview of Mozhi (on Android 12 and older, screenshots of Mozhi are blocked too).",
+  "@settingsAppLockDialogBody": {
+    "description": "settingsAppLockDialogBody"
+  },
+  "settingsAppLockNoScreenLock": "Set a screen lock (PIN, pattern or password) on your phone first",
+  "@settingsAppLockNoScreenLock": {
+    "description": "settingsAppLockNoScreenLock"
+  },
+  "settingsAppLockUnsupported": "Only in the Android app",
+  "@settingsAppLockUnsupported": {
+    "description": "settingsAppLockUnsupported"
+  },
+  "settingsAppLockNotTurnedOn": "App lock is still off: Mozhi could not confirm it is you.",
+  "@settingsAppLockNotTurnedOn": {
+    "description": "settingsAppLockNotTurnedOn"
+  },
+  "settingsAppLockSearchKeywords": "Biometrics, fingerprint, face unlock, PIN, password, screen lock, security",
+  "@settingsAppLockSearchKeywords": {
+    "description": "settingsAppLockSearchKeywords"
+  },
+  "screenTranslateTitle": "Translate screen",
+  "@screenTranslateTitle": {
+    "description": "screenTranslateTitle"
+  },
+  "screenTranslateLockedTitle": "Mozhi is locked",
+  "@screenTranslateLockedTitle": {
+    "description": "screenTranslateLockedTitle"
+  },
+  "screenTranslateLockedBody": "Unlock Mozhi to see the translation of your screen.",
+  "@screenTranslateLockedBody": {
+    "description": "screenTranslateLockedBody"
+  },
+  "screenTranslateUnlock": "Unlock",
+  "@screenTranslateUnlock": {
+    "description": "screenTranslateUnlock"
+  },
+  "screenTranslateFailed": "Couldn't take a screenshot. Try again from the tile or the bubble.",
+  "@screenTranslateFailed": {
+    "description": "screenTranslateFailed"
+  },
+  "screenTranslateBlank": "The screenshot came out black: the app on the screen doesn't allow screenshots, so there is nothing to read.",
+  "@screenTranslateBlank": {
+    "description": "screenTranslateBlank"
+  },
+  "screenTranslateUnavailable": "Reading the screen needs on-device text recognition, which isn't available here.",
+  "@screenTranslateUnavailable": {
+    "description": "screenTranslateUnavailable"
+  },
+  "screenTranslateOpenInApp": "Open in Mozhi",
+  "@screenTranslateOpenInApp": {
+    "description": "screenTranslateOpenInApp"
+  },
+  "screenTranslateOpenMozhi": "Open Mozhi",
+  "@screenTranslateOpenMozhi": {
+    "description": "screenTranslateOpenMozhi"
+  },
+  "screenTranslateCopyTranslation": "Copy translation",
+  "@screenTranslateCopyTranslation": {
+    "description": "screenTranslateCopyTranslation"
+  },
+  "screenTranslateShowText": "Show as text",
+  "@screenTranslateShowText": {
+    "description": "screenTranslateShowText"
+  },
+  "screenTranslateScreenshotLabel": "Screenshot",
+  "@screenTranslateScreenshotLabel": {
+    "description": "screenTranslateScreenshotLabel"
+  },
+  "settingsAndroidIntegration": "Android integration",
+  "@settingsAndroidIntegration": {
+    "description": "settingsAndroidIntegration"
+  },
+  "settingsScreenTranslate": "Translate screen",
+  "@settingsScreenTranslate": {
+    "description": "settingsScreenTranslate"
+  },
+  "settingsScreenTranslateSubtitle": "Translate what's on the screen from the Quick Settings tile, the app shortcut or the bubble. Android asks each time; the screenshot is read on this phone and deleted right after.",
+  "@settingsScreenTranslateSubtitle": {
+    "description": "settingsScreenTranslateSubtitle"
+  },
+  "settingsScreenTranslateUnavailable": "Needs the Android app",
+  "@settingsScreenTranslateUnavailable": {
+    "description": "settingsScreenTranslateUnavailable"
+  },
+  "settingsScreenTranslateAddTile": "Add the Quick Settings tile",
+  "@settingsScreenTranslateAddTile": {
+    "description": "settingsScreenTranslateAddTile"
+  },
+  "settingsScreenTranslateAddTileSubtitle": "Translate screen, one swipe away",
+  "@settingsScreenTranslateAddTileSubtitle": {
+    "description": "settingsScreenTranslateAddTileSubtitle"
+  },
+  "settingsScreenTranslateTileAdded": "Translate screen was added to Quick Settings",
+  "@settingsScreenTranslateTileAdded": {
+    "description": "settingsScreenTranslateTileAdded"
+  },
+  "settingsScreenTranslateTileAlreadyAdded": "Translate screen is already in Quick Settings",
+  "@settingsScreenTranslateTileAlreadyAdded": {
+    "description": "settingsScreenTranslateTileAlreadyAdded"
+  },
+  "settingsScreenTranslateTileFailed": "Couldn't add the tile. Edit Quick Settings to add Translate screen.",
+  "@settingsScreenTranslateTileFailed": {
+    "description": "settingsScreenTranslateTileFailed"
+  },
+  "settingsScreenTranslateBubble": "Translate bubble",
+  "@settingsScreenTranslateBubble": {
+    "description": "settingsScreenTranslateBubble"
+  },
+  "settingsScreenTranslateBubbleSubtitle": "A small button over other apps: tap it to translate the screen, hold it to translate the clipboard, drag it onto × to remove it.",
+  "@settingsScreenTranslateBubbleSubtitle": {
+    "description": "settingsScreenTranslateBubbleSubtitle"
+  },
+  "settingsScreenTranslateOverlayTitle": "Display over other apps",
+  "@settingsScreenTranslateOverlayTitle": {
+    "description": "settingsScreenTranslateOverlayTitle"
+  },
+  "settingsScreenTranslateOverlayBody": "The bubble floats over other apps, which Android allows only with your permission. On the next screen, turn on “Allow display over other apps” for Mozhi, then come back.",
+  "@settingsScreenTranslateOverlayBody": {
+    "description": "settingsScreenTranslateOverlayBody"
+  },
+  "settingsScreenTranslateOverlayContinue": "Continue",
+  "@settingsScreenTranslateOverlayContinue": {
+    "description": "settingsScreenTranslateOverlayContinue"
+  },
+  "settingsScreenTranslateOverlayDenied": "Without “Display over other apps”, the bubble can't be shown.",
+  "@settingsScreenTranslateOverlayDenied": {
+    "description": "settingsScreenTranslateOverlayDenied"
+  },
+  "settingsScreenTranslateBubbleFailed": "Couldn't start the bubble.",
+  "@settingsScreenTranslateBubbleFailed": {
+    "description": "settingsScreenTranslateBubbleFailed"
+  },
+  "settingsScreenTranslateNotificationsDenied": "The bubble is on. Without notifications, remove it by dragging it onto ×.",
+  "@settingsScreenTranslateNotificationsDenied": {
+    "description": "settingsScreenTranslateNotificationsDenied"
+  },
+  "settingsScreenTranslateKeywords": "screenshot, screen capture, lens, bubble, floating, overlay, Quick Settings, tile",
+  "@settingsScreenTranslateKeywords": {
+    "description": "settingsScreenTranslateKeywords"
+  },
+  "documentsErrorInvalidFormat": "This can't be read as {format}. Check the file or choose another format.",
+  "@documentsErrorInvalidFormat": {
+    "placeholders": {
+      "format": {
+        "type": "String"
+      }
+    }
+  },
+  "documentsErrorDamaged": "This file is damaged, or it isn't really a {format}.",
+  "@documentsErrorDamaged": {
+    "placeholders": {
+      "format": {
+        "type": "String"
+      }
+    }
+  },
+  "documentsErrorEncrypted": "This document is password-protected or has DRM. Remove the protection and try again.",
+  "@documentsErrorEncrypted": {
+    "description": "documentsErrorEncrypted"
+  },
+  "documentsErrorUnsafe": "This file wasn't opened to keep your device safe: it unpacks to far too much data or has unusual contents.",
+  "@documentsErrorUnsafe": {
+    "description": "documentsErrorUnsafe"
+  },
+  "documentsErrorUnsupportedFile": "This file type isn't supported. Choose a document, presentation, spreadsheet, e-book, subtitle, web page, localisation or text file.",
+  "@documentsErrorUnsupportedFile": {
+    "description": "documentsErrorUnsupportedFile"
+  },
+  "documentsPickHintFormats": "Word, PowerPoint, Excel, OpenDocument and EPUB files up to {packageSize}; text, Markdown, subtitles, web pages and localisation files up to {textSize}. Formatting, code, links and timings stay untouched.",
+  "@documentsPickHintFormats": {
+    "placeholders": {
+      "packageSize": {
+        "type": "String"
+      },
+      "textSize": {
+        "type": "String"
+      }
+    }
+  },
+  "documentsReading": "Reading the document…",
+  "@documentsReading": {
+    "description": "documentsReading"
+  },
+  "documentsPreviewTextOnly": "The preview shows the text only. The saved file keeps its layout and formatting.",
+  "@documentsPreviewTextOnly": {
+    "description": "documentsPreviewTextOnly"
+  },
+  "commonNotEnoughSpace": "Not enough free space: needs {needed}, {free} free.",
+  "@commonNotEnoughSpace": {
+    "description": "A download or import was refused because the phone (or the browser storage) has too little room. needed and free are sizes such as 1.2 GB and 300 MB.",
+    "placeholders": {
+      "needed": {
+        "type": "String",
+        "example": "1.2 GB"
+      },
+      "free": {
+        "type": "String",
+        "example": "300 MB"
+      }
+    }
+  },
+  "commonNotEnoughSpaceFor": "Not enough free space for {name}: needs {needed}, {free} free.",
+  "@commonNotEnoughSpaceFor": {
+    "description": "A download or import of the named model was refused because the phone has too little room.",
+    "placeholders": {
+      "name": {
+        "type": "String",
+        "example": "German"
+      },
+      "needed": {
+        "type": "String",
+        "example": "1.2 GB"
+      },
+      "free": {
+        "type": "String",
+        "example": "300 MB"
+      }
+    }
+  },
+  "commonSizeGigabytes": "{size} GB",
+  "@commonSizeGigabytes": {
+    "description": "A storage size in gigabytes.",
+    "placeholders": {
+      "size": {
+        "type": "String",
+        "example": "1.2"
+      }
+    }
+  },
+  "commonEngineBuild": "Engine build: {build}",
+  "@commonEngineBuild": {
+    "description": "For support: which build of the on-device engine runs on this processor (baseline, dotprod, i8mm or custom).",
+    "placeholders": {
+      "build": {
+        "type": "String",
+        "example": "i8mm"
+      }
+    }
+  },
+  "commonEngineBuildFallback": "Engine build: {build} (the faster {skipped} build stopped the app on this phone, so it is turned off)",
+  "@commonEngineBuildFallback": {
+    "description": "For support: the on-device engine runs its baseline build because a faster one crashed the app.",
+    "placeholders": {
+      "build": {
+        "type": "String",
+        "example": "baseline"
+      },
+      "skipped": {
+        "type": "String",
+        "example": "i8mm"
+      }
+    }
+  },
+  "onDeviceAiPausedHeat": "Paused while the phone cools down",
+  "@onDeviceAiPausedHeat": {
+    "description": "onDeviceAiPausedHeat"
+  },
+  "onDeviceAiPausedBatterySaver": "Paused while battery saver is on",
+  "@onDeviceAiPausedBatterySaver": {
+    "description": "onDeviceAiPausedBatterySaver"
+  },
+  "onDeviceAiPausedHint": "The rest is translated part by part once it is ready.",
+  "@onDeviceAiPausedHint": {
+    "description": "onDeviceAiPausedHint"
+  },
+  "onDeviceAiContinueAnyway": "Continue anyway",
+  "@onDeviceAiContinueAnyway": {
+    "description": "onDeviceAiContinueAnyway"
+  },
+  "onDeviceAiLoadingHint": "The first request after a pause takes a few seconds.",
+  "@onDeviceAiLoadingHint": {
+    "description": "onDeviceAiLoadingHint"
   }
 }

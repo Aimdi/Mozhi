@@ -5,6 +5,7 @@ import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/offline/cubit/offline_models_state.dart';
 import 'package:mozhi/offline/data/offline_model_error.dart';
 import 'package:mozhi/offline/data/offline_model_import.dart';
+import 'package:mozhi/platform/free_space.dart';
 
 /// "{source} → {target}" for a model direction, laid out in the UI
 /// direction (the names are bidi isolates).
@@ -123,9 +124,17 @@ class _EntryLine extends StatelessWidget {
       OfflineImportStatus.failed => _Line(
         icon: Icons.error_outline,
         color: colors.error,
-        text: entry.error?.kind == OfflineModelErrorKind.storage
-            ? l10n.offlineErrorStorage(direction)
-            : l10n.offlineImportFailed(direction),
+        text: switch (entry.error) {
+          OfflineModelError(kind: OfflineModelErrorKind.space, :final space?) =>
+            l10n.commonNotEnoughSpaceFor(
+              direction,
+              formatStorageSize(l10n, space.requiredBytes),
+              formatStorageSize(l10n, space.availableBytes),
+            ),
+          OfflineModelError(kind: OfflineModelErrorKind.storage) =>
+            l10n.offlineErrorStorage(direction),
+          _ => l10n.offlineImportFailed(direction),
+        },
       ),
     };
   }

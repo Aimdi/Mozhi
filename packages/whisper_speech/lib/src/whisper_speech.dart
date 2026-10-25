@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:whisper_speech/src/catalog.dart';
 import 'package:whisper_speech/src/engine/engine_factory.dart';
 import 'package:whisper_speech/src/engine/whisper_engine.dart';
+import 'package:whisper_speech/src/file_hashing.dart';
 import 'package:whisper_speech/src/languages.dart';
 import 'package:whisper_speech/src/model_manager.dart';
 
@@ -32,7 +33,11 @@ class WhisperSpeech {
   /// client). [engine], [vadEngine] and [isAvailable] replace the
   /// platform's (tests).
   /// With [idleUnloadAfter] the model is unloaded once no transcription
-  /// has run for that long ([unload]).
+  /// has run for that long ([unload]). [freeSpace] (the free bytes of the
+  /// file system of a path) lets downloads and imports check for room
+  /// first ([WhisperModelManager]). With [variantGuardDirectory] (the app's
+  /// support directory) the platform's engines turn off a faster library
+  /// build that crashed the app (`CpuVariantGuard`).
   new({
     required this.catalog,
     required Directory root,
@@ -42,13 +47,22 @@ class WhisperSpeech {
     bool? isAvailable,
     Duration requestTimeout = const Duration(seconds: 60),
     this.idleUnloadAfter,
+    Future<int?> Function(String path)? freeSpace,
+    FileHashing hashing = const FileHashing.isolate(),
+    String? variantGuardDirectory,
   }) : models = WhisperModelManager(
          root: root,
          httpClient: httpClient,
          requestTimeout: requestTimeout,
+         freeSpace: freeSpace,
+         hashing: hashing,
        ),
-       _engine = engine ?? createWhisperEngine(),
-       _vad = vadEngine ?? createWhisperVadEngine(),
+       _engine =
+           engine ??
+           createWhisperEngine(variantGuardDirectory: variantGuardDirectory),
+       _vad =
+           vadEngine ??
+           createWhisperVadEngine(variantGuardDirectory: variantGuardDirectory),
        isAvailable = isAvailable ?? whisperPlatformSupported;
 
   /// The downloadable models, fastest first.
@@ -242,14 +256,20 @@ class WhisperSpeech {
   /// to the device by hand ([WhisperModelManager.importFiles]); never goes
   /// online.
   Future<WhisperImportResult> importFiles(Iterable<File> files) =>
-      models.importFiles(
-        files,
-        catalog: WhisperModelCatalog(
-          models: [...catalog.models, ?catalog.vad],
-          source: catalog.source,
-          license: catalog.license,
-        ),
-      );
+      models.importFiles(files, catalog: _importCatalog);
+
+  /// Installs models (speech models and the [vadModel]) from picked
+  /// documents, copied straight into the models folder
+  /// ([WhisperModelManager.importSources]); never goes online.
+  Future<WhisperImportResult> importSources(
+    Iterable<WhisperImportSource> sources,
+  ) => models.importSources(sources, catalog: _importCatalog);
+
+  WhisperModelCatalog get _importCatalog => WhisperModelCatalog(
+    models: [...catalog.models, ?catalog.vad],
+    source: catalog.source,
+    license: catalog.license,
+  );
 
   /// Removes leftovers of interrupted installs (safe at start-up).
   Future<void> cleanUp() => models.cleanUp();

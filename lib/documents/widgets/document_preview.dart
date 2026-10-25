@@ -53,6 +53,7 @@ class _DocumentPreviewTabsState extends State<DocumentPreviewTabs>
               Tab(text: l10n.documentsTabTranslation),
             ],
           ),
+          if (state.isBinary) const _TextOnlyHint(),
           ListenableBuilder(
             listenable: _tabs,
             builder: (context, _) => Padding(
@@ -108,6 +109,26 @@ class _PreviewText extends StatelessWidget {
   }
 }
 
+/// Says that an office document's preview is its text only.
+class _TextOnlyHint extends StatelessWidget {
+  const new();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      key: const Key('documents_preview_text_only'),
+      padding: const EdgeInsets.fromLTRB(4, 12, 4, 0),
+      child: Text(
+        context.l10n.documentsPreviewTextOnly,
+        style: theme.textTheme.bodySmall?.copyWith(
+          color: AppPalette.of(context).secondaryText,
+        ),
+      ),
+    );
+  }
+}
+
 class _Placeholder extends StatelessWidget {
   const new({required this.text});
 
@@ -139,14 +160,14 @@ class DocumentSideBySide extends StatelessWidget {
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final state = context.watch<DocumentTranslateCubit>().state;
-    final document = state.document;
-    if (document == null || document.isEmpty) {
+    final segments = state.segments;
+    if (!state.hasDocument || segments.isEmpty) {
       return Center(
         // Before a document is chosen, the controls show how to pick one.
         child: _Placeholder(
-          text: document == null
-              ? l10n.documentsPreviewEmpty
-              : l10n.documentsErrorNothing,
+          text: state.hasDocument
+              ? l10n.documentsErrorNothing
+              : l10n.documentsPreviewEmpty,
         ),
       );
     }
@@ -175,11 +196,16 @@ class DocumentSideBySide extends StatelessWidget {
             ),
           ),
           const Hairline(),
+          if (state.isBinary)
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 12),
+              child: _TextOnlyHint(),
+            ),
           Expanded(
             child: ListView.separated(
               key: const Key('documents_side_by_side'),
               padding: const EdgeInsets.symmetric(vertical: 8),
-              itemCount: document.segments.length,
+              itemCount: segments.length,
               separatorBuilder: (_, _) => const Padding(
                 padding: EdgeInsets.symmetric(vertical: 8),
                 child: Hairline(indent: 16),
@@ -198,7 +224,7 @@ class DocumentSideBySide extends StatelessWidget {
                     spacing: 16,
                     children: [
                       Expanded(
-                        child: SelectableText(document.segmentSource(index)),
+                        child: SelectableText(state.segmentSource(index)),
                       ),
                       Expanded(
                         child: translation == null
@@ -209,7 +235,7 @@ class DocumentSideBySide extends StatelessWidget {
                                 ),
                               )
                             : SelectableText(
-                                document.segmentOutput(index, translation),
+                                state.segmentOutput(index, translation),
                               ),
                       ),
                     ],

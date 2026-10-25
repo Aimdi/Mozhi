@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:path/path.dart' as p;
+import 'package:whisper_speech/src/file_hashing.dart';
 import 'package:whisper_speech/whisper_speech.dart';
 
 import '../helpers/fake_models.dart';
@@ -650,6 +651,154 @@ void main() {
       expect(outcome.error, isA<FileSystemException>());
     });
   });
+  group('free space', () {
+    late List<String> asked;
+    late int? free;
+
+    WhisperModelManager spaced() => WhisperModelManager(
+      root: root,
+      httpClient: server.client,
+      freeSpace: (path) async {
+        asked.add(path);
+        return free;
+      },
+    );
+
+    setUp(() {
+      asked = [];
+      free = null;
+    });
+
+    test('the margin is 5 %, at least 50 MiB', () {
+      expect(WhisperModelManager.requiredSpace(0), 50 << 20);
+      const large = 2 << 30;
+      expect(WhisperModelManager.requiredSpace(large), large + large ~/ 20);
+    });
+
+    test('refuses a download without room, before any request', () async {
+      free = 1000;
+      await expectLater(
+        spaced().install(tiny),
+        throwsA(
+          isA<WhisperInsufficientSpaceException>()
+              .having((e) => e.availableBytes, 'availableBytes', 1000)
+              .having(
+                (e) => e.requiredBytes,
+                'requiredBytes',
+                WhisperModelManager.requiredSpace(tinyBytes.length),
+              )
+              .having(
+                (e) => e.toString(),
+                'toString',
+                startsWith('WhisperInsufficientSpaceException(tiny'),
+              ),
+        ),
+      );
+      expect(server.requests, isEmpty);
+      expect(asked, [p.join(root.path, 'models')]);
+    });
+
+    test('downloads with room, or when it is unknown', () async {
+      free = WhisperModelManager.requiredSpace(tinyBytes.length);
+      expect((await spaced().install(tiny)).id, 'tiny');
+      free = null;
+      expect((await spaced().install(base)).id, 'base');
+    });
+
+    test('a failing answer counts as unknown', () async {
+      final failing = WhisperModelManager(
+        root: root,
+        httpClient: server.client,
+        freeSpace: (_) async => throw const FileSystemException('statfs'),
+      );
+      expect((await failing.install(tiny)).id, 'tiny');
+    });
+
+    test('a resumed download needs room for the rest only', () async {
+      server.failAfter = 3000;
+      await expectLater(
+        manager.install(tiny),
+        throwsA(isA<WhisperDownloadException>()),
+      );
+      server.failAfter = null;
+      free = WhisperModelManager.requiredSpace(tinyBytes.length - 3000);
+      expect((await spaced().install(tiny)).id, 'tiny');
+    });
+
+    test('an import refuses a copy without room', () async {
+      free = 1;
+      final file = File(p.join(root.path, tiny.name))
+        ..writeAsBytesSync(tinyBytes);
+      final result = await spaced().importFiles([file], catalog: catalog);
+      expect(result.models.single.status, WhisperImportStatus.failed);
+      expect(
+        result.models.single.error,
+        isA<WhisperInsufficientSpaceException>(),
+      );
+    });
+  });
+
+  group('importSources', () {
+    test('copies a picked document into staging and installs it', () async {
+      final source = _Source('ggml-tiny.bin', tinyBytes);
+      final result = await manager.importSources([source], catalog: catalog);
+      expect(result.installed, [tiny]);
+      expect(source.maxBytes, tiny.size);
+      expect(
+        p.isWithin(p.join(root.path, 'models', '.staging'), source.target!),
+        isTrue,
+      );
+    });
+
+    test('matches by size or by name alone', () async {
+      final result = await manager.importSources([
+        _Source('renamed.bin', baseBytes),
+        _Source('ggml-tiny.bin', tinyBytes, known: false),
+      ], catalog: catalog);
+      expect(result.installed, [tiny, base]);
+    });
+
+    test('reports damaged, short, unknown and unreadable sources', () async {
+      final damaged = Uint8List.fromList(tinyBytes)..[0] ^= 0xff;
+      final result = await manager.importSources([
+        _Source('ggml-tiny.bin', damaged),
+        _Source('ggml-base.bin', baseBytes.sublist(1), known: false),
+        _Source('notes.txt', [1, 2]),
+      ], catalog: catalog);
+      expect(result.installed, isEmpty);
+      expect(result.models.first.damaged.single.path, 'ggml-tiny.bin');
+      expect(result.unmatched.single.path, 'notes.txt');
+
+      final failed = await manager.importSources([
+        _Source(
+          'ggml-tiny.bin',
+          tinyBytes,
+          error: const FileSystemException('denied'),
+        ),
+      ], catalog: catalog);
+      expect(failed.models.single.status, WhisperImportStatus.failed);
+    });
+
+    test('a file that cannot be read is not the model', () async {
+      final missing = File(p.join(root.path, 'ggml-tiny.bin'));
+      final result = await manager.importFiles([missing], catalog: catalog);
+      expect(result.models.single.status, WhisperImportStatus.checksumMismatch);
+    });
+  });
+
+  test('hashes inline as in the background', () async {
+    final inline = WhisperModelManager(
+      root: root,
+      httpClient: server.client,
+      hashing: const FileHashing.inline(),
+    );
+    expect((await inline.install(tiny)).id, 'tiny');
+    server.corrupt = true;
+    await expectLater(
+      inline.install(base),
+      throwsA(isA<WhisperChecksumException>()),
+    );
+  });
 }
 
 /// Refuses every request to `mirror.example` as an unreachable host
@@ -665,5 +814,34 @@ class _MirrorDownClient extends http.BaseClient {
       return Future.error(const SocketException('Connection refused'));
     }
     return _inner.send(request);
+  }
+}
+
+/// A picked document for [WhisperModelManager.importSources].
+class _Source implements WhisperImportSource {
+  new(this.name, this.bytes, {this.known = true, this.error});
+
+  @override
+  final String name;
+
+  final List<int> bytes;
+  final bool known;
+  final Exception? error;
+  int? maxBytes;
+  String? target;
+
+  @override
+  int? get length => known ? bytes.length : null;
+
+  @override
+  Future<int> copyTo(File destination, {required int maxBytes}) async {
+    if (error case final error?) throw error;
+    this.maxBytes = maxBytes;
+    target = destination.path;
+    final written = bytes.length > maxBytes + 1
+        ? bytes.sublist(0, maxBytes + 1)
+        : bytes;
+    await destination.writeAsBytes(written, flush: true);
+    return written.length;
   }
 }

@@ -256,7 +256,9 @@ class OnDeviceModels {
   ///
   /// Throws [ArgumentError] for an unknown id,
   /// [OnDeviceModelTooBigException] for a model this device lacks the
-  /// memory for, [OnDeviceModelMeteredException] on a metered network when
+  /// memory for, [LlamaInsufficientSpaceException] when it does not fit in
+  /// the free space (checked first: the file's size plus a margin),
+  /// [OnDeviceModelMeteredException] on a metered network when
   /// [wifiOnly] (unless [overMeteredNetwork]), and the
   /// [LlamaModelInstallException]s of the download
   /// ([LlamaDownloadCancelledException] after [cancelDownload]).
@@ -274,6 +276,9 @@ class OnDeviceModels {
     if (fitOf(model) == OnDeviceFit.tooBig) {
       throw OnDeviceModelTooBigException(id);
     }
+    // Before asking about mobile data: a download that cannot fit fails
+    // at once (LlamaInsufficientSpaceException).
+    await manager.checkSpace(model);
     if (!overMeteredNetwork && await wifiOnly() && await _isMetered()) {
       throw const OnDeviceModelMeteredException();
     }
@@ -320,6 +325,24 @@ class OnDeviceModels {
       catalog: catalog,
       move: move,
     );
+    return await _imported(result, choose: choose);
+  }
+
+  /// Installs the models among the picked documents [sources], copied
+  /// straight into the models folder (no other copy first, see
+  /// [LlamaModelManager.importSources]); otherwise like [importFiles].
+  Future<OnDeviceImportResult> importSources(
+    List<LlamaImportSource> sources, {
+    bool choose = true,
+  }) async => await _imported(
+    await manager.importSources(sources, catalog: catalog),
+    choose: choose,
+  );
+
+  Future<OnDeviceImportResult> _imported(
+    LlamaImportResult result, {
+    required bool choose,
+  }) async {
     for (final role in choose ? LlamaModelRole.values : <LlamaModelRole>[]) {
       final last = result.installed.where((model) => model.role == role);
       if (last.lastOrNull case final model?) await _choose(model);

@@ -33,4 +33,27 @@
     <string name="widget_type_description">Type text to translate</string>
     <string name="widget_camera_label">Camera</string>
     <string name="widget_camera_description">Camera translate</string>
+
+    <!-- Translate screen (ScreenTranslateActivity): the Quick Settings tile
+         (TranslateScreenTileService), the launcher shortcut, the
+         foreground notifications and the bubble (TranslateBubbleService).
+         The tile label stays short; the bubble description is what screen
+         readers announce for it. -->
+    <string name="tile_translate_screen_label">Translate screen</string>
+    <string name="tile_translate_screen_description">Translate what is on the screen with Mozhi</string>
+    <string name="shortcut_translate_screen_short">Screen</string>
+    <string name="shortcut_translate_screen_long">Translate screen</string>
+    <string name="notification_channel_screen_capture">Screen translation</string>
+    <string name="notification_channel_screen_capture_description">Shown for a moment while Mozhi takes the screenshot to translate</string>
+    <string name="notification_screen_capture_title">Reading the screen</string>
+    <string name="notification_channel_bubble">Translate bubble</string>
+    <string name="notification_channel_bubble_description">Shown while the translate bubble is on</string>
+    <string name="notification_bubble_title">Translate bubble is on</string>
+    <string name="notification_bubble_text">Tap the bubble to translate the screen, hold it to translate the clipboard.</string>
+    <string name="notification_bubble_stop">Stop</string>
+    <string name="bubble_description">Translate screen</string>
+    <string name="bubble_long_press_action">Translate clipboard</string>
+    <string name="bubble_remove_action">Remove the bubble</string>
+    <string name="bubble_remove_target">Remove</string>
+    <string name="bubble_clipboard_empty">The clipboard is empty</string>
 </resources>

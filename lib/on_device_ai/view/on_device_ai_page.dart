@@ -7,9 +7,12 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/on_device_ai/cubit/on_device_ai_settings_cubit.dart';
+import 'package:mozhi/on_device_ai/data/on_device_ai.dart';
 import 'package:mozhi/on_device_ai/data/on_device_models.dart';
 import 'package:mozhi/on_device_ai/view/model_size.dart';
 import 'package:mozhi/platform/clipboard_service.dart';
+import 'package:mozhi/platform/engine_build_text.dart';
+import 'package:mozhi/platform/free_space.dart';
 import 'package:mozhi/settings/view/widgets/link_launcher.dart';
 import 'package:mozhi/settings/view/widgets/settings_section.dart';
 import 'package:translation_repository/translation_repository.dart'
@@ -34,9 +37,18 @@ class OnDeviceAiPage extends StatelessWidget {
     } on ProviderNotFoundException {
       models = null;
     }
+    OnDeviceAi? ai;
+    try {
+      ai = context.read<OnDeviceAi>();
+    } on ProviderNotFoundException {
+      ai = null;
+    }
     return BlocProvider(
       create: (_) {
-        final cubit = OnDeviceAiSettingsCubit(models: models);
+        final cubit = OnDeviceAiSettingsCubit(
+          models: models,
+          engineBuild: () => ai?.engineBuild,
+        );
         unawaited(cubit.load());
         return cubit;
       },
@@ -98,6 +110,16 @@ class OnDeviceAiView extends StatelessWidget {
           children: [
             _ImportTile(importing: state.importing),
             _CopyLinksTile(models: state.models),
+            if (state.engineBuild case final build?)
+              _Note(
+                key: const Key('on_device_ai_engine_build'),
+                icon: Icons.developer_board_outlined,
+                text: engineBuildText(
+                  l10n,
+                  build.variant.name,
+                  skipped: build.skipped.firstOrNull?.name,
+                ),
+              ),
           ],
         ),
       ],
@@ -183,6 +205,10 @@ class OnDeviceAiView extends StatelessWidget {
         (OnDeviceModelErrorKind.storage, _) => l10n.onDeviceAiErrorStorage(
           name,
         ),
+        (OnDeviceModelErrorKind.space, _) => switch (error?.space) {
+          final space? => _notEnoughSpace(l10n, name, space),
+          null => l10n.onDeviceAiErrorStorage(name),
+        },
         (OnDeviceModelErrorKind.network, final String mirror) =>
           l10n.onDeviceAiErrorNetworkMirror(name, mirror),
         (OnDeviceModelErrorKind.network, _) => l10n.onDeviceAiErrorNetwork(
@@ -217,10 +243,24 @@ class OnDeviceAiView extends StatelessWidget {
           LlamaImportStatus.checksumMismatch => l10n.onDeviceAiImportDamaged(
             name(id),
           ),
-          LlamaImportStatus.failed => l10n.onDeviceAiImportFailed,
+          LlamaImportStatus.failed => switch (outcome.space) {
+            final space? => _notEnoughSpace(l10n, name(id), space),
+            null => l10n.onDeviceAiImportFailed,
+          },
         },
     ].join('\n');
   }
+
+  /// "Not enough free space for Hy-MT2 1.8B: needs 1.2 GB, 300 MB free."
+  static String _notEnoughSpace(
+    AppLocalizations l10n,
+    String name,
+    SpaceShortfall space,
+  ) => l10n.commonNotEnoughSpaceFor(
+    name,
+    formatStorageSize(l10n, space.requiredBytes),
+    formatStorageSize(l10n, space.availableBytes),
+  );
 
   static void _showSnackBar(BuildContext context, String message) {
     ScaffoldMessenger.maybeOf(context)

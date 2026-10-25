@@ -5,6 +5,8 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/platform/clipboard_service.dart';
+import 'package:mozhi/platform/engine_build_text.dart';
+import 'package:mozhi/platform/free_space.dart';
 import 'package:mozhi/settings/view/widgets/choice_dialog.dart';
 import 'package:mozhi/settings/view/widgets/delete_local_data.dart'
     show formatStoredSize;
@@ -113,6 +115,15 @@ class VoiceInputSettingsView extends StatelessWidget {
           ),
         _ImportTile(importing: state.importing),
         _CopyLinksTile(models: [...state.models, ?state.voiceDetection]),
+        if (state.engineBuild case final build?)
+          _Note(
+            key: const Key('voice_engine_build'),
+            text: engineBuildText(
+              l10n,
+              build.variant.name,
+              skipped: build.skipped.firstOrNull?.name,
+            ),
+          ),
       ],
       if (!offlineOnly &&
           state.engine == VoiceInputEngine.system &&
@@ -194,6 +205,14 @@ class VoiceInputSettingsView extends StatelessWidget {
           error?.statusCode ?? 0,
         ),
         (VoiceModelErrorKind.storage, _) => l10n.voiceModelErrorStorage(name),
+        (VoiceModelErrorKind.space, _) => switch (error?.space) {
+          final space? => l10n.commonNotEnoughSpaceFor(
+            name,
+            formatStorageSize(l10n, space.requiredBytes),
+            formatStorageSize(l10n, space.availableBytes),
+          ),
+          null => l10n.voiceModelErrorStorage(name),
+        },
         (_, final String mirror) => l10n.voiceModelErrorNetworkMirror(
           name,
           mirror,
@@ -221,7 +240,14 @@ class VoiceInputSettingsView extends StatelessWidget {
           WhisperImportStatus.checksumMismatch => l10n.voiceModelImportDamaged(
             voiceModelName(l10n, id),
           ),
-          WhisperImportStatus.failed => l10n.voiceModelImportFailed,
+          WhisperImportStatus.failed => switch (outcome.space) {
+            final space? => l10n.commonNotEnoughSpaceFor(
+              voiceModelName(l10n, id),
+              formatStorageSize(l10n, space.requiredBytes),
+              formatStorageSize(l10n, space.availableBytes),
+            ),
+            null => l10n.voiceModelImportFailed,
+          },
         },
     ].join('\n');
   }

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:isolate';
 import 'dart:typed_data';
 
+import 'package:whisper_speech/src/engine/cpu_variant_guard.dart';
 import 'package:whisper_speech/src/engine/ffi/bindings.dart';
 import 'package:whisper_speech/src/engine/ffi/native_engine.dart';
 import 'package:whisper_speech/src/engine/whisper_engine.dart';
@@ -13,6 +14,14 @@ typedef WhisperLibraryResolver = String Function(String? libraryPath);
 
 String _resolveLibrary(String? libraryPath) =>
     WhisperBindings.resolve(path: libraryPath);
+
+/// [WhisperBindings.resolve] with [guard] (markers of [role]).
+WhisperLibraryResolver _guardedResolver(CpuVariantGuard guard, String role) =>
+    (libraryPath) => WhisperBindings.resolve(
+      path: libraryPath,
+      guard: guard,
+      role: 'open-$role',
+    );
 
 /// [WhisperEngine] running the native engine in one long-lived background
 /// isolate, so model loading and transcription never block the UI isolate.
@@ -26,9 +35,26 @@ String _resolveLibrary(String? libraryPath) =>
 /// [dispose] stops the isolate; a later call starts a new one. If the
 /// isolate dies, pending requests fail with [WhisperEngineException] and
 /// the next call starts a new one.
+///
+/// With a [variantGuard], a faster build of the library that crashed the
+/// app before is not used (the baseline is), and a marker is written while
+/// a build that never ran here is opened and runs its first transcription
+/// (see [CpuVariantGuard]).
 final class IsolateWhisperEngine implements WhisperEngine {
-  new({this.libraryPath, WhisperLibraryResolver? resolveLibrary})
-    : _resolve = resolveLibrary ?? _resolveLibrary;
+  new({
+    this.libraryPath,
+    WhisperLibraryResolver? resolveLibrary,
+    this.variantGuard,
+  }) : _resolve =
+           resolveLibrary ??
+           (variantGuard == null
+               ? _resolveLibrary
+               : _guardedResolver(variantGuard, _role));
+
+  static const _role = 'transcribe';
+
+  /// Turns off a faster library build that crashed the app (null: none).
+  final CpuVariantGuard? variantGuard;
 
   /// Explicit path of `libmozhi_whisper.so` (desktop tests); null uses
   /// `$WHISPER_LIBRARY_PATH` or the library bundled with the app for this
@@ -118,7 +144,13 @@ final class IsolateWhisperEngine implements WhisperEngine {
       if (identical(_worker, started)) _worker = null;
     }
 
-    started = _Worker.spawn(libraryPath, _resolve, onExit: forget);
+    started = _Worker.spawn(
+      libraryPath,
+      _resolve,
+      onExit: forget,
+      guard: variantGuard,
+      role: _role,
+    );
     _worker = started;
     // A failed start must not stick: the next call tries again.
     unawaited(started.then<void>((_) {}, onError: (Object _) => forget()));
@@ -136,8 +168,22 @@ final class IsolateWhisperEngine implements WhisperEngine {
 /// stream). If the isolate dies, pending requests fail with
 /// [WhisperEngineException] and the next call starts a new one.
 final class IsolateWhisperVadEngine implements WhisperVadEngine {
-  new({this.libraryPath, WhisperLibraryResolver? resolveLibrary})
-    : _resolve = resolveLibrary ?? _resolveLibrary;
+  /// [variantGuard]: see [IsolateWhisperEngine.variantGuard] (this
+  /// isolate's markers are its own).
+  new({
+    this.libraryPath,
+    WhisperLibraryResolver? resolveLibrary,
+    this.variantGuard,
+  }) : _resolve =
+           resolveLibrary ??
+           (variantGuard == null
+               ? _resolveLibrary
+               : _guardedResolver(variantGuard, _role));
+
+  static const _role = 'vad';
+
+  /// Turns off a faster library build that crashed the app (null: none).
+  final CpuVariantGuard? variantGuard;
 
   /// Explicit path of `libmozhi_whisper.so` (desktop tests); null uses
   /// `$WHISPER_LIBRARY_PATH` or the library bundled with the app for this
@@ -198,6 +244,8 @@ final class IsolateWhisperVadEngine implements WhisperVadEngine {
       _resolve,
       onExit: forget,
       name: 'whisper vad',
+      guard: variantGuard,
+      role: _role,
     );
     _worker = started;
     unawaited(started.then<void>((_) {}, onError: (Object _) => forget()));
@@ -229,7 +277,9 @@ final class _Worker {
     String? libraryPath,
     WhisperLibraryResolver resolve, {
     required void Function() onExit,
+    required String role,
     String name = 'whisper',
+    CpuVariantGuard? guard,
   }) async {
     final responses = ReceivePort('$name responses');
     final exits = ReceivePort('$name exit');
@@ -237,7 +287,7 @@ final class _Worker {
     try {
       isolate = await Isolate.spawn(
         _main,
-        _Start(responses.sendPort, libraryPath, resolve),
+        _Start(responses.sendPort, libraryPath, resolve, guard, role),
         debugName: name,
         onExit: exits.sendPort,
         onError: exits.sendPort,
@@ -356,11 +406,33 @@ final class _Worker {
       start.responses.send('Cannot load the native engine: $error');
       return;
     }
+    // Until its first computation ran, a build that never ran here is
+    // guarded while it computes (a marker of this isolate's own).
+    final guard = start.guard;
+    final computeRole = 'compute-${start.role}';
+    final version = _versionOf(engine) ?? library;
+    var check = guard != null && guard.needsCheck(library, version: version);
     final requests = RawReceivePort();
     void handle(Object? message) {
       if (message is! _Request) return;
+      final op = message.op;
+      final guarded =
+          check && guard != null && (op is _Transcribe || op is _VadDetect);
+      if (guarded) guard.arm(library, role: computeRole);
+      // Computed (or failed without crashing): no marker left, before the
+      // caller hears of it.
+      void checked({required bool verified}) {
+        if (!guarded) return;
+        guard.disarm(
+          role: computeRole,
+          library: library,
+          verifiedVersion: verified ? version : null,
+        );
+        if (verified) check = false;
+      }
+
       try {
-        final result = switch (message.op) {
+        final result = switch (op) {
           _Transcribe(
             :final modelPath,
             :final samples,
@@ -391,12 +463,16 @@ final class _Worker {
             return null;
           }(),
         };
+        checked(verified: true);
         start.responses.send(_Response(message.id, result: result));
       } on WhisperCancelledException {
+        checked(verified: false);
         start.responses.send(_Response(message.id, cancelled: true));
       } on WhisperEngineException catch (error) {
+        checked(verified: false);
         start.responses.send(_Response(message.id, error: error.message));
       } on Object catch (error) {
+        checked(verified: false);
         start.responses.send(_Response(message.id, error: '$error'));
       }
     }
@@ -406,12 +482,31 @@ final class _Worker {
   }
 }
 
+/// The version [engine] reports (null when it cannot tell).
+String? _versionOf(NativeWhisperEngine engine) {
+  try {
+    return engine.version;
+  } on Object {
+    return null;
+  }
+}
+
 final class _Start {
-  const new(this.responses, this.libraryPath, this.resolve);
+  const new(
+    this.responses,
+    this.libraryPath,
+    this.resolve,
+    this.guard,
+    this.role,
+  );
 
   final SendPort responses;
   final String? libraryPath;
   final WhisperLibraryResolver resolve;
+  final CpuVariantGuard? guard;
+
+  /// Which isolate it is (`transcribe`, `vad`): the guard's markers.
+  final String role;
 }
 
 /// The worker's first message: where to send requests, and the library it

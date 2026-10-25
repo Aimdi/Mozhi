@@ -74,6 +74,7 @@ class DocumentBuilder {
     String continuation = '',
     String? label,
     bool Function(String text)? accept,
+    String Function(String text)? escape,
   }) => add(
     content(
       pieces,
@@ -81,18 +82,23 @@ class DocumentBuilder {
       continuation: continuation,
       label: label,
       accept: accept,
+      escape: escape,
     ),
   );
 
   /// Turns [pieces] into nodes: surrounding whitespace stays literal and the
   /// rest becomes one [Segment] — unless it holds no letters or [accept]
   /// rejects its text, in which case everything stays verbatim.
+  ///
+  /// [escape] encodes translated text for the document (see
+  /// [SegmentNode.escape]).
   List<DocNode> content(
     List<Piece> pieces, {
     String lineBreak = '\n',
     String continuation = '',
     String? label,
     bool Function(String text)? accept,
+    String Function(String text)? escape,
   }) {
     final items = _merge(pieces);
     final lead = StringBuffer();
@@ -158,6 +164,7 @@ class DocumentBuilder {
           lineBreak: lineBreak,
           continuation: continuation,
           label: label,
+          escape: escape,
         ),
       ]);
     }
@@ -170,6 +177,7 @@ class DocumentBuilder {
     required String lineBreak,
     required String continuation,
     String? label,
+    String Function(String text)? escape,
   }) {
     final text = StringBuffer();
     final sourceParts = <String>[];
@@ -202,6 +210,7 @@ class DocumentBuilder {
       glueAfter: glueAfter,
       lineBreak: lineBreak,
       continuation: continuation,
+      escape: escape,
     );
     _segmentNodes.add(node);
     return node;

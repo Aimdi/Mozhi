@@ -2,7 +2,7 @@ import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:mozhi/offline/data/offline_model_file_picker.dart';
+import 'package:mozhi/platform/model_file_picker.dart';
 import 'package:mozhi/voice/voice.dart';
 import 'package:whisper_speech/whisper_speech.dart';
 
@@ -10,7 +10,7 @@ class _MockSpeechInput extends Mock implements SpeechInputService;
 
 class _MockOfflineSpeech extends Mock implements OfflineSpeech;
 
-class _MockPicker extends Mock implements OfflineModelFilePicker;
+class _MockPicker extends Mock implements ModelFilePicker;
 
 final _tiny = WhisperCatalogModel(
   id: 'tiny',
@@ -172,8 +172,12 @@ void main() {
         );
 
     setUp(() {
-      when(() => picker.pick(onCopying: any(named: 'onCopying')))
-          .thenAnswer((_) async => ['/picked/a', '/picked/b']);
+      when(() => picker.pick(onCopying: any(named: 'onCopying'))).thenAnswer(
+        (_) async => [
+          PickedModelFile.local('/picked/a'),
+          PickedModelFile.local('/picked/b'),
+        ],
+      );
     });
 
     test('reports the speech models, not the voice activity model', () async {

@@ -4,7 +4,8 @@ import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:mozhi/offline/data/offline_model_file_picker.dart';
+import 'package:mozhi/platform/free_space.dart';
+import 'package:mozhi/platform/model_file_picker.dart';
 import 'package:mozhi/platform/native_memory.dart';
 import 'package:mozhi/voice/voice.dart';
 import 'package:whisper_speech/whisper_speech.dart';
@@ -13,7 +14,7 @@ class _MockSpeechInput extends Mock implements SpeechInputService;
 
 class _MockOfflineSpeech extends Mock implements OfflineSpeech;
 
-class _MockPicker extends Mock implements OfflineModelFilePicker;
+class _MockPicker extends Mock implements ModelFilePicker;
 
 final _tiny = WhisperCatalogModel(
   id: 'tiny',
@@ -84,7 +85,10 @@ void main() {
     when(() => picker.clearCopies()).thenAnswer((_) async {});
   });
 
-  setUpAll(() => registerFallbackValue(VoiceInputEngine.system));
+  setUpAll(() {
+    registerFallbackValue(VoiceInputEngine.system);
+    registerFallbackValue(<WhisperImportSource>[]);
+  });
 
   VoiceSettingsCubit build({bool withOffline = true}) => VoiceSettingsCubit(
     speechInput: speechInput,
@@ -449,7 +453,10 @@ void main() {
           invocation,
         ) async {
           (invocation.namedArguments[#onCopying] as void Function()?)?.call();
-          return ['/picked/ggml-tiny.bin', '/picked/notes.txt'];
+          return [
+            PickedModelFile.local('/picked/ggml-tiny.bin'),
+            PickedModelFile.local('/picked/notes.txt'),
+          ];
         });
         when(() => offline.importFiles(any())).thenAnswer((_) async {
           installed.add('tiny');
@@ -490,10 +497,55 @@ void main() {
     );
 
     blocTest<VoiceSettingsCubit, VoiceSettingsState>(
+      'copies picked documents straight into the models folder',
+      setUp: () {
+        when(() => picker.pick(onCopying: any(named: 'onCopying'))).thenAnswer(
+          (_) async => [
+            PickedModelFile(
+              name: 'ggml-tiny.bin',
+              length: 100,
+              copy: (destination, maxBytes) async => 0,
+            ),
+          ],
+        );
+        when(() => offline.importSources(any())).thenAnswer(
+          (_) async => result(
+            models: [
+              WhisperImportOutcome(
+                model: _tiny,
+                status: WhisperImportStatus.failed,
+                error: const WhisperInsufficientSpaceException(
+                  'tiny',
+                  'full',
+                  requiredBytes: 300,
+                  availableBytes: 100,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+      build: build,
+      seed: () => ready,
+      act: (cubit) => cubit.importFromFiles(),
+      verify: (cubit) {
+        verify(() => offline.importSources(any())).called(1);
+        verifyNever(() => offline.importFiles(any()));
+        expect(
+          cubit.state.importOutcome,
+          const VoiceImportOutcome(
+            models: {'tiny': WhisperImportStatus.failed},
+            space: SpaceShortfall(requiredBytes: 300, availableBytes: 100),
+          ),
+        );
+      },
+    );
+
+    blocTest<VoiceSettingsCubit, VoiceSettingsState>(
       'cancelling the picker changes nothing',
       setUp: () =>
           when(() => picker.pick(onCopying: any(named: 'onCopying')))
-              .thenAnswer((_) async => const []),
+              .thenAnswer((_) async => const <PickedModelFile>[]),
       build: build,
       seed: () => ready,
       act: (cubit) => cubit.importFromFiles(),
@@ -505,7 +557,7 @@ void main() {
       setUp: () => when(() => picker.pick(onCopying: any(named: 'onCopying')))
           .thenAnswer((invocation) async {
             (invocation.namedArguments[#onCopying] as void Function()?)?.call();
-            return const [];
+            return const <PickedModelFile>[];
           }),
       build: build,
       seed: () => ready,
@@ -517,7 +569,7 @@ void main() {
       'a failing import is reported',
       setUp: () {
         when(() => picker.pick(onCopying: any(named: 'onCopying')))
-            .thenAnswer((_) async => ['/picked/x.bin']);
+            .thenAnswer((_) async => [PickedModelFile.local('/picked/x.bin')]);
         when(() => offline.importFiles(any()))
             .thenThrow(const FileSystemException('unreadable'));
         when(() => picker.clearCopies()).thenThrow(StateError('cache'));

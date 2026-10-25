@@ -22,4 +22,21 @@
     <string name="widget_type_description">மொழிபெயர்க்க வேண்டிய உரையைத் தட்டச்சு செய்யவும்</string>
     <string name="widget_camera_label">கேமரா</string>
     <string name="widget_camera_description">கேமரா மூலம் மொழிபெயர்</string>
+    <string name="tile_translate_screen_label">திரையை மொழிபெயர்</string>
+    <string name="tile_translate_screen_description">திரையில் உள்ளதை Mozhi மூலம் மொழிபெயர்</string>
+    <string name="shortcut_translate_screen_short">திரை</string>
+    <string name="shortcut_translate_screen_long">திரையை மொழிபெயர்</string>
+    <string name="notification_channel_screen_capture">திரை மொழிபெயர்ப்பு</string>
+    <string name="notification_channel_screen_capture_description">மொழிபெயர்க்க Mozhi திரைப்பிடிப்பு எடுக்கும்போது சிறிது நேரம் காட்டப்படும்</string>
+    <string name="notification_screen_capture_title">திரை படிக்கப்படுகிறது</string>
+    <string name="notification_channel_bubble">மொழிபெயர்ப்பு குமிழ்</string>
+    <string name="notification_channel_bubble_description">மொழிபெயர்ப்பு குமிழ் இயக்கத்தில் இருக்கும்வரை காட்டப்படும்</string>
+    <string name="notification_bubble_title">மொழிபெயர்ப்பு குமிழ் இயக்கத்தில் உள்ளது</string>
+    <string name="notification_bubble_text">திரையை மொழிபெயர்க்க குமிழைத் தட்டவும், கிளிப்போர்டுக்கு அழுத்திப் பிடிக்கவும்.</string>
+    <string name="notification_bubble_stop">நிறுத்து</string>
+    <string name="bubble_description">திரையை மொழிபெயர்</string>
+    <string name="bubble_long_press_action">கிளிப்போர்டை மொழிபெயர்</string>
+    <string name="bubble_remove_action">குமிழை அகற்று</string>
+    <string name="bubble_remove_target">அகற்று</string>
+    <string name="bubble_clipboard_empty">கிளிப்போர்டு காலியாக உள்ளது</string>
 </resources>

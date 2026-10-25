@@ -16,7 +16,7 @@ problem.
 | Asset | Threats considered |
 | --- | --- |
 | AI / DeepL / LibreTranslate **API keys** (they cost money) | Other apps on the device, backups and device transfer, logs, a misconfigured or hostile server, hostile Wi-Fi |
-| **Your text**, translations and history | Servers you didn't choose, logs, cloud backup and device transfer, screenshots, keyboards and clipboard managers |
+| **Your text**, translations and history | Servers you didn't choose, logs, cloud backup and device transfer, screenshots, keyboards and clipboard managers, someone holding your unlocked phone (with the app lock on) |
 | **Your bill** with paid providers | Other apps or web pages starting requests without you |
 | **Your local network** | Websites using the app to reach devices on your LAN |
 | A **shared conversation** (Android) | Other devices on the same Wi-Fi, people who see or guess the link, web pages in a guest's browser, guests flooding the phone |
@@ -130,6 +130,33 @@ pick ones you trust, or self-host them ([guide](self-hosting-mozhi.md)).
   keyboards not to learn what you type.
 - **Screenshots:** **Hide content in recents & block screenshots** sets
   `FLAG_SECURE`, which also blocks screen recording and sharing.
+- **App lock** (Android, off by default): protects against someone who
+  holds your phone while it is unlocked, or picks it up later. While Mozhi
+  is locked it builds none of its screens (no history, phrasebook,
+  conversations, settings or keys to see, read aloud or tap), the quick
+  translate and Translate screen windows ask to unlock first (they would
+  otherwise show your languages and spend your AI providers' credit), and
+  Recents shows no preview while the lock is on. Unlocking uses Android's
+  system prompt (framework `BiometricPrompt` with `BIOMETRIC_WEAK` or the
+  device credential on Android 11+, the device credential allowed on 10,
+  the screen lock's own screen as fallback on 9 and as the only way on 7
+  and 8; no third-party library); the app only learns whether it
+  succeeded. Turning it on needs one successful unlock, so a setting can't
+  lock the owner out; without a secure screen lock on the phone it can't
+  be turned on, and it stops locking if the screen lock is removed (that
+  needs the phone's PIN anyway). Away time is measured by the platform
+  with `SystemClock.elapsedRealtime` (monotonic, counts deep sleep), the
+  same for every window of the app process; changing the clock changes
+  nothing, and a new app process always starts locked. Trips to the camera
+  or a file picker that Mozhi opened (`startActivityForResult`) get at
+  least 5 minutes. The setting is device-only: backups, sync and Phone to
+  phone leave it out, and a restore keeps this device's value.
+  **What it doesn't do:** it is not encryption. The data stays encrypted
+  as before (history, phrasebook and practice with their Keystore-wrapped
+  keys, secrets in secure storage), not with a key that needs the unlock,
+  so it doesn't protect against someone who can read the app's storage (a
+  rooted phone, a forensic tool on an unlocked device) or against malware.
+  The home-screen widget shows no translations anyway.
 - **Clipboard:** on Android 13+ copies are marked sensitive
   (`EXTRA_IS_SENSITIVE`), so the system's preview and keyboard suggestions
   don't show them.
@@ -361,9 +388,56 @@ Settings tile, launcher shortcuts and widget, and links (`mozhi://…`,
   on **Replace**, and Android only accepts the answer for a writable
   selection request that is still current.
 - Exported Android components: the main activity (launcher, share,
-  PROCESS_TEXT, `mozhi://` links) and the Quick Settings tile (bound only by
-  the system). The home-screen widget receiver is not exported, and its
-  buttons use immutable pending intents.
+  PROCESS_TEXT, `mozhi://` links) and the Quick Settings tiles (bound only
+  by the system). The home-screen widget receiver is not exported, and its
+  buttons use immutable pending intents. The Translate screen window, its
+  capture service, the bubble and its clipboard window (see below) are not
+  exported either: other apps can't start a screen capture or the bubble.
+
+## Translate screen (Android)
+
+Translate screen captures whatever another app shows, so it is built to
+capture only on purpose and to keep nothing:
+
+- **Consent every time.** The capture needs Android's own screen-capture
+  dialog (`MediaProjectionManager.createScreenCaptureIntent`, for the whole
+  display on Android 14+), every time; the result can't be reused. The
+  window, the capture service and the bubble are not exported, so only the
+  user (the tile, the app shortcut, the bubble) can start it. On a locked
+  phone the tile asks to unlock the phone first.
+- **One frame.** A foreground service of the type `mediaProjection` mirrors
+  the display into an `ImageReader`, takes the newest frame once the
+  screen is still, and stops the projection right away (at most 1.5
+  seconds after the first frame, or 4 seconds without one).
+- **Private, short-lived file.** The frame is written as a PNG into the
+  app's cache (`<cache>/screen_translate`, private to the app and never
+  backed up), handed to the window by its in-process result (not by a
+  path another component could name), read into memory and deleted; any
+  leftover goes when the window closes and when the next one opens. The
+  window closes when it goes to the background, so the screenshot doesn't
+  stay in memory, and it is in no Recents list.
+- **Mozhi's own window stays out of the frame.** The window draws nothing
+  until it has the screenshot, the bubble hides first, and the window's
+  `FLAG_SECURE` (**Hide content in recents & block screenshots**) is held
+  off for the second of the capture only (a secure window, even an empty
+  one, would black out the whole frame) and set again right after.
+- **The screenshot stays on the phone.** It is read by on-device text
+  recognition only (no AI vision or image upload for screenshots); only
+  the recognised text goes to the chosen engine, through the same privacy
+  mode, consent prompts and personal data shield as typed text, and
+  counts in Network activity. Other locations the window would open (for
+  example the offline languages) open in the main window instead.
+- **App lock.** When Mozhi is locked, the window asks to unlock after the
+  capture and before it shows anything; a cancelled prompt leaves only
+  **Unlock** and **Close**, and the screenshot is hidden again if the app
+  locks while it is open.
+- **The bubble** needs **Display over other apps**, granted by the user in
+  Android's settings, and runs as a `specialUse` foreground service with a
+  visible notification and **Stop**. It reads nothing by itself: a tap
+  starts the consent above, a long press reads the clipboard once (in a
+  window that has input focus, as Android 10+ requires) and opens it as a
+  read-only selection in the quick translate sheet, which never starts a
+  paid AI request on its own.
 
 ## AI prompts and output
 
@@ -464,6 +538,11 @@ llama.cpp (MIT, built from a pinned release in the repository's
 
 ## Known limitations
 
+- The **app lock** hides Mozhi's screens; it is no encryption beyond what
+  the app and Android already do (see [Data on the device](#data-on-the-device)).
+  When its time ran out while the phone slept (and the app could not run),
+  Mozhi notices on return, a moment after the phone's own lock screen
+  was passed; otherwise it is locked before you come back.
 - **Shared conversations are plain `http`** on the local network: anyone
   on that network who captures traffic can read them, and the PIN with
   them. Use the phone's hotspot for anything sensitive; there is no way to

@@ -26,7 +26,7 @@ Sync and phone-to-phone transfer use the same format and the same parts
 | **History and favorites** | Your translations and dictionary look-ups, favorites included, and a record of the entries you deleted (so that merging another copy doesn't bring them back, see below) |
 | **Presets** | Your translation presets, their order and which one is the default, when each was last changed, and a record of the presets you deleted |
 | **Glossaries** | Your saved glossaries and their terms, their order, when each was last changed, and a record of the glossaries you deleted |
-| **Settings** | Everything under Settings: engines and instances, AI providers (without their keys), languages, privacy choices, appearance |
+| **Settings** | Everything under Settings: engines and instances, AI providers (without their keys), languages, privacy choices, appearance. Not the app lock: it belongs to this phone's screen lock, and a restore keeps this device's choice |
 | **API keys and passwords** | Only when you turn on **Include API keys and passwords**: the API keys and custom headers of your AI and translation providers, and the user names and passwords of instance addresses (`https://user:password@host`). Off by default |
 | **Phrasebook** | Your phrasebook collections, their phrases and notes (notes on favorites too), and a record of what you deleted. Not the starter phrasebooks: they download again |
 | **Practice progress** | Your flashcard progress (when each card is due, its memory state and the last review) and your practice settings, with a record of the cards that went away. The cards' texts come from the phrasebook |

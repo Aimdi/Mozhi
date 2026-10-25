@@ -55,7 +55,8 @@ class DocumentSourceCard extends StatelessWidget {
             message: documentErrorLabel(
               context,
               error,
-              maxBytes: cubit.maxBytes,
+              maxBytes: state.isBinary ? cubit.maxPackageBytes : cubit.maxBytes,
+              format: state.format,
             ),
             warning: error == DocumentError.nothingToTranslate,
           ),
@@ -85,7 +86,8 @@ class _FileInput extends StatelessWidget {
         child: TabHero(
           icon: Icons.description_outlined,
           title: l10n.documentsHeroTitle,
-          body: l10n.documentsPickHint(
+          body: l10n.documentsPickHintFormats(
+            documentSizeLabel(context, cubit.maxPackageBytes),
             documentSizeLabel(context, cubit.maxBytes),
           ),
           child: FilledButton.icon(
@@ -105,7 +107,7 @@ class _FileInput extends StatelessWidget {
 
     // The name and Replace share a line while they fit; otherwise (a long
     // name, large text) Replace moves below the name.
-    return Wrap(
+    final row = Wrap(
       alignment: WrapAlignment.spaceBetween,
       crossAxisAlignment: WrapCrossAlignment.center,
       spacing: 12,
@@ -142,6 +144,32 @@ class _FileInput extends StatelessWidget {
               ? null
               : () => unawaited(cubit.pickFile()),
           child: Text(l10n.documentsReplaceFile),
+        ),
+      ],
+    );
+    if (!loading) return row;
+    // A large office document or e-book is being read.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: 12,
+      children: [
+        row,
+        Semantics(
+          key: const Key('documents_reading'),
+          liveRegion: true,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: 8,
+            children: [
+              const LinearProgressIndicator(),
+              Text(
+                l10n.documentsReading,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: AppPalette.of(context).secondaryText,
+                ),
+              ),
+            ],
+          ),
         ),
       ],
     );
@@ -279,7 +307,14 @@ class DocumentInfoChips extends StatelessWidget {
       runSpacing: 8,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        if (format != null)
+        if (format != null && state.isBinary)
+          // An office document or e-book is what its file is.
+          Chip(
+            key: const Key('documents_format'),
+            avatar: Icon(documentFormatIcon(format)),
+            label: Text(documentFormatLabel(l10n, format)),
+          )
+        else if (format != null)
           MenuAnchor(
             builder: (context, controller, _) => InputChip(
               key: const Key('documents_format'),
@@ -292,16 +327,18 @@ class DocumentInfoChips extends StatelessWidget {
               isEnabled: !busy,
             ),
             menuChildren: [
+              // Text can be read as any text format, never as a package.
               for (final option in DocumentFormat.values)
-                MenuItemButton(
-                  key: Key('documents_format_${option.name}'),
-                  leadingIcon: Icon(documentFormatIcon(option)),
-                  trailingIcon: option == format
-                      ? const Icon(Icons.check)
-                      : null,
-                  onPressed: () => cubit.setFormat(option),
-                  child: Text(documentFormatLabel(l10n, option)),
-                ),
+                if (!option.isBinary)
+                  MenuItemButton(
+                    key: Key('documents_format_${option.name}'),
+                    leadingIcon: Icon(documentFormatIcon(option)),
+                    trailingIcon: option == format
+                        ? const Icon(Icons.check)
+                        : null,
+                    onPressed: () => cubit.setFormat(option),
+                    child: Text(documentFormatLabel(l10n, option)),
+                  ),
             ],
           ),
         _InfoChip(

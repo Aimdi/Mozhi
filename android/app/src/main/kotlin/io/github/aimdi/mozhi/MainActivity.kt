@@ -220,6 +220,18 @@ open class MainActivity : FlutterActivity() {
             }
         }
 
+        // Translate screen: the bubble and tile settings (ScreenTranslatePlugin.kt).
+        flutterEngine.plugins.add(ScreenTranslatePlugin())
+
+        // App lock: the unlock prompt and the shared lock state (AppLockPlugin.kt).
+        flutterEngine.plugins.add(AppLockPlugin())
+
+        // On-device models: free space and imports without a cache copy
+        // (DeviceStoragePlugin.kt); pushed heat and battery saver changes
+        // (DeviceConditionsPlugin.kt).
+        flutterEngine.plugins.add(DeviceStoragePlugin())
+        flutterEngine.plugins.add(DeviceConditionsPlugin())
+
         EventChannel(messenger, EVENT_CHANNEL).setStreamHandler(
             object : EventChannel.StreamHandler {
                 override fun onListen(arguments: Any?, events: EventChannel.EventSink) {
@@ -262,13 +274,19 @@ open class MainActivity : FlutterActivity() {
         }
     }
 
-    /** Sets or clears `FLAG_SECURE` on this activity's window. */
+    /**
+     * Sets or clears `FLAG_SECURE` on this activity's window for the setting;
+     * the app lock may keep it on (below Android 13, [AppLockPlugin.setSecureFlag]).
+     */
     private fun setSecureScreen(enabled: Boolean) {
-        if (enabled) {
-            window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
-        } else {
-            window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
-        }
+        AppLockPlugin.setSecureFlag(this, AppLockPlugin.SECURE_SETTING, enabled)
+    }
+
+    override fun startActivityForResult(intent: Intent, requestCode: Int, options: Bundle?) {
+        // The camera or a file picker opened by Mozhi is part of using it
+        // (AppLockPlugin.kt); plain startActivity calls pass -1.
+        if (requestCode >= 0) AppLockPlugin.noteActivityStartedForResult()
+        super.startActivityForResult(intent, requestCode, options)
     }
 
     /**

@@ -478,6 +478,50 @@ void main() {
     ).close();
     expect(closed, isFalse);
   });
+
+  group('storage quota', () {
+    OpfsModelManager limited(Future<int?> Function() freeSpace) =>
+        OpfsModelManager(
+          channel: worker,
+          httpClient: server.client,
+          freeSpace: freeSpace,
+        );
+
+    test('refuses a download that would not fit, before any request', () {
+      final needed = BergamotModelManager.requiredSpace(
+        ende.catalog.downloadSize + ende.catalog.installedSize,
+      );
+      expect(
+        limited(() async => needed - 1).install(ende.catalog),
+        throwsA(
+          isA<ModelInsufficientSpaceException>()
+              .having((e) => e.requiredBytes, 'requiredBytes', needed)
+              .having((e) => e.availableBytes, 'availableBytes', needed - 1),
+        ),
+      );
+      expect(server.requests, isEmpty);
+    });
+
+    test('downloads when it fits or the quota is unknown', () async {
+      final needed = BergamotModelManager.requiredSpace(
+        ende.catalog.downloadSize + ende.catalog.installedSize,
+      );
+      expect(
+        (await limited(() async => needed).install(ende.catalog)).pair,
+        'en-de',
+      );
+      expect(
+        (await limited(() async => null).install(deen.catalog)).pair,
+        'de-en',
+      );
+      expect(
+        (await limited(() async => throw StateError('no estimate'))
+                .install(enzh.catalog))
+            .pair,
+        'en-zh',
+      );
+    });
+  });
 }
 
 class _ClosingClient extends http.BaseClient {

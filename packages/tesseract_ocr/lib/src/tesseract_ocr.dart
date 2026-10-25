@@ -38,7 +38,8 @@ final class TessdataMissingException implements Exception {
 class TesseractOcr {
   /// [engine] and [isAvailable] replace the platform's (tests);
   /// [httpClient] is used for downloads (default: a new client, closed by
-  /// [dispose]).
+  /// [dispose]); [freeSpace] (the free bytes of the file system of a path)
+  /// lets downloads and imports check for room first ([TessdataManager]).
   new({
     required this.catalog,
     required Directory root,
@@ -46,10 +47,12 @@ class TesseractOcr {
     OcrEngine? engine,
     bool? isAvailable,
     Duration requestTimeout = const Duration(seconds: 60),
+    Future<int?> Function(String path)? freeSpace,
   }) : data = TessdataManager(
          root: root,
          httpClient: httpClient,
          requestTimeout: requestTimeout,
+         freeSpace: freeSpace,
        ),
        _engine = engine,
        _isAvailable =

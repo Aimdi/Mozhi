@@ -22,4 +22,21 @@
     <string name="widget_type_description">Tekst typen om te vertalen</string>
     <string name="widget_camera_label">Camera</string>
     <string name="widget_camera_description">Vertalen met camera</string>
+    <string name="tile_translate_screen_label">Scherm vertalen</string>
+    <string name="tile_translate_screen_description">Vertaal wat er op het scherm staat met Mozhi</string>
+    <string name="shortcut_translate_screen_short">Scherm</string>
+    <string name="shortcut_translate_screen_long">Scherm vertalen</string>
+    <string name="notification_channel_screen_capture">Schermvertaling</string>
+    <string name="notification_channel_screen_capture_description">Even zichtbaar terwijl Mozhi de schermafbeelding maakt om te vertalen</string>
+    <string name="notification_screen_capture_title">Scherm wordt gelezen</string>
+    <string name="notification_channel_bubble">Vertaalbubbel</string>
+    <string name="notification_channel_bubble_description">Zichtbaar zolang de vertaalbubbel aan staat</string>
+    <string name="notification_bubble_title">Vertaalbubbel staat aan</string>
+    <string name="notification_bubble_text">Tik op de bubbel om het scherm te vertalen, houd hem vast om het klembord te vertalen.</string>
+    <string name="notification_bubble_stop">Stoppen</string>
+    <string name="bubble_description">Scherm vertalen</string>
+    <string name="bubble_long_press_action">Klembord vertalen</string>
+    <string name="bubble_remove_action">Bubbel verwijderen</string>
+    <string name="bubble_remove_target">Verwijderen</string>
+    <string name="bubble_clipboard_empty">Het klembord is leeg</string>
 </resources>

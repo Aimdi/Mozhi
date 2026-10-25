@@ -115,8 +115,28 @@ class Chunker {
   /// Batch encoding used for [format].
   static ChunkEncoding encodingFor(DocumentFormat format) => switch (format) {
     DocumentFormat.plainText || DocumentFormat.markdown => .paragraphs,
-    // TEMP W6 scaffold: W6-A and W6-B choose the encoding of their formats.
-    _ => .markers,
+    // Office documents and e-books (W6-A): prose is batched as paragraphs;
+    // slides and cells are short, so numbered markers keep them aligned.
+    DocumentFormat.docx ||
+    DocumentFormat.odt ||
+    DocumentFormat.epub => .paragraphs,
+    DocumentFormat.pptx ||
+    DocumentFormat.odp ||
+    DocumentFormat.xlsx ||
+    DocumentFormat.ods => .markers,
+    // Web pages: blocks of prose without line breaks (W6-B).
+    DocumentFormat.html => .paragraphs,
+    // Subtitles and string tables: short texts whose alignment matters.
+    DocumentFormat.srt ||
+    DocumentFormat.vtt ||
+    DocumentFormat.json ||
+    DocumentFormat.xliff ||
+    DocumentFormat.androidStrings ||
+    DocumentFormat.po ||
+    DocumentFormat.csv ||
+    DocumentFormat.tsv ||
+    DocumentFormat.appleStrings ||
+    DocumentFormat.xcstrings => .markers,
   };
 
   /// Plans the chunks for [document].

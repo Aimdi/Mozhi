@@ -22,4 +22,21 @@
     <string name="widget_type_description">Ввести текст для перевода</string>
     <string name="widget_camera_label">Камера</string>
     <string name="widget_camera_description">Перевод с камеры</string>
+    <string name="tile_translate_screen_label">Перевести экран</string>
+    <string name="tile_translate_screen_description">Перевести то, что на экране, с помощью Mozhi</string>
+    <string name="shortcut_translate_screen_short">Экран</string>
+    <string name="shortcut_translate_screen_long">Перевести экран</string>
+    <string name="notification_channel_screen_capture">Перевод экрана</string>
+    <string name="notification_channel_screen_capture_description">Показывается на мгновение, пока Mozhi делает снимок экрана для перевода</string>
+    <string name="notification_screen_capture_title">Чтение экрана</string>
+    <string name="notification_channel_bubble">Пузырь перевода</string>
+    <string name="notification_channel_bubble_description">Показывается, пока пузырь перевода включён</string>
+    <string name="notification_bubble_title">Пузырь перевода включён</string>
+    <string name="notification_bubble_text">Нажмите на пузырь, чтобы перевести экран, удерживайте — чтобы перевести буфер обмена.</string>
+    <string name="notification_bubble_stop">Остановить</string>
+    <string name="bubble_description">Перевести экран</string>
+    <string name="bubble_long_press_action">Перевести буфер обмена</string>
+    <string name="bubble_remove_action">Убрать пузырь</string>
+    <string name="bubble_remove_target">Убрать</string>
+    <string name="bubble_clipboard_empty">Буфер обмена пуст</string>
 </resources>

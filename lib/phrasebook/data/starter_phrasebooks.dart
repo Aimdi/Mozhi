@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/phrasebook/models/starter_phrasebook.dart';
+import 'package:mozhi/platform/free_space.dart';
 import 'package:translation_repository/translation_repository.dart'
     show Sha256, gzipDecode;
 
@@ -60,6 +61,8 @@ final class StarterPhrasebookDownloadException
 ///   once; it stays in memory until it is deleted.
 /// * The data is public (Wikivoyage) and not encrypted. It is not part of
 ///   backups: it can be downloaded again.
+/// * A download first checks the free space (`freeSpace`, default
+///   [FreeSpace.instance]; a [NotEnoughSpaceException] when it is short).
 class StarterPhrasebooks {
   new({
     required this.catalog,
@@ -68,6 +71,7 @@ class StarterPhrasebooks {
     List<Uri> Function(StarterPhrasebookInfo pack)? downloadUrls,
     this.requestTimeout = const Duration(seconds: 60),
     DateTime Function()? clock,
+    this._freeSpace,
   }) : store = store ?? PreferencesStore(),
        _client = httpClient,
        _downloadUrls = downloadUrls ?? _catalogueUrl,
@@ -89,6 +93,7 @@ class StarterPhrasebooks {
   final http.Client? _client;
   final List<Uri> Function(StarterPhrasebookInfo pack) _downloadUrls;
   final DateTime Function() _clock;
+  final FreeSpace? _freeSpace;
   final StreamController<void> _changes = StreamController.broadcast();
   final Map<String, Future<void>> _installing = {};
   final Map<String, StarterPhrasebook> _loaded = {};
@@ -198,6 +203,8 @@ class StarterPhrasebooks {
         .where((p) => p.id == pack.id)
         .firstOrNull;
     if (existing != null && existing.sha256 == pack.sha256) return;
+    // Stored as base64 (a third larger) next to the app's settings.
+    await ensureFreeSpace(pack.size * 2, freeSpace: _freeSpace);
     final bytes = await _downloadFromAny(pack, onProgress);
     final installedAt = _clock();
     final StarterPhrasebook parsed;

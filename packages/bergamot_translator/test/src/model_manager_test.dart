@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:bergamot_translator/bergamot_translator.dart';
+import 'package:bergamot_translator/src/file_hashing.dart';
 import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -633,6 +634,83 @@ void main() {
   test('close only closes a client it created', () {
     BergamotModelManager(root: root).close();
     manager.close();
+  });
+
+  group('free space', () {
+    BergamotModelManager spaced(int? free) => BergamotModelManager(
+      root: root,
+      httpClient: server.client,
+      freeSpace: (_) async => free,
+    );
+
+    int needed(FakeModel model) =>
+        model.catalog.downloadSize + model.catalog.installedSize;
+
+    test('the margin is 5 %, at least 50 MiB', () {
+      expect(BergamotModelManager.requiredSpace(1), 1 + (50 << 20));
+      const large = 2 << 30;
+      expect(BergamotModelManager.requiredSpace(large), large + large ~/ 20);
+    });
+
+    test('needs room for the downloads and the decompressed files', () async {
+      final tight = BergamotModelManager.requiredSpace(needed(ende)) - 1;
+      await expectLater(
+        spaced(tight).install(ende.catalog),
+        throwsA(
+          isA<ModelInsufficientSpaceException>()
+              .having((e) => e.model, 'model', 'en-de')
+              .having((e) => e.availableBytes, 'availableBytes', tight)
+              .having(
+                (e) => e.requiredBytes,
+                'requiredBytes',
+                BergamotModelManager.requiredSpace(needed(ende)),
+              )
+              .having(
+                (e) => e.toString(),
+                'toString',
+                startsWith('ModelInsufficientSpaceException(en-de'),
+              ),
+        ),
+      );
+      expect(server.requests, isEmpty);
+      final installed = await spaced(tight + 1).install(ende.catalog);
+      expect(installed.pair, 'en-de');
+    });
+
+    test('downloads when the free space is unknown or fails', () async {
+      expect((await spaced(null).install(ende.catalog)).pair, 'en-de');
+      final failing = BergamotModelManager(
+        root: root,
+        httpClient: server.client,
+        freeSpace: (_) async => throw const FileSystemException('statfs'),
+      );
+      expect((await failing.install(deen.catalog)).pair, 'de-en');
+    });
+
+    test('an import needs room for the decompressed files', () async {
+      final picked = Directory(p.join(root.path, 'picked'))..createSync();
+      final files = [
+        for (final file in ende.files)
+          File(p.join(picked.path, '${file.name}.gz'))
+            ..writeAsBytesSync(file.gz),
+      ];
+      final result = await spaced(10)
+          .importFiles(files, catalog: ModelCatalog([ende.catalog]));
+      expect(result.models.single.status, ModelImportStatus.failed);
+      expect(
+        result.models.single.error,
+        isA<ModelInsufficientSpaceException>(),
+      );
+    });
+  });
+
+  test('hashes and decompresses inline as in the background', () async {
+    final inline = BergamotModelManager(
+      root: root,
+      httpClient: server.client,
+      hashing: const FileHashing.inline(),
+    );
+    expect((await inline.install(ende.catalog)).pair, 'en-de');
   });
 }
 

@@ -37,6 +37,32 @@ enum QualityMode {
   best,
 }
 
+/// When the app lock asks for the phone's biometrics or screen lock
+/// ([AppSettings.appLock], see `AppLock`): never ([off]), on every return
+/// to the app ([immediately]) or once the app was in the background for
+/// [delay]. The app also locks at every cold start while it is on.
+enum AppLockTimeout {
+  off(null),
+  immediately(Duration.zero),
+  after1Minute(Duration(minutes: 1)),
+  after5Minutes(Duration(minutes: 5)),
+  after15Minutes(Duration(minutes: 15));
+
+  new(this.delay);
+
+  /// How long the app may be in the background before it locks again;
+  /// null when the lock is [off].
+  final Duration? delay;
+
+  /// Whether the lock is on.
+  bool get isOn => delay != null;
+
+  /// The timeout named [name] (its `name`); [off] for anything else
+  /// (unknown or newer values).
+  static AppLockTimeout fromName(Object? name) =>
+      (name is String ? values.asNameMap()[name] : null) ?? off;
+}
+
 /// The four tabs of the app, in their default order.
 ///
 /// [name] is the tab's stable id, stored in [AppSettings.tabOrder]; [index]
@@ -95,6 +121,7 @@ class AppSettings extends Equatable {
     this.multilineInput = true,
     this.maskPersonalData = true,
     this.modelSource = ModelSource.platformDefault,
+    this.appLock = AppLockTimeout.off,
   });
 
   /// Tolerant counterpart of [toJson]: missing or invalid fields fall back to
@@ -179,6 +206,7 @@ class AppSettings extends Equatable {
       modelSource:
           _object(json['modelSource'], ModelSource.fromJson) ??
           defaults.modelSource,
+      appLock: AppLockTimeout.fromName(json['appLock']),
     );
   }
 
@@ -351,6 +379,12 @@ class AppSettings extends Equatable {
   /// file is checked against the app's SHA-256 either way).
   final ModelSource modelSource;
 
+  /// The app lock (`lib/app_lock`): when Mozhi asks for the phone's
+  /// biometrics or screen lock. A setting of this device: backups, sync
+  /// and phone to phone never carry it (`SettingsBackupSection` leaves it
+  /// out and keeps this device's value on restore).
+  final AppLockTimeout appLock;
+
   /// The quality mode a start of the app begins in when [rememberQuality]
   /// is off: [QualityMode.fast] when a fast engine is chosen, else
   /// [QualityMode.off] (the usual engine).
@@ -406,6 +440,7 @@ class AppSettings extends Equatable {
     bool? multilineInput,
     bool? maskPersonalData,
     ModelSource? modelSource,
+    AppLockTimeout? appLock,
   }) {
     return AppSettings(
       themeMode: themeMode ?? this.themeMode,
@@ -448,6 +483,7 @@ class AppSettings extends Equatable {
       multilineInput: multilineInput ?? this.multilineInput,
       maskPersonalData: maskPersonalData ?? this.maskPersonalData,
       modelSource: modelSource ?? this.modelSource,
+      appLock: appLock ?? this.appLock,
     );
   }
 
@@ -510,6 +546,7 @@ class AppSettings extends Equatable {
       'multilineInput': multilineInput,
       'maskPersonalData': maskPersonalData,
       'modelSource': modelSource.toJson(),
+      'appLock': appLock.name,
     };
   }
 
@@ -554,6 +591,7 @@ class AppSettings extends Equatable {
     multilineInput,
     maskPersonalData,
     modelSource,
+    appLock,
   ];
 }
 

@@ -400,3 +400,61 @@ abstract interface class LlamaEngine {
   /// usable; the next call starts it again.
   Future<void> dispose();
 }
+
+/// The builds of `libmozhi_llama` for the processor ([LlamaEngineBuild]).
+enum LlamaCpuVariant {
+  /// ARMv8.0-A (every arm64 phone), and the only build of x86_64.
+  baseline,
+
+  /// ARMv8.2-A with the int8 dot product and half-precision arithmetic.
+  dotprod,
+
+  /// ARMv8.6-A with those and int8 matrix multiplication.
+  i8mm,
+
+  /// A library given by path (`libraryPath`, `$LLAMA_LIBRARY_PATH`).
+  custom,
+}
+
+/// Which build of the native library the engine uses on this device
+/// (`llamaEngineBuild`), for support.
+@immutable
+final class LlamaEngineBuild {
+  const new({
+    required this.variant,
+    required this.library,
+    this.skipped = const [],
+  });
+
+  final LlamaCpuVariant variant;
+
+  /// The library's file name (or path, for [LlamaCpuVariant.custom]).
+  final String library;
+
+  /// Faster builds this device could run that were turned off because the
+  /// app crashed with them, fastest first.
+  final List<LlamaCpuVariant> skipped;
+
+  @override
+  bool operator ==(Object other) =>
+      other is LlamaEngineBuild &&
+      other.variant == variant &&
+      other.library == library &&
+      _sameList(other.skipped, skipped);
+
+  @override
+  int get hashCode => Object.hash(variant, library, Object.hashAll(skipped));
+
+  @override
+  String toString() =>
+      'LlamaEngineBuild(${variant.name}, skipped: '
+      '${[for (final s in skipped) s.name]})';
+
+  static bool _sameList(List<Object?> a, List<Object?> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+}

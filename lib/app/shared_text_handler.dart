@@ -7,6 +7,7 @@ import 'package:mozhi/core/network/network_session.dart';
 import 'package:mozhi/core/privacy/egress/egress.dart';
 import 'package:mozhi/platform/shared_text_service.dart';
 import 'package:mozhi/quick_translate/quick_translate_host.dart';
+import 'package:mozhi/screen_translate/screen_translate_host.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 
 /// Text selected in another app (Android `PROCESS_TEXT`, "Translate with
@@ -70,7 +71,8 @@ Future<String?> readClipboardText() async {
 /// ([QuickTranslateHost.openTextInApp]), and a window started without a
 /// selection (e.g. recreated after Android ended the app) closes at once.
 /// The window's network activity is handed to the main window's log
-/// ([EgressRelay], from [ledger]).
+/// ([EgressRelay], from [ledger]), and so is that of the screen-translate
+/// window ([screenHost], whose page shows no shared text).
 class SharedTextHandler {
   new({
     required this.service,
@@ -80,8 +82,10 @@ class SharedTextHandler {
     this.readClipboard = readClipboardText,
     this.timeout = const Duration(seconds: 20),
     QuickTranslateHost? quickHost,
+    ScreenTranslateHost? screenHost,
     this.ledger,
-  }) : quickHost = quickHost ?? QuickTranslateHost.instance;
+  }) : quickHost = quickHost ?? QuickTranslateHost.instance,
+       screenHost = screenHost ?? ScreenTranslateHost.instance;
 
   final SharedTextService service;
   final TranslateCubit translateCubit;
@@ -105,6 +109,9 @@ class SharedTextHandler {
   /// The quick translate window this app may run in.
   final QuickTranslateHost quickHost;
 
+  /// The screen-translate window this app may run in.
+  final ScreenTranslateHost screenHost;
+
   /// The network activity log to join (default: the one of
   /// [NetworkSession.current]).
   final EgressLedger? ledger;
@@ -117,7 +124,10 @@ class SharedTextHandler {
   Future<void> start() async {
     final log = ledger ?? NetworkSession.current.ledger;
     final inWindow = quickHost.isActive;
-    _stopRelay = inWindow ? EgressRelay.forward(log) : EgressRelay.receive(log);
+    // Only the main window receives; the others hand their entries to it.
+    _stopRelay = inWindow || screenHost.isActive
+        ? EgressRelay.forward(log)
+        : EgressRelay.receive(log);
     _texts = service.texts.listen(
       (shared) => unawaited(handle(shared)),
       onError: (Object _) {},

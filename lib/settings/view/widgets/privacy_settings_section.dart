@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/router.dart' show AppRoutes;
+import 'package:mozhi/app_lock/view/app_lock_settings_tile.dart';
 import 'package:mozhi/core/undo_snack_bar.dart';
 import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/history/view/widgets/clear_history_dialog.dart';
@@ -33,6 +34,7 @@ abstract final class PrivacyAnchors {
   static const privacyMode = 'privacy_mode';
   static const incognito = 'incognito';
   static const secureScreen = 'secure_screen';
+  static const String appLock = AppLockSettingsTile.anchor;
   static const maskPersonalData = 'mask_personal_data';
   static const saveHistory = 'save_history';
   static const historyRetention = 'history_retention';
@@ -51,8 +53,8 @@ abstract final class PrivacyAnchors {
 
 /// The Privacy & data settings, in four groups:
 ///
-/// * Privacy: privacy mode, incognito, screen protection (Android) and the
-///   personal data shield;
+/// * Privacy: privacy mode, incognito, screen protection (Android), the
+///   app lock and the personal data shield;
 /// * History: saving it, auto-delete, export and import, the recent
 ///   language pairs;
 /// * Network: what the user allowed to go to the network (language pairs,
@@ -114,6 +116,11 @@ class PrivacySettingsSection extends StatelessWidget {
                   onChanged: (value) => cubit.setSecureScreen(enabled: value),
                 ),
               ),
+            // When Mozhi asks for the phone's biometrics or screen lock.
+            SettingsAnchor(
+              id: PrivacyAnchors.appLock,
+              child: AppLockSettingsTile(timeout: settings.appLock),
+            ),
             SettingsAnchor(
               id: PrivacyAnchors.maskPersonalData,
               child: SwitchListTile(

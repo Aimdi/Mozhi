@@ -90,7 +90,7 @@ enum DocumentFormat {
   /// Whether the format records the target language (it is passed to
   /// `parseDocument`, and the document is parsed again when it changes).
   bool get usesTargetLanguage =>
-      this == xliff || this == po || this == xcstrings;
+      this == xliff || this == po || this == xcstrings || this == html;
 
   /// Whether files of this format are ZIP packages (office documents and
   /// e-books) rather than text: they are read and written as bytes, never
@@ -120,6 +120,15 @@ enum DocumentFormat {
   }
 
   /// Guesses the format of pasted [text].
+  ///
+  /// Recognised besides subtitles, JSON and Markdown: HTML (a document or
+  /// a fragment that starts with an HTML element and is not Markdown with
+  /// some HTML in it), XLIFF (`<xliff>` root), Android strings
+  /// (`<resources>` root), gettext PO (`msgid` and `msgstr` lines), Xcode
+  /// string catalogues (JSON with `strings` and `sourceLanguage`), Apple
+  /// `.strings` (only `"key" = "value";` lines and comments) and TSV
+  /// (cells copied from a spreadsheet: the same number of tabs on every
+  /// line). CSV is never guessed (too much plain text has commas).
   static DocumentFormat sniff(String text) {
     // trimLeft() also drops a byte order mark.
     final trimmed = text.trimLeft();
@@ -128,16 +137,169 @@ enum DocumentFormat {
     if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
       try {
         final value = jsonDecode(trimmed);
+        if (value is Map &&
+            value['strings'] is Map &&
+            (value.containsKey('sourceLanguage') ||
+                value.containsKey('version'))) {
+          return xcstrings;
+        }
         if (value is Map || value is List) return json;
       } on FormatException {
         // Not JSON.
       }
     }
     final strong = _markdownStrong.allMatches(trimmed).length;
+    if (trimmed.startsWith('<')) {
+      final markup = _sniffMarkup(trimmed, markdown: strong > 0);
+      if (markup != null) return markup;
+    }
+    if (_poMsgid.hasMatch(trimmed) && _poMsgstr.hasMatch(trimmed)) return po;
+    if (_isAppleStrings(trimmed)) return appleStrings;
+    if (_isTsv(trimmed)) return tsv;
     final weak = _markdownWeak.allMatches(trimmed).length;
     if (strong > 0 || weak >= 2) return markdown;
     return plainText;
   }
+
+  /// HTML, XLIFF or Android strings from the first element of [text].
+  static DocumentFormat? _sniffMarkup(String text, {required bool markdown}) {
+    var rest = text;
+    while (true) {
+      rest = rest.trimLeft();
+      final prolog = _markupProlog.matchAsPrefix(rest);
+      if (prolog == null) break;
+      if (_htmlDoctype.matchAsPrefix(rest) != null) return html;
+      rest = rest.substring(prolog.end);
+    }
+    final element = _firstElement.matchAsPrefix(rest);
+    if (element == null) return null;
+    final name = element.group(1)!.toLowerCase();
+    final local = name.contains(':')
+        ? name.substring(name.indexOf(':') + 1)
+        : name;
+    if (local == 'xliff') return xliff;
+    if (local == 'resources') return androidStrings;
+    if (name == 'html') return html;
+    if (markdown || !_htmlElements.contains(name)) return null;
+    // A fragment: at least one closing tag or void element.
+    return _closingOrVoid.hasMatch(text) ? html : null;
+  }
+
+  static bool _isAppleStrings(String text) {
+    if (!text.startsWith('"') && !text.startsWith('/')) return false;
+    final code = text
+        .replaceAll(_blockComment, '\n')
+        .split(RegExp(r'\r?\n'))
+        .where(
+          (line) => line.trim().isNotEmpty && !line.trimLeft().startsWith('//'),
+        )
+        .toList();
+    return code.isNotEmpty && code.every(_appleStringsPair.hasMatch);
+  }
+
+  static bool _isTsv(String text) {
+    final lines = text
+        .trimRight()
+        .split(RegExp(r'\r?\n|\r'))
+        .where((line) => line.trim().isNotEmpty)
+        .toList();
+    if (lines.length < 2) return false;
+    final tabs = '\t'.allMatches(lines.first).length;
+    if (tabs == 0) return false;
+    return lines.every((line) => '\t'.allMatches(line).length == tabs) &&
+        lines.any(_innerTab.hasMatch);
+  }
+
+  static final _markupProlog = RegExp(
+    r'<\?[\s\S]*?\?>|<!--[\s\S]*?-->|<!DOCTYPE[^>\[]*(?:\[[\s\S]*?\])?\s*>',
+    caseSensitive: false,
+  );
+  static final _htmlDoctype = RegExp(
+    r'<!DOCTYPE\s+html[\s>]',
+    caseSensitive: false,
+  );
+  static final _firstElement = RegExp(r'<([A-Za-z][\w:.-]*)[\s/>]');
+  static final _closingOrVoid = RegExp(
+    r'</[A-Za-z][\w-]*\s*>|<(?:br|hr|img|input|meta|link)\b',
+    caseSensitive: false,
+  );
+
+  /// Elements that start an HTML fragment.
+  static const _htmlElements = {
+    'a',
+    'abbr',
+    'address',
+    'article',
+    'aside',
+    'b',
+    'blockquote',
+    'body',
+    'br',
+    'button',
+    'caption',
+    'cite',
+    'code',
+    'dd',
+    'details',
+    'dfn',
+    'div',
+    'dl',
+    'dt',
+    'em',
+    'figure',
+    'footer',
+    'form',
+    'h1',
+    'h2',
+    'h3',
+    'h4',
+    'h5',
+    'h6',
+    'head',
+    'header',
+    'hr',
+    'i',
+    'img',
+    'label',
+    'li',
+    'link',
+    'main',
+    'mark',
+    'meta',
+    'nav',
+    'ol',
+    'p',
+    'pre',
+    'q',
+    's',
+    'section',
+    'small',
+    'span',
+    'strong',
+    'sub',
+    'summary',
+    'sup',
+    'table',
+    'tbody',
+    'td',
+    'th',
+    'thead',
+    'title',
+    'tr',
+    'u',
+    'ul',
+  };
+
+  static final _poMsgid = RegExp(r'^msgid[ \t]+"', multiLine: true);
+  static final _poMsgstr = RegExp(
+    r'^msgstr(?:\[\d+\])?[ \t]+"',
+    multiLine: true,
+  );
+  static final _blockComment = RegExp(r'/\*[\s\S]*?\*/');
+  static final _appleStringsPair = RegExp(
+    r'^\s*"(?:[^"\\]|\\.)*"\s*=\s*"(?:[^"\\]|\\.)*"\s*;\s*(?://.*)?$',
+  );
+  static final _innerTab = RegExp(r'\S\t+\S');
 
   static final _srtCue = RegExp(
     r'^\d+[ \t]*\r?\n[ \t]*\d{1,2}:\d{2}:\d{2}[,.]\d{1,3}[ \t]*-->',

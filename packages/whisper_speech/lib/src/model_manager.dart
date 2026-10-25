@@ -3,11 +3,11 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
-import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
 import 'package:whisper_speech/src/catalog.dart';
+import 'package:whisper_speech/src/file_hashing.dart';
 
 /// A download or install of a Whisper model failed.
 sealed class WhisperModelInstallException implements Exception {
@@ -45,6 +45,46 @@ final class WhisperDownloadException extends WhisperModelInstallException {
 
   @override
   String get _name => 'WhisperDownloadException';
+}
+
+/// There is not enough free storage for the model ([requiredBytes]: what
+/// is left to download or copy plus a margin, see
+/// [WhisperModelManager.requiredSpace]); nothing was downloaded or copied.
+final class WhisperInsufficientSpaceException
+    extends WhisperModelInstallException {
+  const new(
+    super.model,
+    super.message, {
+    required this.requiredBytes,
+    required this.availableBytes,
+  });
+
+  /// Free bytes the download or import needs.
+  final int requiredBytes;
+
+  /// Free bytes there are.
+  final int availableBytes;
+
+  @override
+  String get _name => 'WhisperInsufficientSpaceException';
+}
+
+/// A file to import that is read through [copyTo] rather than from a path:
+/// a document the user picked (an Android content URI), copied straight
+/// into the manager's staging folder ([WhisperModelManager.importSources]),
+/// so no other copy is made first.
+abstract interface class WhisperImportSource {
+  /// The file's name, matched against the catalog's (ignoring case).
+  String get name;
+
+  /// Its size in bytes; null when unknown (it is then matched by [name]
+  /// only).
+  int? get length;
+
+  /// Writes its bytes to [destination] (a new file), at most
+  /// `maxBytes + 1` of them, and returns how many it wrote. Throws when it
+  /// cannot be read or written.
+  Future<int> copyTo(File destination, {required int maxBytes});
 }
 
 /// Progress of [WhisperModelManager.install].
@@ -188,17 +228,46 @@ final class WhisperImportResult {
 /// Whether a download is allowed (Wi-Fi only, the privacy settings) is the
 /// app's decision: this class downloads when asked.
 /// [importFiles] installs files copied to the device by hand instead,
-/// through the same checks and staging, without any network request.
+/// through the same checks and staging, without any network request
+/// ([importSources]: picked documents, copied straight into staging).
+///
+/// Before a download or an import writes anything, the free space is
+/// checked (with `freeSpace`): what is left to write plus a margin
+/// ([requiredSpace]); too little fails with a
+/// [WhisperInsufficientSpaceException]. Hashing (a download's bytes as
+/// they arrive, the part of a resumed download, an imported file) runs off
+/// the UI isolate ([hashing]).
 class WhisperModelManager {
+  /// `freeSpace` answers the free bytes of the file system of a path (null
+  /// when unknown, e.g. the app's `FreeSpace`); without it no download or
+  /// import checks for room first. [hashing] decides where files are
+  /// hashed (background isolates by default).
   new({
     required this.root,
     http.Client? httpClient,
     this.requestTimeout = const Duration(seconds: 60),
+    this._freeSpace,
+    this.hashing = const FileHashing.isolate(),
   }) : _client = httpClient ?? http.Client(),
        _ownsClient = httpClient == null;
 
   /// App-private directory (e.g. `getApplicationSupportDirectory()`).
   final Directory root;
+
+  /// Where model files are hashed: off the UI isolate unless
+  /// [FileHashing.inline].
+  final FileHashing hashing;
+
+  final Future<int?> Function(String path)? _freeSpace;
+
+  /// The smallest margin of free space a download or import keeps (on top
+  /// of the bytes it writes): 50 MiB.
+  static const int spaceMarginBytes = 50 << 20;
+
+  /// The free space writing [bytes] needs: the bytes plus a margin of 5 %,
+  /// at least [spaceMarginBytes], so the phone is not left full.
+  static int requiredSpace(int bytes) =>
+      bytes + max(spaceMarginBytes, bytes ~/ 20);
 
   /// Maximum wait for response headers and between chunks of a download.
   final Duration requestTimeout;
@@ -263,6 +332,18 @@ class WhisperModelManager {
     }
   }
 
+  /// Throws a [WhisperInsufficientSpaceException] when a download of
+  /// [model] would not fit now (what is left to download plus a margin,
+  /// see [requiredSpace]): for asking before anything else (a metered
+  /// network prompt). [install] checks again. Passes without a
+  /// `freeSpace`.
+  Future<void> checkSpace(WhisperCatalogModel model) async {
+    _checkSafe(model.id);
+    final part = _partFile(model);
+    final existing = part.existsSync() ? await _lengthOf(part) : 0;
+    await _checkSpace(model, model.size - existing.clamp(0, model.size));
+  }
+
   /// Downloads and installs [model], replacing another file installed
   /// under the same id. Returns at once when it is already installed.
   /// Concurrent calls for the same model share one download.
@@ -278,8 +359,10 @@ class WhisperModelManager {
   /// Each of [files] is matched to a model of [catalog] by name (e.g.
   /// `ggml-tiny.bin`, ignoring case) or, for a renamed copy (e.g.
   /// `ggml-tiny (1).bin`), by its exact size; it is then copied into
-  /// staging while its SHA-1 is computed and installed through the same
-  /// atomic rename as [install] when size and SHA-1 match the catalog.
+  /// staging while its SHA-1 is computed (in the background) and installed
+  /// through the same atomic rename as [install] when size and SHA-1 match
+  /// the catalog. A copy needs free space for the file (else a
+  /// [WhisperInsufficientSpaceException] for that model).
   ///
   /// [files] are only read, never moved or deleted. Problems with a file
   /// or a model do not throw: they are reported in the
@@ -287,12 +370,30 @@ class WhisperModelManager {
   Future<WhisperImportResult> importFiles(
     Iterable<File> files, {
     required WhisperModelCatalog catalog,
-  }) async {
-    final named = <WhisperCatalogModel, List<File>>{};
-    final sized = <WhisperCatalogModel, List<File>>{};
+  }) => _import([for (final file in files) _FileInput(file)], catalog);
+
+  /// Installs models from [sources] (documents the user picked) like
+  /// [importFiles], without any network request: each one is copied
+  /// straight into the staging folder ([WhisperImportSource.copyTo], after
+  /// the free-space check), verified there and moved into place, so no
+  /// other copy of it is made. A source of unknown length is matched by
+  /// name only. In the result, [WhisperImportOutcome.damaged] and
+  /// [WhisperImportResult.unmatched] hold a [File] named like the source
+  /// (not a path on this device).
+  Future<WhisperImportResult> importSources(
+    Iterable<WhisperImportSource> sources, {
+    required WhisperModelCatalog catalog,
+  }) => _import([for (final source in sources) _SourceInput(source)], catalog);
+
+  Future<WhisperImportResult> _import(
+    List<_ImportInput> inputs,
+    WhisperModelCatalog catalog,
+  ) async {
+    final named = <WhisperCatalogModel, List<_ImportInput>>{};
+    final sized = <WhisperCatalogModel, List<_ImportInput>>{};
     final unmatched = <File>[];
-    for (final input in files) {
-      final name = p.basename(input.path).toLowerCase();
+    for (final input in inputs) {
+      final name = input.name.toLowerCase();
       final byName = catalog.models
           .where((model) => model.name.toLowerCase() == name)
           .firstOrNull;
@@ -300,12 +401,12 @@ class WhisperModelManager {
         (named[byName] ??= []).add(input);
         continue;
       }
-      final length = await _lengthOf(input);
+      final length = await input.length();
       final bySize = catalog.models
           .where((model) => model.size == length)
           .firstOrNull;
       if (bySize == null) {
-        unmatched.add(input);
+        unmatched.add(input.file);
       } else {
         (sized[bySize] ??= []).add(input);
       }
@@ -332,9 +433,9 @@ class WhisperModelManager {
           // Not the model's file: damaged when it was named like it, a
           // file of the same size that is something else otherwise.
           if (named[model]?.contains(input) ?? false) {
-            damaged.add(input);
+            damaged.add(input.file);
           } else {
-            unmatched.add(input);
+            unmatched.add(input.file);
           }
           continue;
         }
@@ -398,6 +499,7 @@ class WhisperModelManager {
       ),
     );
 
+    await checkSpace(model);
     final part = await _download(
       model,
       report,
@@ -470,10 +572,10 @@ class WhisperModelManager {
       existing = 0;
     }
 
-    final hasher = _Hasher(model);
     var received = 0;
     // The mirror the bytes come from (null: the catalog's URL).
     Uri? source;
+    final FileDigest digest;
 
     if (existing < model.size) {
       final (response, from) = await _request(
@@ -484,55 +586,67 @@ class WhisperModelManager {
       );
       source = from;
       final resumed = existing > 0 && response.statusCode == 206;
-      if (resumed) {
-        // Hash what is already on disk, then append.
-        await for (final chunk in part.openRead()) {
-          hasher.add(chunk);
-          received += chunk.length;
-        }
-      }
-      report(received);
-      final sink = part.openWrite(
-        mode: resumed ? FileMode.writeOnlyAppend : FileMode.writeOnly,
-      );
+      final StreamHasher hasher;
       try {
-        await for (final chunk in response.stream.timeout(requestTimeout)) {
-          received += chunk.length;
-          if (received > model.size) {
-            throw WhisperChecksumException(
-              model.id,
-              '${model.name}${_from(source)}: more than ${model.size} bytes',
-              mirror: source,
-            );
-          }
-          hasher.add(chunk);
-          sink.add(chunk);
-          report(received);
-        }
-      } on WhisperModelInstallException {
-        await sink.close();
-        await _deleteQuietly(part);
-        rethrow;
+        hasher = await hashing.stream();
       } on Object catch (error) {
-        // Interrupted: keep the part for resuming.
-        await sink.close();
+        unawaited(response.stream.listen(null).cancel());
         throw WhisperDownloadException(
           model.id,
           '${model.name}${_from(source)}: $error',
           mirror: source,
         );
       }
-      await sink.flush();
-      await sink.close();
-    } else {
-      await for (final chunk in part.openRead()) {
-        hasher.add(chunk);
-        received += chunk.length;
+      try {
+        if (resumed) {
+          // Hash what is already on disk (in the background), then append.
+          received = await hasher.addFile(part.path);
+        }
+        report(received);
+        final sink = part.openWrite(
+          mode: resumed ? FileMode.writeOnlyAppend : FileMode.writeOnly,
+        );
+        try {
+          await for (final chunk in response.stream.timeout(requestTimeout)) {
+            received += chunk.length;
+            if (received > model.size) {
+              throw WhisperChecksumException(
+                model.id,
+                '${model.name}${_from(source)}: more than ${model.size} '
+                'bytes',
+                mirror: source,
+              );
+            }
+            sink.add(chunk);
+            await hasher.add(chunk);
+            report(received);
+          }
+        } on WhisperModelInstallException {
+          await sink.close();
+          await _deleteQuietly(part);
+          rethrow;
+        } on Object catch (error) {
+          // Interrupted: keep the part for resuming.
+          await sink.close();
+          throw WhisperDownloadException(
+            model.id,
+            '${model.name}${_from(source)}: $error',
+            mirror: source,
+          );
+        }
+        await sink.flush();
+        await sink.close();
+        digest = await hasher.close();
+      } finally {
+        hasher.abort();
       }
+    } else {
+      digest = await hashing.hashFile(part.path);
+      received = digest.size;
       report(received);
     }
 
-    if (hasher.close(received) case final mismatch?) {
+    if (_mismatch(model, digest) case final mismatch?) {
       await _deleteQuietly(part);
       throw WhisperChecksumException(
         model.id,
@@ -541,6 +655,21 @@ class WhisperModelManager {
       );
     }
     return part;
+  }
+
+  /// Null when [digest] is [model]'s file (size, SHA-1 and, when the
+  /// catalog has it, SHA-256), else what differs.
+  static String? _mismatch(WhisperCatalogModel model, FileDigest digest) {
+    final sha256 = model.sha256;
+    if (digest.size == model.size &&
+        digest.sha1 == model.sha1 &&
+        (sha256 == null || digest.sha256 == sha256)) {
+      return null;
+    }
+    return 'got ${digest.size} bytes with SHA-1 ${digest.sha1}'
+        '${sha256 == null ? '' : ' and SHA-256 ${digest.sha256}'}, '
+        'expected ${model.size} bytes with SHA-1 ${model.sha1}'
+        '${sha256 == null ? '' : ' and SHA-256 $sha256'}';
   }
 
   /// Sends the request for [model] (from byte [existing] on) to each URL of
@@ -597,13 +726,37 @@ class WhisperModelManager {
   static String _from(Uri? mirror) =>
       mirror == null ? '' : ' from the mirror $mirror';
 
+  /// Throws a [WhisperInsufficientSpaceException] when the file system of
+  /// [modelsDirectory] has less free space than writing [bytes] for
+  /// [model] needs ([requiredSpace]). Nothing to write, or an unknown free
+  /// space, passes.
+  Future<void> _checkSpace(WhisperCatalogModel model, int bytes) async {
+    final freeSpace = _freeSpace;
+    if (freeSpace == null || bytes <= 0) return;
+    int? available;
+    try {
+      available = await freeSpace(modelsDirectory.path);
+    } on Object {
+      // Not known: the write itself fails on a full disk.
+    }
+    final needed = requiredSpace(bytes);
+    if (available == null || available >= needed) return;
+    throw WhisperInsufficientSpaceException(
+      model.id,
+      '${model.name}: needs $needed bytes of free space, $available free',
+      requiredBytes: needed,
+      availableBytes: available,
+    );
+  }
+
   /// Installs [model] from [input] when its size and SHA-1 match; null when
   /// they do not (or it cannot be read).
   Future<WhisperImportOutcome?> _importFile(
     WhisperCatalogModel model,
-    File input,
+    _ImportInput input,
   ) async {
-    if (await _lengthOf(input) != model.size) return null;
+    final length = await input.length();
+    if (length != null && length != model.size) return null;
     try {
       _checkSafe(model.id);
       // A download of the same model that is running finishes first; when
@@ -624,7 +777,8 @@ class WhisperModelManager {
       await _exclusive(
         model,
         () => _installStaged(model, (staging) async {
-          if (!await _copyVerified(model, input, staging)) {
+          final target = File(p.join(staging.path, model.name));
+          if (!await input.stage(this, model, target)) {
             throw const _NotTheModel();
           }
         }),
@@ -642,34 +796,6 @@ class WhisperModelManager {
         error: error,
       );
     }
-  }
-
-  /// Copies [input] into [staging] as [WhisperCatalogModel.name] while
-  /// hashing it; whether it matched the catalog's size, SHA-1 and SHA-256
-  /// (when the catalog has it).
-  Future<bool> _copyVerified(
-    WhisperCatalogModel model,
-    File input,
-    Directory staging,
-  ) async {
-    final output = File(p.join(staging.path, model.name));
-    final hasher = _Hasher(model);
-    var size = 0;
-    final sink = output.openWrite();
-    try {
-      await for (final chunk in input.openRead()) {
-        size += chunk.length;
-        if (size > model.size) break;
-        hasher.add(chunk);
-        sink.add(chunk);
-      }
-    } on FileSystemException {
-      await sink.close();
-      return false;
-    }
-    await sink.flush();
-    await sink.close();
-    return hasher.close(size) == null;
   }
 
   /// Moves [staging] to [destination] with a rename (atomic on one file
@@ -777,49 +903,87 @@ final class _NotTheModel implements Exception {
   const new();
 }
 
-/// The SHA-1 and (when the catalog has one) SHA-256 of a model file, fed
-/// chunk by chunk.
-class _Hasher {
-  new(this.model);
+/// One file of an import: a local file or a [WhisperImportSource].
+sealed class _ImportInput {
+  /// The name it is matched by.
+  String get name;
 
-  final WhisperCatalogModel model;
-  final _sha1Sink = _DigestSink();
-  final _sha256Sink = _DigestSink();
-  late final ByteConversionSink _sha1 = sha1.startChunkedConversion(_sha1Sink);
-  late final ByteConversionSink? _sha256 = model.sha256 == null
-      ? null
-      : sha256.startChunkedConversion(_sha256Sink);
+  /// The file in the import's result.
+  File get file;
 
-  void add(List<int> chunk) {
-    _sha1.add(chunk);
-    _sha256?.add(chunk);
-  }
+  /// Its size; -1 when it cannot be read, null when unknown.
+  Future<int?> length();
 
-  /// Finishes hashing [size] bytes: null when they are [model]'s file,
-  /// else what differs.
-  String? close(int size) {
-    _sha1.close();
-    _sha256?.close();
-    final sha1Digest = _sha1Sink.value.toString();
-    final sha256Digest = _sha256 == null ? null : _sha256Sink.value.toString();
-    if (size == model.size &&
-        sha1Digest == model.sha1 &&
-        sha256Digest == model.sha256) {
-      return null;
+  /// Writes [model]'s file from this input into [target] (in staging) and
+  /// verifies it: false when it is not [model]'s file.
+  Future<bool> stage(
+    WhisperModelManager manager,
+    WhisperCatalogModel model,
+    File target,
+  );
+}
+
+final class _FileInput extends _ImportInput {
+  new(this.file);
+
+  @override
+  final File file;
+
+  @override
+  String get name => p.basename(file.path);
+
+  @override
+  Future<int?> length() => WhisperModelManager._lengthOf(file);
+
+  @override
+  Future<bool> stage(
+    WhisperModelManager manager,
+    WhisperCatalogModel model,
+    File target,
+  ) async {
+    await manager._checkSpace(model, model.size);
+    try {
+      final copied = await manager.hashing.copyFile(
+        file.path,
+        target.path,
+        maxBytes: model.size,
+      );
+      return WhisperModelManager._mismatch(model, copied) == null;
+    } on FileSystemException catch (error) {
+      // The file cannot be read: not the model (a full disk is a failure).
+      if (error.path == file.path) return false;
+      rethrow;
     }
-    return 'got $size bytes with SHA-1 $sha1Digest'
-        '${sha256Digest == null ? '' : ' and SHA-256 $sha256Digest'}, '
-        'expected ${model.size} bytes with SHA-1 ${model.sha1}'
-        '${model.sha256 == null ? '' : ' and SHA-256 ${model.sha256}'}';
   }
 }
 
-class _DigestSink implements Sink<Digest> {
-  late Digest value;
+final class _SourceInput extends _ImportInput {
+  new(this.source);
+
+  final WhisperImportSource source;
 
   @override
-  void add(Digest data) => value = data;
+  String get name => p.basename(source.name);
 
   @override
-  void close() {}
+  File get file => File(source.name);
+
+  @override
+  Future<int?> length() async => source.length;
+
+  @override
+  Future<bool> stage(
+    WhisperModelManager manager,
+    WhisperCatalogModel model,
+    File target,
+  ) async {
+    await manager._checkSpace(model, model.size);
+    final written = await source.copyTo(target, maxBytes: model.size);
+    if (written != model.size) return false;
+    final digest = await manager.hashing.hashFile(
+      target.path,
+      maxBytes: model.size,
+    );
+    return WhisperModelManager._mismatch(model, digest) == null;
+  }
 }

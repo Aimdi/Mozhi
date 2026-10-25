@@ -1,8 +1,10 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app_lock/view/app_lock_settings_tile.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/pairing/view/pairing_entries.dart' show PairingAnchors;
 import 'package:mozhi/pairing/view/pairing_unavailable.dart'
     show isPairingSupported;
+import 'package:mozhi/screen_translate/view/screen_translate_settings.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/settings/models/settings_category.dart';
 import 'package:mozhi/settings/view/about_page.dart';
@@ -74,6 +76,31 @@ List<SettingsSearchEntry> settingsSearchIndex(
       l10n.settingsMultilineInput,
       subtitle: l10n.settingsMultilineInputSubtitle,
     ),
+    // Android integration (ScreenTranslateSettingsSection).
+    entry(
+      general,
+      ScreenTranslateAnchors.translateScreen,
+      l10n.settingsScreenTranslate,
+      subtitle: ScreenTranslateSettingsSection.supported()
+          ? l10n.settingsScreenTranslateSubtitle
+          : l10n.settingsScreenTranslateUnavailable,
+      keywords: [
+        l10n.settingsAndroidIntegration,
+        l10n.settingsScreenTranslateKeywords,
+      ],
+    ),
+    if (ScreenTranslateSettingsSection.supported())
+      entry(
+        general,
+        ScreenTranslateAnchors.bubble,
+        l10n.settingsScreenTranslateBubble,
+        subtitle: l10n.settingsScreenTranslateBubbleSubtitle,
+        keywords: [
+          l10n.settingsAndroidIntegration,
+          l10n.settingsScreenTranslateOverlayTitle,
+          l10n.settingsScreenTranslateKeywords,
+        ],
+      ),
     entry(
       privacy,
       PrivacyAnchors.privacyMode,
@@ -100,6 +127,17 @@ List<SettingsSearchEntry> settingsSearchIndex(
         l10n.settingsSecureScreen,
         subtitle: l10n.settingsSecureScreenSubtitle,
       ),
+    entry(
+      privacy,
+      PrivacyAnchors.appLock,
+      l10n.settingsAppLock,
+      subtitle: appLockTimeoutLabel(l10n, settings.appLock),
+      keywords: [
+        l10n.settingsAppLockSearchKeywords,
+        for (final timeout in AppLockTimeout.values)
+          appLockTimeoutLabel(l10n, timeout),
+      ],
+    ),
     entry(
       privacy,
       PrivacyAnchors.maskPersonalData,
