@@ -118,34 +118,63 @@ void main() {
     await next.dispose();
   });
 
-  test('a variant that dies while computing is skipped next time', () async {
-    final crashing = engine(1, const FakeScript(dieOnNext: true));
-    await crashing.load('a.gguf');
-    await expectLater(
-      crashing.generate(hello),
-      emitsError(isA<LlamaEngineException>()),
-    );
-    // The process "died": its marker stays.
-    expect(markers(), ['llama_cpu_variant.compute.marker']);
-    await crashing.dispose();
+  test('a variant that dies while computing gets one more try', () async {
+    Future<void> dies(int processId) async {
+      final crashing = engine(processId, const FakeScript(dieOnNext: true));
+      await crashing.load('a.gguf');
+      await expectLater(
+        crashing.generate(hello),
+        emitsError(isA<LlamaEngineException>()),
+      );
+      // The process "died": its marker stays.
+      expect(markers(), ['llama_cpu_variant.compute.marker']);
+      await crashing.dispose();
+    }
 
-    final next = engine(2);
+    await dies(1);
+    // The next start counts the crash, opens the variant again and guards
+    // its first generation again (the baseline would leave no marker).
+    await dies(2);
+    expect(guard(3).read().crashes, {_i8mm: (count: 1, pid: 1)});
+    expect(guard(3).read().skipped, isEmpty);
+
+    // Twice in a row: the baseline from then on.
+    final next = engine(3);
     final info = await next.load('a.gguf');
     expect(info.name, 'a.gguf');
-    expect(guard(2).read().skipped, {_i8mm});
+    expect(guard(3).read().skipped, {_i8mm});
+    expect(guard(3).read().crashes, isEmpty);
     expect(markers(), isEmpty);
     expect(await next.generate(hello).toList(), ['ok']);
     // The baseline is never guarded.
-    expect(guard(2).read().verified, isEmpty);
+    expect(guard(3).read().verified, isEmpty);
     await next.dispose();
   });
 
-  test('a marker left while opening skips the variant', () async {
-    File(p.join(root.path, 'llama_cpu_variant.open.marker'))
-        .writeAsStringSync(jsonEncode({'library': _i8mm, 'pid': 1}));
+  test('a first generation after a crash clears the count', () async {
+    _openMarker(root, pid: 1);
     final next = engine(2);
     await next.load('a.gguf');
-    expect(guard(2).read().skipped, {_i8mm});
+    expect(guard(2).read().skipped, isEmpty);
+    expect(guard(2).read().crashes, {_i8mm: (count: 1, pid: 1)});
+    expect(await next.generate(hello).toList(), ['ok']);
+    expect(guard(2).read().verified, {_i8mm: 'fake engine 1'});
+    expect(guard(2).read().crashes, isEmpty);
+    await next.dispose();
+  });
+
+  test('markers left while opening twice skip the variant', () async {
+    _openMarker(root, pid: 1);
+    final retried = engine(2);
+    await retried.load('a.gguf');
+    await retried.dispose();
+    expect(guard(2).read().skipped, isEmpty);
+
+    // Process 3 dies while opening it again.
+    _openMarker(root, pid: 3);
+    final next = engine(4);
+    await next.load('a.gguf');
+    expect(guard(4).read().skipped, {_i8mm});
     await next.dispose();
   });
 
@@ -178,3 +207,8 @@ void main() {
     await failing.dispose();
   });
 }
+
+/// The marker a process [pid] leaves when it dies opening the i8mm build.
+void _openMarker(Directory root, {required int pid}) =>
+    File(p.join(root.path, 'llama_cpu_variant.open.marker'))
+        .writeAsStringSync(jsonEncode({'library': _i8mm, 'pid': pid}));
