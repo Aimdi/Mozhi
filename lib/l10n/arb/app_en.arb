@@ -3251,14 +3251,6 @@
   "@documentsModeText": {
     "description": "documentsModeText"
   },
-  "documentsPickHint": "Text, Markdown, SRT and VTT subtitles, JSON and ARB files up to {size}. Code, links and timings stay untouched.",
-  "@documentsPickHint": {
-    "placeholders": {
-      "size": {
-        "type": "String"
-      }
-    }
-  },
   "documentsPickButton": "Choose file",
   "@documentsPickButton": {
     "description": "documentsPickButton"
@@ -3274,10 +3266,6 @@
   "documentsTextLabel": "Text to translate",
   "@documentsTextLabel": {
     "description": "documentsTextLabel"
-  },
-  "documentsTextHint": "Paste or type text, Markdown, subtitles or JSON",
-  "@documentsTextHint": {
-    "description": "documentsTextHint"
   },
   "documentsPaste": "Paste",
   "@documentsPaste": {
@@ -3306,10 +3294,6 @@
   "documentsFormatJson": "JSON / ARB strings",
   "@documentsFormatJson": {
     "description": "documentsFormatJson"
-  },
-  "documentsErrorUnsupported": "This file type isn't supported. Choose a .txt, .md, .srt, .vtt, .json or .arb file.",
-  "@documentsErrorUnsupported": {
-    "description": "documentsErrorUnsupported"
   },
   "documentsErrorTooLarge": "This file is too large. The limit is {size}.",
   "@documentsErrorTooLarge": {
