@@ -1077,18 +1077,25 @@ every AI extra without a network, and your text never leaves the device
   check). Each shows its size (about 1 to 3 GB), licence, languages and
   whether it fits your phone (**Fits this phone**, **May be slow on this
   phone**, **Needs more memory**). Downloads only start when you tap one,
-  over Wi-Fi unless you allow mobile data, from your
-  [model source](#offline-translation), and are checked before use; or
-  **Import from a file** without any network.
+  when the phone has room for them (**Not enough free space: needs …**
+  otherwise), over Wi-Fi unless you allow mobile data, from your
+  [model source](#offline-translation), and are checked before use (in
+  the background); or **Import from a file** without any network (read
+  where it is and copied once into place). The page names the engine
+  build for this processor, for support.
 - **Using it:** the translation model is an engine under **On this
   device**; results show **On this device** with a memory chip, no
   consent is asked, and it works in **Offline only**. The first request
   after a pause loads the model: **Loading the on-device model…** with
-  **Cancel**, then the text streams in. A sentence takes a few seconds on
-  a mid-range phone, about a second or two on a flagship.
+  **Cancel**, then the text streams in; the AI extras say so too while
+  they wait for it. A sentence takes a few seconds on a mid-range phone,
+  about a second or two on a flagship.
 - **Battery and heat:** while the phone is hot or battery saver is on,
   typing doesn't start on-device AI; a line under the text says why, and
-  **Enter** or **Translate** still translate. The model is freed after 2
+  **Enter** or **Translate** still translate. A long text, document or
+  web page already under way pauses before its next part (**Paused while
+  the phone cools down**, with **Continue anyway** and **Cancel**) and
+  goes on once the phone has cooled down. The model is freed after 2
   minutes without use, in the background and when memory runs low.
 - **First run:** on a phone that can run a model and has no AI provider,
   the translate screen offers it once (**See models**, **Not now**,
@@ -1533,8 +1540,8 @@ has a text-to-speech engine (Android and most browsers). The settings are kept o
   follows light and dark mode on all versions.
 - **Share** text from any app to Mozhi to translate it. Share an
   **image** (a screenshot, a photo) to read and translate it on the image
-  screen, or a subtitle, text, JSON, office document or e-book **file** to
-  open it in Documents.
+  screen, or a document **file** (text, subtitles, JSON, HTML, CSV, PO,
+  office documents, e-books) to open it in Documents.
   Shared content never starts an AI request by itself: with an AI engine it
   waits for **Translate**.
 - **Material You**: with **Dynamic color** on (Android 12 and later), the app

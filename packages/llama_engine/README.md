@@ -133,7 +133,13 @@ big.LITTLE cores can differ) and opens `_i8mm` with i8mm + dotprod + fp16,
 `_dotprod` with dotprod + fp16, else the baseline; when the chosen library
 fails to open or reports another ABI version, it falls back to the
 baseline. A variant on a CPU without its instructions would crash
-(SIGILL), which is why the check is strict. Only ggml's CPU backend
+(SIGILL), which is why the check is strict; and since a phone may list a
+feature it does not have, `createLlamaEngine(variantGuardDirectory: …)`
+adds a `CpuVariantGuard`: a marker file while a faster build opens and
+until its first generation computed a token, a marker of a dead process
+at the next start turning that build off for good (`llama_cpu_variants
+.json`), the baseline then running (`llamaEngineBuild()` names the build;
+explicit paths are never guarded). Only ggml's CPU backend
 differs between the variants (as in ggml's own `GGML_CPU_ALL_VARIANTS`):
 `native/CMakeLists.txt` compiles it once per variant from the sources and
 settings of the baseline target with its own `-march`, and links each

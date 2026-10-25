@@ -147,9 +147,13 @@ class _FileInput extends StatelessWidget {
         ),
       ],
     );
-    // A large office document or e-book is being read (not: the picker is
-    // open over the previous document).
-    final reading = loading && state.isBinary && state.packagedDocument == null;
+    // A large document is being read (not: the picker is open over the
+    // previous document or error).
+    final reading =
+        loading &&
+        !state.hasDocument &&
+        state.format != null &&
+        state.error == null;
     if (!reading) return row;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -231,7 +235,7 @@ class _TextInputState extends State<_TextInput> {
             onChanged: cubit.setText,
             decoration: InputDecoration(
               labelText: l10n.documentsTextLabel,
-              hintText: l10n.documentsTextHint,
+              hintText: l10n.documentsTextHintFormats,
               alignLabelWithHint: true,
             ),
           ),

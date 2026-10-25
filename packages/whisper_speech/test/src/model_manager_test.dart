@@ -714,6 +714,16 @@ void main() {
       expect((await failing.install(tiny)).id, 'tiny');
     });
 
+    test('checkSpace asks before anything else', () async {
+      free = 10;
+      await expectLater(
+        spaced().checkSpace(tiny),
+        throwsA(isA<WhisperInsufficientSpaceException>()),
+      );
+      await manager.checkSpace(tiny);
+      expect(server.requests, isEmpty);
+    });
+
     test('a resumed download needs room for the rest only', () async {
       server.failAfter = 3000;
       await expectLater(

@@ -561,7 +561,17 @@ llama.cpp (MIT, built from a pinned release in the repository's
   a catalogue entry (by name, or by exact size and SHA-256), and the
   engine is given the path of an installed, verified model only. The
   files are in the app's private storage, where other apps can't replace
-  them.
+  them. An imported document is read through Android's document picker
+  (a one-time read grant, no storage permission) and copied by
+  `DeviceStoragePlugin.kt` only to a path inside the app's own files,
+  no-backup or cache folders (anything else is refused), then verified
+  there before it is installed.
+- **A faster native build that crashes is turned off.** Before a faster
+  engine build (dotprod, i8mm) is opened, and before its first
+  computation, a marker file is written in the app's private storage; a
+  marker left by a process that died at that step turns the build off for
+  good, so a phone that misreports its processor features doesn't crash
+  in a loop. Explicit library paths (tests) are never affected.
 - **No state between requests.** Each request starts with an empty
   context (the cache is cleared), so one text can't leak into the answer
   to another, and requests run one at a time. Prompts that don't fit the

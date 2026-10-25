@@ -4,6 +4,7 @@ import 'package:http/testing.dart';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/phrasebook/cubit/starter_phrasebooks_cubit.dart';
 import 'package:mozhi/phrasebook/data/phrasebook_repository.dart';
+import 'package:mozhi/platform/free_space.dart';
 
 import '../starter_fixtures.dart';
 
@@ -107,6 +108,31 @@ void main() {
     await cubit.close();
     // Closed: nothing more is emitted.
     await cubit.load();
+  });
+
+  test('says when the phone has too little free space', () async {
+    var requests = 0;
+    final cubit = StarterPhrasebooksCubit(
+      StarterPhrasebooks(
+        catalog: StarterPhrasebookCatalog([info]),
+        store: MemoryStore(),
+        httpClient: MockClient((_) async {
+          requests++;
+          return http.Response.bytes(bytes, 200);
+        }),
+        freeSpace: FreeSpace(isWeb: true, browser: () async => 1024),
+      ),
+    );
+    await cubit.load();
+    await cubit.install(info);
+    final item = cubit.state.items.single;
+    expect(item.error, StarterPhrasebookError.space);
+    expect(item.space?.availableBytes, 1024);
+    expect(item.space?.requiredBytes, requiredFreeSpace(info.size * 2));
+    expect(requests, 0);
+    // A new attempt clears it.
+    expect(item.copyWith(space: () => null).space, isNull);
+    await cubit.close();
   });
 }
 

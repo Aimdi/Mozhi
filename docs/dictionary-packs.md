@@ -32,7 +32,11 @@ nothing is sent anywhere. The AI entry becomes an optional **More detail**.
   against the size and SHA-256 the app ships with before it is installed,
   whichever server sends it, so a mirror is not trusted with anything.
   GitHub's release downloads send no CORS headers, so **the web app needs
-  a same-origin mirror** for packs.
+  a same-origin mirror** for packs. Before a download (or a pack received
+  from another phone) the app checks the free space: the pack's size plus
+  a margin of 5 %, at least 50 MB (in a browser, what its storage quota
+  leaves); without enough room nothing is downloaded and the screen says
+  how much is needed.
 - **Storage**: app files on Android (`<support>/dictionary/<id>.mzd`, not
   backed up, removed with the app); the origin private file system (OPFS)
   in a browser (Chrome, Edge, Firefox, Safari 26). A browser without OPFS

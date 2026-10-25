@@ -232,6 +232,54 @@ void main() {
       expect(find.byKey(const Key('voice_offline_only_note')), findsNothing);
     });
 
+    testWidgets('names the engine build for support', (tester) async {
+      when(() => offline.engineBuild).thenReturn(
+        const WhisperEngineBuild(
+          variant: WhisperCpuVariant.dotprod,
+          library: 'libmozhi_whisper_dotprod.so',
+        ),
+      );
+      await pumpSection(tester);
+      expect(find.text('Engine build: dotprod'), findsOneWidget);
+    });
+
+    testWidgets('names the models of an import that did not fit', (
+      tester,
+    ) async {
+      when(() => picker.pick(onCopying: any(named: 'onCopying'))).thenAnswer(
+        (_) async => [PickedModelFile.local('/picked/ggml-base.bin')],
+      );
+      when(() => offline.importFiles(any())).thenAnswer(
+        (_) async => WhisperImportResult(
+          models: [
+            WhisperImportOutcome(
+              model: _base,
+              status: WhisperImportStatus.failed,
+              error: const WhisperInsufficientSpaceException(
+                'base',
+                'full',
+                requiredBytes: 300 * 1024 * 1024,
+                availableBytes: 10 * 1024 * 1024,
+              ),
+            ),
+          ],
+        ),
+      );
+      await pumpView(tester);
+      await tester.tap(find.text(l10n.offlineImportAction));
+      await tester.pumpAndSettle();
+      expect(
+        find.text(
+          l10n.commonNotEnoughSpaceFor(
+            l10n.voiceModelBetter,
+            '300 MB',
+            '10 MB',
+          ),
+        ),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('names and describes the quantized models', (tester) async {
       WhisperCatalogModel quantized(String id, int size) => WhisperCatalogModel(
         id: id,
@@ -418,6 +466,15 @@ void main() {
       'storage': (
         const FileSystemException('full'),
         l10n.voiceModelErrorStorage,
+      ),
+      'free space': (
+        const WhisperInsufficientSpaceException(
+          'tiny',
+          'full',
+          requiredBytes: 200 * 1024 * 1024,
+          availableBytes: 64 * 1024 * 1024,
+        ),
+        (name) => l10n.commonNotEnoughSpaceFor(name, '200 MB', '64 MB'),
       ),
     };
     for (final MapEntry(key: name, value: (error, message))

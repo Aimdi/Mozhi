@@ -1024,6 +1024,19 @@ void main() {
       expect((await failing.install(hy)).id, hy.id);
     });
 
+    test('checkSpace asks before anything else', () async {
+      free = 10;
+      await expectLater(
+        spaced().checkSpace(hy),
+        throwsA(isA<LlamaInsufficientSpaceException>()),
+      );
+      free = null;
+      await spaced().checkSpace(hy);
+      // Without a freeSpace: passes.
+      await manager.checkSpace(hy);
+      expect(server.requests, isEmpty);
+    });
+
     test('a resumed download needs room for the rest only', () async {
       server.failAfter = 3000;
       await expectLater(

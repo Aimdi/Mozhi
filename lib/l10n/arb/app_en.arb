@@ -12825,7 +12825,7 @@
   "@documentsErrorUnsupportedFile": {
     "description": "documentsErrorUnsupportedFile"
   },
-  "documentsPickHintFormats": "Word, PowerPoint, Excel, OpenDocument and EPUB files up to {packageSize}; text, Markdown, subtitles, web pages and localisation files up to {textSize}. Formatting, code, links and timings stay untouched.",
+  "documentsPickHintFormats": "Word, PowerPoint, Excel, OpenDocument and EPUB files up to {packageSize}; text, Markdown, subtitles, JSON, HTML, XLIFF, PO, Android and Apple strings, CSV and TSV files up to {textSize}. Formatting, code, links and timings stay untouched.",
   "@documentsPickHintFormats": {
     "placeholders": {
       "packageSize": {
@@ -12929,5 +12929,9 @@
   "onDeviceAiLoadingHint": "The first request after a pause takes a few seconds.",
   "@onDeviceAiLoadingHint": {
     "description": "onDeviceAiLoadingHint"
+  },
+  "documentsTextHintFormats": "Paste or type text, Markdown, subtitles, JSON, HTML, XLIFF, PO, Android or Apple strings, CSV or TSV",
+  "@documentsTextHintFormats": {
+    "description": "documentsTextHintFormats"
   }
 }

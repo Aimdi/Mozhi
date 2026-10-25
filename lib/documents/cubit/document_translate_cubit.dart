@@ -8,10 +8,11 @@ import 'package:mozhi/documents/core/core.dart';
 import 'package:mozhi/documents/core/office/office.dart';
 import 'package:mozhi/documents/cubit/document_translate_state.dart';
 import 'package:mozhi/documents/data/document_file_service.dart';
-import 'package:mozhi/documents/data/package_worker.dart';
+import 'package:mozhi/documents/data/document_worker.dart';
 import 'package:mozhi/usage/usage.dart';
 import 'package:translation_repository/translation_repository.dart';
 
+export '../data/document_worker.dart' show TextDocumentParser;
 export 'document_translate_state.dart';
 
 /// Drives the document translation screen.
@@ -102,8 +103,9 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
   // ignore: avoid_public_fields
   final int maxPackageBytes;
 
-  /// Office documents and e-books from this size on are parsed and
-  /// rendered in a background isolate.
+  /// Office documents and e-books from this size on (and text documents
+  /// from this many characters on) are parsed and rendered in a background
+  /// isolate.
   // Immutable configuration passed to the constructor, not state.
   // ignore: avoid_public_fields
   final int backgroundBytes;
@@ -111,6 +113,11 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
   /// Incremented with every file that is loaded, so that a background
   /// parse of an older one is ignored.
   int _loadRequest = 0;
+
+  /// Incremented with every text that is parsed (a file, pasted text, a new
+  /// format or target), so that a background parse of an older one is
+  /// ignored.
+  int _textRequest = 0;
 
   /// The target language the current text document was parsed for.
   String? _parsedTarget;
@@ -278,6 +285,7 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
   /// input).
   void setMode(DocumentInputMode mode) {
     if (_busy || mode == state.mode) return;
+    _textRequest++;
     final base = state.copyWith(mode: mode);
     switch (mode) {
       case DocumentInputMode.file:
@@ -329,6 +337,7 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
   void loadFile(String name, Uint8List bytes) {
     if (state.isTranslating) return;
     _loadRequest++;
+    _textRequest++;
     final base = _cleared(state).copyWith(
       mode: DocumentInputMode.file,
       fileName: () => name,
@@ -518,17 +527,107 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
         target == _parsedTarget) {
       return next;
     }
-    final ParsedDocument reparsed;
+    // A document that can't take the target keeps its last parse.
+    return _parsed(next, next.text, format, target, keepOnFailure: true);
+  }
+
+  /// [next] with [text] parsed as [format] for [target]: right away for
+  /// short text; otherwise [next] is returned as loading and the parse
+  /// runs in a background isolate, emitting its result when it is still
+  /// current.
+  DocumentTranslateState _parsed(
+    DocumentTranslateState next,
+    String text,
+    DocumentFormat format,
+    String? target, {
+    bool keepOnFailure = false,
+  }) {
+    final request = ++_textRequest;
+    if (text.length < backgroundBytes) {
+      return _withText(
+        next,
+        () => _parser(text, format, targetLanguage: target),
+        format,
+        target,
+        keepOnFailure: keepOnFailure,
+      );
+    }
+    unawaited(
+      _parseTextInBackground(text, format, target).then((parse) {
+        if (isClosed || request != _textRequest) return;
+        final parsed = _withText(
+          state,
+          parse,
+          format,
+          target,
+          keepOnFailure: keepOnFailure,
+        );
+        // The target changed while the text was parsed.
+        final current = _targetLanguage(parsed.target) == target;
+        emit(current ? parsed : _retargeted(parsed));
+      }),
+    );
+    return next.copyWith(
+      status: DocumentStatus.loading,
+      // A re-parse for a new target keeps showing the document meanwhile.
+      document: keepOnFailure ? null : () => null,
+      plan: keepOnFailure ? null : () => null,
+      error: () => null,
+    );
+  }
+
+  Future<ParsedDocument Function()> _parseTextInBackground(
+    String text,
+    DocumentFormat format,
+    String? target,
+  ) async {
     try {
-      reparsed = _parser(next.text, format, targetLanguage: target);
+      final document = await parseTextInBackground(
+        _parser,
+        text,
+        format,
+        targetLanguage: target,
+      );
+      return () => document;
+    } on Object catch (error, stackTrace) {
+      return () => Error.throwWithStackTrace(error, stackTrace);
+    }
+  }
+
+  /// [base] with the document [parse] gives (or why it can't be read).
+  DocumentTranslateState _withText(
+    DocumentTranslateState base,
+    ParsedDocument Function() parse,
+    DocumentFormat format,
+    String? target, {
+    required bool keepOnFailure,
+  }) {
+    final ParsedDocument document;
+    try {
+      document = parse();
+      // A parser's failure on unexpected input is reported the same way.
     } on Object {
-      return next;
+      if (keepOnFailure) {
+        return base.copyWith(
+          status: base.hasDocument ? DocumentStatus.ready : base.status,
+        );
+      }
+      return base.copyWith(
+        status: DocumentStatus.empty,
+        document: () => null,
+        plan: () => null,
+        error: () => format == DocumentFormat.json
+            ? DocumentError.invalidJson
+            : DocumentError.invalidFormat,
+      );
     }
     _parsedTarget = target;
-    return next.copyWith(
-      document: () => reparsed,
-      plan: () => _chunker.plan(reparsed),
-      translations: next.translations,
+    return base.copyWith(
+      status: DocumentStatus.ready,
+      document: () => document,
+      plan: () => _chunker.plan(document),
+      error: () => document.isEmpty ? DocumentError.nothingToTranslate : null,
+      translations: base.translations,
     );
   }
 
@@ -541,6 +640,7 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
   /// chosen with [setFormat]).
   void setText(String text) {
     if (state.isTranslating) return;
+    _textRequest++;
     _pastedText = text;
     _loadPasted(state.copyWith(mode: DocumentInputMode.text));
   }
@@ -590,6 +690,7 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
     _stop();
     // A file still being read is forgotten too.
     _loadRequest++;
+    _textRequest++;
     if (state.mode == DocumentInputMode.file) {
       _file = null;
     } else {
@@ -632,33 +733,7 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
       format: () => format,
       packagedDocument: () => null,
     );
-    final target = _targetLanguage(base.target);
-    final ParsedDocument document;
-    try {
-      document = _parser(text, format, targetLanguage: target);
-      // A parser's failure on unexpected input is reported the same way.
-    } on Object {
-      emit(
-        next.copyWith(
-          status: DocumentStatus.empty,
-          document: () => null,
-          plan: () => null,
-          error: () => format == DocumentFormat.json
-              ? DocumentError.invalidJson
-              : DocumentError.invalidFormat,
-        ),
-      );
-      return;
-    }
-    _parsedTarget = target;
-    emit(
-      next.copyWith(
-        status: DocumentStatus.ready,
-        document: () => document,
-        plan: () => _chunker.plan(document),
-        error: () => document.isEmpty ? DocumentError.nothingToTranslate : null,
-      ),
-    );
+    emit(_parsed(next, text, format, _targetLanguage(base.target)));
   }
 
   // ---------------------------------------------------------------------
@@ -901,13 +976,6 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
     return super.close();
   }
 }
-
-/// Parses a text document (`parseDocument`, replaceable in tests).
-typedef TextDocumentParser = ParsedDocument Function(
-  String text,
-  DocumentFormat format, {
-  String? targetLanguage,
-});
 
 class _FileInput {
   const new({

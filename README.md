@@ -163,7 +163,7 @@ of every tab):
 | --- | --- | --- |
 | Onboarding | first start | Privacy mode and your languages with offline downloads (Android), and a public or your own Mozhi instance |
 | Image | Translate: the Camera chip or the text box's camera button | Photos and screenshots: on-device text recognition (Tesseract, the default on Android; ML Kit in the Play variant), AI vision, or Mozhi via Google Translate (experimental) |
-| Documents | Translate: the Document chip or More tools | `.txt`, Markdown, SRT/VTT subtitles and JSON/ARB string tables, saved or shared when done |
+| Documents | Translate: the Document chip or More tools | Word, PowerPoint, Excel, OpenDocument and EPUB files with their formatting; `.txt`, Markdown, SRT/VTT subtitles, HTML, JSON/ARB, XLIFF, PO, Android and Apple strings, `.xcstrings`, CSV/TSV; saved or shared in the same format |
 | Web page | Translate > More tools | Reader view of a page, translated block by block |
 | Voice input | microphone buttons | Dictation, optionally on-device only |
 | Offline languages | Settings > Translation engines | Firefox Translations models for translating without a network (Android) |

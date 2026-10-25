@@ -24,6 +24,7 @@ version may come later).
 - [Speed](#speed)
 - [Battery and heat](#battery-and-heat)
 - [Privacy](#privacy)
+- [Free space](#free-space)
 - [Where the models come from](#where-the-models-come-from)
 - [Import from files](#import-from-files)
 - [Troubleshooting](#troubleshooting)
@@ -37,8 +38,9 @@ version may come later).
    engine list on the translate screen).
 2. Pick a model. Each one shows its size, its licence, its languages and
    whether it fits your phone. Nothing is downloaded until you tap
-   **Download**; with **Download over Wi-Fi only** on (the default),
-   Mozhi asks first on mobile data or a metered network.
+   **Download**. Mozhi first checks that the phone has room for it (see
+   [Free space](#free-space)); with **Download over Wi-Fi only** on (the
+   default), it then asks on mobile data or a metered network.
 3. Once it is installed, the translation model appears in the engine list
    under **On this device**, next to offline translation, with a memory
    chip icon. Choose it like any other engine. The assistant model writes
@@ -148,7 +150,17 @@ These are estimates from published llama.cpp figures, not measurements of
 Mozhi on your phone. Text streams in as it is written, so you can start
 reading before it is done. The first request after a pause also loads the
 model: the translation says **Loading the on-device model…** (with
-**Cancel**) for a few seconds, then the text streams in as usual.
+**Cancel**) for a few seconds, then the text streams in as usual. The AI
+extras say the same while they wait for the model (alternatives,
+insights, explanations, the dictionary card and page, proofreading, the
+meaning check and the word alignment), and so does a refinement of a
+translation that is already shown.
+
+The page also names the **engine build** this phone uses (for support:
+`i8mm`, `dotprod` or `baseline`). If a faster build ever stopped the app
+(a phone that reports processor features it doesn't really have), Mozhi
+notices it at the next start, turns that build off for good and uses the
+baseline, which every phone runs; the line then says so.
 
 Tips:
 
@@ -182,9 +194,21 @@ session warms the phone. Mozhi is careful about that:
 - The model is freed when you leave the app, so it doesn't hold memory or
   run in the background.
 - Nothing runs on its own: on-device AI only works when you translate or
-  ask for an extra. A translation that has already started (a long text,
-  a document or a web page, part by part) runs to its end even if the
-  phone gets hot; **Cancel** stops it.
+  ask for an extra.
+- **A long job pauses while the phone is hot or battery saver is on.** A
+  long text, a document or a web page is translated part by part; when
+  the phone gets hot (or battery saver comes on) the next part waits,
+  and the screen says **Paused while the phone cools down** (or **Paused
+  while battery saver is on**) with **Continue anyway** and **Cancel**.
+  It goes on by itself once the phone has cooled down; **Continue
+  anyway** lets the rest of that job run regardless. What you just asked
+  for never waits: the first part of a job, a single translation or an
+  extra starts at once. (The rule: a request that comes while another one
+  runs, or less than two seconds after one ended, is the next part of the
+  same job.)
+- Android tells Mozhi when the heat or battery saver changes (Android 10
+  and later for the heat), so these rules follow it right away without
+  asking the system again and again.
 
 ## Privacy
 
@@ -213,6 +237,22 @@ session warms the phone. Mozhi is careful about that:
   phone can send them to your other phone over your own network.
 
 See [Privacy](privacy.md) and [Security](security.md) for the details.
+
+## Free space
+
+Before a download (or an import) writes anything, Mozhi checks the free
+space: the model's size plus a margin of 5 % (at least 50 MB), so the
+phone is never filled to the last byte. A download that was interrupted
+only needs room for the rest. Without enough room nothing is downloaded,
+and the page says how much is needed, for example **Not enough free space
+for Hy-MT2 1.8B: needs 1.2 GB, 300 MB free.** The file is downloaded into
+a partial file next to the models and renamed into place, so it needs
+room for the model once, not twice. This check happens before Mozhi asks
+about mobile data.
+
+The checks of a model file (its size and SHA-256 fingerprint, a few GB to
+read) run in the background, so the app stays smooth while a model
+downloads, resumes or is imported.
 
 ## Where the models come from
 
@@ -244,6 +284,12 @@ fingerprint; a damaged or unknown file is refused. The picked file is only
 read, never changed. A model that needs more memory than your phone has can
 be imported too, after a warning.
 
+Mozhi reads the picked file where it is (Android's document picker): it is
+copied once, straight into the models folder, after its name, size and
+the free space were checked, then verified there and moved into place. No
+second copy of a few GB lands in the app's cache first, and a file that is
+no model is never copied at all.
+
 ## Troubleshooting
 
 - **No On-device AI anywhere, or "Needs the Android app on a 64-bit
@@ -261,8 +307,16 @@ be imported too, after a warning.
   closed it to free memory. On-device AI is freed in the background to
   avoid that, but a long translation may not survive switching apps.
 - **The download doesn't start:** on mobile data with **Download over
-  Wi-Fi only** on, Mozhi asks first. Check the free storage (the model's
-  size plus a little).
+  Wi-Fi only** on, Mozhi asks first.
+- **"Not enough free space":** free the amount it names (the model's size
+  plus 5 %, at least 50 MB) and try again; an interrupted download keeps
+  what it already has.
+- **"Paused while the phone cools down":** a long text, document or web
+  page waits between its parts; it goes on by itself, or tap **Continue
+  anyway**.
+- **"Engine build: baseline (the faster … build stopped the app …)":** the
+  app crashed once with the faster build for this processor, so it now
+  uses the slower baseline; mention it when you report a problem.
 - **"The file is damaged" after a download or import:** the size or
   fingerprint didn't match. Download again (or from another model source).
 - **It doesn't appear in the engine list:** the translation model is
@@ -285,5 +339,31 @@ the settings page. Installed models become AI providers `device-<model>`
 the repository treats them as `OnDeviceDestination`. Hy-MT2 uses its own
 prompt templates (`PromptProfile.hunyuanMt`) and sampling (temperature
 0.7, top-p 0.6, top-k 20, repetition penalty 1.05). The heat and battery
-saver guard is `lib/platform/device_conditions.dart` (`thermalStatus` and
-`isPowerSaveMode` on the privacy channel of `MainActivity.kt`).
+saver guard is `lib/platform/device_conditions.dart`: changes are pushed
+by `DeviceConditionsPlugin.kt` on an event channel (a thermal status
+listener on API 29+ and an `ACTION_POWER_SAVE_MODE_CHANGED` receiver,
+registered only while Dart listens); `thermalStatus` and `isPowerSaveMode`
+on the privacy channel of `MainActivity.kt` remain the fallback when no
+event arrives. `OnDeviceRuntime` pauses the next part of a job while the
+device is strained (`OnDeviceAiPaused`, `OnDeviceAi.continueAnyway`; shown
+by `OnDeviceAiPausedNotice` on the translate screen and the web page
+translator; other long-job screens can drop the same widget in).
+
+Storage: `lib/platform/free_space.dart` (`FreeSpace`, `StatFs` through
+`DeviceStoragePlugin.kt`, the Storage API estimate on the web) is given to
+every model manager (`freeSpace`); `LlamaModelManager.requiredSpace` is
+the size plus max(50 MiB, 5 %). `FileHashing` hashes in background
+isolates (`Isolate.run` for files, a long-lived isolate fed with a
+download's chunks), with an inline mode for tests. Imports from the picker
+are `LlamaImportSource`s (`lib/platform/model_file_picker.dart`:
+`ACTION_OPEN_DOCUMENT`, then `copyFile` straight into the staging folder).
+
+CPU variants: `CpuVariantGuard` (`packages/llama_engine/lib/src/engine/`)
+writes `llama_cpu_variant.<role>.marker` in the support directory before a
+non-baseline build is opened and before its first generation, and removes
+it once that worked (then `llama_cpu_variants.json` records the build as
+verified for its engine version). A marker left by another process at the
+next start means that process died there: the build is added to the
+skipped ones for good and the baseline runs. The explicit library path and
+`$LLAMA_LIBRARY_PATH` are never guarded. `llamaEngineBuild()` names the
+build for the page.

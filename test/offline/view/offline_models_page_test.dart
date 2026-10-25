@@ -629,6 +629,24 @@ void main() {
         'Couldn’t save German. Free up some storage and try again.',
       );
       expect(
+        of(
+          const ModelInsufficientSpaceException(
+            'de-en',
+            'full',
+            requiredBytes: 80 * 1024 * 1024,
+            availableBytes: 12 * 1024 * 1024,
+          ),
+        ),
+        'Not enough free space for German: needs 80 MB, 12 MB free.',
+      );
+      expect(
+        message(
+          OfflineModelOperation.download,
+          error: const OfflineModelError(OfflineModelErrorKind.space),
+        ),
+        'Couldn’t save German. Free up some storage and try again.',
+      );
+      expect(
         of(const BergamotEngineException('boom')),
         'The offline engine reported an error with German. Try again, or '
         'restart Mozhi.',

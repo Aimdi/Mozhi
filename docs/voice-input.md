@@ -105,7 +105,12 @@ setting:
 
 A build is used only if every core of the processor supports it (some
 phones mix cores of different generations); if it cannot be loaded, the
-baseline is. The quantized models (Better (compact), Best, Large) gain the
+baseline is. If a faster build ever stopped the app (a phone that reports
+processor features it doesn't really have), Mozhi notices it at the next
+start, turns that build off for good and uses the baseline. **Settings >
+Read aloud & voice > Voice input** names the build in use (**Engine
+build: i8mm**, `dotprod` or `baseline`, and why when a faster one was
+turned off), for support. The quantized models (Better (compact), Best, Large) gain the
 most. The aim is transcriptions about 1.5 to 3 times faster on such phones;
 phone measurements are still to come. On a desktop x86-64 processor (a Xeon
 with AVX-512), a build for that processor runs Fast's 30-second window about
@@ -131,13 +136,18 @@ or a mirror of your own (see
 [Mirror the on-device models](self-hosting-mozhi.md#mirror-the-on-device-models));
 a mirror needs no trust, as every file is checked as described below.
 
-A model is downloaded only when you tap its download button. With **Download
-over Wi-Fi only** on (the setting on **Settings > Translation engines >
-Offline languages**, on by default) Mozhi asks first on mobile data or a
-metered network. An interrupted download resumes where it stopped. Every file
-is checked against its size, the SHA-1 published by whisper.cpp and its
-SHA-256 (all bundled with the app) before it is used, and installed in one
-step, so a model is either complete or absent. Hugging Face (or the mirror)
+A model is downloaded only when you tap its download button. Mozhi first
+checks that the phone has room for it: its size plus a margin of 5 % (at
+least 50 MB); otherwise nothing is downloaded and the settings say how
+much is needed (**Not enough free space for Best: needs 231 MB, 120 MB
+free.**). With **Download over Wi-Fi only** on (the setting on **Settings >
+Translation engines > Offline languages**, on by default) Mozhi then asks
+on mobile data or a metered network. An interrupted download resumes where
+it stopped (and only needs room for the rest). Every file is checked
+against its size, the SHA-1 published by whisper.cpp and its SHA-256 (all
+bundled with the app) before it is used, in the background so the app
+stays smooth, and installed in one step, so a model is either complete or
+absent. Hugging Face (or the mirror)
 sees your IP address and which model you download, nothing else (see
 [Privacy](privacy.md)).
 
@@ -149,7 +159,10 @@ To install a model without the app going online (for example in
 another device (**Copy download links** copies the links), copy the files
 to the phone and choose **Import from files**. Renamed copies are
 recognised by their size and checksum; damaged files are refused. The
-picked files are only read, never changed.
+picked files are only read, never changed: Mozhi reads them where they
+are (Android's document picker) and copies each one once, straight into
+the models folder, after checking its name, size and the free space (no
+copy in the app's cache first).
 
 ### Languages
 
@@ -218,7 +231,13 @@ only (on arm64-v8a also `libmozhi_whisper_dotprod.so`,
 `armv8.6-a+dotprod+fp16+i8mm`: Dart reads `/proc/cpuinfo`
 (`ArmCpuFeatures`, a feature counts when every core lists it), loads the
 best one and falls back to the baseline when it does not open or reports
-another ABI version; see the package README's "CPU variants"),
+another ABI version; see the package README's "CPU variants"; a
+`CpuVariantGuard` writes `whisper_cpu_variant.<role>.marker` in the support
+directory while a faster build is probed and runs its first transcription
+or speech detection, one marker per engine isolate, and turns the build
+off for good, in `whisper_cpu_variants.json`, when a marker of a process
+that died is found at the next start; `whisperEngineBuild()` names the
+build for the settings),
 the model catalogue (the speech models and the `kind: vad` entry),
 the verified model manager and the Dart FFI engine in a background isolate,
 with Silero VAD (`mozhi_whisper_vad_*`) in another isolate so it keeps up

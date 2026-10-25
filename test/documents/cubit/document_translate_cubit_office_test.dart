@@ -270,6 +270,93 @@ void main() {
       });
     });
 
+    group('large text documents', () {
+      Future<DocumentTranslateState> settled(DocumentTranslateCubit cubit) =>
+          cubit.state.status == DocumentStatus.loading
+          ? cubit.stream.firstWhere(
+              (state) => state.status != DocumentStatus.loading,
+            )
+          : Future.value(cubit.state);
+
+      test('are parsed in an isolate', () async {
+        final cubit = build(backgroundBytes: 0)
+          ..loadFile('notes.txt', bytesOf('One\n\nTwo'));
+        expect(cubit.state.status, DocumentStatus.loading);
+        expect(cubit.state.hasDocument, isFalse);
+        final ready = await settled(cubit);
+        expect(ready.status, DocumentStatus.ready);
+        expect(ready.segmentCount, 2);
+        await cubit.translate();
+        expect(cubit.state.output, 'ONE\n\nTWO');
+
+        cubit.loadFile('bad.json', bytesOf('{"a": '));
+        expect((await settled(cubit)).error, DocumentError.invalidJson);
+      });
+
+      test('are parsed again in an isolate for a new target', () async {
+        const po = 'msgid "Hello"\nmsgstr ""\n';
+        final cubit = build(backgroundBytes: 0)
+          ..loadFile('app.po', bytesOf(po));
+        final first = (await settled(cubit)).document;
+        expect(first, isNotNull);
+        cubit.setTarget(spanish);
+        // The document stays while it is parsed again.
+        expect(cubit.state.status, DocumentStatus.loading);
+        expect(cubit.state.document, same(first));
+        final again = await settled(cubit);
+        expect(again.document, isNot(same(first)));
+        expect(again.status, DocumentStatus.ready);
+        expect(again.segmentCount, 1);
+      });
+
+      test('a target that fails keeps the document', () async {
+        ParsedDocument parser(
+          String text,
+          DocumentFormat format, {
+          String? targetLanguage,
+        }) {
+          if (targetLanguage == 'es') throw StateError('no');
+          return parsePlainText(text);
+        }
+
+        final cubit = build(backgroundBytes: 0, parser: parser)
+          ..loadFile('a.po', bytesOf('Hello'));
+        final first = (await settled(cubit)).document;
+        cubit.setTarget(spanish);
+        final kept = await settled(cubit);
+        expect(kept.document, same(first));
+        expect(kept.status, DocumentStatus.ready);
+      });
+
+      test('the target changed while parsing is applied after', () async {
+        ParsedDocument parser(
+          String text,
+          DocumentFormat format, {
+          String? targetLanguage,
+        }) => parsePlainText('$text $targetLanguage');
+
+        // While loading, a new target waits for the document.
+        final cubit = build(backgroundBytes: 0, parser: parser)
+          ..loadFile('a.po', bytesOf('Hello'))
+          ..setTarget(spanish);
+        final done = await cubit.stream.firstWhere(
+          (state) =>
+              state.status == DocumentStatus.ready &&
+              state.segments.first.text == 'Hello es',
+        );
+        expect(done.target, spanish);
+      });
+
+      test('input changed meanwhile wins over the old parse', () async {
+        final cubit = build(backgroundBytes: 0)
+          ..loadFile('notes.txt', bytesOf('From the file'))
+          ..setText('');
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+        expect(cubit.state.mode, DocumentInputMode.text);
+        expect(cubit.state.hasDocument, isFalse);
+      });
+    });
+
     test('closing while a file is read in the background', () async {
       final cubit = build(backgroundBytes: 0)..loadFile('a.docx', report);
       await cubit.close();

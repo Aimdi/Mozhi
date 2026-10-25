@@ -10,6 +10,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mozhi/app/router.dart';
 import 'package:mozhi/app/shared_files.dart';
 import 'package:mozhi/app/translate_link.dart';
+import 'package:mozhi/documents/documents.dart'
+    show DocumentFormat, DocumentTranslateCubitDefaults;
 import 'package:mozhi/quick_translate/quick_translate_host.dart';
 
 const _main = 'android/app/src/main';
@@ -156,7 +158,7 @@ void main() {
   });
 
   group('the share sheet', () {
-    test('takes text, images and text documents', () {
+    test('takes text, images, text documents, office files and e-books', () {
       final share = _component(manifest, 'activity', '.ShareReceiverActivity');
       expect(share.attributes['exported'], 'true');
       expect(share.attributes['theme'], '@style/TransparentTheme');
@@ -168,6 +170,8 @@ void main() {
           'image/*',
           'application/x-subrip',
           'application/json',
+          for (final format in DocumentFormat.values)
+            if (format.isBinary) format.mimeType,
         ]),
       );
     });
@@ -183,7 +187,11 @@ void main() {
       expect(_constant(file, 'MAX_IMAGE_BYTES'), SharedFiles.maxBytes);
       expect(
         _constant(file, 'MAX_DOCUMENT_BYTES') as int,
-        lessThanOrEqualTo(SharedFiles.maxBytes),
+        allOf(
+          lessThanOrEqualTo(SharedFiles.maxBytes),
+          // Office documents and e-books as large as the screen takes.
+          greaterThanOrEqualTo(DocumentTranslateCubitDefaults.maxPackageBytes),
+        ),
       );
       final source = _read('$_kotlin/$file');
       // Never a file:// path or one of Mozhi's own providers.

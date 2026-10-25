@@ -115,7 +115,9 @@ guides.
   doesn't match is discarded. GitHub's release downloads send no CORS
   headers, so **the web app needs a same-origin mirror**
   (`models/phrasebooks/` next to the app). Downloads appear in **Network
-  activity** as model downloads, and nothing else is sent.
+  activity** as model downloads, and nothing else is sent. Like every
+  download of the app, it first checks the free space (a margin of at
+  least 50 MB) and says how much is needed when the phone is full.
 - A starter phrasebook is a **read-only collection**: open it, listen,
   copy, show full screen, and **Copy to collection…** to make a phrase
   your own (with its pronunciation). It is credited **From Wikivoyage · CC

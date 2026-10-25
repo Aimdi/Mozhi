@@ -159,14 +159,7 @@ Carried over to later waves:
   1.25-bit Hy-MT2 files once llama.cpp ships Tencent's STQ kernel (440 MB
   instead of 1.1 GB); GPU and NPU backends (OpenCL on Adreno, Vulkan);
   on-device AI in the web app (llama.cpp as WebAssembly, models in the
-  browser's private storage); images for the vision-capable models;
-  pushed (not polled) heat and battery saver changes; a free-space check
-  before a download; hashing and import checks off the UI thread; an
-  import that doesn't first copy the file into the cache; the loading
-  notice for the extras too; a guard that falls back to the baseline
-  library if a phone misreports its CPU features; pausing a long
-  translation that is already running (a document or web page, part by
-  part) when the phone gets hot.
+  browser's private storage); images for the vision-capable models.
 - **Voice:** measure the CPU variants and the quantized models on phones,
   and try q8_0 models.
 - **Not done on purpose:** measuring instance speed automatically during
