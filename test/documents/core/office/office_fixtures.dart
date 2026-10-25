@@ -71,7 +71,7 @@ Uint8List docx(
   Map<String, Object> extra = const {},
   bool imageStored = false,
 }) {
-  final w = '$_office.wordprocessingml';
+  const w = '$_office.wordprocessingml';
   return zipOf({
     '[Content_Types].xml': _types({
       'word/document.xml': '$w.document.main+xml',
@@ -110,7 +110,7 @@ Uint8List docx(
 /// A presentation with one slide per entry of [slides] (each the XML of
 /// the slide's shapes) and optional speaker [notes] for the first slide.
 Uint8List pptx(List<String> slides, {String? notes}) {
-  final p = '$_office.presentationml';
+  const p = '$_office.presentationml';
   return zipOf({
     '[Content_Types].xml': _types({
       'ppt/presentation.xml': '$p.presentation.main+xml',
@@ -141,7 +141,7 @@ String shape(String paragraphs) =>
 /// A workbook with [sharedStrings] (`si` XML) and one sheet with
 /// [sheetData].
 Uint8List xlsx(List<String> sharedStrings, {String sheetData = ''}) {
-  final s = '$_office.spreadsheetml';
+  const s = '$_office.spreadsheetml';
   return zipOf({
     '[Content_Types].xml': _types({
       'xl/workbook.xml': '$s.sheet.main+xml',
@@ -263,7 +263,7 @@ Uint8List epub(
             '<link rel="stylesheet" href="style.css"/></head><body>$value'
             '</body></html>',
       'OEBPS/style.css': 'p { margin: 0; }',
-      if (ncx != null) 'OEBPS/toc.ncx': ncx,
+      'OEBPS/toc.ncx': ?ncx,
       ...extra,
     },
     stored: {'mimetype'},

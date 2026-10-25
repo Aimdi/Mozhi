@@ -1,5 +1,3 @@
-// Markup fixtures are built from adjacent strings.
-// ignore_for_file: missing_whitespace_between_adjacent_strings
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mozhi/documents/core/core.dart';
 import 'package:mozhi/documents/core/parsers/po_parser.dart';

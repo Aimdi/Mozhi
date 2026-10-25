@@ -8,7 +8,6 @@ import 'package:archive/archive.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mozhi/documents/core/core.dart';
 import 'package:mozhi/documents/core/office/office.dart';
-import 'package:mozhi/documents/core/office/zip_package.dart';
 
 import 'office_fixtures.dart';
 
@@ -258,7 +257,7 @@ void main() {
       expect(textsOf(document), ['Hello']);
 
       // UTF-16 with a byte order mark is read and written back as UTF-16.
-      final xml =
+      const xml =
           '<?xml version="1.0" encoding="UTF-16"?>'
           '<w:document xmlns:w="$wNs"><w:body><w:p><w:r><w:t>Grüße</w:t>'
           '</w:r></w:p></w:body></w:document>';
@@ -331,7 +330,7 @@ void main() {
         throwsArgumentError,
       );
       expect(
-        PackageParseException(PackageProblem.unsafe, 'x').toString(),
+        const PackageParseException(PackageProblem.unsafe, 'x').toString(),
         contains('unsafe'),
       );
     });

@@ -5,7 +5,7 @@ enum ScriptClass { western, asian, complex }
 
 /// A target language as office documents and e-books record it.
 final class LanguageTag {
-  const LanguageTag._(this.language, this.script, this.region);
+  const new _(this.language, this.script, this.region);
 
   /// Parses a BCP 47 code (`de`, `pt-BR`, `zh-Hant-TW`, `sr_Latn`); null
   /// for anything that is not one (custom AI "languages").

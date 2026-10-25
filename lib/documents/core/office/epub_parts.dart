@@ -10,7 +10,7 @@ import 'package:mozhi/documents/core/office/xml_source.dart';
 /// they are. Scripts, styles and `pre` blocks are never translated; the
 /// root element's language is set to the target.
 final class XhtmlPartBuilder extends PartBuilder {
-  XhtmlPartBuilder(super.document, super.table);
+  new(super.document, super.table);
 
   static const _blocks = {
     'address', 'article', 'aside', 'blockquote', 'body', 'caption', //
@@ -149,7 +149,7 @@ final class XhtmlPartBuilder extends PartBuilder {
 
 /// Writes XHTML text: escaped characters and `br` for line breaks.
 final class XhtmlRunWriter extends RunWriter {
-  const XhtmlRunWriter(this.prefix);
+  const new(this.prefix);
 
   final String? prefix;
 
@@ -168,7 +168,7 @@ final class XhtmlRunWriter extends RunWriter {
 
 /// Writes plain element text.
 final class PlainTextWriter extends RunWriter {
-  const PlainTextWriter();
+  const new();
 
   @override
   void writeText(
@@ -184,7 +184,7 @@ final class PlainTextWriter extends RunWriter {
 /// optionally marks the first language element (`dc:language` in an
 /// e-book's package document).
 final class PlainTextPartBuilder extends PartBuilder {
-  PlainTextPartBuilder(
+  new(
     super.document,
     super.table, {
     required this.paragraphs,

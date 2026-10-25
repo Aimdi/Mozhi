@@ -10,7 +10,7 @@ import 'package:mozhi/documents/core/office/xml_source.dart';
 /// in the run properties) keep it through placeholders; fields such as
 /// slide numbers and dates and embedded math are kept as they are.
 final class DrawingPartBuilder extends PartBuilder {
-  DrawingPartBuilder(super.document, super.table, {this.translate = true});
+  new(super.document, super.table, {this.translate = true});
 
   final bool translate;
 
@@ -100,7 +100,7 @@ final class DrawingPartBuilder extends PartBuilder {
 /// Writes DrawingML runs: `a:r` with `a:t`, and `a:br` (with the run
 /// properties) for line breaks.
 final class DrawingRunWriter extends RunWriter {
-  const DrawingRunWriter(this.prefix);
+  const new(this.prefix);
 
   final String? prefix;
 

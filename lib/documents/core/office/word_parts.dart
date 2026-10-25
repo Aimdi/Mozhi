@@ -13,7 +13,7 @@ import 'package:mozhi/documents/core/office/xml_source.dart';
 /// and comment ranges are kept as they are. Spelling marks are dropped
 /// from translated paragraphs.
 final class WordPartBuilder extends PartBuilder {
-  WordPartBuilder(super.document, super.table, {this.translate = true});
+  new(super.document, super.table, {this.translate = true});
 
   final bool translate;
 
@@ -238,7 +238,7 @@ final class WordPartBuilder extends PartBuilder {
 /// Writes WordprocessingML runs: `w:t` with preserved spaces, `w:br` for
 /// line breaks, `w:tab`, and the special hyphens.
 final class WordRunWriter extends RunWriter {
-  const WordRunWriter(this.prefix);
+  const new(this.prefix);
 
   final String? prefix;
 

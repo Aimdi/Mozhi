@@ -4,11 +4,11 @@ import 'dart:typed_data';
 import 'dart:ui';
 
 import 'package:bloc/bloc.dart';
-import 'package:flutter/foundation.dart' show compute;
 import 'package:mozhi/documents/core/core.dart';
 import 'package:mozhi/documents/core/office/office.dart';
 import 'package:mozhi/documents/cubit/document_translate_state.dart';
 import 'package:mozhi/documents/data/document_file_service.dart';
+import 'package:mozhi/documents/data/package_worker.dart';
 import 'package:mozhi/usage/usage.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -424,7 +424,11 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
     String? target,
   ) async {
     try {
-      final document = await compute(_parsePackage, (bytes, format, target));
+      final document = await parsePackageInBackground(
+        bytes,
+        format,
+        targetLanguage: target,
+      );
       return () => document;
     } on Object catch (error, stackTrace) {
       return () => Error.throwWithStackTrace(error, stackTrace);
@@ -781,7 +785,7 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
     if (package == null || state.sizeBytes < backgroundBytes) {
       return outputBytes;
     }
-    return await compute(_renderPackage, (package, state.translations));
+    return await renderPackageInBackground(package, state.translations);
   }
 
   /// Saves the translated document (download on the web).
@@ -905,14 +909,6 @@ typedef TextDocumentParser =
       DocumentFormat format, {
       String? targetLanguage,
     });
-
-PackagedDocument _parsePackage(
-  (Uint8List bytes, DocumentFormat format, String? target) job,
-) => parsePackagedDocument(job.$1, job.$2, targetLanguage: job.$3);
-
-Uint8List _renderPackage(
-  (PackagedDocument document, List<String?> translations) job,
-) => job.$1.render(job.$2);
 
 class _FileInput {
   const new({

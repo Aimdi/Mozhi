@@ -8,7 +8,7 @@ import 'package:mozhi/documents/core/office/xml_source.dart';
 /// strings. Numbers, dates, formulas and their cached results are never
 /// strings here, so they stay untouched.
 final class SheetPartBuilder extends PartBuilder {
-  SheetPartBuilder(super.document, super.table);
+  new(super.document, super.table);
 
   @override
   bool isParagraph(SourceElement element) =>
@@ -61,7 +61,7 @@ final class SheetPartBuilder extends PartBuilder {
 /// Writes SpreadsheetML string content: one `t` for plain strings, `r`
 /// runs for rich text.
 final class SheetRunWriter extends RunWriter {
-  const SheetRunWriter(this.prefix, {required this.rich});
+  const new(this.prefix, {required this.rich});
 
   final String? prefix;
   final bool rich;

@@ -52,7 +52,7 @@ abstract final class Ns {
 
 /// A node of a parsed XML part, with its position in the source text.
 sealed class SourceNode {
-  SourceNode(this.start, this.end);
+  new(this.start, this.end);
 
   /// Offset of the first character of the node in the source.
   final int start;
@@ -82,7 +82,7 @@ final class SourceAttribute {
 
 /// An element and its children.
 final class SourceElement extends SourceNode {
-  SourceElement({
+  new({
     required int start,
     required this.qualifiedName,
     required this.localName,
@@ -180,7 +180,7 @@ final class SourceElement extends SourceNode {
 
 /// Character data (text or CDATA).
 final class SourceText extends SourceNode {
-  SourceText(super.start, super.end, this.value, {this.isCData = false});
+  new(super.start, super.end, this.value, {this.isCData = false});
 
   /// The decoded text.
   final String value;
@@ -189,18 +189,12 @@ final class SourceText extends SourceNode {
 
 /// A comment or processing instruction.
 final class SourceMisc extends SourceNode {
-  SourceMisc(super.start, super.end);
+  new(super.start, super.end);
 }
 
 /// A parsed XML part: its [source] text and [root] element.
 final class SourceDocument {
   const new(this.source, this.root);
-
-  final String source;
-  final SourceElement root;
-
-  /// Source text of [node].
-  String of(SourceNode node) => source.substring(node.start, node.end);
 
   /// Parses [source] defensively: no document type declaration unless
   /// [allowDoctype] (and never one with an internal subset, which could
@@ -211,7 +205,7 @@ final class SourceDocument {
   /// predefined XML ones and character references); nothing is fetched.
   ///
   /// Throws [PackageParseException].
-  factory SourceDocument.parse(
+  factory parse(
     String source, {
     required String part,
     bool allowDoctype = false,
@@ -323,6 +317,12 @@ final class SourceDocument {
     if (document == null) damaged('no root element');
     return SourceDocument(source, document);
   }
+
+  final String source;
+  final SourceElement root;
+
+  /// Source text of [node].
+  String of(SourceNode node) => source.substring(node.start, node.end);
 
   static (String?, String) _split(String name) {
     final colon = name.indexOf(':');

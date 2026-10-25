@@ -49,21 +49,18 @@ PackagedDocument parsePackagedDocument(
 ///   records one (Word's `w:lang`, run languages in slides, OpenDocument
 ///   text properties, `dc:language`, the XHTML `lang`).
 final class OfficePackage implements PackagedDocument {
-  OfficePackage._({
+  new _({
     required this.format,
-    required Uint8List bytes,
-    required List<PartTemplate> parts,
+    required this._bytes,
+    required this._parts,
     required List<Segment> segments,
     required this.language,
-    required PackageLimits limits,
-  }) : _bytes = bytes,
-       _parts = parts,
-       _limits = limits,
-       segments = List.unmodifiable(segments);
+    required this._limits,
+  }) : segments = List.unmodifiable(segments);
 
   /// Parses [bytes] as [format] within [limits]. Throws
   /// [PackageParseException] (a [DocumentParseException]).
-  factory OfficePackage.parse(
+  factory parse(
     Uint8List bytes,
     DocumentFormat format, {
     String? targetLanguage,

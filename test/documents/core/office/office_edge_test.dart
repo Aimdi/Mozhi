@@ -76,7 +76,7 @@ void main() {
     test('escapes attributes and text', () {
       expect(
         escapeXmlAttribute('a"b\'c&d<e\tf\ng\u0001', .DOUBLE_QUOTE),
-        'a&quot;b\'c&amp;d&lt;e&#x9;f&#xA;g',
+        "a&quot;b'c&amp;d&lt;e&#x9;f&#xA;g",
       );
       expect(
         escapeXmlAttribute('a"b\'c', XmlAttributeType.SINGLE_QUOTE),

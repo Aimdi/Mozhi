@@ -130,6 +130,28 @@ void main() {
       expect(Chunker.encodingFor(DocumentFormat.json), ChunkEncoding.markers);
     });
 
+    test('batches web pages as paragraphs and string files with markers', () {
+      expect(
+        Chunker.encodingFor(DocumentFormat.html),
+        ChunkEncoding.paragraphs,
+      );
+      for (final format in [
+        DocumentFormat.xliff,
+        DocumentFormat.androidStrings,
+        DocumentFormat.po,
+        DocumentFormat.csv,
+        DocumentFormat.tsv,
+        DocumentFormat.appleStrings,
+        DocumentFormat.xcstrings,
+      ]) {
+        expect(
+          Chunker.encodingFor(format),
+          ChunkEncoding.markers,
+          reason: '$format',
+        );
+      }
+    });
+
     test('groups segments up to the size limit', () {
       final plan = const Chunker(maxCharacters: 60).planSegments(
         segments(['a' * 20, 'b' * 20, 'c' * 20, 'd' * 5]),

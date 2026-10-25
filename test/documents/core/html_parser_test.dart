@@ -41,6 +41,13 @@ const _page = '''
 </html>
 ''';
 
+const _paragraph =
+    'This is a long paragraph with a ⟨1⟩link⟨2⟩, an image ⟨3⟩ and '
+    'café & more.';
+const _absatz =
+    'Dies ist ein langer Absatz mit einem ⟨1⟩Link⟨2⟩, einem Bild ⟨3⟩ '
+    'und Café & mehr <3.';
+
 void main() {
   group('parseHtml', () {
     test('round-trips and lists the visible text', () {
@@ -55,8 +62,7 @@ void main() {
         'About',
         'Welcome to ⟨1⟩our⟨2⟩ site',
         'A sleepy cat',
-        ('This is a long paragraph with a ⟨1⟩link⟨2⟩, an image ⟨3⟩ and '
-            'café & more.'),
+        _paragraph,
         'Run ⟨1⟩ first.',
         'Our product ⟨1⟩ is free.',
         'Your name',
@@ -75,8 +81,7 @@ void main() {
         'Über',
         'Willkommen auf ⟨1⟩unserer⟨2⟩ Seite',
         'Eine "schläfrige" Katze',
-        ('Dies ist ein langer Absatz mit einem ⟨1⟩Link⟨2⟩, einem Bild ⟨3⟩ '
-            'und Café & mehr <3.'),
+        _absatz,
         'Führe ⟨1⟩ zuerst aus.',
         'Unser Produkt ⟨1⟩ ist kostenlos.',
         'Dein Name',

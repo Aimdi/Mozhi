@@ -154,8 +154,11 @@ test('a Word document is translated and saved as a Word document', async ({
     buffer: thankYouDocx(),
   });
   await expect(page.getByText('thanks.docx', { exact: true })).toBeVisible();
-  await expect(page.getByText('Word document (DOCX)')).toBeVisible();
-  await expect(page.getByText('1 segment', { exact: true })).toBeVisible();
+  // Chips are exposed as checkboxes named by their label.
+  await expect(
+    page.getByRole('checkbox', { name: 'Word document (DOCX)' }),
+  ).toBeVisible();
+  await expect(page.getByRole('checkbox', { name: '1 segment' })).toBeVisible();
   await expect(
     page.getByText('The preview shows the text only.', { exact: false }),
   ).toBeVisible();

@@ -11,12 +11,12 @@ import 'package:xml/xml_events.dart' show XmlAttributeType;
 /// A node of an XML part's template. Rendering every node without
 /// translations gives the part's source text back exactly.
 sealed class PartNode {
-  const PartNode();
+  const new();
 }
 
 /// XML copied as it is.
 final class RawXml extends PartNode {
-  const RawXml(this.xml);
+  const new(this.xml);
 
   final String xml;
 }
@@ -24,7 +24,7 @@ final class RawXml extends PartNode {
 /// Nodes inside a paragraph that is not translated: their language marks
 /// keep the original language.
 final class UntranslatedScope extends PartNode {
-  const UntranslatedScope(this.children);
+  const new(this.children);
 
   final List<PartNode> children;
 }
@@ -56,7 +56,7 @@ enum LanguageMarkKind {
 /// element that records a language: rewritten for the target language
 /// when its scope is translated.
 final class LanguageMark extends PartNode {
-  const LanguageMark({
+  const new({
     required this.kind,
     required this.source,
     required this.qualifiedName,
@@ -66,7 +66,7 @@ final class LanguageMark extends PartNode {
   });
 
   /// A mark for [element] in [document].
-  factory LanguageMark.of(
+  factory of(
     LanguageMarkKind kind,
     SourceElement element,
     SourceDocument document,
@@ -243,7 +243,7 @@ final class LanguageMark extends PartNode {
 /// insertion): written around the text that keeps it. Compared by
 /// identity.
 final class Wrapper {
-  Wrapper(this.open, this.close);
+  new(this.open, this.close);
 
   final String open;
   final String close;
@@ -252,7 +252,7 @@ final class Wrapper {
 /// Run formatting (`w:rPr`, `a:rPr`): [key] compares formatting while
 /// ignoring language and spelling marks; [nodes] write it.
 final class RunStyle {
-  const RunStyle(this.key, this.nodes);
+  const new(this.key, this.nodes);
 
   static const none = RunStyle('', []);
 
@@ -263,7 +263,7 @@ final class RunStyle {
 /// The formatting a piece of text is written with: the [chain] of
 /// wrappers (outermost first) and the run [style].
 final class RunContext {
-  const RunContext(this.chain, this.style);
+  const new(this.chain, this.style);
 
   static const plain = RunContext([], RunStyle.none);
 
@@ -283,14 +283,14 @@ final class RunContext {
 
 /// A piece of a rendered paragraph.
 sealed class OutItem {
-  const OutItem();
+  const new();
 
   List<Wrapper> get chain;
 }
 
 /// Text written with [context].
 final class OutText extends OutItem {
-  const OutText(this.context, this.text);
+  const new(this.context, this.text);
 
   final RunContext context;
   final String text;
@@ -302,7 +302,7 @@ final class OutText extends OutItem {
 /// Content kept as it is (a tab, a footnote reference, an image, a field),
 /// inside [chain].
 final class OutObject extends OutItem {
-  const OutObject(this.chain, this.nodes);
+  const new(this.chain, this.nodes);
 
   @override
   final List<Wrapper> chain;
@@ -312,7 +312,7 @@ final class OutObject extends OutItem {
 /// What placeholder `⟨n⟩` of a paragraph stands for: kept [objects], then
 /// a switch to the formatting [switchTo].
 final class SlotPlaceholder {
-  const SlotPlaceholder({
+  const new({
     required this.objects,
     required this.switchTo,
     required this.ordered,
@@ -336,7 +336,7 @@ final class SlotPlaceholder {
 
 /// Writes text runs of one format.
 abstract class RunWriter {
-  const RunWriter();
+  const new();
 
   /// Writes [text] (with `\n` line breaks) formatted with [style].
   void writeText(
@@ -360,7 +360,7 @@ final class WriterState {
 /// A translatable paragraph: renders [original] when untranslated, else
 /// [open], the translation's runs and [close].
 final class ParagraphSlot extends PartNode {
-  const ParagraphSlot({
+  const new({
     required this.segment,
     required this.original,
     required this.open,
@@ -414,14 +414,14 @@ final class SegmentTable {
 
 /// A piece of a paragraph's content, as a format parser reads it.
 sealed class Atom {
-  const Atom();
+  const new();
 }
 
 /// Text in [context]. [neutral] text (line breaks) never switches the
 /// formatting; [collapsible] text had its whitespace collapsed (ODF,
 /// XHTML), so a space right after another one is dropped.
 final class TextAtom extends Atom {
-  const TextAtom(
+  const new(
     this.text,
     this.context, {
     this.neutral = false,
@@ -437,7 +437,7 @@ final class TextAtom extends Atom {
 /// Content kept as it is; [build] makes its template (called once, in
 /// document order, after the paragraph's own segment is known).
 final class ObjectAtom extends Atom {
-  const ObjectAtom(this.chain, this.build, {this.ordered = false});
+  const new(this.chain, this.build, {this.ordered = false});
 
   final List<Wrapper> chain;
   final List<PartNode> Function() build;
@@ -593,7 +593,7 @@ final _leadingSpace = RegExp(r'^\s+');
 final _trailingSpace = RegExp(r'\s+$');
 
 class _PendingPlaceholder {
-  const _PendingPlaceholder(this.objects, this.switchTo, this.start, this.end);
+  const new(this.objects, this.switchTo, this.start, this.end);
 
   final List<ObjectAtom> objects;
   final RunContext? switchTo;
@@ -691,7 +691,7 @@ String styleKey(
 /// Renders templates with [translations] (indexed like [segments]; null,
 /// blank or unchanged entries keep the original).
 final class PartRenderer {
-  PartRenderer({
+  new({
     required this.translations,
     required this.segments,
     required this.language,
@@ -825,8 +825,9 @@ final class PartRenderer {
     items.add(OutText(context, text.substring(last)));
     // Never lose kept content (images, notes, fields) the engine dropped.
     for (var number = 1; number <= placeholders.length; number++) {
-      if (!used.contains(number))
+      if (!used.contains(number)) {
         items.addAll(placeholders[number - 1].objects);
+      }
     }
     return items;
   }
@@ -896,7 +897,7 @@ final class PartRenderer {
 /// paragraphs into slots and language marks into [LanguageMark]s; every
 /// other subtree stays raw source text.
 abstract class PartBuilder {
-  PartBuilder(this.document, this.table);
+  new(this.document, this.table);
 
   final SourceDocument document;
   final SegmentTable table;

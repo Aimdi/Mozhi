@@ -47,7 +47,7 @@ enum PartEncoding { utf8, utf8Bom, utf16le, utf16be, latin1 }
 /// package (absolute paths, `..`, drive letters, backslashes, control
 /// characters).
 final class ZipPackage {
-  ZipPackage._(this.bytes, this.entries, this.limits)
+  new _(this.bytes, this.entries, this.limits)
     : _byName = {for (final entry in entries) entry.name: entry},
       _byLowerName = {
         for (final entry in entries) entry.name.toLowerCase(): entry,

@@ -13,7 +13,7 @@ import 'package:mozhi/documents/core/office/xml_source.dart';
 /// bookmarks and annotations are kept. Cells holding numbers, dates or
 /// formulas are not translated.
 final class OdfPartBuilder extends PartBuilder {
-  OdfPartBuilder(
+  new(
     super.document,
     super.table, {
     this.translate = true,
@@ -140,7 +140,7 @@ final class OdfPartBuilder extends PartBuilder {
 /// Writes ODF text: escaped characters, `text:s` for spaces that would be
 /// collapsed (repeated or at the start of a line) and `text:line-break`.
 final class OdfRunWriter extends RunWriter {
-  const OdfRunWriter(this.prefix);
+  const new(this.prefix);
 
   final String? prefix;
 

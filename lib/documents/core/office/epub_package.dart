@@ -93,7 +93,7 @@ List<PartTemplate> epubParts(ZipPackage zip, SegmentTable table) {
 
   bool xhtml(String type) =>
       type == 'application/xhtml+xml' || type == 'text/html';
-  final html5 = const XmlDefaultEntityMapping.html5();
+  const html5 = XmlDefaultEntityMapping.html5();
 
   return [
     readPart(
