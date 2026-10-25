@@ -1,3 +1,5 @@
+// Markup fixtures are built from adjacent strings.
+// ignore_for_file: missing_whitespace_between_adjacent_strings
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -6,7 +8,7 @@ import 'package:mozhi/documents/core/parsers/xcstrings_parser.dart';
 
 import '../helpers/document_helpers.dart';
 
-const _catalog = r'''
+const _catalog = '''
 {
   "sourceLanguage" : "en",
   "strings" : {
@@ -170,7 +172,7 @@ void main() {
     });
 
     test('uses the target plural categories and substitutions', () {
-      const catalog = r'''
+      const catalog = '''
 {
   "sourceLanguage" : "en",
   "strings" : {
@@ -259,7 +261,7 @@ void main() {
 
   test('inserts before the first locale on one line, odd keys', () {
     const catalog =
-        '{"sourceLanguage":"en","strings":{"Say \\"hi\\"":{"localizations":'
+        r'{"sourceLanguage":"en","strings":{"Say \"hi\"":{"localizations":'
         '{"fr":{"stringUnit":{"state":"translated","value":"Dis"}}}}},'
         '"version":"1.0"}';
     final document = parseXcstrings(catalog, targetLanguage: 'de');
@@ -293,7 +295,7 @@ void main() {
             as Map<String, dynamic>;
     expect((entry['localizations'] as Map).keys, ['de', 'en']);
 
-    const odd = '{"a\\"b" : 1, "strings" : {"Hi" : {}}}';
+    const odd = r'{"a\"b" : 1, "strings" : {"Hi" : {}}}';
     final rendered = parseXcstrings(
       odd,
       targetLanguage: 'fr',

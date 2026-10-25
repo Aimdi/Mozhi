@@ -177,6 +177,9 @@ List<MarkupToken> lexMarkup(
       pos = lt + 1;
       continue;
     }
+    // A tag cut off by the end of the input: like browsers, nothing after
+    // it is markup any more (and nothing is read twice).
+    if (identical(token, _unterminated)) break;
     text(lt);
     tokens.add(token);
     pos = token.end;
@@ -196,6 +199,9 @@ List<MarkupToken> lexMarkup(
   text(length);
   return tokens;
 }
+
+/// Returned for a tag that the end of the input cuts off.
+const _unterminated = MarkupToken(MarkupKind.text, 0, 0);
 
 MarkupToken? _startTag(_Scan scan, int lt) {
   final source = scan.source;
@@ -219,7 +225,7 @@ MarkupToken? _startTag(_Scan scan, int lt) {
         break;
       }
     }
-    if (i >= length) return null;
+    if (i >= length) return _unterminated;
     if (source.codeUnitAt(i) == _gt) {
       return MarkupToken(
         MarkupKind.startTag,
@@ -255,11 +261,11 @@ MarkupToken? _startTag(_Scan scan, int lt) {
     while (i < length && _isSpace(source.codeUnitAt(i))) {
       i++;
     }
-    if (i >= length) return null;
+    if (i >= length) return _unterminated;
     final quote = source.codeUnitAt(i);
     if (quote == _doubleQuote || quote == _singleQuote) {
       final close = scan.indexOfQuote(quote, i + 1);
-      if (close < 0) return null;
+      if (close < 0) return _unterminated;
       attributes.add(
         MarkupAttribute(
           name: attributeName,
@@ -301,7 +307,7 @@ MarkupToken? _endTag(_Scan scan, int lt) {
     }
     final name = source.substring(lt + 2, i);
     final gt = _findTagEnd(scan, i);
-    if (gt < 0) return null;
+    if (gt < 0) return _unterminated;
     return MarkupToken(MarkupKind.endTag, lt, gt + 1, name: name);
   }
   if (lt + 2 >= length) return null;

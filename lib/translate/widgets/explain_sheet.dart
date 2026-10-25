@@ -8,6 +8,7 @@ import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/widgets/ai_generated_header.dart';
 import 'package:mozhi/translate/widgets/markdown_lite.dart';
+import 'package:mozhi/translate/widgets/on_device_ai_loading.dart';
 import 'package:mozhi/translate/widgets/status_announcer.dart';
 import 'package:mozhi/translate/widgets/translate_error.dart';
 
@@ -101,9 +102,12 @@ class _ExplainSheetState extends State<ExplainSheet> {
                             const Hairline(),
                             const SizedBox(height: 12),
                             if (loading && state.explanation.isEmpty)
-                              LinearProgressIndicator(
-                                key: const Key('translate_explain_progress'),
-                                semanticsLabel: l10n.translateLoading,
+                              OnDeviceAiExtraLoading(
+                                engine: state.assistEngine,
+                                child: LinearProgressIndicator(
+                                  key: const Key('translate_explain_progress'),
+                                  semanticsLabel: l10n.translateLoading,
+                                ),
                               ),
                             SelectionArea(
                               child: MarkdownLite(state.explanation),

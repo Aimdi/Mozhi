@@ -71,6 +71,7 @@ class _AppState extends State<App> {
 
   /// The app lock of this window (`lib/app_lock`), gating the router.
   late final AppLockController _appLock;
+  late final AppLockLinkHold _linkHold;
   final AppLockWindow _lockWindow = AppLockWindow.current();
 
   /// The on-device models' providers as they change (see
@@ -131,6 +132,14 @@ class _AppState extends State<App> {
     final webLink = kIsWeb
         ? TranslateLink.fromUri(Uri.base) // coverage:ignore-line
         : null;
+    // Before the router listens to the platform: links that arrive while
+    // locked wait for the unlock (the hidden screens stay as they were).
+    _linkHold = AppLockLinkHold(
+      lock: _appLock,
+      open: (location) => unawaited(
+        _router.routeInformationProvider.didPushRouteInformation(location),
+      ),
+    )..attach();
     _router = createAppRouter(
       navigatorKey: _navigatorKey,
       onTranslateLink: _openLink,
@@ -142,9 +151,9 @@ class _AppState extends State<App> {
                 homeRedirect(_settingsCubit.state, location),
     );
     if (webLink != null) _openLink(webLink); // coverage:ignore-line
-    // Links that arrive while the app lock hides the router still reach
-    // it: the route information provider only listens to the platform
-    // while it has a listener.
+    // Links that arrive before the app lock first shows the router still
+    // reach it: the route information provider only listens to the
+    // platform while it has a listener.
     _router.routeInformationProvider.addListener(_keepRouteLinks);
 
     _sharedText = SharedTextHandler(
@@ -152,6 +161,9 @@ class _AppState extends State<App> {
       translateCubit: _translateCubit,
       onShowTranslate: () => _router.go(AppRoutes.translate),
       onQuickTranslate: (request) => unawaited(_showQuickTranslate(request)),
+      // Nothing shared fills the translator, translates or is saved while
+      // the app is locked; the clipboard is read once unlocked.
+      untilUnlocked: _appLock.untilUnlocked,
     );
     unawaited(_sharedText.start());
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -195,13 +207,14 @@ class _AppState extends State<App> {
   }
 
   /// See [initState]: nothing to do, the router reads the latest link
-  /// when it is shown again.
+  /// when it is shown.
   void _keepRouteLinks() {}
 
   @override
   void dispose() {
     unawaited(_sharedText.dispose());
     _router.routeInformationProvider.removeListener(_keepRouteLinks);
+    unawaited(_linkHold.dispose());
     _router.dispose();
     unawaited(_appLock.dispose());
     unawaited(_translateCubit.close());
@@ -429,7 +442,8 @@ class _AppState extends State<App> {
                                   // Syncs at start and after changes.
                                   child: SyncScope.wrap(
                                     service: _deps.syncService,
-                                    // No route is built while locked.
+                                    // Nothing of the app shows while
+                                    // locked.
                                     child: AppLockGate(
                                       lock: _appLock,
                                       compact:

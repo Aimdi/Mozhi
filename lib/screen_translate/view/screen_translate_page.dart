@@ -291,7 +291,8 @@ class _ScreenshotTranslationViewState extends State<ScreenshotTranslationView> {
     if (_started) return;
     final cubit = context.read<ImageTranslateCubit>();
     final state = cubit.state;
-    if (state.status != ImageTranslateStatus.ready) return;
+    // A new screenshot, or Retry after a failure or Cancel.
+    if (!state.hasImage || state.isWorking) return;
     final onDevice = state.onDeviceMethod;
     if (onDevice == null) {
       if (_enginesSettled(context)) setState(() {});
@@ -735,16 +736,10 @@ Language _sourceOf(ImageTranslateState state) {
       Language(code: detected, name: detected);
 }
 
-/// The recognizer's downloadable language data, if it has any.
-TextRecognitionLanguageData? _textRecognitionData(BuildContext context) {
-  try {
-    return textRecognitionLanguageDataOf(
-      context.read<TextRecognitionService>(),
-    );
-  } on ProviderNotFoundException {
-    return null;
-  }
-}
+/// The recognizer's downloadable language data ([ScreenshotTranslation]
+/// provides the recognizer), if it has any.
+TextRecognitionLanguageData? _textRecognitionData(BuildContext context) =>
+    textRecognitionLanguageDataOf(context.read<TextRecognitionService>());
 
 /// The app's [T] (app lock, usage tracker), or null when none is provided.
 T? _maybeRead<T>(BuildContext context) {

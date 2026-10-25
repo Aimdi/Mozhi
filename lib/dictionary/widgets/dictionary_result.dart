@@ -19,8 +19,11 @@ import 'package:mozhi/phrasebook/widgets/phrasebook_labels.dart'
     show maybePhrasebookRepository;
 import 'package:mozhi/settings/view/widgets/empty_state_view.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
+import 'package:mozhi/translate/widgets/on_device_ai_loading.dart';
 import 'package:mozhi/translate/widgets/status_announcer.dart';
 import 'package:mozhi/translate/widgets/translate_error.dart';
+import 'package:translation_repository/translation_repository.dart'
+    show TranslationEngine;
 
 /// Route of the AI provider settings.
 const dictionaryProvidersRoute = '/settings/providers';
@@ -160,7 +163,10 @@ class DictionaryResultView extends StatelessWidget {
         final entry = state.entry;
         final body = switch (state.status) {
           DictionaryStatus.idle => const SizedBox.shrink(),
-          DictionaryStatus.loading => _LoadingEntry(word: state.lookedUp),
+          DictionaryStatus.loading => _LoadingEntry(
+            word: state.lookedUp,
+            engine: state.engine,
+          ),
           DictionaryStatus.failure => _TopAligned(
             child: TranslateErrorView(
               error: state.error,
@@ -364,11 +370,15 @@ class _TopAligned extends StatelessWidget {
   );
 }
 
-/// The word being looked up, large, above a progress bar.
+/// The word being looked up, large, above a progress bar (and the
+/// on-device AI loading notice while the model loads, [engine]).
 class _LoadingEntry extends StatelessWidget {
-  const new({required this.word});
+  const new({required this.word, this.engine});
 
   final String word;
+
+  /// The engine that writes the entry.
+  final TranslationEngine? engine;
 
   @override
   Widget build(BuildContext context) {
@@ -386,12 +396,17 @@ class _LoadingEntry extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 24),
-          SizedBox(
-            width: 160,
-            child: LinearProgressIndicator(
-              key: const Key('dictionary_loading'),
-              semanticsLabel: context.l10n.dictionaryLoading,
-              borderRadius: const BorderRadius.all(Radius.circular(2)),
+          OnDeviceAiExtraLoading(
+            engine: engine,
+            child: Center(
+              child: SizedBox(
+                width: 160,
+                child: LinearProgressIndicator(
+                  key: const Key('dictionary_loading'),
+                  semanticsLabel: context.l10n.dictionaryLoading,
+                  borderRadius: const BorderRadius.all(Radius.circular(2)),
+                ),
+              ),
             ),
           ),
         ],

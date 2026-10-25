@@ -6,6 +6,8 @@ import 'package:mozhi/documents/core/parsers/json_parser.dart'
 import 'package:mozhi/documents/core/parsers/locale_rules.dart';
 import 'package:mozhi/documents/core/parsers/markup_content.dart'
     show NodeList, hasSegment;
+import 'package:mozhi/documents/core/parsers/xml_tree.dart'
+    show checkDocumentLength;
 
 /// Parses CSV and TSV ([DocumentFormat.csv], [DocumentFormat.tsv]).
 ///
@@ -38,6 +40,7 @@ ParsedDocument parseDelimited(String text, DocumentFormat format) {
     format == DocumentFormat.csv || format == DocumentFormat.tsv,
     'not a delimited format: $format',
   );
+  checkDocumentLength(text, format.name.toUpperCase());
   return _DelimitedParser(text, format).parse();
 }
 
@@ -91,12 +94,14 @@ final _flag = RegExp(
 final _code = RegExp(
   r'^(?=.*\d)[A-Za-z0-9]+(?:[-_./:#][A-Za-z0-9]+)+$'
   r'|^(?=.*\d)(?=.*[A-Za-z])[A-Za-z0-9]{2,}$'
-  r'|^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+  '|^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-'
+  r'[0-9a-fA-F]{12}$'
   r'|^[a-z]{2,3}[-_][A-Z]{2}$',
 );
 final _sentenceEnd = RegExp(r'[.!?:;,…。！？]$');
 final _identifierLike = RegExp(
-  r'^[a-z][a-z0-9]*(?:[_.-][a-z0-9]+)*$|^[A-Za-z][A-Za-z0-9]*(?:_[A-Za-z0-9]+)+$'
+  r'^[a-z][a-z0-9]*(?:[_.-][a-z0-9]+)*$'
+  r'|^[A-Za-z][A-Za-z0-9]*(?:_[A-Za-z0-9]+)+$'
   r'|^[a-z]+(?:[A-Z][a-z0-9]*)+$|^[a-z]{2,3}(?:[-_][A-Za-z]{2,4})?$',
 );
 

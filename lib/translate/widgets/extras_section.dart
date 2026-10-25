@@ -8,6 +8,7 @@ import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/widgets/explain_sheet.dart';
 import 'package:mozhi/translate/widgets/language_text.dart';
+import 'package:mozhi/translate/widgets/on_device_ai_loading.dart';
 import 'package:mozhi/translate/widgets/status_announcer.dart';
 import 'package:mozhi/translate/widgets/tool_chip.dart';
 import 'package:mozhi/translate/widgets/translate_error.dart';
@@ -295,9 +296,12 @@ class AlternativesList extends StatelessWidget {
       case ExtraStatus.loading:
         return Padding(
           padding: padding,
-          child: LinearProgressIndicator(
-            key: const Key('translate_alternatives_progress'),
-            semanticsLabel: l10n.translateLoading,
+          child: OnDeviceAiExtraLoading(
+            engine: state.assistEngine,
+            child: LinearProgressIndicator(
+              key: const Key('translate_alternatives_progress'),
+              semanticsLabel: l10n.translateLoading,
+            ),
           ),
         );
       case ExtraStatus.failure:

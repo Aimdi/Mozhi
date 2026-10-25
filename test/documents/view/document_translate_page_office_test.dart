@@ -194,11 +194,14 @@ void main() {
       expect(find.text('Reading the document…'), findsOneWidget);
       expect(cubitOf(tester).state.status, DocumentStatus.loading);
 
-      await tester.runAsync(
-        () =>
-            cubitOf(tester).stream
-                .firstWhere((state) => state.status == DocumentStatus.ready),
-      );
+      // The isolate answers in real time; a pump delivers the result.
+      for (var i = 0; i < 100; i++) {
+        if (cubitOf(tester).state.status != DocumentStatus.loading) break;
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 50)),
+        );
+        await tester.pump();
+      }
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('documents_reading')), findsNothing);
       expect(find.text('1 segment'), findsOneWidget);

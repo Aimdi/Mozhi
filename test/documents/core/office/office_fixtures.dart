@@ -21,7 +21,11 @@ const _office = 'application/vnd.openxmlformats-officedocument';
 
 /// A ZIP package of [files] (text or bytes), in order; [stored] entries are
 /// not compressed.
-Uint8List zipOf(Map<String, Object> files, {Set<String> stored = const {}}) {
+Uint8List zipOf(
+  Map<String, Object> files, {
+  Set<String> stored = const {},
+  int level = DeflateLevel.bestSpeed,
+}) {
   final archive = Archive();
   for (final MapEntry(key: name, value: content) in files.entries) {
     final bytes = content is String
@@ -32,7 +36,7 @@ Uint8List zipOf(Map<String, Object> files, {Set<String> stored = const {}}) {
         : ArchiveFile.bytes(name, bytes);
     archive.add(file);
   }
-  return ZipEncoder().encodeBytes(archive);
+  return ZipEncoder().encodeBytes(archive, level: level);
 }
 
 String _types(Map<String, String> overrides) =>

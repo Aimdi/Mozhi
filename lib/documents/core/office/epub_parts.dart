@@ -44,12 +44,6 @@ final class XhtmlPartBuilder extends PartBuilder {
       _isXhtml(element) && _separators.contains(element.localName);
 
   @override
-  bool isParagraph(SourceElement element) => false;
-
-  @override
-  List<PartNode>? paragraph(SourceElement element) => null;
-
-  @override
   LanguageMarkKind? languageMark(SourceElement element) =>
       element.parent == null && element.isA(Ns.xhtml, 'html')
       ? LanguageMarkKind.htmlRoot

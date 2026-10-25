@@ -6,6 +6,8 @@ import 'package:mozhi/documents/core/parsers/json_parser.dart'
 import 'package:mozhi/documents/core/parsers/locale_rules.dart';
 import 'package:mozhi/documents/core/parsers/markup_content.dart'
     show NodeList, hasSegment, replacePrefixWhenTranslated;
+import 'package:mozhi/documents/core/parsers/xml_tree.dart'
+    show checkDocumentLength;
 import 'package:mozhi/documents/core/source_line.dart';
 import 'package:translation_repository/translation_repository.dart'
     show ProtectedPatterns;
@@ -36,8 +38,10 @@ import 'package:translation_repository/translation_repository.dart'
 /// gets one.
 ///
 /// Throws [DocumentParseException] for lines that are not PO syntax.
-ParsedDocument parsePo(String text, {String? targetLanguage}) =>
-    _PoParser(text, canonicalLanguageTag(targetLanguage)).parse();
+ParsedDocument parsePo(String text, {String? targetLanguage}) {
+  checkDocumentLength(text, 'PO');
+  return _PoParser(text, canonicalLanguageTag(targetLanguage)).parse();
+}
 
 final _keyword = RegExp(
   r'^[ \t]*(msgctxt|msgid_plural|msgid|msgstr(?:\[(\d+)\])?)[ \t]+(".*)$',
@@ -137,12 +141,13 @@ class _PoParser {
     final nodes = NodeList();
     var line = 0;
     for (final entry in entries) {
-      nodes.text(joinLines(lines, line, entry.start));
-      nodes.addAll(
-        identical(entry, header)
-            ? [TextNode(joinLines(lines, entry.start, entry.end))]
-            : _entry(entry, retranslate: retranslate, forms: forms),
-      );
+      nodes
+        ..text(joinLines(lines, line, entry.start))
+        ..addAll(
+          identical(entry, header)
+              ? [TextNode(joinLines(lines, entry.start, entry.end))]
+              : _entry(entry, retranslate: retranslate, forms: forms),
+        );
       line = entry.end;
     }
     nodes.text(joinLines(lines, line, lines.length));
@@ -179,7 +184,9 @@ class _PoParser {
 
     for (var i = 0; i < lines.length; i++) {
       var content = lines[i].content;
-      if (i == 0 && content.startsWith('\uFEFF')) content = content.substring(1);
+      if (i == 0 && content.startsWith('\uFEFF')) {
+        content = content.substring(1);
+      }
       final trimmed = content.trimLeft();
       if (trimmed.isEmpty || trimmed.startsWith('#~')) {
         finish(i);
@@ -213,8 +220,7 @@ class _PoParser {
       }
       final continuation = _continuation.firstMatch(content);
       if (continuation != null && hasKeywords) {
-        final field = current!.fields.last;
-        field
+        final field = current!.fields.last
           ..value.write(_string(continuation.group(1)!, i))
           ..end = i + 1;
         if (field.end - field.start == 2 && _isEmptyLiteral(field.start)) {
@@ -407,7 +413,11 @@ class _PoParser {
         final parts = value.split('\u0000');
         final singular = parts.first;
         final other = parts.length > 1 ? parts[1] : parts.first;
-        return '${[for (var k = 0; k < count; k++) field('msgstr[$k]', count > 1 && k == one ? singular : other)].join(_lineBreak)}$ending';
+        final forms = [
+          for (var k = 0; k < count; k++)
+            field('msgstr[$k]', count > 1 && k == one ? singular : other),
+        ];
+        return '${forms.join(_lineBreak)}$ending';
       };
     }
     final msgstrNode = EncodedNode(

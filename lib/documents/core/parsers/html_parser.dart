@@ -9,7 +9,7 @@ import 'package:mozhi/documents/core/parsers/markup_lexer.dart';
 import 'package:mozhi/documents/core/parsers/xliff_parser.dart'
     show utf8Declaration;
 import 'package:mozhi/documents/core/parsers/xml_tree.dart'
-    show maxMarkupLength;
+    show checkDocumentLength;
 
 /// Parses HTML and XHTML ([DocumentFormat.html]).
 ///
@@ -35,9 +35,7 @@ import 'package:mozhi/documents/core/parsers/xml_tree.dart'
 /// Throws [DocumentParseException] only for input that is too large;
 /// malformed HTML is read the forgiving way browsers do.
 ParsedDocument parseHtml(String text, {String? targetLanguage}) {
-  if (text.length > maxMarkupLength) {
-    throw const DocumentParseException('HTML: the file is too large');
-  }
+  checkDocumentLength(text, 'HTML');
   return _HtmlParser(text, canonicalLanguageTag(targetLanguage)).parse();
 }
 

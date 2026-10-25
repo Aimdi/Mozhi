@@ -111,18 +111,10 @@ final class WordPartBuilder extends PartBuilder {
         _run(element, chain, atoms, fields);
       } else if (local == 'proofErr') {
         // Spelling marks are stale once translated.
-      } else if (_wrappers.contains(local) && !element.isSelfClosing) {
-        final content = [
-          for (final child in element.elements)
-            if (!(child.inNamespace(Ns.word) &&
-                _wrapperProperties.contains(child.localName)))
-              child,
-        ];
-        final start = content.isEmpty
-            ? element.endTagStart
-            : content.first.start;
+      } else if (_wrappers.contains(local) && _content(element).isNotEmpty) {
+        final content = _content(element);
         final wrapper = Wrapper(
-          source.substring(element.start, start),
+          source.substring(element.start, content.first.start),
           source.substring(element.endTagStart, element.end),
         );
         // Text between the properties and the content (whitespace) is
@@ -139,6 +131,14 @@ final class WordPartBuilder extends PartBuilder {
       }
     }
   }
+
+  /// The children of a wrapper without its properties.
+  static List<SourceElement> _content(SourceElement element) => [
+    for (final child in element.elements)
+      if (!(child.inNamespace(Ns.word) &&
+          _wrapperProperties.contains(child.localName)))
+        child,
+  ];
 
   /// The content of an inline content control.
   static SourceElement? _sdtContent(SourceElement element) {

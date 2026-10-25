@@ -10,9 +10,19 @@ import 'package:mozhi/app_lock/view/app_lock_screen.dart';
 import 'package:mozhi/l10n/l10n.dart';
 
 /// The app lock's gate above the router: while [lock] is locked it shows
-/// the lock screen *instead of* [child], so none of the app's routes is
-/// built (nothing to see, read aloud or tap behind it); while it finds out
-/// (at start) it shows an empty surface.
+/// the lock screen, and nothing of the app (while it finds out, at start,
+/// an empty surface).
+///
+/// Until the app was unlocked once, [child] (the router) is not built at
+/// all: no screen opens and nothing a link asks for starts. From then on
+/// it stays built while locked, so what runs in it keeps running (a
+/// document translation, a conversation, Transcribe), but hidden: under
+/// the lock screen, [Offstage] (nothing painted, no touch reaches it, left
+/// out of the screen reader's tree), its animations stopped
+/// ([TickerMode]) and out of the keyboard's reach ([ExcludeFocus]: a text
+/// field in it loses the focus, which closes the on-screen keyboard). The
+/// lock screen has a [ScaffoldMessenger] of its own then, so messages of
+/// the hidden screens don't show on it.
 ///
 /// It tells [lock] when the app goes to the background and comes back
 /// ([AppLock.noteBackground], [AppLock.noteForeground]), gives it the
@@ -42,6 +52,9 @@ class AppLockGate extends StatefulWidget {
 
   /// Closes the window ([compact]).
   final VoidCallback? onClose;
+
+  /// The [Offstage] that holds [child] once it was built.
+  static const contentKey = Key('app_lock_content');
 
   @override
   State<AppLockGate> createState() => _AppLockGateState();
@@ -109,6 +122,10 @@ class _AppLockGateState extends State<AppLockGate> {
     unawaited(_cubit.autoUnlock());
   }
 
+  /// Whether [AppLockGate.child] was shown once: from then on it stays
+  /// built, hidden while locked.
+  bool _childBuilt = false;
+
   @override
   Widget build(BuildContext context) {
     if (!widget.blocking) return widget.child;
@@ -119,26 +136,44 @@ class _AppLockGateState extends State<AppLockGate> {
             previous.status != current.status &&
             current.status == AppLockStatus.locked,
         listener: (context, state) => _autoUnlock(),
-        builder: (context, state) => switch (state.status) {
-          AppLockStatus.unlocked => widget.child,
-          AppLockStatus.checking => _Blank(compact: widget.compact),
-          AppLockStatus.locked =>
-            widget.compact
-                ? AppLockCompactScreen(
-                    prompting: state.prompting,
-                    failed: state.failed,
-                    onUnlock: () => unawaited(_cubit.unlock()),
-                    onClose: () => widget.onClose?.call(),
-                  )
-                : AppLockScreen(
-                    prompting: state.prompting,
-                    failed: state.failed,
-                    onUnlock: () => unawaited(_cubit.unlock()),
-                  ),
+        builder: (context, state) {
+          final locked = !state.unlocked;
+          if (!locked) _childBuilt = true;
+          if (!_childBuilt) return _lockScreen(state);
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              Offstage(
+                key: AppLockGate.contentKey,
+                offstage: locked,
+                child: TickerMode(
+                  enabled: !locked,
+                  child: ExcludeFocus(excluding: locked, child: widget.child),
+                ),
+              ),
+              if (locked) ScaffoldMessenger(child: _lockScreen(state)),
+            ],
+          );
         },
       ),
     );
   }
+
+  Widget _lockScreen(AppLockState state) => switch (state.status) {
+    AppLockStatus.locked when widget.compact => AppLockCompactScreen(
+      prompting: state.prompting,
+      failed: state.failed,
+      onUnlock: () => unawaited(_cubit.unlock()),
+      onClose: () => widget.onClose?.call(),
+    ),
+    AppLockStatus.locked => AppLockScreen(
+      prompting: state.prompting,
+      failed: state.failed,
+      onUnlock: () => unawaited(_cubit.unlock()),
+    ),
+    AppLockStatus.checking ||
+    AppLockStatus.unlocked => _Blank(compact: widget.compact),
+  };
 }
 
 /// What shows while the lock finds out: the window's plain background

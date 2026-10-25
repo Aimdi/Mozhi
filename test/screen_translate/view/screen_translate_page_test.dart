@@ -40,7 +40,6 @@ void main() {
       settings: const AppSettings(),
     );
     host = mockScreenTranslateHost();
-    capture = Completer<ScreenCapture>();
     when(host.capture).thenAnswer((_) => capture.future);
     data = FakeOcrData(installed: {'deu': 1}, text: 'Ausgang Kasse')
       ..layout = _layout;
@@ -59,16 +58,21 @@ void main() {
     });
   });
 
-  Future<void> pump(WidgetTester tester, {AppLock? lock}) => harness.pump(
-    tester,
-    ScreenTranslatePage(
-      host: host,
-      lock: lock,
-      recognizer: data,
-      encoder: harness.encoder,
-    ),
-    size: const Size(400, 800),
-  );
+  // The completer is made in the test's fake async zone: one made in setUp
+  // would complete outside it, after the test.
+  Future<void> pump(WidgetTester tester, {AppLock? lock}) {
+    capture = Completer<ScreenCapture>();
+    return harness.pump(
+      tester,
+      ScreenTranslatePage(
+        host: host,
+        lock: lock,
+        recognizer: data,
+        encoder: harness.encoder,
+      ),
+      size: const Size(400, 800),
+    );
+  }
 
   Future<void> captured(WidgetTester tester, {bool blank = false}) async {
     capture.complete(
@@ -212,7 +216,7 @@ void main() {
   group('waits for on-device recognition', () {
     testWidgets('until the engines are loaded', (tester) async {
       final engines = StreamController<TranslateState>();
-      addTearDown(engines.close);
+      addTearDown(() => unawaited(engines.close()));
       const loading = TranslateState(enginesStatus: EnginesStatus.loading);
       whenListen(harness.translate, engines.stream, initialState: loading);
       await pump(tester);
@@ -220,11 +224,34 @@ void main() {
       expect(requests, isEmpty);
       expect(find.byKey(const Key('screen_translate_notice')), findsNothing);
 
+      // Loading failed once (nothing to translate with yet), then worked.
+      const failed = TranslateState(enginesStatus: EnginesStatus.failure);
+      when(() => harness.translate.state).thenReturn(failed);
+      engines.add(failed);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('screen_translate_notice')), findsOneWidget);
+
       final ready = translateState(engines: const [deepl], source: german);
       when(() => harness.translate.state).thenReturn(ready);
       engines.add(ready);
       await tester.pumpAndSettle();
       expect(requests.single.text, 'Ausgang\n\nKasse');
+    });
+
+    testWidgets('and follows new providers', (tester) async {
+      final settings = StreamController<AppSettings>();
+      addTearDown(() => unawaited(settings.close()));
+      whenListen(
+        harness.settings,
+        settings.stream,
+        initialState: const AppSettings(),
+      );
+      await pump(tester);
+      await captured(tester);
+      settings.add(const AppSettings(providers: allProviders));
+      await tester.pumpAndSettle();
+      // Translated once, by the on-device method.
+      expect(requests, hasLength(1));
     });
 
     testWidgets('and says when the device has none', (tester) async {
@@ -246,7 +273,7 @@ void main() {
         translateState(engines: const [claude], engine: null, source: german),
       );
       final engines = StreamController<TranslateState>();
-      addTearDown(engines.close);
+      addTearDown(() => unawaited(engines.close()));
       whenListen(
         harness.translate,
         engines.stream,
@@ -282,7 +309,53 @@ void main() {
     });
   });
 
+  for (final (code, expected) in [('de', 'German'), ('qaa', 'qaa')]) {
+    testWidgets('names the detected language of the text ($code)', (
+      tester,
+    ) async {
+      when(() => harness.translate.state)
+          .thenReturn(translateState(engines: const [deepl]));
+      answer = (_) => Stream.value(
+        TranslationResult(
+          engineId: deepl.id,
+          engineName: deepl.name,
+          text: 'Exit\n\nCash desk',
+          detectedSource: code,
+        ),
+      );
+      await pump(tester);
+      await captured(tester);
+      await tester.tap(find.byKey(const Key('screen_translate_show_text')));
+      await tester.pumpAndSettle();
+      expect(find.text('Ausgang\n\nKasse'), findsOneWidget);
+      final source = tester
+          .widget<TranslatedImageOverlay>(
+            find.byKey(const Key('screen_translate_overlay')),
+          )
+          .source;
+      expect((source.code, source.name), (code, expected));
+    });
+  }
+
   group('errors', () {
+    testWidgets('the privacy settings ask first', (tester) async {
+      const consent = ConsentRequiredException(
+        kind: ConsentKind.pair,
+        destination: PublicInstanceDestination(
+          'mozhi.example',
+          engine: 'deepl',
+        ),
+        engineId: 'mozhi:deepl',
+        target: 'fr',
+      );
+      when(() => harness.repository.instances).thenReturn(const []);
+      answer = (_) => Stream.error(consent);
+      await pump(tester);
+      await captured(tester);
+
+      expect(find.byKey(const Key('screen_translate_consent')), findsOneWidget);
+    });
+
     testWidgets('no text offers Retry', (tester) async {
       data
         ..text = ''
@@ -342,19 +415,19 @@ void main() {
     });
 
     testWidgets('a cancelled translation can be started again', (tester) async {
-      // Broadcast: the cancelled run's subscription is gone, and closing a
-      // plain controller after that never completes.
       final gate = StreamController<TranslationResult>.broadcast();
-      addTearDown(gate.close);
+      addTearDown(() => unawaited(gate.close()));
       answer = (_) => gate.stream;
       await pump(tester);
       capture.complete(
         ScreenCaptured(bytes: pngBytes, width: 400, height: 800),
       );
-      await tester.pump();
-      await tester.pump();
-      await tester.pump();
-      expect(find.byKey(const Key('image_translate_progress')), findsOneWidget);
+      final progress = find.byKey(const Key('image_translate_progress'));
+      for (var i = 0; i < 10 && progress.evaluate().isEmpty; i++) {
+        await tester.pump();
+      }
+      expect(progress, findsOneWidget);
+      expect(requests, hasLength(1));
 
       await tester.tap(find.byKey(const Key('image_translate_cancel_button')));
       await tester.pumpAndSettle();
@@ -456,6 +529,7 @@ void main() {
   testWidgets('works in the dark theme at a large text size', (tester) async {
     tester.platformDispatcher.textScaleFactorTestValue = 2;
     addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    capture = Completer<ScreenCapture>();
     await harness.pump(
       tester,
       ScreenTranslatePage(

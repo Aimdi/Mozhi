@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:llama_engine/llama_engine.dart';
 import 'package:llm_api/llm_api.dart';
 import 'package:mozhi/on_device_ai/data/on_device_ai.dart';
+import 'package:mozhi/platform/device_conditions.dart';
 
 /// A model loaded for a request ([OnDeviceRuntime.run]).
 typedef LoadedOnDeviceModel = ({
@@ -25,13 +26,49 @@ typedef LoadedOnDeviceModel = ({
 /// the engine until the request is done; a model is unloaded
 /// [idleUnloadAfter] after the last request ends, and [unload] waits for
 /// the running and queued requests.
+///
+/// **Long jobs pause while the phone is strained.** A request that
+/// continues a job (it was asked for while another request ran, or within
+/// [continuationGap] after one ended: the next part of a long text, a
+/// document or a web page, which their callers ask for one after the
+/// other) waits before it starts while [DeviceConditions] reports heat or
+/// battery saver ([OnDeviceAiPaused]; the status changes back once it
+/// goes on). A request the user just asked for after a pause in the work
+/// (the first part of a job, a single translation, an extra) never waits,
+/// so nothing the user asks for is held back; only the rest of a long job
+/// is. [continueAnyway] lets the current job go on until it ends (the next
+/// request that starts a job resets it); cancelling a waiting request
+/// (its `isCancelled`) ends the wait within [pauseCheckInterval].
 class OnDeviceRuntime {
   new({
     required this.engine,
     required this.catalog,
     required this._pathOf,
     this.idleUnloadAfter = OnDeviceAi.defaultIdleUnloadAfter,
-  });
+    DeviceConditions? deviceConditions,
+    this.continuationGap = const Duration(seconds: 2),
+    this.pauseCheckInterval = const Duration(milliseconds: 500),
+    DateTime Function()? clock,
+  }) : _deviceConditions = deviceConditions ?? DeviceConditions.instance,
+       _clock = clock ?? DateTime.now;
+
+  final DeviceConditions _deviceConditions;
+  final DateTime Function() _clock;
+
+  /// How soon after the previous request a new one counts as the next
+  /// part of the same job (see the class docs).
+  final Duration continuationGap;
+
+  /// How often a paused request checks whether it was cancelled (and asks
+  /// the device conditions again when they are not pushed).
+  final Duration pauseCheckInterval;
+
+  /// When the last request ended (null: none yet).
+  DateTime? _lastEnded;
+
+  /// The user let the current job go on while the phone is strained.
+  bool _continueAnyway = false;
+  Completer<void>? _resume;
 
   final LlamaEngine engine;
 
@@ -91,11 +128,23 @@ class OnDeviceRuntime {
   }) {
     if (_disposed) return Future.error(_disposedError);
     _idleTimer?.cancel();
+    final lastEnded = _lastEnded;
+    // The next part of a job: asked for while one runs, or right after.
+    final continuation =
+        _busy > 0 ||
+        (lastEnded != null && _clock().difference(lastEnded) < continuationGap);
+    // A new job: a "continue anyway" was for the one before.
+    if (!continuation) _continueAnyway = false;
     _busy++;
     final result = _tail.then((_) async {
       // Disposed while it waited: the engine must not start again.
       if (_disposed) throw _disposedError;
       if (isCancelled?.call() ?? false) return null;
+      if (continuation && generating) {
+        await _waitWhileStrained(id, isCancelled);
+        if (_disposed) throw _disposedError;
+        if (isCancelled?.call() ?? false) return null;
+      }
       final loaded = await _load(id);
       if (generating) _setStatus(OnDeviceAiGenerating(id));
       try {
@@ -112,6 +161,55 @@ class OnDeviceRuntime {
   static const _disposedError = LlmApiException(
     'On-device AI is no longer available.',
   );
+
+  /// Lets the job that waits ([OnDeviceAiPaused]) go on, and its later
+  /// parts too, while the phone is strained, until a new job starts.
+  void continueAnyway() {
+    _continueAnyway = true;
+    final resume = _resume;
+    _resume = null;
+    if (resume != null && !resume.isCompleted) resume.complete();
+  }
+
+  /// Waits while the device is strained ([DeviceConditions]) unless the
+  /// user said to continue, [isCancelled] or the runtime is disposed;
+  /// [OnDeviceAiPaused] meanwhile.
+  Future<void> _waitWhileStrained(
+    String id,
+    bool Function()? isCancelled,
+  ) async {
+    var paused = false;
+    try {
+      for (;;) {
+        if (_disposed || _continueAnyway || (isCancelled?.call() ?? false)) {
+          return;
+        }
+        final strain = _deviceConditions.latest.strain;
+        if (strain == null) return;
+        paused = true;
+        _setStatus(OnDeviceAiPaused(id, strain));
+        final resume = _resume ??= Completer<void>();
+        final changed = Completer<void>();
+        final subscription = _deviceConditions.changes.listen((_) {
+          if (!changed.isCompleted) changed.complete();
+        });
+        try {
+          await Future.any([
+            resume.future,
+            changed.future,
+            Future<void>.delayed(pauseCheckInterval),
+          ]);
+        } finally {
+          await subscription.cancel();
+        }
+      }
+    } finally {
+      // Back from the pause: the next status is the load's or the reply's.
+      if (paused && _status is OnDeviceAiPaused) {
+        _setStatus(const OnDeviceAiIdle());
+      }
+    }
+  }
 
   /// Frees the model's memory: now when nothing runs, else once the
   /// running and queued requests are done.
@@ -195,6 +293,7 @@ class OnDeviceRuntime {
   }
 
   void _finished() {
+    _lastEnded = _clock();
     _busy--;
     if (_busy > 0 || _disposed) return;
     _setStatus(const OnDeviceAiIdle());

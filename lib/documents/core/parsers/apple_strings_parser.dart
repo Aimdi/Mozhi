@@ -5,6 +5,8 @@ import 'package:mozhi/documents/core/parsers/json_parser.dart'
     show DocumentParseException, looksLikeNaturalLanguage;
 import 'package:mozhi/documents/core/parsers/locale_rules.dart';
 import 'package:mozhi/documents/core/parsers/markup_content.dart';
+import 'package:mozhi/documents/core/parsers/xml_tree.dart'
+    show checkDocumentLength;
 
 /// Parses Apple `.strings` files ([DocumentFormat.appleStrings]).
 ///
@@ -16,7 +18,10 @@ import 'package:mozhi/documents/core/parsers/markup_content.dart';
 ///
 /// The property-list variants of `.strings` (XML or binary) are not
 /// supported: they throw [DocumentParseException], like malformed files.
-ParsedDocument parseAppleStrings(String text) => _StringsParser(text).parse();
+ParsedDocument parseAppleStrings(String text) {
+  checkDocumentLength(text, 'Apple strings');
+  return _StringsParser(text).parse();
+}
 
 class _StringsParser {
   new(this.text);
@@ -48,8 +53,9 @@ class _StringsParser {
       if (_pos >= text.length) break;
       final keyStart = _pos;
       final key = _token();
-      nodes.text(text.substring(keyStart, _pos));
-      nodes.text(_skip());
+      nodes
+        ..text(text.substring(keyStart, _pos))
+        ..text(_skip());
       if (_pos < text.length && text[_pos] == ';') {
         // `"key";` (the value is the key): nothing to translate.
         nodes.text(';');
@@ -152,8 +158,7 @@ class _StringsParser {
       }
       flush();
       final next = text[i + 1];
-      final unicode = RegExp(r'[Uu]([0-9a-fA-F]{4})')
-          .matchAsPrefix(text, i + 1);
+      final unicode = RegExp('[Uu]([0-9a-fA-F]{4})').matchAsPrefix(text, i + 1);
       final octal = RegExp('[0-7]{1,3}').matchAsPrefix(text, i + 1);
       if (next == 'n' || next == 't' || next == 'r') {
         items.add(InlineCode.text('\\$next', movable: true));

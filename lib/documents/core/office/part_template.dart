@@ -491,7 +491,7 @@ ParagraphSlot? buildSlot({
 
   // The formatting holding the most text is the base.
   final counts = <RunContext, int>{};
-  RunContext? base;
+  var base = firstText.context;
   var best = -1;
   for (final item in body) {
     if (item is! TextAtom || item.neutral) continue;
@@ -504,7 +504,6 @@ ParagraphSlot? buildSlot({
       base = key;
     }
   }
-  base ??= firstText.context;
 
   // The segment text, with a placeholder for every formatting switch and
   // every group of kept objects.
@@ -905,7 +904,7 @@ abstract class PartBuilder {
   String get source => document.source;
 
   /// Whether [element] is a paragraph of this format.
-  bool isParagraph(SourceElement element);
+  bool isParagraph(SourceElement element) => false;
 
   /// The language mark kind of [element], if it records a language.
   LanguageMarkKind? languageMark(SourceElement element) => null;
@@ -914,7 +913,7 @@ abstract class PartBuilder {
   bool skip(SourceElement element) => false;
 
   /// The slot (or kept template) of paragraph [element].
-  List<PartNode>? paragraph(SourceElement element);
+  List<PartNode>? paragraph(SourceElement element) => plain(element);
 
   /// The template of the whole part.
   List<PartNode> build() {

@@ -24,8 +24,7 @@ export 'screen_translate_state.dart';
 ///
 /// [closeWindow], [openInApp] and [openLocation] leave the window.
 class ScreenTranslateCubit extends Cubit<ScreenTranslateState> {
-  new({required this._host, this._lock})
-    : super(const ScreenTranslateState());
+  new({required this._host, this._lock}) : super(const ScreenTranslateState());
 
   final ScreenTranslateHost _host;
   final AppLock? _lock;

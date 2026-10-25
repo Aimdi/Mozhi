@@ -174,10 +174,6 @@ final class SourceElement extends SourceNode {
     return buffer.toString();
   }
 
-  /// The element name for [local] with this element's prefix (`w:r` next
-  /// to `w:p`).
-  String sibling(String local) => prefix == null ? local : '$prefix:$local';
-
   @override
   String toString() => 'SourceElement($qualifiedName)';
 }

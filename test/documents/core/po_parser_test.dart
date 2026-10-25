@@ -1,3 +1,5 @@
+// Markup fixtures are built from adjacent strings.
+// ignore_for_file: missing_whitespace_between_adjacent_strings
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mozhi/documents/core/core.dart';
 import 'package:mozhi/documents/core/parsers/po_parser.dart';
@@ -110,10 +112,10 @@ void main() {
       expect(output, contains('msgstr "Schon erledigt"'));
       expect(output, contains('#~ msgid "Old"'));
       expect(output, contains('"Language: de\\n"\n'));
-      expect(output, contains('charset=UTF-8\\n"'));
+      expect(output, contains(r'charset=UTF-8\n"'));
       expect(
         output,
-        contains('"Plural-Forms: nplurals=2; plural=(n != 1);\\n"'),
+        contains(r'"Plural-Forms: nplurals=2; plural=(n != 1);\n"'),
       );
       // The header keeps its own fuzzy flag.
       expect(output, startsWith('# Translation template for Mozhi.\n'));
@@ -163,7 +165,7 @@ void main() {
       expect(texts(other), ['Yes', 'No']);
       final output = other.render(['Oui', 'Non']);
       expect(output, contains('msgid "Yes"\nmsgstr "Oui"\n'));
-      expect(output, contains('"Language: fr\\n"'));
+      expect(output, contains(r'"Language: fr\n"'));
       expect(output, contains('nplurals=2; plural=(n > 1);'));
     });
 

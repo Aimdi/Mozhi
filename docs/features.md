@@ -873,9 +873,50 @@ result. Supported formats:
 | SubRip subtitles | `.srt` | Numbering and timestamps |
 | WebVTT subtitles | `.vtt` | Header, notes, styles, timings and cue settings |
 | JSON / ARB string tables | `.json`, `.arb` | Keys, `@` metadata and ICU placeholders/plurals; only string values are translated |
+| Word documents | `.docx` | Paragraph and character formatting, styles, lists, tables, headers and footers, footnotes, endnotes, comments, text boxes, links, fields, images and tracked changes |
+| PowerPoint presentations | `.pptx` | Slides, speaker notes, tables, text boxes, chart titles and SmartArt with their formatting, links and slide numbers; layouts, images and animations |
+| Excel workbooks | `.xlsx` | Text cells (plain and rich text, each distinct text translated once); numbers, dates, formulas, sheet names and charts' data |
+| OpenDocument text, presentations, spreadsheets | `.odt`, `.odp`, `.ods` | Headings, paragraphs, lists, tables, spans, links, notes, frames, headers and footers; spreadsheet cells with numbers, dates or formulas |
+| EPUB e-books | `.epub` | Every chapter in reading order, the table of contents and the title; inline markup, links, images, code, scripts, styles and `pre` blocks |
 
 Documents are split into parts that are translated a couple at a time, with
 progress shown as they finish; failed parts are retried.
+
+### Office documents and e-books
+
+Word, PowerPoint, Excel, OpenDocument and EPUB files are translated in
+place: **Save file** and **Share file** give back the same kind of file
+(`report.docx` becomes `report.de.docx`) with its layout, styles, images and
+everything else as it was; only the text changes. Like the other formats,
+they are translated with the engine and privacy mode you choose.
+
+- **Formatting inside a paragraph** (bold words, a link, a footnote mark, an
+  image in the text) travels with the text as numbered placeholders
+  (`⟨1⟩`), so it stays on the right words even when the translation puts
+  them in another order. If an engine drops a placeholder, kept content
+  such as an image, a note or a field is put at the end of the paragraph
+  instead of being lost.
+- **Text that appears several times** (a footer on every slide, a value
+  repeated in a spreadsheet, a text box Word stores twice) is translated
+  once.
+- **The language** of the document is set to the target where the file
+  records one (Word's and PowerPoint's text language, which the spelling
+  checker uses; OpenDocument's styles; the e-book's language). Custom AI
+  "languages" leave it as it was.
+- **The preview** shows the text only (the saved file keeps the layout).
+  Office files can't be pasted, their format can't be changed, and there is
+  no bilingual export.
+- **Limits:** office files and e-books up to 25 MB (text files up to 2 MB);
+  large ones are read in the background. Not opened: password-protected or
+  encrypted files (remove the protection first), e-books with DRM (fonts
+  that are only obfuscated are fine), old `.doc`, `.xls` and `.ppt` files
+  renamed to the new extensions, damaged files, and files that unpack to far
+  too much data (see [Security](security.md#documents-and-e-books)).
+- **Not translated:** text in images, alternative text, spreadsheet
+  comments, sheet names, the data behind charts, slide master and layout
+  prompts, and document properties other than the e-book's title. In a
+  spreadsheet, formulas that compare cells with a text (`=IF(A1="Yes";…)`)
+  may need the translated word.
 
 ## Web pages
 
@@ -1394,7 +1435,8 @@ has a text-to-speech engine (Android and most browsers). The settings are kept o
   follows light and dark mode on all versions.
 - **Share** text from any app to Mozhi to translate it. Share an
   **image** (a screenshot, a photo) to read and translate it on the image
-  screen, or a subtitle, text or JSON **file** to open it in Documents.
+  screen, or a subtitle, text, JSON, office document or e-book **file** to
+  open it in Documents.
   Shared content never starts an AI request by itself: with an AI engine it
   waits for **Translate**.
 - **Material You**: with **Dynamic color** on (Android 12 and later), the app

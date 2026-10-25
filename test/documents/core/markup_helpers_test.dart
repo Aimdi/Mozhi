@@ -1,3 +1,5 @@
+// Markup fixtures are built from adjacent strings.
+// ignore_for_file: missing_whitespace_between_adjacent_strings
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mozhi/documents/core/core.dart';
 import 'package:mozhi/documents/core/parsers/icu_inlines.dart';
@@ -361,7 +363,7 @@ void main() {
       final inText = RegExp(LocalisationPatterns.printfInText);
       for (final spec in [
         '%s',
-        '%1\$d',
+        r'%1$d',
         '%.2f',
         '%lld',
         '%@',
@@ -372,7 +374,7 @@ void main() {
         expect(printf.stringMatch('x $spec y'), spec, reason: spec);
       }
       expect(inText.hasMatch('50%off'), isFalse);
-      expect(inText.stringMatch('%1\$sMB'), '%1\$s');
+      expect(inText.stringMatch(r'%1$sMB'), r'%1$s');
       expect(inText.stringMatch('%@x'), '%@');
       expect(
         RegExp(LocalisationPatterns.pythonNamed).stringMatch('a %(name)s'),

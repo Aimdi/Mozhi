@@ -368,6 +368,42 @@ to:
 - `mozhi://web?url=…` and `/web?url=…` links only fill in the address; the
   page is loaded when you press the button.
 
+## Documents and e-books
+
+Office documents and e-books are ZIP packages of XML files, and they come
+from anywhere, so they are read defensively (on the device, before anything
+is translated):
+
+- **Size limits:** at most 25 MB per file and 10,000 entries (checked in the
+  ZIP directory before it is unpacked). Only the XML parts with text are
+  unpacked: each at most 32 MB, at most 128 MB together, and a part over
+  1 MB that compresses better than 500:1 is refused (decompression bombs).
+  Unpacking never goes past the size an entry declares. Images, fonts,
+  embedded files and macros are never unpacked: they are copied into the
+  translated file exactly as they were stored.
+- **No entities, no fetching:** XML parts with a document type declaration
+  are refused (office files never have one; e-books may name the XHTML
+  doctype, but never with an internal subset that could declare entities).
+  Only XML's five built-in entities, character references and, in e-books,
+  HTML's named characters are decoded; nothing is ever downloaded, and
+  external references are kept as text.
+- **Well-formed only:** malformed XML, mismatched tags, more than one root
+  element and elements nested more than 256 deep are refused.
+- **No paths out of the package:** entry names that are absolute, contain
+  `..`, `.` or empty segments, backslashes, drive letters or control
+  characters, and duplicate names, are refused (the translated file is
+  never extracted anywhere, but other apps may).
+- **Encrypted files are refused, not cracked:** password-protected Office
+  files (which are not ZIP packages), encrypted ZIP entries, OpenDocument
+  files with encryption data and e-books with DRM. Old binary `.doc`,
+  `.xls` and `.ppt` files are refused as damaged.
+- **The output stays well-formed:** translations are escaped, characters
+  XML cannot hold are dropped, and formatting placeholders are turned back
+  into balanced elements whatever order an engine returns them in; fields,
+  bookmarks and comment ranges keep their original order. Large files are
+  read and written in a background isolate, so a hostile file can't freeze
+  the screen.
+
 ## Text from other apps and links
 
 Shared text, "Translate with Mozhi" in the text selection menu, the Quick

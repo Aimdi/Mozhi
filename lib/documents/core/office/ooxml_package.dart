@@ -15,6 +15,10 @@ const _word = '${_officeDocument}wordprocessingml.';
 const _presentation = '${_officeDocument}presentationml.';
 const _spreadsheet = '${_officeDocument}spreadsheetml.';
 
+/// Worksheets are read only for their inline strings (rare: Excel keeps
+/// text in the shared strings), so large ones are skipped.
+const _worksheet = '${_spreadsheet}worksheet+xml';
+
 /// Main parts that make a package a document of each format.
 const Map<DocumentFormat, Set<String>> _mainParts = {
   DocumentFormat.docx: {
@@ -49,7 +53,7 @@ final Map<String, PartBuilderFactory> _translated = {
   '${_presentation}notesSlide+xml': DrawingPartBuilder.new,
   'application/vnd.ms-powerpoint.comments+xml': DrawingPartBuilder.new,
   '${_spreadsheet}sharedStrings+xml': SheetPartBuilder.new,
-  '${_spreadsheet}worksheet+xml': SheetPartBuilder.new,
+  _worksheet: SheetPartBuilder.new,
   '${_officeDocument}drawingml.chart+xml': DrawingPartBuilder.new,
   '${_officeDocument}drawingml.diagramData+xml': DrawingPartBuilder.new,
   'application/vnd.ms-office.drawingml.diagramDrawing+xml':
@@ -129,7 +133,16 @@ List<PartTemplate> ooxmlParts(
       if (entry.isFile)
         if (typeOf(entry) case final type?)
           if (_translated[type] ?? _languageOnly[type] case final builder?)
-            readPart(zip, entry, table, builder),
+            if (type == _worksheet)
+              ?readOptionalPart(
+                zip,
+                entry,
+                table,
+                builder,
+                requires: 'inlineStr',
+              )
+            else
+              readPart(zip, entry, table, builder),
   ];
 }
 

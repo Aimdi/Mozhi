@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter/services.dart';
+import 'package:flutter/src/scheduler/ticker.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
@@ -8,6 +10,51 @@ import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 
 import '../helpers/fake_app_lock_platform.dart';
+
+/// A screen with state: a counter, a text field, and whether it was
+/// disposed.
+class _Page extends StatefulWidget {
+  const new();
+
+  @override
+  State<_Page> createState() => _PageState();
+}
+
+class _PageState extends State<_Page> with SingleTickerProviderStateMixin {
+  static int disposed = 0;
+  int count = 0;
+  final focus = FocusNode();
+  late final Ticker ticker = createTicker((_) {})..start();
+
+  @override
+  void dispose() {
+    disposed++;
+    ticker.dispose();
+    focus.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Column(
+        children: [
+          Text('Count: $count'),
+          SizedBox(
+            width: 400,
+            height: 300,
+            child: ElevatedButton(
+              key: const Key('page_more'),
+              onPressed: () => setState(() => count++),
+              child: const Text('Secret more'),
+            ),
+          ),
+          TextField(key: const Key('page_field'), focusNode: focus),
+        ],
+      ),
+    );
+  }
+}
 
 /// Counts how often the app's content is built.
 class _Content extends StatelessWidget {
@@ -117,7 +164,7 @@ void main() {
       expect(find.byType(AppLockScreen), findsOneWidget);
       expect(find.text('Mozhi is locked'), findsOneWidget);
       expect(find.text('Mozhi'), findsOneWidget);
-      expect(_Content.builds, 0, reason: 'no route is built behind it');
+      expect(_Content.builds, 0, reason: 'nothing built before an unlock');
       expect(platform.prompts, hasLength(1));
       // The button waits while the prompt shows.
       expect(
@@ -198,7 +245,7 @@ void main() {
 
       expect(platform.prompts, hasLength(1));
       expect(find.text('Secret history'), findsOneWidget);
-      expect(_Content.builds, greaterThan(1), reason: 'built anew');
+      expect(_Content.builds, 1, reason: 'kept, not built anew');
     });
 
     testWidgets('stays unlocked for a short trip with a longer timeout', (
@@ -289,6 +336,125 @@ void main() {
 
       expect(tester.takeException(), isNull);
       expect(find.byType(AppLockScreen), findsOneWidget);
+    });
+
+    group('once unlocked', () {
+      Future<_PageState> pumpPage(WidgetTester tester) async {
+        _PageState.disposed = 0;
+        platform.unlocked = true;
+        await pumpGate(tester, create(), child: const _Page());
+        await tester.pump();
+        return tester.state<_PageState>(find.byType(_Page));
+      }
+
+      Future<void> lockNow(WidgetTester tester) async {
+        platform.leave(Duration.zero);
+        await leave(tester);
+        platform
+          ..comeBack()
+          ..promptResult = AppLockPromptResult.cancelled;
+        await comeBack(tester);
+        await tester.pump();
+        expect(find.byType(AppLockScreen), findsOneWidget);
+      }
+
+      Future<void> unlockNow(WidgetTester tester) async {
+        platform.promptResult = AppLockPromptResult.success;
+        await tester.tap(find.byKey(AppLockScreen.unlockKey));
+        await tester.pump();
+        await tester.pump();
+        expect(find.byType(AppLockScreen), findsNothing);
+      }
+
+      testWidgets('keeps the screens and their state while locked', (
+        tester,
+      ) async {
+        final page = await pumpPage(tester);
+        await tester.tap(find.byKey(const Key('page_more')));
+        await tester.tap(find.byKey(const Key('page_more')));
+        await tester.pump();
+
+        await lockNow(tester);
+        // Hidden, but alive.
+        expect(find.text('Count: 2'), findsNothing);
+        expect(find.text('Count: 2', skipOffstage: false), findsOneWidget);
+        expect(_PageState.disposed, 0);
+        expect(page.ticker.muted, isTrue, reason: 'animations stopped');
+
+        await unlockNow(tester);
+        expect(tester.state<_PageState>(find.byType(_Page)), same(page));
+        expect(find.text('Count: 2'), findsOneWidget);
+        expect(page.ticker.muted, isFalse);
+        expect(_PageState.disposed, 0);
+      });
+
+      testWidgets('lets no touch through to them', (tester) async {
+        final page = await pumpPage(tester);
+        final button = tester.getCenter(find.byKey(const Key('page_more')));
+
+        await lockNow(tester);
+        await tester.tapAt(button);
+        await tester.pump();
+        expect(find.byKey(const Key('page_more')).hitTestable(), findsNothing);
+
+        await unlockNow(tester);
+        expect(page.count, 0);
+      });
+
+      testWidgets('keeps them out of the screen reader', (tester) async {
+        final handle = tester.ensureSemantics();
+        await pumpPage(tester);
+        expect(find.bySemanticsLabel('Secret more'), findsOneWidget);
+
+        await lockNow(tester);
+
+        expect(find.bySemanticsLabel('Secret more'), findsNothing);
+        expect(find.bySemanticsLabel(RegExp('Count')), findsNothing);
+        expect(find.bySemanticsLabel('Mozhi is locked'), findsOneWidget);
+        handle.dispose();
+      });
+
+      testWidgets('takes the keyboard focus and the keyboard away', (
+        tester,
+      ) async {
+        final page = await pumpPage(tester);
+        await tester.tap(find.byKey(const Key('page_field')));
+        await tester.pump();
+        expect(page.focus.hasFocus, isTrue);
+        expect(tester.testTextInput.hasAnyClients, isTrue);
+
+        await lockNow(tester);
+        expect(page.focus.hasFocus, isFalse);
+        expect(tester.testTextInput.hasAnyClients, isFalse);
+
+        // Neither Tab nor a request brings it back while locked.
+        for (var i = 0; i < 5; i++) {
+          await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+          await tester.pump();
+          expect(page.focus.hasFocus, isFalse);
+        }
+        page.focus.requestFocus();
+        await tester.pump();
+        expect(page.focus.hasFocus, isFalse);
+        expect(tester.testTextInput.hasAnyClients, isFalse);
+
+        await unlockNow(tester);
+        page.focus.requestFocus();
+        await tester.pump();
+        expect(page.focus.hasFocus, isTrue);
+      });
+
+      testWidgets('shows no messages of the hidden screens', (tester) async {
+        final page = await pumpPage(tester);
+        await lockNow(tester);
+
+        ScaffoldMessenger.of(page.context)
+            .showSnackBar(const SnackBar(content: Text('Saved secret.docx')));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 500));
+
+        expect(find.text('Saved secret.docx'), findsNothing);
+      });
     });
 
     group('compact', () {

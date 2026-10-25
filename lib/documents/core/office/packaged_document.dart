@@ -104,9 +104,6 @@ final class OfficePackage implements PackagedDocument {
   final List<PartTemplate> _parts;
   final PackageLimits _limits;
 
-  /// Names of the XML parts that are translated or record the language.
-  List<String> get partNames => [for (final part in _parts) part.name];
-
   @override
   int get characterCount =>
       segments.fold(0, (total, segment) => total + segment.text.length);

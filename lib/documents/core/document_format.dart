@@ -153,7 +153,11 @@ enum DocumentFormat {
       final markup = _sniffMarkup(trimmed, markdown: strong > 0);
       if (markup != null) return markup;
     }
-    if (_poMsgid.hasMatch(trimmed) && _poMsgstr.hasMatch(trimmed)) return po;
+    if (_poMsgid.hasMatch(trimmed) &&
+        _poMsgstr.hasMatch(trimmed) &&
+        !trimmed.contains('```')) {
+      return po;
+    }
     if (_isAppleStrings(trimmed)) return appleStrings;
     if (_isTsv(trimmed)) return tsv;
     final weak = _markdownWeak.allMatches(trimmed).length;

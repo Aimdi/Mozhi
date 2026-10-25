@@ -233,18 +233,24 @@ List<Inline> textInlines(
       while (j < end && _isHtmlSpace(source.codeUnitAt(j))) {
         j++;
       }
-      final run = source.substring(i, j);
-      if (run == ' ') {
+      if (j == i + 1 && c == 0x20) {
         plain.write(' ');
       } else {
         flush();
-        items.add(InlineText(run, ' '));
+        items.add(InlineText(source.substring(i, j), ' '));
       }
       i = j;
       continue;
     }
-    plain.writeCharCode(c);
-    i++;
+    // Copy up to the next reference or whitespace in one go.
+    var j = i + 1;
+    while (j < end) {
+      final next = source.codeUnitAt(j);
+      if (next == 0x26 || (collapse && _isHtmlSpace(next))) break;
+      j++;
+    }
+    plain.write(source.substring(i, j));
+    i = j;
   }
   flush();
   return items;
@@ -279,6 +285,24 @@ List<Inline> protectInlines(List<Inline> inlines, RegExp? pattern) {
   return result;
 }
 
+/// Whether [pattern] is one of [LocalisationPatterns], whose matches all
+/// contain a character [_mayHoldPlaceholder] looks for.
+bool _known(RegExp pattern) =>
+    identical(pattern, LocalisationPatterns.html) ||
+    identical(pattern, LocalisationPatterns.text) ||
+    identical(pattern, LocalisationPatterns.resource) ||
+    identical(pattern, LocalisationPatterns.markupResource);
+
+/// Whether [text] has a character that starts any of the protected
+/// patterns (tags, references, URLs, e-mail addresses, placeholders):
+/// most text has none, and the patterns are slow on long text.
+bool _mayHoldPlaceholder(String text) =>
+    text.contains(_placeholderStart) ||
+    text.contains('://') ||
+    text.contains('www.');
+
+final _placeholderStart = RegExp(r'[<>&@{}$%\\]');
+
 List<Inline> _protectRun(List<InlineText> run, RegExp pattern) {
   // starts[k]: offset of run[k] in the decoded text.
   final starts = <int>[];
@@ -289,6 +313,7 @@ List<Inline> _protectRun(List<InlineText> run, RegExp pattern) {
   }
   final text = decoded.toString();
   final total = text.length;
+  if (_known(pattern) && !_mayHoldPlaceholder(text)) return run;
 
   int itemAt(int offset) {
     var low = 0;
@@ -532,28 +557,35 @@ String repairInlineTags(String fragment, {required bool html}) {
 // Editing tags
 // ---------------------------------------------------------------------------
 
-/// Collects template nodes, merging adjacent text.
+/// Collects template nodes, merging adjacent text (in a buffer, so that
+/// long stretches of markup are not copied again for every tag).
 final class NodeList {
-  final List<DocNode> nodes = [];
+  final List<DocNode> _nodes = [];
+  final StringBuffer _pending = StringBuffer();
 
-  void text(String text) {
-    if (text.isEmpty) return;
-    final previous = nodes.isEmpty ? null : nodes.last;
-    if (previous is TextNode) {
-      nodes[nodes.length - 1] = TextNode('${previous.text}$text');
-    } else {
-      nodes.add(TextNode(text));
-    }
+  /// The nodes collected so far.
+  List<DocNode> get nodes {
+    _flush();
+    return _nodes;
   }
+
+  void text(String text) => _pending.write(text);
 
   void addAll(Iterable<DocNode> items) {
     for (final node in items) {
       if (node is TextNode) {
-        text(node.text);
+        _pending.write(node.text);
       } else {
-        nodes.add(node);
+        _flush();
+        _nodes.add(node);
       }
     }
+  }
+
+  void _flush() {
+    if (_pending.isEmpty) return;
+    _nodes.add(TextNode(_pending.toString()));
+    _pending.clear();
   }
 }
 

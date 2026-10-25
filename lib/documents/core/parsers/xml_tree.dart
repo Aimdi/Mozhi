@@ -11,8 +11,17 @@ import 'package:mozhi/documents/core/parsers/markup_lexer.dart';
 import 'package:xml/xml.dart' show XmlException;
 import 'package:xml/xml_events.dart';
 
-/// Inputs longer than this (in UTF-16 code units) are refused.
-const int maxMarkupLength = 16 * 1024 * 1024;
+/// Documents longer than this (in UTF-16 code units) are refused by the
+/// localisation and web parsers.
+const int maxDocumentLength = 16 * 1024 * 1024;
+
+/// Throws [DocumentParseException] when [text] is longer than
+/// [maxDocumentLength]; [format] names the file type.
+void checkDocumentLength(String text, String format) {
+  if (text.length > maxDocumentLength) {
+    throw DocumentParseException('$format: the file is too large');
+  }
+}
 
 /// Elements nested deeper than this are refused.
 const maxMarkupDepth = 256;
@@ -114,9 +123,7 @@ final class XmlTree {
 /// Throws [DocumentParseException] for malformed XML, a document type
 /// declaration that declares entities, too long input or too deep nesting.
 XmlTree parseXmlTree(String source, {required String format}) {
-  if (source.length > maxMarkupLength) {
-    throw DocumentParseException('$format: the file is too large');
-  }
+  checkDocumentLength(source, format);
   var offset = 0;
   if (source.startsWith('\uFEFF')) offset = 1;
   while (offset < source.length && _isSpace(source.codeUnitAt(offset))) {

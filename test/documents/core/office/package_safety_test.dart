@@ -118,10 +118,13 @@ void main() {
     });
 
     test('decompression bombs', () {
-      // 3 MB of spaces deflates to a few KB.
-      final bytes = docx(
-        '<w:p><w:r><w:t>Hello</w:t></w:r></w:p>${' ' * (3 * 1024 * 1024)}',
-      );
+      // 4 MB of spaces deflates to a few KB.
+      final bytes = zipOf({
+        '[Content_Types].xml': bytesTypes,
+        'word/document.xml':
+            '<w:document xmlns:w="$wNs"><w:body>${' ' * (4 * 1024 * 1024)}'
+            '</w:body></w:document>',
+      }, level: DeflateLevel.bestCompression);
       expect(
         () => parse(bytes),
         throwsProblem(PackageProblem.unsafe, contains('compressed')),

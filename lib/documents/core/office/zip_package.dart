@@ -12,7 +12,7 @@ final class PackageLimits {
     this.maxPartBytes = 32 * 1024 * 1024,
     this.maxParsedBytes = 128 * 1024 * 1024,
     this.maxTotalBytes = 2 * 1024 * 1024 * 1024,
-    this.maxRatio = 200,
+    this.maxRatio = 500,
     this.ratioFloorBytes = 1024 * 1024,
     this.maxDepth = 256,
   });
@@ -151,11 +151,23 @@ final class ZipPackage {
     return entry != null && entry.isFile ? entry : null;
   }
 
+  /// Whether [entry] can be read within the limits.
+  bool canRead(ArchiveFile entry) {
+    final size = entry.size;
+    final content = entry.rawContent;
+    final compressed = content is ZipFile ? content.compressedSize : size;
+    return size <= limits.maxPartBytes &&
+        (size <= limits.ratioFloorBytes ||
+            (compressed > 0 && size / compressed <= limits.maxRatio)) &&
+        _parsedBytes + size <= limits.maxParsedBytes;
+  }
+
   /// The unpacked bytes of [entry], within the limits.
   Uint8List readBytes(ArchiveFile entry) {
     final size = entry.size;
     final content = entry.rawContent;
-    if (content == null) return Uint8List(0);
+    // Files of a decoded package always have content.
+    if (content == null) return Uint8List(0); // coverage:ignore-line
     final compressed = content is ZipFile ? content.compressedSize : size;
     if (size > limits.maxPartBytes) {
       throw PackageParseException(
@@ -234,7 +246,8 @@ final class ZipPackage {
 
   static Uint8List _stored(ArchiveFile entry) {
     final content = entry.rawContent;
-    if (content == null) return Uint8List(0);
+    // Files of a decoded package always have content.
+    if (content == null) return Uint8List(0); // coverage:ignore-line
     final output = OutputMemoryStream();
     content.decompress(output);
     return output.getBytes();

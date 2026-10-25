@@ -40,6 +40,43 @@ PartTemplate readPart(
   XmlEntityMapping? entities,
 }) {
   final (text, encoding) = zip.readText(entry);
+  return _build(
+    entry,
+    text,
+    encoding,
+    zip,
+    table,
+    builder,
+    allowDoctype: allowDoctype,
+    entities: entities,
+  );
+}
+
+/// Like [readPart] for a part that may be left out: null when it is beyond
+/// the limits or its text does not contain [requires].
+PartTemplate? readOptionalPart(
+  ZipPackage zip,
+  ArchiveFile entry,
+  SegmentTable table,
+  PartBuilderFactory builder, {
+  required String requires,
+}) {
+  if (!zip.canRead(entry)) return null;
+  final (text, encoding) = zip.readText(entry);
+  if (!text.contains(requires)) return null;
+  return _build(entry, text, encoding, zip, table, builder);
+}
+
+PartTemplate _build(
+  ArchiveFile entry,
+  String text,
+  PartEncoding encoding,
+  ZipPackage zip,
+  SegmentTable table,
+  PartBuilderFactory builder, {
+  bool allowDoctype = false,
+  XmlEntityMapping? entities,
+}) {
   final document = SourceDocument.parse(
     text,
     part: entry.name,

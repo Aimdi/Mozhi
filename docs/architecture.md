@@ -230,6 +230,19 @@ shared text to the translate tab through `TranslateCubit.setExternalInput`,
 which caps it at 5,000 characters and never starts a paid AI request. Kagi-style URLs (`/translate?text=…&from=…
 &to=…`) go through the same `TranslateLink` path via the router's redirect.
 
+**Translate screen** (`lib/screen_translate/`) is a third window, like the
+quick translate one: `ScreenTranslateActivity` (a translucent
+`MainActivity` with its own Flutter engine at `/screen-translate`) asks for
+the screen-capture consent, `ScreenCaptureService` (a `mediaProjection`
+foreground service) takes one frame into the app's cache, and
+`ScreenTranslatePage` shows it with the image translation's overlay
+(`ImageTranslateCubit` with on-device recognition only). The router shows
+nothing else in that window (other locations open in the main window), and
+`SharedTextHandler` forwards its network activity to the main window. The
+opt-in bubble (`TranslateBubbleService`) and the Quick Settings tile are
+controlled from the settings over `ScreenTranslateControls`
+(`ScreenTranslatePlugin.kt`); their state lives on the platform side.
+
 ## How to add an AI provider
 
 ### A new preset (most providers)

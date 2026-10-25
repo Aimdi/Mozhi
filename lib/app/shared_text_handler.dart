@@ -84,6 +84,7 @@ class SharedTextHandler {
     QuickTranslateHost? quickHost,
     ScreenTranslateHost? screenHost,
     this.ledger,
+    this.untilUnlocked,
   }) : quickHost = quickHost ?? QuickTranslateHost.instance,
        screenHost = screenHost ?? ScreenTranslateHost.instance;
 
@@ -111,6 +112,13 @@ class SharedTextHandler {
 
   /// The screen-translate window this app may run in.
   final ScreenTranslateHost screenHost;
+
+  /// Completes once the app lock lets the app show what it got (`AppLock`,
+  /// `AppLockController.untilUnlocked`): every text, selection and
+  /// clipboard request waits for it before it fills the translator, opens
+  /// a screen, translates or is saved; the clipboard is read only then.
+  /// Null: nothing to wait for.
+  final Future<void> Function()? untilUnlocked;
 
   /// The network activity log to join (default: the one of
   /// [NetworkSession.current]).
@@ -150,6 +158,10 @@ class SharedTextHandler {
   /// Shows [shared] where it belongs (see the class documentation).
   Future<void> handle(SharedText shared) async {
     if (_disposed) return;
+    if (untilUnlocked case final wait?) {
+      await wait();
+      if (_disposed) return;
+    }
     if (shared.isTranslateClipboard) {
       await _translateClipboard();
       return;

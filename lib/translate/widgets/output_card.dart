@@ -13,6 +13,7 @@ import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/history/models/history_entry.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/offline/offline.dart' show OfflineEngineBadge;
+import 'package:mozhi/on_device_ai/view/on_device_ai_paused_notice.dart';
 import 'package:mozhi/phrasebook/widgets/add_to_phrasebook.dart'
     show AddToPhrasebookButton, translationPhraseDraft;
 import 'package:mozhi/phrasebook/widgets/phrasebook_labels.dart'
@@ -618,6 +619,32 @@ class _OutputCardState extends State<OutputCard>
                           )
                         : null,
                   ),
+                  // A refinement (or another new translation of the shown
+                  // one) that waits for the on-device model says so, and
+                  // so does a long text that waits between its parts
+                  // while the phone is hot or saving battery.
+                  if (state.isPending &&
+                      state.output.isNotEmpty &&
+                      _onDeviceAi(state))
+                    Padding(
+                      padding: const EdgeInsetsDirectional.fromSTEB(
+                        TranslateLayout.cardPadding,
+                        8,
+                        12,
+                        0,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (refreshing) const OnDeviceAiLoadingNotice(),
+                          OnDeviceAiPausedNotice(
+                            onCancel: context
+                                .read<TranslateCubit>()
+                                .stopTranslation,
+                          ),
+                        ],
+                      ),
+                    ),
                   Padding(
                     key: _contentKey,
                     padding: const EdgeInsetsDirectional.fromSTEB(
@@ -1262,6 +1289,12 @@ class _OutputCardState extends State<OutputCard>
     unawaited(showSpanAlternativesSheet(context));
   }
 
+  /// Whether [state]'s engine is on-device AI.
+  static bool _onDeviceAi(TranslateState state) {
+    final engine = state.engine;
+    return engine != null && isOnDeviceAiEngine(engine);
+  }
+
   Widget _insightsStatus(BuildContext context, TranslateState state) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
@@ -1269,9 +1302,12 @@ class _OutputCardState extends State<OutputCard>
       color: theme.colorScheme.onSurfaceVariant,
     );
     final child = switch (state.insightsStatus) {
-      ExtraStatus.loading => LinearProgressIndicator(
-        key: const Key('translate_insights_progress'),
-        semanticsLabel: l10n.translateLoading,
+      ExtraStatus.loading => OnDeviceAiExtraLoading(
+        engine: state.assistEngine,
+        child: LinearProgressIndicator(
+          key: const Key('translate_insights_progress'),
+          semanticsLabel: l10n.translateLoading,
+        ),
       ),
       ExtraStatus.failure => TranslateErrorView(
         error: state.extraError,
@@ -1302,9 +1338,12 @@ class _OutputCardState extends State<OutputCard>
     // after every later translation).
     final live = state.result != null && state.result == _alignmentAskedFor;
     final child = switch (state.alignmentStatus) {
-      ExtraStatus.loading => LinearProgressIndicator(
-        key: const Key('translate_alignment_progress'),
-        semanticsLabel: l10n.translateAlignmentLoading,
+      ExtraStatus.loading => OnDeviceAiExtraLoading(
+        engine: state.assistEngine,
+        child: LinearProgressIndicator(
+          key: const Key('translate_alignment_progress'),
+          semanticsLabel: l10n.translateAlignmentLoading,
+        ),
       ),
       ExtraStatus.failure => TranslateErrorView(
         key: const Key('translate_alignment_error'),

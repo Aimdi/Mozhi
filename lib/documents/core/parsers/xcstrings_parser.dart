@@ -9,6 +9,8 @@ import 'package:mozhi/documents/core/parsers/json_tree.dart';
 import 'package:mozhi/documents/core/parsers/locale_rules.dart';
 import 'package:mozhi/documents/core/parsers/markup_content.dart'
     show NodeList, hasSegment;
+import 'package:mozhi/documents/core/parsers/xml_tree.dart'
+    show checkDocumentLength;
 
 /// Parses Xcode string catalogues ([DocumentFormat.xcstrings]); the
 /// translations are added as the [targetLanguage] localisation.
@@ -31,6 +33,7 @@ import 'package:mozhi/documents/core/parsers/markup_content.dart'
 /// Throws [DocumentParseException] for invalid JSON or JSON that is not a
 /// string catalogue.
 ParsedDocument parseXcstrings(String text, {String? targetLanguage}) {
+  checkDocumentLength(text, 'String catalog');
   final root = parseJsonTree(text, format: 'String catalog');
   if (root is! JsonObject || root['strings'] is! JsonObject) {
     throw const DocumentParseException(

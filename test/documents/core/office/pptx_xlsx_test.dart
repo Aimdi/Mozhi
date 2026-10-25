@@ -174,8 +174,33 @@ void main() {
         ),
       );
       final sheet = entryText(output, 'xl/worksheets/sheet1.xml');
+      expect(sheet, contains('<c r="B1"><v>42</v></c>'));
       expect(sheet, contains('<is><t xml:space="preserve">Nota</t></is>'));
       expect(sheet, contains('<f>CONCAT("a","b")</f><v>ab</v>'));
+    });
+
+    test('worksheets are read only for their inline strings', () {
+      // Not even parsed without inline strings (this one is malformed).
+      final plain = xlsx(
+        ['<si><t>Name</t></si>'],
+        sheetData: '<row><c r="A1" t="s"><v>0</v></c>',
+      );
+      expect(textsOf(parse(plain)), ['Name']);
+
+      // Too large to read: the worksheet is left as it is.
+      final large = xlsx(
+        ['<si><t>Name</t></si>'],
+        sheetData:
+            '<row r="1"><c r="A1" t="inlineStr"><is><t>Inline</t></is></c>'
+            '</row>${'<row/>' * 200}',
+      );
+      final document = OfficePackage.parse(
+        large,
+        DocumentFormat.xlsx,
+        limits: const PackageLimits(maxPartBytes: 1000),
+      );
+      expect(textsOf(document), ['Name']);
+      expect(textsOf(parse(large)), ['Name', 'Inline']);
     });
   });
 }
