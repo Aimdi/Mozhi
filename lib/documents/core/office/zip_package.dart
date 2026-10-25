@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
@@ -31,7 +32,8 @@ final class PackageLimits {
   final int maxTotalBytes;
 
   /// Highest compression ratio of a part that is read and larger than
-  /// [ratioFloorBytes] (decompression bombs).
+  /// [ratioFloorBytes], and of the whole package when its entries claim
+  /// more than [ratioFloorBytes] together (decompression bombs).
   final int maxRatio;
   final int ratioFloorBytes;
 
@@ -46,6 +48,11 @@ enum PartEncoding { utf8, utf8Bom, utf16le, utf16be, latin1 }
 /// archives (see [PackageLimits]) and entry names that could leave the
 /// package (absolute paths, `..`, drive letters, backslashes, control
 /// characters).
+///
+/// The directory is checked before the archive library decodes it (which
+/// unpacks symbolic links right away): symbolic links, entries that lie
+/// outside the file or overlap each other, and declared sizes over the
+/// limits are refused without unpacking anything.
 final class ZipPackage {
   new _(this.bytes, this.entries, this.limits)
     : _byName = {for (final entry in entries) entry.name: entry},
@@ -90,20 +97,14 @@ final class ZipPackage {
         'damaged ZIP package ($error)',
       );
     }
+    // Entry count and sizes were checked by _checkDirectory.
     final headers = decoder.directory.fileHeaders;
-    if (headers.length > limits.maxEntries) {
-      throw const PackageParseException(
-        PackageProblem.unsafe,
-        'too many entries',
-      );
-    }
     if (headers.length != archive.length) {
       throw const PackageParseException(
         PackageProblem.unsafe,
         'duplicate entry names',
       );
     }
-    var total = 0;
     for (final header in headers) {
       final file = header.file;
       if (file != null && file.flags & 0x1 != 0) {
@@ -112,13 +113,6 @@ final class ZipPackage {
           'password-protected ZIP entries',
         );
       }
-      total += header.uncompressedSize;
-    }
-    if (total > limits.maxTotalBytes) {
-      throw const PackageParseException(
-        PackageProblem.unsafe,
-        'unpacks to too much data',
-      );
     }
     for (final entry in archive) {
       if (!isSafeEntryName(entry.name)) {
@@ -208,7 +202,8 @@ final class ZipPackage {
 
   /// Writes the package again: entries in their original order (with
   /// `mimetype` first and stored when [mimetypeFirst]), [replaced] entries
-  /// deflated, every other entry copied as it was stored.
+  /// deflated, every other entry copied as it was stored. A compressed
+  /// `mimetype` is unpacked within the limits of [readBytes].
   Uint8List write(
     Map<String, Uint8List> replaced, {
     required bool mimetypeFirst,
@@ -231,7 +226,9 @@ final class ZipPackage {
           entry.compression == CompressionType.none) {
         // Stored entries are written with their sizes up front (no data
         // descriptor), as ODF and EPUB require for `mimetype`.
-        final data = _stored(entry);
+        final data = entry.compression == CompressionType.none
+            ? _stored(entry)
+            : readBytes(entry);
         copy = ArchiveFile.noCompress(entry.name, data.length, data);
       } else {
         copy = entry;
@@ -290,16 +287,56 @@ final class ZipPackage {
     return true;
   }
 
-  /// Checks the end of central directory record before the archive is
-  /// decoded: it must exist and announce a sane number of entries.
+  static const _eocdSignature = 0x06054b50;
+  static const _zip64LocatorSignature = 0x07064b50;
+  static const _zip64RecordSignature = 0x06064b50;
+  static const _centralSignature = 0x02014b50;
+  static const _localSignature = 0x04034b50;
+
+  /// Stands for 64-bit sizes and offsets from 2^53 on (far beyond any
+  /// limit), which are not exact integers on the web.
+  static const _huge = 0x20000000000000;
+
+  /// Checks the directory before the archive is decoded, reading it the way
+  /// the decoder of package:archive will (its `ZipDirectory` and
+  /// `ZipFileHeader`): the end of central directory record (and a ZIP64
+  /// record its locator points to), then every central directory header
+  /// and the local header it points to. Refuses, without unpacking
+  /// anything:
+  /// * too many entries (also as announced) or too large a directory;
+  /// * symbolic links (Unix mode `0xA000`), which the decoder would unpack
+  ///   while decoding, before any limit applies;
+  /// * declared sizes over [PackageLimits.maxTotalBytes] together, or more
+  ///   than [PackageLimits.maxRatio] times the size of the file;
+  /// * a directory, local header or entry data that lies outside the file
+  ///   (damaged), and entries that overlap each other or the directory
+  ///   (unsafe: copied entries would repeat the same bytes).
   static void _checkDirectory(Uint8List bytes, PackageLimits limits) {
     final data = ByteData.sublistView(bytes);
+    int u16(int at) => data.getUint16(at, Endian.little);
+    int u32(int at) => data.getUint32(at, Endian.little);
+    // 64-bit fields, read as two halves (the web has no getUint64).
+    int u64(int at) {
+      final high = u32(at + 4);
+      return high >= _huge ~/ 0x100000000
+          ? _huge
+          : high * 0x100000000 + u32(at);
+    }
+
+    Never damaged(String what) => throw PackageParseException(
+      PackageProblem.damaged,
+      'damaged ZIP package ($what)',
+    );
+    Never unsafe(String what) =>
+        throw PackageParseException(PackageProblem.unsafe, what);
+
+    // The decoder takes the last end of central directory record.
     const eocdSize = 22;
     final lowest = bytes.length - eocdSize - 0xFFFF;
     var position = bytes.length - eocdSize;
     while (position >= 0 &&
         position >= lowest &&
-        data.getUint32(position, Endian.little) != 0x06054b50) {
+        u32(position) != _eocdSignature) {
       position--;
     }
     if (position < 0 || position < lowest) {
@@ -308,31 +345,94 @@ final class ZipPackage {
         'no ZIP directory',
       );
     }
-    var count = data.getUint16(position + 10, Endian.little);
-    var directorySize = data.getUint32(position + 12, Endian.little);
+    var count = u16(position + 10);
+    var directorySize = u32(position + 12);
+    var directoryOffset = u32(position + 16);
+    // Like the decoder, follow a ZIP64 locator whatever the record says.
     final locator = position - 20;
-    if ((count == 0xFFFF || directorySize == 0xFFFFFFFF) &&
-        locator >= 0 &&
-        data.getUint32(locator, Endian.little) == 0x07064b50) {
-      // 64-bit fields, read as two halves (the web has no getUint64).
-      int uint64(int at) =>
-          data.getUint32(at, Endian.little) +
-          data.getUint32(at + 4, Endian.little) * 0x100000000;
-      final record = uint64(locator + 8);
-      if (record + 56 > bytes.length) {
+    if (locator >= 0 && u32(locator) == _zip64LocatorSignature) {
+      final record = u64(locator + 8);
+      if (record > locator - 56) {
         throw const PackageParseException(
           PackageProblem.damaged,
           'damaged ZIP64 directory',
         );
       }
-      count = uint64(record + 32);
-      directorySize = uint64(record + 40);
+      if (u32(record) == _zip64RecordSignature) {
+        count = u64(record + 32);
+        directorySize = u64(record + 40);
+        directoryOffset = u64(record + 48);
+      }
     }
     if (count > limits.maxEntries || directorySize > limits.maxEntries * 1024) {
-      throw const PackageParseException(
-        PackageProblem.unsafe,
-        'too many entries',
-      );
+      unsafe('too many entries');
+    }
+    final directoryEnd = directoryOffset + directorySize;
+    if (directoryEnd > bytes.length) damaged('directory outside the file');
+
+    // Byte ranges taken by the directory and each entry.
+    final ranges = <(int, int)>[
+      if (directorySize > 0) (directoryOffset, directoryEnd),
+    ];
+    var entries = 0;
+    var total = 0;
+    var at = directoryOffset;
+    while (at < directoryEnd) {
+      if (at + 4 > directoryEnd) damaged('cut-off directory');
+      // The decoder stops at anything that is not a header.
+      if (u32(at) != _centralSignature) break;
+      if (at + 46 > directoryEnd) damaged('cut-off directory');
+      if (++entries > limits.maxEntries) unsafe('too many entries');
+      final madeBy = u16(at + 4);
+      var compressed = u32(at + 20);
+      var size = u32(at + 24);
+      final extraStart = at + 46 + u16(at + 28);
+      final extraEnd = extraStart + u16(at + 30);
+      final next = extraEnd + u16(at + 32);
+      final attributes = u32(at + 38);
+      var offset = u32(at + 42);
+      if (next > directoryEnd) damaged('cut-off directory');
+      // ZIP64 sizes and offset, read in the decoder's order.
+      var field = extraStart;
+      while (extraEnd - field >= 4) {
+        final id = u16(field);
+        var length = u16(field + 2);
+        var value = field + 4;
+        final valueEnd = math.min(value + length, extraEnd);
+        field = valueEnd;
+        if (id != 1) continue;
+        int read64() {
+          if (value + 8 > valueEnd) damaged('cut-off ZIP64 field');
+          length -= 8;
+          value += 8;
+          return u64(value - 8);
+        }
+
+        if (length >= 8 && size == 0xFFFFFFFF) size = read64();
+        if (length >= 8 && compressed == 0xFFFFFFFF) compressed = read64();
+        if (length >= 8 && offset == 0xFFFFFFFF) offset = read64();
+      }
+      if (madeBy >> 8 == 3 && (attributes >> 16) & 0xF000 == 0xA000) {
+        unsafe('symbolic link entries');
+      }
+      total += size;
+      if (total > limits.maxTotalBytes) unsafe('unpacks to too much data');
+      if (offset + 30 > bytes.length || u32(offset) != _localSignature) {
+        damaged('entry outside the file');
+      }
+      final end =
+          offset + 30 + u16(offset + 26) + u16(offset + 28) + compressed;
+      if (end > bytes.length) damaged('entry outside the file');
+      ranges.add((offset, end));
+      at = next;
+    }
+    if (total > limits.ratioFloorBytes &&
+        total > bytes.length * limits.maxRatio) {
+      unsafe('the package is compressed suspiciously well');
+    }
+    ranges.sort((a, b) => a.$1.compareTo(b.$1));
+    for (var i = 1; i < ranges.length; i++) {
+      if (ranges[i].$1 < ranges[i - 1].$2) unsafe('overlapping entries');
     }
   }
 

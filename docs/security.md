@@ -142,8 +142,12 @@ pick ones you trust, or self-host them ([guide](self-hosting-mozhi.md)).
   to see, read aloud, type into or tap. Text shared to the app, the
   clipboard actions and `mozhi://` links (also shared files and the
   widget's buttons) wait for the unlock before they fill anything in,
-  open a screen, translate or are saved; the clipboard is only read then.
-  The quick translate and Translate screen windows ask to unlock first
+  open a screen, translate or are saved; the clipboard is only read then,
+  except by the translate bubble's press and hold: Android lets only the
+  window in front read the clipboard, so that invisible window reads it at
+  once (also while Mozhi is locked) and hands it to the quick translate
+  window, which shows it only after the unlock. The quick translate and
+  Translate screen windows ask to unlock first
   (they would otherwise show your languages and spend your AI providers'
   credit), and Recents shows no preview while the lock is on. Unlocking uses Android's
   system prompt (framework `BiometricPrompt` with `BIOMETRIC_WEAK` or the
@@ -156,10 +160,21 @@ pick ones you trust, or self-host them ([guide](self-hosting-mozhi.md)).
   needs the phone's PIN anyway). Away time is measured by the platform
   with `SystemClock.elapsedRealtime` (monotonic, counts deep sleep), the
   same for every window of the app process; changing the clock changes
-  nothing, and a new app process always starts locked. Trips to the camera
-  or a file picker that Mozhi opened (`startActivityForResult`) get at
-  least 5 minutes. The setting is device-only: backups, sync and Phone to
-  phone leave it out, and a restore keeps this device's value.
+  nothing, and a new app process always starts locked. Trips that Mozhi
+  starts for a result to pick, take or save something get at least 5
+  minutes: a file, folder or photo picker (`ACTION_OPEN_DOCUMENT`,
+  `ACTION_OPEN_DOCUMENT_TREE`, `ACTION_GET_CONTENT`, `ACTION_PICK`, the
+  photo picker's `ACTION_PICK_IMAGES` and its androidx and Play services
+  fallbacks), saving a file (`ACTION_CREATE_DOCUMENT`) and the camera
+  (`ACTION_IMAGE_CAPTURE`), each also inside a chooser
+  (`ACTION_CHOOSER`'s `EXTRA_INTENT`), and Translate screen's
+  screen-capture consent. Anything else Mozhi opens, also for a result,
+  is an ordinary absence: above all the share sheet (a chooser of
+  `ACTION_SEND` or `ACTION_SEND_MULTIPLE`), which hands the text to another
+  app, so with **Immediately** Mozhi is locked when you come back from a
+  share; so are Android's settings (**Display over other apps**). The
+  setting is device-only: backups, sync and Phone to phone leave it out,
+  and a restore keeps this device's value.
   **What it doesn't do:** it is not encryption. The data stays encrypted
   as before (history, phrasebook and practice with their Keystore-wrapped
   keys, secrets in secure storage), not with a key that needs the unlock,
@@ -485,7 +500,10 @@ capture only on purpose and to keep nothing:
   app's cache (`<cache>/screen_translate`, private to the app and never
   backed up), handed to the window by its in-process result (not by a
   path another component could name), read into memory and deleted; any
-  leftover goes when the window closes and when the next one opens. The
+  leftover goes when the window closes and when the next one opens, and
+  one left by an app process that ended in between (after saving the PNG,
+  before reading it) when the app next opens any window (once per app
+  process, off the main thread, sparing the files of the running one). The
   window closes when it goes to the background, so the screenshot doesn't
   stay in memory, and it is in no Recents list.
 - **Mozhi's own window stays out of the frame.** The window draws nothing
@@ -502,14 +520,22 @@ capture only on purpose and to keep nothing:
 - **App lock.** When Mozhi is locked, the window asks to unlock after the
   capture and before it shows anything; a cancelled prompt leaves only
   **Unlock** and **Close**, and the screenshot is hidden again if the app
-  locks while it is open.
+  locks while it is open. Since only this window may show its page before
+  the unlock, no other app can start Mozhi as this window: the exported
+  main window never starts at its route (or the quick translate window's),
+  however the intent asks for it (Flutter's `route` extra, a link, an
+  explicit intent's data), and the app lock takes a window for this one
+  (or the quick translate one) only when its route and its activity agree
+  (a Dart entrypoint argument set by the activity's class, not by the
+  intent); otherwise it shows the full lock screen.
 - **The bubble** needs **Display over other apps**, granted by the user in
   Android's settings, and runs as a `specialUse` foreground service with a
   visible notification and **Stop**. It reads nothing by itself: a tap
   starts the consent above, a long press reads the clipboard once (in a
-  window that has input focus, as Android 10+ requires) and opens it as a
-  read-only selection in the quick translate sheet, which never starts a
-  paid AI request on its own.
+  window that has input focus, as Android 10+ requires, so right away,
+  also while Mozhi is locked) and opens it as a read-only selection in the
+  quick translate sheet, which shows it only after the unlock and never
+  starts a paid AI request on its own.
 
 ## AI prompts and output
 

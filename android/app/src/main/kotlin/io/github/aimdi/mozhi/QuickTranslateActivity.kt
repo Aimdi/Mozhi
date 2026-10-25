@@ -41,7 +41,7 @@ class QuickTranslateActivity : MainActivity() {
     override fun getInitialRoute(): String = ROUTE
 
     override val lockWindow: String
-        get() = WINDOW_QUICK_TRANSLATE
+        get() = MainActivity.WINDOW_QUICK_TRANSLATE
 
     override fun shouldHandleDeeplinking(): Boolean = false
 

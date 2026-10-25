@@ -12,6 +12,7 @@ import 'package:mozhi/history/view/history_page.dart';
 import 'package:mozhi/platform/shared_text_service.dart';
 import 'package:mozhi/quick_translate/quick_translate_host.dart';
 import 'package:mozhi/quick_translate/view/quick_translate_sheet.dart';
+import 'package:mozhi/screen_translate/screen_translate.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
@@ -292,8 +293,11 @@ void main() {
       channel: channel,
       initialRoute: () => QuickTranslateHost.location,
     );
+    // QuickTranslateActivity says so too (its Dart entrypoint argument).
+    AppLockWindow.declared = AppLockWindow.quickTranslate;
     addTearDown(() {
       QuickTranslateHost.instance = previous;
+      AppLockWindow.declared = null;
       tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
         channel,
         null,
@@ -308,5 +312,74 @@ void main() {
     await tester.pump();
 
     expect(calls, contains('close'));
+  });
+
+  group('started at the screen-translate route', () {
+    const channel = MethodChannel('test/screen_translate_lock');
+    late List<String> calls;
+    late ScreenTranslateHost previous;
+
+    setUp(() {
+      calls = [];
+      previous = ScreenTranslateHost.instance;
+      ScreenTranslateHost.instance = ScreenTranslateHost(
+        channel: channel,
+        initialRoute: () => ScreenTranslateHost.location,
+      );
+    });
+
+    tearDown(() {
+      ScreenTranslateHost.instance = previous;
+      AppLockWindow.declared = null;
+    });
+
+    Future<void> pumpWindow(WidgetTester tester) async {
+      tester.binding.platformDispatcher.defaultRouteNameTestValue =
+          ScreenTranslateHost.location;
+      addTearDown(
+        tester.binding.platformDispatcher.clearDefaultRouteNameTestValue,
+      );
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+        call,
+      ) {
+        calls.add(call.method);
+        // The consent is still open: `screenshot` never answers.
+        return call.method == 'screenshot'
+            ? Completer<Object?>().future
+            : Future.value();
+      });
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          channel,
+          null,
+        ),
+      );
+      platform.promptResult = AppLockPromptResult.cancelled;
+      await pumpApp(tester);
+      await tester.pump();
+    }
+
+    testWidgets('by the main activity (another app asked for the route) '
+        'shows only the full lock screen', (tester) async {
+      AppLockWindow.declared = AppLockWindow.main;
+      await pumpWindow(tester);
+
+      expect(find.byType(AppLockScreen), findsOneWidget);
+      expect(find.byType(ScreenTranslatePage), findsNothing);
+      expect(calls, isNot(contains('screenshot')));
+      expect(platform.prompts, hasLength(1), reason: 'prompts by itself');
+    });
+
+    testWidgets('by its own window leaves the lock to the window', (
+      tester,
+    ) async {
+      AppLockWindow.declared = AppLockWindow.screenTranslate;
+      await pumpWindow(tester);
+
+      expect(find.byType(AppLockScreen), findsNothing);
+      expect(find.byType(ScreenTranslatePage), findsOneWidget);
+      expect(calls, contains('screenshot'));
+      expect(platform.prompts, isEmpty, reason: 'not before the capture');
+    });
   });
 }

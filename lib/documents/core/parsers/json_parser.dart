@@ -47,17 +47,23 @@ ParsedDocument parseJson(String text) {
 bool looksLikeNaturalLanguage(String text) {
   final value = text.trim();
   if (!containsLetter(value)) return false;
-  if (value.contains(RegExp(r'\s'))) return true;
+  if (value.contains(_space)) return true;
   return !_identifier.hasMatch(value) &&
       !_path.hasMatch(value) &&
       !_hexColor.hasMatch(value);
 }
 
+final _space = RegExp(r'\s');
+
+// Every repetition is followed by a character it can't match (or by the
+// end), so that matching takes linear time on hostile values: `[a-z]+[0-9]`
+// rather than `[a-z]+[0-9]+[a-z0-9]*`, which backtracks quadratically on
+// `a111…1!`.
 final _identifier = RegExp(
   '^(?:[a-z0-9]+(?:[_.][a-z0-9]+)+'
   '|[a-z]+(?:[A-Z][a-z0-9]*)+'
   '|[A-Z0-9]+(?:_[A-Z0-9]+)+'
-  r'|[a-z]+[0-9]+[a-z0-9]*)$',
+  r'|[a-z]+[0-9][a-z0-9]*)$',
 );
 final _path = RegExp(r'^[\w.~-]*[/\\][\w./\\~-]*$');
 final _hexColor = RegExp(

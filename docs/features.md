@@ -1362,9 +1362,11 @@ and **Data** (details in [Privacy](privacy.md)):
   - Turning it on asks you to unlock once, so you can't lock yourself out.
     It needs a screen lock on the phone; without one the row says so, and
     it isn't available in the web app.
-  - Opening the camera, a file picker or a save dialog from Mozhi gives
-    you at least 5 minutes before it locks, so a photo or file you pick
-    isn't lost to the lock.
+  - Opening the camera, a file or photo picker or a save dialog from
+    Mozhi (and Translate screen's capture prompt) gives you at least 5
+    minutes before it locks, so a photo or file you pick isn't lost to the
+    lock. Sharing doesn't: the app you share to is somewhere else, so
+    with **Immediately** Mozhi is locked when you come back from it.
   - Text selected in another app (**Translate with Mozhi**, **Translate
     offline**) and **Translate screen** ask you to unlock first when the
     app is locked: their windows would otherwise show your languages and
@@ -1381,7 +1383,9 @@ and **Data** (details in [Privacy](privacy.md)):
     and links (`mozhi://…`, the widget's **Type** and **Camera**, shared
     images and files) wait for the unlock: nothing is filled in,
     translated, opened or saved before, and the clipboard is read only
-    then.
+    then. The translate bubble's press and hold is the exception: Android
+    lets only the window in front read the clipboard, so it reads it right
+    away, and the quick translate sheet shows it once you unlock.
   - It is a setting of this phone: backups, sync and Phone to phone never
     carry it, and restoring one doesn't change it.
 - **Network > HTTP proxy** (Android): every request goes through it, for

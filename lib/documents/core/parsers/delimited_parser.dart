@@ -31,7 +31,13 @@ import 'package:mozhi/documents/core/parsers/xml_tree.dart'
 ///   stay as they are.
 ///
 /// Translations are quoted when they need it; placeholders, tags, URLs and
-/// e-mail addresses inside cells are protected.
+/// e-mail addresses inside cells are protected. A translation that a
+/// spreadsheet would run as a formula (it starts with `=`, `+`, `-`, `@`,
+/// a tab or a carriage return, after leading spaces) gets a `'` in front,
+/// unless its source cell starts that way too (CSV injection).
+///
+/// Parsing takes linear time: only cells of at most 256 characters are
+/// matched against the value patterns above.
 ///
 /// Throws [DocumentParseException] for a quoted field that is never
 /// closed.
@@ -45,7 +51,7 @@ ParsedDocument parseDelimited(String text, DocumentFormat format) {
 }
 
 class _Field {
-  const new(
+  new(
     this.start,
     this.end,
     this.value, {
@@ -60,6 +66,9 @@ class _Field {
 
   /// Text after the closing quote (`"a"b`): kept as it is.
   final bool malformed;
+
+  /// What the cell holds (worked out once).
+  late final _Kind kind = _kind(value);
 }
 
 class _Record {
@@ -86,7 +95,6 @@ final _date = RegExp(
   r'|\d{1,2}:\d{2}(?::\d{2})?(?:\s?[AaPp][Mm])?)$',
 );
 final _url = RegExp(r'^(?:(?:https?|ftp)://|www\.|mailto:)\S+$');
-final _email = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$');
 final _flag = RegExp(
   r'^(?:true|false|null|none|nil|n/a)$',
   caseSensitive: false,
@@ -99,6 +107,36 @@ final _code = RegExp(
   r'|^[a-z]{2,3}[-_][A-Z]{2}$',
 );
 final _sentenceEnd = RegExp(r'[.!?:;,…。！？]$');
+final _space = RegExp(r'\s');
+final _spaces = RegExp(r'\s+');
+final _lineBreaks = RegExp('[\t\r\n]+');
+
+/// Longest cell that can be a value (a number, date, URL, e-mail address,
+/// flag or code): the value patterns are only ever matched against short
+/// text, so that a huge cell can't make parsing slow.
+const _maxValueLength = 256;
+
+/// Whether [text] is an e-mail address: no whitespace, a single `@` with
+/// something before it, and a dot with something on both sides after it
+/// (what `^[^\s@]+@[^\s@]+\.[^\s@]+$` matches, in linear time).
+bool _isEmail(String text) {
+  final at = text.indexOf('@');
+  if (at <= 0 || text.indexOf('@', at + 1) != -1) return false;
+  if (_space.hasMatch(text)) return false;
+  // A dot after at least one character of the domain, not at its end.
+  final dot = text.indexOf('.', at + 2);
+  return dot != -1 && dot < text.length - 1;
+}
+
+/// Whether a spreadsheet would read [text] as a formula or a DDE call
+/// (OWASP's list for CSV injection): it starts with a tab or a carriage
+/// return, or with `=`, `+`, `-` or `@` after leading spaces.
+bool _startsLikeFormula(String text) {
+  if (text.startsWith('\t') || text.startsWith('\r')) return true;
+  final trimmed = text.trimLeft();
+  return trimmed.isNotEmpty && '=+-@'.contains(trimmed[0]);
+}
+
 final _identifierLike = RegExp(
   r'^[a-z][a-z0-9]*(?:[_.-][a-z0-9]+)*$'
   r'|^[A-Za-z][A-Za-z0-9]*(?:_[A-Za-z0-9]+)+$'
@@ -135,13 +173,14 @@ _Kind _kind(String value) {
   final trimmed = value.trim();
   if (trimmed.isEmpty) return _Kind.empty;
   if (trimmed.startsWith('=')) return _Kind.formula;
+  if (!looksLikeNaturalLanguage(trimmed)) return _Kind.value;
+  if (trimmed.length > _maxValueLength) return _Kind.text;
   if (_number.hasMatch(trimmed) ||
       _date.hasMatch(trimmed) ||
       _url.hasMatch(trimmed) ||
-      _email.hasMatch(trimmed) ||
+      _isEmail(trimmed) ||
       _flag.hasMatch(trimmed) ||
-      _code.hasMatch(trimmed) ||
-      !looksLikeNaturalLanguage(trimmed)) {
+      _code.hasMatch(trimmed)) {
     return _Kind.value;
   }
   return _Kind.text;
@@ -195,10 +234,13 @@ class _DelimitedParser {
         if ((header && row == 0) ||
             !translated[column] ||
             field.malformed ||
-            _kind(field.value) != _Kind.text) {
+            field.kind != _Kind.text) {
           nodes.text(raw);
           continue;
         }
+        // A source cell that already starts like a formula is the file's
+        // own; any other translation must not become one.
+        final guard = !_startsLikeFormula(field.value);
         final content = builder.content(
           protect(field.value, LocalisationPatterns.text),
           label: '${columnName(column)}:${row + 1}',
@@ -217,6 +259,7 @@ class _DelimitedParser {
               quoted: field.quoted,
               delimiter: delimiter,
               quoteAllowed: format == DocumentFormat.csv || anyQuoted,
+              guardFormula: guard,
             ),
           ),
         ]);
@@ -333,12 +376,12 @@ class _DelimitedParser {
   static bool _isLabel(String value) {
     final trimmed = value.trim();
     if (trimmed.isEmpty || trimmed.length > 40) return false;
-    if (trimmed.split(RegExp(r'\s+')).length > 4) return false;
+    if (trimmed.split(_spaces).length > 4) return false;
     if (_sentenceEnd.hasMatch(trimmed)) return false;
     if (_number.hasMatch(trimmed) ||
         _date.hasMatch(trimmed) ||
         _url.hasMatch(trimmed) ||
-        _email.hasMatch(trimmed)) {
+        _isEmail(trimmed)) {
       return false;
     }
     return true;
@@ -370,29 +413,36 @@ class _DelimitedParser {
     required bool skipFirst,
   }) {
     final values = <String>[];
+    var typed = 0;
     for (var row = skipFirst ? 1 : 0; row < records.length; row++) {
       final fields = records[row].fields;
       if (column >= fields.length) continue;
-      final value = fields[column].value.trim();
-      if (value.isNotEmpty) values.add(value);
+      final field = fields[column];
+      final value = field.value.trim();
+      if (value.isEmpty) continue;
+      values.add(value);
+      if (field.kind != _Kind.text) typed++;
     }
     if (values.isEmpty) return false;
-    final kinds = values.map(_kind).toList();
-    final typed = kinds.where((kind) => kind != _Kind.text).length;
     if (typed >= values.length * 0.8) return false;
     final codes =
         values.length >= 4 &&
-        values.every((value) => !value.contains(RegExp(r'\s'))) &&
+        values.every((value) => !value.contains(_space)) &&
         values.toSet().length * 2 <= values.length;
     return !codes;
   }
 
   static String _encode(
-    String value, {
+    String translation, {
     required bool quoted,
     required String delimiter,
     required bool quoteAllowed,
+    required bool guardFormula,
   }) {
+    // OWASP: a leading `'` makes spreadsheets show the cell as text.
+    final value = guardFormula && _startsLikeFormula(translation)
+        ? "'$translation"
+        : translation;
     final special =
         value.contains(delimiter) ||
         value.contains('"') ||
@@ -403,6 +453,6 @@ class _DelimitedParser {
     }
     if (!special) return value;
     // Unquoted TSV: no way to escape tabs and line breaks.
-    return value.replaceAll(RegExp('[\t\r\n]+'), ' ');
+    return value.replaceAll(_lineBreaks, ' ');
   }
 }

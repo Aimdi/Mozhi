@@ -174,6 +174,35 @@ void main() {
         expect(kotlin, isNot(contains('getExternal')), reason: file);
       }
     });
+
+    test('a leftover of an earlier app process goes at the next start', () {
+      // Every window (MainActivity and the windows derived from it) sweeps
+      // once per process, on a thread of its own, sparing this process's
+      // files, which are known before they exist.
+      final main = _code(_read('$_kotlin/MainActivity.kt'));
+      expect(main, contains('ScreenCaptures.sweepLeftovers(this)'));
+      final captures = _code(_read('$_kotlin/ScreenCaptures.kt'));
+      final sweep = captures.substring(
+        captures.indexOf('fun sweepLeftovers('),
+        captures.indexOf('fun deleteAll('),
+      );
+      expect(sweep, contains('if (leftoversSwept) return'));
+      expect(sweep, contains('thread(name = SWEEP_THREAD)'));
+      expect(sweep, contains('!in ownFiles'));
+      final newFile = captures.substring(
+        captures.indexOf('fun newFile('),
+        captures.indexOf('fun sweepLeftovers('),
+      );
+      expect(
+        newFile.indexOf('ownFiles.add(name)'),
+        allOf(isNonNegative, lessThan(newFile.indexOf('return File('))),
+      );
+      // The window's own sweep stays too.
+      expect(
+        _code(_read('$_kotlin/ScreenTranslateActivity.kt')),
+        contains('ScreenCaptures.deleteAll(this)'),
+      );
+    });
   });
 
   group('the bubble', () {

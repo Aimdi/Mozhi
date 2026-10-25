@@ -122,7 +122,7 @@ class ScreenTranslateActivity : MainActivity() {
 
     /** For the app lock, which trusts neither this nor [ROUTE] alone. */
     override val lockWindow: String
-        get() = WINDOW_SCREEN_TRANSLATE
+        get() = MainActivity.WINDOW_SCREEN_TRANSLATE
 
     override fun shouldHandleDeeplinking(): Boolean = false
 
