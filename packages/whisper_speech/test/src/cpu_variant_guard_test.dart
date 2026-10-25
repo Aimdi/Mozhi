@@ -161,15 +161,15 @@ void main() {
     });
 
     test('counts each dead process once', () {
-      // Two engine isolates of process 1 died with it.
-      crash(1);
-      crash(1, role: 'compute');
+      // Both engine isolates of process 1 died with it.
+      crash(1, role: 'compute-transcribe');
+      crash(1, role: 'open-vad');
       expect(guard(processId: 2).candidates(_all), _all);
       expect(guard().read().crashes, {_i8mm: (count: 1, pid: 1)});
 
-      // Another isolate of process 2 still finds a marker of process 1
-      // (read before it was deleted): the same crash.
-      crash(1);
+      // The other isolate of process 2 still finds a marker of process 1
+      // (listed before the first one deleted it): the same crash.
+      crash(1, role: 'open-vad');
       expect(guard(processId: 2).candidates(_all), _all);
       expect(guard().read().crashes, {_i8mm: (count: 1, pid: 1)});
     });

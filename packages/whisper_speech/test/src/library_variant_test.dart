@@ -237,23 +237,29 @@ void main() {
       expect(marker('open-vad').existsSync(), isFalse);
     });
 
-    test('a variant that crashed while probed is not probed again', () {
-      // The probe "crashed" the process: the marker stays behind.
-      guard(1).arm('libmozhi_whisper_i8mm.so', role: 'open');
+    test('a variant that crashed twice while probed is not probed again', () {
       final loader = _Loader({
         'libmozhi_whisper_i8mm.so': WhisperBindings.expectedAbiVersion,
       });
-      expect(
-        WhisperBindings.resolve(
-          environment: const {},
-          cpuFeatures: () => _i8mm,
-          probe: loader.call,
-          guard: guard(2),
-        ),
-        'libmozhi_whisper.so',
+      String resolve(int processId) => WhisperBindings.resolve(
+        environment: const {},
+        cpuFeatures: () => _i8mm,
+        probe: loader.call,
+        guard: guard(processId),
       );
-      expect(loader.opened, isEmpty);
-      expect(guard(3).read().skipped, {'libmozhi_whisper_i8mm.so'});
+
+      // The probe "crashed" the process: the marker stays behind.
+      guard(1).arm('libmozhi_whisper_i8mm.so', role: 'open');
+      // Once: probed again (it may have been killed for another reason).
+      expect(resolve(2), 'libmozhi_whisper_i8mm.so');
+      expect(loader.opened, ['libmozhi_whisper_i8mm.so']);
+      expect(guard(3).read().skipped, isEmpty);
+
+      // Twice in a row: the baseline, without a probe.
+      guard(3).arm('libmozhi_whisper_i8mm.so', role: 'open');
+      expect(resolve(4), 'libmozhi_whisper.so');
+      expect(loader.opened, ['libmozhi_whisper_i8mm.so']);
+      expect(guard(5).read().skipped, {'libmozhi_whisper_i8mm.so'});
     });
 
     test('an explicit library is never guarded', () {
