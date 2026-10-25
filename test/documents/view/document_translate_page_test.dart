@@ -11,6 +11,7 @@ import 'package:mozhi/core/widgets/tab_hero.dart';
 import 'package:mozhi/documents/documents.dart';
 import 'package:mozhi/documents/widgets/widgets.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/on_device_ai/view/on_device_ai_paused_notice.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
@@ -551,6 +552,8 @@ void main() {
       await tester.pump();
       expect(find.byKey(const Key('documents_progress')), findsOneWidget);
       expect(find.text('Translating… 0 of 1 parts'), findsOneWidget);
+      // Says when on-device AI waits for the phone to cool down.
+      expect(find.byType(OnDeviceAiPausedNotice), findsOneWidget);
       // Input is locked while translating.
       final clear = tester.widget<IconButton>(
         find.byKey(const Key('documents_clear')),
