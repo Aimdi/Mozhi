@@ -117,15 +117,19 @@ void main() {
         parsePackagedDocument(bytes, DocumentFormat.xlsx, targetLanguage: 'es');
 
     test('shared strings, rich text and inline strings', () {
+      const rich =
+          '<si><r><rPr><b/><sz val="11"/></rPr><t>Total</t></r>'
+          '<r><t xml:space="preserve"> amount</t></r></si>';
+      const phonetic =
+          '<si><t>漢字</t><rPh sb="0" eb="2"><t>かんじ</t></rPh>'
+          '<phoneticPr fontId="1"/></si>';
       final bytes = xlsx(
         [
           '<si><t>Name</t></si>',
           '<si><t>12345</t></si>',
-          '<si><r><rPr><b/><sz val="11"/></rPr><t>Total</t></r>'
-              '<r><t xml:space="preserve"> amount</t></r></si>',
+          rich,
           '<si><t>Line 1_x000D_\nLine 2 _x005F_x0041_</t></si>',
-          '<si><t>漢字</t><rPh sb="0" eb="2"><t>かんじ</t></rPh>'
-              '<phoneticPr fontId="1"/></si>',
+          phonetic,
           '<si><t/></si>',
         ],
         sheetData:

@@ -290,8 +290,7 @@ List<Inline> protectInlines(List<Inline> inlines, RegExp? pattern) {
 bool _known(RegExp pattern) =>
     identical(pattern, LocalisationPatterns.html) ||
     identical(pattern, LocalisationPatterns.text) ||
-    identical(pattern, LocalisationPatterns.resource) ||
-    identical(pattern, LocalisationPatterns.markupResource);
+    identical(pattern, LocalisationPatterns.resource);
 
 /// Whether [text] has a character that starts any of the protected
 /// patterns (tags, references, URLs, e-mail addresses, placeholders):

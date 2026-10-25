@@ -180,8 +180,8 @@ final class PlainTextWriter extends RunWriter {
   ) => out.write(escapeXmlText(text));
 }
 
-/// Elements holding plain text only ([paragraphs]); [firstLanguage]
-/// optionally marks the first language element (`dc:language` in an
+/// Elements holding plain text only ([paragraphs]); [languages] optionally
+/// marks the first element that records the language (`dc:language` in an
 /// e-book's package document).
 final class PlainTextPartBuilder extends PartBuilder {
   new(

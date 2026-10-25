@@ -147,8 +147,10 @@ class _FileInput extends StatelessWidget {
         ),
       ],
     );
-    if (!loading) return row;
-    // A large office document or e-book is being read.
+    // A large office document or e-book is being read (not: the picker is
+    // open over the previous document).
+    final reading = loading && state.isBinary && state.packagedDocument == null;
+    if (!reading) return row;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: 12,

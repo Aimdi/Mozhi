@@ -115,6 +115,11 @@ void main() {
         ),
         contains('style:language-asian="zh"/>'),
       );
+      // Scripts are written where the style names one.
+      expect(
+        content('ur-Arab'),
+        contains('style:language-complex="ur" style:script-complex="Arab"/>'),
+      );
     });
   });
 }

@@ -159,8 +159,7 @@ void main() {
       // end record that points to them.
       final body = normal.sublist(0, normal.length - 22);
       Uint8List zip64({required int count, required int recordOffset}) {
-        final data = ByteData(56 + 20 + 22);
-        data
+        final data = ByteData(56 + 20 + 22)
           ..setUint32(0, 0x06064b50, Endian.little)
           ..setUint32(32, count, Endian.little)
           ..setUint32(56, 0x07064b50, Endian.little)

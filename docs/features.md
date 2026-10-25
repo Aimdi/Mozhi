@@ -873,6 +873,13 @@ result. Supported formats:
 | SubRip subtitles | `.srt` | Numbering and timestamps |
 | WebVTT subtitles | `.vtt` | Header, notes, styles, timings and cue settings |
 | JSON / ARB string tables | `.json`, `.arb` | Keys, `@` metadata and ICU placeholders/plurals; only string values are translated |
+| HTML and XHTML pages | `.html`, `.htm`, `.xhtml` | Markup, attributes, scripts, styles, code and `pre`; text, the title, `alt`/`title`/`placeholder`/`aria-label` and meta descriptions are translated |
+| XLIFF 1.2 and 2.x | `.xlf`, `.xliff` | Sources, notes, IDs and inline codes; sources are translated into targets |
+| Android string resources | `strings.xml` | Names, `translatable="false"`, `<xliff:g>`, styling tags, escapes and format arguments; strings, string arrays and plurals are translated |
+| Gettext catalogues | `.po`, `.pot` | Header, comments, references, flags, contexts and placeholders; `msgid`s are translated into `msgstr`s |
+| CSV and TSV tables | `.csv`, `.tsv`, `.tab` | Quoting, the header row, and columns of numbers, dates, URLs, e-mail addresses and IDs |
+| Apple strings | `.strings` | Keys, comments, escapes and format specifiers; values are translated |
+| Xcode string catalogues | `.xcstrings` | Every other language, comments, extraction state and variations; the target language is added |
 | Word documents | `.docx` | Paragraph and character formatting, styles, lists, tables, headers and footers, footnotes, endnotes, comments, text boxes, links, fields, images and tracked changes |
 | PowerPoint presentations | `.pptx` | Slides, speaker notes, tables, text boxes, chart titles and SmartArt with their formatting, links and slide numbers; layouts, images and animations |
 | Excel workbooks | `.xlsx` | Text cells (plain and rich text, each distinct text translated once); numbers, dates, formulas, sheet names and charts' data |
@@ -907,16 +914,100 @@ they are translated with the engine and privacy mode you choose.
   Office files can't be pasted, their format can't be changed, and there is
   no bilingual export.
 - **Limits:** office files and e-books up to 25 MB (text files up to 2 MB);
-  large ones are read in the background. Not opened: password-protected or
-  encrypted files (remove the protection first), e-books with DRM (fonts
-  that are only obfuscated are fine), old `.doc`, `.xls` and `.ppt` files
-  renamed to the new extensions, damaged files, and files that unpack to far
-  too much data (see [Security](security.md#documents-and-e-books)).
+  on Android, large ones are read in the background. Not opened:
+  password-protected or encrypted files (remove the protection first),
+  e-books with DRM (fonts that are only obfuscated are fine), old `.doc`,
+  `.xls` and `.ppt` files renamed to the new extensions, damaged files, and
+  files that unpack to far too much data (see
+  [Security](security.md#documents-and-e-books)).
 - **Not translated:** text in images, alternative text, spreadsheet
   comments, sheet names, the data behind charts, slide master and layout
   prompts, and document properties other than the e-book's title. In a
   spreadsheet, formulas that compare cells with a text (`=IF(A1="Yes";…)`)
   may need the translated word.
+
+### Localisation files and web pages
+
+Translators' and developers' files come back in the same format, ready to
+use: only natural-language text changes, and a file that is not translated
+(or whose translations are all left out) is written back byte for byte,
+with its line endings, byte order mark, indentation and comments.
+
+- **Placeholders stay intact.** printf conversions (`%s`, `%1$d`, `%.2f`,
+  `%lld`, `%@`, `%%`), Apple substitutions (`%#@files@`), `{name}` and
+  `{0}`, `{{mustache}}` and `${name}`, Qt's `%1`, ICU plurals and selects,
+  inline tags (`<b>`, `<a>`, `<xliff:g>`, XLIFF's `<g>`, `<x/>`, `<ph>`,
+  `<pc>`), escapes such as `\n`, URLs and e-mail addresses become
+  numbered placeholders (`⟨1⟩`) that engines must keep. Inline tags an
+  engine reorders or drops are put back so that the file stays
+  well-formed.
+- **Escaping is done for you.** Translations are written with the format's
+  own escaping: `&amp;` and `&lt;` in HTML and XML, `\'` and `\"` in Android
+  strings, `\"` in PO and `.strings`, doubled quotes in CSV. In a format
+  string (one with `%s`-style arguments) a literal `%` becomes `%%`; a
+  translated Android string that starts with `@` or `?` is escaped.
+- **Bilingual files keep their translations.** XLIFF, PO and `.xcstrings`
+  get translations only where they are missing (an empty `<target>` or
+  `msgstr`, an XLIFF 1.2 target that is `new` or `needs-translation`, an
+  XLIFF 2 segment that is `initial`, an `.xcstrings` localisation that is
+  `new`); when the file belongs to another target language (`Language:`,
+  `target-language`, `trgLang`), everything is translated again.
+- **The target language is recorded:** XLIFF's `target-language` /
+  `trgLang`, PO's `Language:` header, the new `.xcstrings` localisation and
+  `<html lang>` (with `dir="rtl"` for right-to-left languages). This happens
+  only once something is translated; custom AI "languages" are never
+  written into a file. A legacy charset declaration (`ISO-8859-1`,
+  `windows-1252`) becomes UTF-8, since translations are written as Unicode.
+- **Review states:** new XLIFF 1.2 targets are marked
+  `needs-review-translation`, XLIFF 2 segments `translated`, and new
+  `.xcstrings` string units `needs_review`, so translators can find
+  machine translations. PO entries are not marked `fuzzy` (gettext would
+  ignore them); an untranslated entry that was `fuzzy` loses the flag once
+  it is translated.
+- **Skipped:** anything marked not to translate (`translatable="false"`,
+  `translate="no"`, `class="notranslate"`, `"shouldTranslate" : false`),
+  resource references (`@string/name`), the PO header, obsolete `#~`
+  entries, and values that are not words (numbers, identifiers such as
+  `snake_case`, paths, colours).
+- **HTML:** each block (paragraph, heading, list item, cell, button,
+  option…) is one piece of text, with its inline elements as placeholders.
+  Scripts, styles, templates, `<code>`, `<pre>`, `<kbd>`, `<svg>`, comments
+  (also conditional comments) and form text areas are kept, and so are
+  attributes other than `alt`, `title`, `placeholder`, `aria-label`,
+  `aria-description`, the value of `<input>` buttons and `<meta>`
+  descriptions.
+- **Plurals:** PO entries get every `msgstr[n]` of the plural rule:
+  the header's `Plural-Forms`, or, for a template or a catalogue moved to
+  another language, the target language's rule (written into the header).
+  The form for one item gets the singular translation and all others the
+  plural one, so languages with several plural forms (Russian, Arabic…)
+  need a review. `.xcstrings` plurals follow the target language's
+  categories (a missing one is filled from `other`). Android `<plurals>`
+  keep the source quantities: add `few`/`many` items by hand where the
+  target language needs them.
+- **CSV and TSV:** fields may be quoted (RFC 4180, also with line breaks);
+  a CSV file may use `;` or tabs instead of commas. The first row is kept
+  as a header when the file has at least two rows and every cell of the
+  first row is a short, distinct label (at most 4 words or 40 characters,
+  no sentence punctuation, not a number, date, URL or e-mail address); in
+  a one-column file the label must also look like a column name (`text`,
+  `source_text`, `English`). A column is kept as it is when at least 80% of
+  its filled cells are numbers, dates, times, URLs, e-mail addresses,
+  `true`/`false`/`null` or identifiers (`snake_case`, `SKU-123`, UUIDs), or
+  when it repeats a handful of one-word codes (at least 4 filled cells, at
+  most half of them different). In the other columns every cell with words
+  is translated; formulas (`=SUM(A1:A3)`) stay as they are. To fill a
+  language column of a translation table, copy the source column into it
+  first.
+- **Pasting:** HTML, XLIFF, Android strings, PO catalogues, Xcode string
+  catalogues, `.strings` files and cells copied from a spreadsheet (TSV)
+  are recognised when pasted; choose **CSV** yourself.
+- **Limits:** a translation identical to the original (a name, "OK") is
+  left out of bilingual files, which then use the source text anyway.
+  XLIFF targets are written as whole sentences, without the `<mrk>`
+  segmentation of a `<seg-source>`. XML files that declare entities in a
+  document type declaration, and `.strings` files in property-list format,
+  can't be opened. Legacy-charset files are always written back as UTF-8.
 
 ## Web pages
 

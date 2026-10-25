@@ -354,4 +354,80 @@ void main() {
       contains('</x:source>\n  <x:target>Tschüss</x:target>'),
     );
   });
+
+  group('parseXliff (real exports)', () {
+    test('an Xcode export with copied sources in new targets', () {
+      const text = '''
+<?xml version="1.0" encoding="UTF-8"?>
+<xliff xmlns="urn:oasis:names:tc:xliff:document:1.2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="1.2" xsi:schemaLocation="urn:oasis:names:tc:xliff:document:1.2 http://docs.oasis-open.org/xliff/v1.2/os/xliff-core-1.2-strict.xsd">
+  <file original="MyApp/en.lproj/Localizable.strings" source-language="en" target-language="de" datatype="plaintext">
+    <header>
+      <tool tool-id="com.apple.dt.xcode" tool-name="Xcode" tool-version="15.0" build-num="15A240d"/>
+    </header>
+    <body>
+      <trans-unit id="Hello %@" xml:space="preserve">
+        <source>Hello %@</source>
+        <target state="new">Hello %@</target>
+        <note>Greeting on the start screen</note>
+      </trans-unit>
+      <trans-unit id="%lld files" xml:space="preserve">
+        <source>%lld files</source>
+        <target state="translated">%lld Dateien</target>
+        <note/>
+      </trans-unit>
+    </body>
+  </file>
+</xliff>
+''';
+      final document = parseXliff(text, targetLanguage: 'de');
+      expectRoundTrip(document, text);
+      expect(texts(document), ['Hello ⟨1⟩']);
+      final output = document.render(['Hallo ⟨1⟩']);
+      expect(
+        output,
+        contains(
+          '<source>Hello %@</source>\n'
+          '        <target state="needs-review-translation">Hallo %@</target>\n'
+          '        <note>Greeting on the start screen</note>',
+        ),
+      );
+      expect(output, contains('<target state="translated">%lld Dateien'));
+      expect(XmlDocument.parse(output), isNotNull);
+    });
+
+    test('an Angular export with context groups and interpolations', () {
+      const text = '''
+<?xml version="1.0" encoding="UTF-8" ?>
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+  <file source-language="en-US" datatype="plaintext" original="ng2.template">
+    <body>
+      <trans-unit id="introductionHeader" datatype="html">
+        <source> Hello <x id="INTERPOLATION" equiv-text="{{ name }}"/>! </source>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/app.component.html</context>
+          <context context-type="linenumber">4</context>
+        </context-group>
+        <note priority="1" from="description">An introduction header</note>
+      </trans-unit>
+    </body>
+  </file>
+</xliff>
+''';
+      final document = parseXliff(text, targetLanguage: 'fr');
+      expectRoundTrip(document, text);
+      expect(texts(document), ['Hello ⟨1⟩!']);
+      final output = document.render(['Bonjour ⟨1⟩ !']);
+      expect(
+        output,
+        contains(
+          '<source> Hello <x id="INTERPOLATION" equiv-text="{{ name }}"/>! '
+          '</source>\n'
+          '        <target state="needs-review-translation"> Bonjour <x '
+          'id="INTERPOLATION" equiv-text="{{ name }}"/>! </target>\n'
+          '        <context-group purpose="location">',
+        ),
+      );
+      expect(output, contains('original="ng2.template" target-language="fr">'));
+    });
+  });
 }

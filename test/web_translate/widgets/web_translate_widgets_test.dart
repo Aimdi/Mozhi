@@ -5,6 +5,8 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/core/network/network.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/on_device_ai/data/on_device_ai.dart';
+import 'package:mozhi/platform/device_conditions.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/web_translate/web_translate.dart';
@@ -14,6 +16,7 @@ import 'package:mozhi/web_translate/widgets/web_translate_messages.dart';
 import 'package:mozhi/web_translate/widgets/web_translate_status.dart';
 import 'package:translation_repository/translation_repository.dart';
 
+import '../../translate/helpers/fake_on_device_ai.dart';
 import '../helpers/helpers.dart';
 
 const page = ReadablePage(
@@ -102,6 +105,34 @@ void main() {
       );
       expect(bar.value, closeTo(1 / 3, 1e-9));
       await tester.tap(find.byKey(const Key('web_translate_stop_button')));
+      verify(() => cubit.cancel()).called(1);
+    });
+
+    testWidgets('says when on-device AI waits for the phone to cool', (
+      tester,
+    ) async {
+      final ai = FakeOnDeviceAi(FakeOnDeviceModels(testCatalog))
+        ..currentStatus = const OnDeviceAiPaused('hy', DeviceStrain.heat);
+      addTearDown(ai.close);
+      when(() => cubit.state).thenReturn(
+        const WebTranslateState(
+          status: WebTranslateStatus.translating,
+          page: page,
+          translations: ['Uno', null],
+        ),
+      );
+      await pumpWithCubit(
+        tester,
+        cubit,
+        RepositoryProvider<OnDeviceAi>.value(
+          value: ai,
+          child: WebTranslateStatusPanel(onRetryLoad: () {}),
+        ),
+      );
+      expect(find.text('Paused while the phone cools down'), findsOneWidget);
+      await tester.tap(find.text('Continue anyway'));
+      expect(ai.continued, 1);
+      await tester.tap(find.byKey(const Key('on_device_ai_paused_cancel')));
       verify(() => cubit.cancel()).called(1);
     });
 

@@ -152,7 +152,7 @@ class _AndroidParser {
       final raw = cdata.raw(source);
       final inner = protectInlines(
         _escapedText(raw, 9, raw.length - 3, xml: false).items,
-        LocalisationPatterns.markupResource,
+        LocalisationPatterns.resource,
       );
       inlines = [
         InlineText(source.substring(element.contentStart, cdata.start)),

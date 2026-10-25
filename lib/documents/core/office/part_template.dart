@@ -116,9 +116,11 @@ final class LanguageMark extends PartNode {
         };
         return _startTag([
           for (final attribute in attributes)
-            attribute.localName == name && Ns.word.contains(attribute.namespace)
-                ? _with(attribute, tag.culture)
-                : attribute,
+            if (attribute.localName == name &&
+                Ns.word.contains(attribute.namespace))
+              _with(attribute, tag.culture)
+            else
+              attribute,
         ], selfClosing: selfClosing);
       case LanguageMarkKind.drawingRun:
         return _startTag(
@@ -140,7 +142,7 @@ final class LanguageMark extends PartNode {
         final (
           language,
           country,
-          script,
+          scriptName,
           namespaces,
         ) = switch (tag.scriptClass) {
           ScriptClass.western => ('language', 'country', 'script', Ns.odfFo),
@@ -162,27 +164,28 @@ final class LanguageMark extends PartNode {
         );
         if (!hasLanguage) return source;
         final region = tag.officeRegion;
-        return _startTag(
-          [
-            for (final attribute in attributes)
-              if (!namespaces.contains(attribute.namespace))
-                attribute
-              else if (attribute.localName == language)
-                _with(attribute, tag.language)
-              else if (attribute.localName == country)
-                region == null ? null : _with(attribute, region)
-              else if (attribute.localName == script)
-                tag.script == null ? null : _with(attribute, tag.script!)
-              else
-                attribute,
-          ].nonNulls.toList(),
-          selfClosing: selfClosing,
-        );
+        final script = tag.script;
+        return _startTag([
+          for (final attribute in attributes)
+            if (!namespaces.contains(attribute.namespace))
+              attribute
+            else if (attribute.localName == language)
+              _with(attribute, tag.language)
+            else if (attribute.localName == country) ...[
+              if (region != null) _with(attribute, region),
+            ] else if (attribute.localName == scriptName) ...[
+              if (script != null) _with(attribute, script),
+            ] else
+              attribute,
+        ], selfClosing: selfClosing);
       case LanguageMarkKind.htmlRoot:
         final present = attributes.any(_isHtmlLang);
         return _startTag([
           for (final attribute in attributes)
-            _isHtmlLang(attribute) ? _with(attribute, tag.bcp47) : attribute,
+            if (_isHtmlLang(attribute))
+              _with(attribute, tag.bcp47)
+            else
+              attribute,
           if (!present) ...[
             SourceAttribute(
               qualifiedName: 'lang',

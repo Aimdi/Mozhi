@@ -47,6 +47,8 @@ ParsedDocument parseXcstrings(String text, {String? targetLanguage}) {
   ).parse();
 }
 
+final _conversion = RegExp('^(?:${LocalisationPatterns.printf})\$');
+
 /// One string unit's place in a localisation.
 sealed class _Shape {
   const new();
@@ -199,8 +201,7 @@ class _XcstringsParser {
       final percent = pieces.any(
         (piece) =>
             piece is TokenPiece &&
-            RegExp('^(?:${LocalisationPatterns.printf})\$')
-                .hasMatch((piece.nodes.single as TextNode).text),
+            _conversion.hasMatch((piece.nodes.single as TextNode).text),
       );
       children.addAll(
         builder.content(

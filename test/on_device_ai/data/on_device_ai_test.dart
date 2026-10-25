@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:llama_engine/llama_engine.dart';
 import 'package:llm_api/llm_api.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/on_device_ai/data/on_device_ai.dart';
@@ -264,6 +267,35 @@ void main() {
           'OnDeviceAiError(a)',
         ],
       );
+    });
+  });
+
+  group('support and pauses', () {
+    test('tells which engine build runs here', () async {
+      expect(ai.engineBuild, isNull);
+      final known = OnDeviceAi(
+        models: FakeOnDeviceModels(),
+        engine: FakeLlamaEngine(),
+        engineBuild: () => const LlamaEngineBuild(
+          variant: LlamaCpuVariant.dotprod,
+          library: 'libmozhi_llama_dotprod.so',
+        ),
+      );
+      addTearDown(known.dispose);
+      expect(known.engineBuild?.variant, LlamaCpuVariant.dotprod);
+      final failing = OnDeviceAi(
+        models: FakeOnDeviceModels(),
+        engine: FakeLlamaEngine(),
+        engineBuild: () => throw const FileSystemException('cpuinfo'),
+      );
+      addTearDown(failing.dispose);
+      expect(failing.engineBuild, isNull);
+    });
+
+    test('continue anyway reaches the runtime', () async {
+      // Nothing waits: it only lets the next parts go on.
+      ai.continueAnyway();
+      expect(await ai.runtime.run('gemma', (_) async => 'ok'), 'ok');
     });
   });
 }

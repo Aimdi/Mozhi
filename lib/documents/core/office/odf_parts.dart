@@ -57,9 +57,13 @@ final class OdfPartBuilder extends PartBuilder {
   }
 
   /// Whether [element] is in a spreadsheet cell that holds a number, date,
-  /// formula or other non-text value.
+  /// formula or other non-text value (not in a comment or text box of
+  /// such a cell).
   static bool _inValueCell(SourceElement element) {
     for (var e = element.parent; e != null; e = e.parent) {
+      if (e.isA(Ns.odfOffice, 'annotation') || e.localName == 'text-box') {
+        return false;
+      }
       if (e.inNamespace(Ns.odfTable) &&
           (e.localName == 'table-cell' ||
               e.localName == 'covered-table-cell')) {

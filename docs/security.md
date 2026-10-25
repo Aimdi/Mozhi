@@ -410,9 +410,35 @@ is translated):
 - **The output stays well-formed:** translations are escaped, characters
   XML cannot hold are dropped, and formatting placeholders are turned back
   into balanced elements whatever order an engine returns them in; fields,
-  bookmarks and comment ranges keep their original order. Large files are
-  read and written in a background isolate, so a hostile file can't freeze
-  the screen.
+  bookmarks and comment ranges keep their original order. On Android,
+  large files are read and written in a background isolate, so a hostile
+  file can't freeze the screen.
+
+### Localisation files and web pages
+
+HTML, XLIFF, Android strings, PO, CSV/TSV, `.strings` and `.xcstrings`
+files are text, read on the device with the same care:
+
+- **No entities, no fetching:** XLIFF and Android strings are checked with
+  an XML parser that never reads a DTD or an external entity; a document
+  type declaration that declares entities is refused outright, so nothing
+  can expand (billion laughs) or point at a file or URL. Only XML's five
+  built-in entities and character references are decoded (in HTML, HTML's
+  named characters); unknown references are kept as they are.
+- **Size and nesting limits:** documents over 16 million characters (text
+  files are limited to 2 MB anyway), XML nested more than 256 levels and
+  JSON (`.xcstrings`) nested more than 64 levels are refused with a message
+  instead of exhausting memory or the stack. Malformed XML, PO, `.strings`,
+  CSV (an unclosed quote) or JSON is refused, never half-read.
+- **Linear time on hostile input:** HTML is read the forgiving way browsers
+  do, but without ever reading the same text twice (a tag cut off by the
+  end of the file ends the markup, as in a browser), so a crafted page
+  can't freeze the screen.
+- **The output stays valid:** translations are escaped for the format,
+  inline tags are put back into balanced elements whatever order an engine
+  returns them in, and markup the engine never saw (scripts, styles,
+  comments, attributes) is copied unchanged, so a translation can't inject
+  markup or break the file.
 
 ## Text from other apps and links
 

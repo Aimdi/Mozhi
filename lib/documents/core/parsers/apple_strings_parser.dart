@@ -183,7 +183,7 @@ class _StringsParser {
       }
     }
     flush();
-    final inlines = protectInlines(items, LocalisationPatterns.markupResource);
+    final inlines = protectInlines(items, LocalisationPatterns.resource);
     final percent = hasFormatConversion(inlines);
     return inlineContent(
       builder,

@@ -71,6 +71,10 @@ void main() {
         () => SourceDocument.parse('<a></b>', part: 'p'),
         problem(PackageProblem.damaged, 'mismatched'),
       );
+      expect(
+        () => SourceDocument.parse('<a><b</a>', part: 'p'),
+        problem(PackageProblem.damaged, 'p:'),
+      );
     });
 
     test('escapes attributes and text', () {
@@ -201,6 +205,44 @@ void main() {
       ]);
     });
 
+    test('nested spans and a commented number cell', () {
+      final bytes = odf(
+        'spreadsheet',
+        '<office:spreadsheet><table:table><table:table-row>'
+            '<table:table-cell office:value-type="float"><text:p>3'
+            '<office:annotation><text:p>Check this</text:p>'
+            '</office:annotation></text:p></table:table-cell>'
+            '<table:table-cell><text:p><text:span text:style-name="A">Outer '
+            '<text:span text:style-name="B">inner</text:span></text:span>'
+            ' plain text here</text:p></table:table-cell>'
+            '</table:table-row></table:table></office:spreadsheet>',
+      );
+      final document = parsePackagedDocument(bytes, DocumentFormat.ods);
+      expect(textsOf(document), [
+        'Check this',
+        '⟨1⟩Outer ⟨2⟩inner⟨3⟩ plain text here',
+      ]);
+      final content = entryText(
+        document.render(['Prüfen', '⟨1⟩Außen ⟨2⟩innen⟨3⟩ schlichter Text']),
+        'content.xml',
+      );
+      expect(
+        content,
+        contains(
+          '<text:p>3<office:annotation><text:p>Prüfen</text:p>'
+          '</office:annotation></text:p>',
+        ),
+      );
+      expect(
+        content,
+        contains(
+          '<text:p><text:span text:style-name="A">Außen '
+          '<text:span text:style-name="B">innen</text:span></text:span>'
+          ' schlichter Text</text:p>',
+        ),
+      );
+    });
+
     test('e-book paths are resolved inside the package', () {
       final bytes = zipOf(
         {
@@ -325,6 +367,56 @@ void main() {
       );
     });
 
+    test('entries the directory points past', () {
+      final bytes = docx('<w:p><w:r><w:t>Hello</w:t></w:r></w:p>');
+      final patched = Uint8List.fromList(bytes);
+      final data = ByteData.sublistView(patched);
+      for (var i = 0; i + 4 <= patched.length; i++) {
+        if (data.getUint32(i, Endian.little) == 0x02014b50) {
+          data.setUint32(i + 42, 0x7FFFFF00, Endian.little);
+        }
+      }
+      expect(
+        () => parsePackagedDocument(patched, DocumentFormat.docx),
+        throwsA(
+          isA<PackageParseException>().having(
+            (e) => e.message,
+            'message',
+            contains('damaged ZIP'),
+          ),
+        ),
+      );
+    });
+
+    test('worksheets that compress too well are left out', () {
+      final bytes = xlsx(
+        ['<si><t>Name</t></si>'],
+        sheetData:
+            '<row r="1"><c r="A1" t="inlineStr"><is><t>Inline</t></is></c>'
+            '</row>${'<row/>' * 2000}',
+      );
+      final document = OfficePackage.parse(
+        bytes,
+        DocumentFormat.xlsx,
+        limits: const PackageLimits(ratioFloorBytes: 5000, maxRatio: 20),
+      );
+      expect(textsOf(document), ['Name']);
+    });
+
+    test('a builder without its own paragraphs keeps them plain', () {
+      final document = SourceDocument.parse(
+        '<a><p>Text <lang/></p></a>',
+        part: 'p',
+      );
+      final nodes = _PlainBuilder(document, SegmentTable()).build();
+      final renderer = PartRenderer(
+        translations: const [],
+        segments: const [],
+        language: LanguageTag.tryParse('de'),
+      );
+      expect(renderer.renderPart(nodes), '<a><p>Text <lang/></p></a>');
+    });
+
     test('entries without a valid time keep a valid one', () {
       final bytes = docx('<w:p><w:r><w:t>Hello</w:t></w:r></w:p>');
       final patched = Uint8List.fromList(bytes);
@@ -338,4 +430,11 @@ void main() {
       }
     });
   });
+}
+
+class _PlainBuilder extends PartBuilder {
+  new(super.document, super.table);
+
+  @override
+  bool isParagraph(SourceElement element) => element.localName == 'p';
 }

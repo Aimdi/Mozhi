@@ -73,11 +73,13 @@ void main() {
     Future<bool> Function()? isMetered,
     ModelSource Function()? source,
     KeyValueStore? keyValueStore,
+    Future<int?> Function(String path)? freeSpace,
   }) {
     final models = OnDeviceModels(
       catalog: catalog,
       manager: LlamaModelManager(
         root: root,
+        freeSpace: freeSpace,
         httpClient:
             client ??
             modelServer({
@@ -435,6 +437,41 @@ void main() {
     expect((await models.models()).where((m) => m.installed), isEmpty);
     expect(models.downloads, isEmpty);
   });
+
+  group('free space and picked documents', () {
+    test('a download that cannot fit fails before the metered check', () async {
+      var askedMetered = false;
+      final models = create(
+        freeSpace: (_) async => 10,
+        isMetered: () async {
+          askedMetered = true;
+          return true;
+        },
+      );
+      await models.ready;
+      await expectLater(
+        models.download('hy'),
+        throwsA(isA<LlamaInsufficientSpaceException>()),
+      );
+      expect(askedMetered, isFalse);
+      expect(requests, isEmpty);
+    });
+
+    test('installs picked documents copied straight into staging', () async {
+      final models = create();
+      await models.ready;
+      final result = await models.importSources([
+        _Document('hy.gguf', hyBytes),
+      ]);
+      expect(result.installed, ['hy']);
+      expect(models.translationModel, 'hy');
+      final unchosen = await models.importSources([
+        _Document('qwen.gguf', qwenBytes),
+      ], choose: false);
+      expect(unchosen.installed, ['qwen']);
+      expect(models.assistantModel, 'qwen');
+    });
+  });
 }
 
 /// Answers once [gate] completes.
@@ -474,5 +511,24 @@ class _StallingClient extends http.BaseClient {
     }
 
     return http.StreamedResponse(body(), 200);
+  }
+}
+
+/// A picked document for [OnDeviceModels.importSources].
+class _Document implements LlamaImportSource {
+  new(this.name, this.bytes);
+
+  @override
+  final String name;
+
+  final List<int> bytes;
+
+  @override
+  int? get length => bytes.length;
+
+  @override
+  Future<int> copyTo(File destination, {required int maxBytes}) async {
+    await destination.writeAsBytes(bytes, flush: true);
+    return bytes.length;
   }
 }

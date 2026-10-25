@@ -45,26 +45,32 @@ void main() {
 
   setUpAll(() => registerFallbackValue(Float32List(0)));
 
-  OfflineSpeech build({KeyValueStore? keyValueStore, bool available = true}) =>
-      OfflineSpeech(
-        whisper: WhisperSpeech(
-          catalog: WhisperModelCatalog(
-            models: [_model('tiny', tinyBytes), _model('base', baseBytes)],
-          ),
-          root: root,
-          httpClient: MockClient((request) async {
-            requests.add(request.url);
-            return http.Response.bytes(
-              request.url.path.contains('tiny') ? tinyBytes : baseBytes,
-              200,
-            );
-          }),
-          engine: engine,
-          isAvailable: available,
-        ),
-        store: keyValueStore ?? store,
-        isMeteredConnection: () async => metered,
-      );
+  OfflineSpeech build({
+    KeyValueStore? keyValueStore,
+    bool available = true,
+    Future<int?> Function(String path)? freeSpace,
+    WhisperEngineBuild Function()? engineBuild,
+  }) => OfflineSpeech(
+    whisper: WhisperSpeech(
+      catalog: WhisperModelCatalog(
+        models: [_model('tiny', tinyBytes), _model('base', baseBytes)],
+      ),
+      root: root,
+      httpClient: MockClient((request) async {
+        requests.add(request.url);
+        return http.Response.bytes(
+          request.url.path.contains('tiny') ? tinyBytes : baseBytes,
+          200,
+        );
+      }),
+      engine: engine,
+      isAvailable: available,
+      freeSpace: freeSpace,
+    ),
+    store: keyValueStore ?? store,
+    isMeteredConnection: () async => metered,
+    engineBuild: engineBuild,
+  );
 
   setUp(() {
     root = Directory.systemTemp.createTempSync('offline_speech_');
@@ -211,4 +217,61 @@ void main() {
     await failing.download('tiny');
     await expectLater(failing.deleteAll(), throwsStateError);
   });
+
+  group('free space, picked documents and the engine build', () {
+    test('a download that cannot fit fails before the metered check', () async {
+      metered = true;
+      final tight = build(freeSpace: (_) async => 10);
+      addTearDown(tight.dispose);
+      await expectLater(
+        tight.download('tiny'),
+        throwsA(isA<WhisperInsufficientSpaceException>()),
+      );
+      expect(requests, isEmpty);
+    });
+
+    test('installs picked documents and uses the last one', () async {
+      final result = await speech.importSources([
+        _Document('ggml-base.bin', baseBytes),
+      ]);
+      expect(result.installed.map((model) => model.id), ['base']);
+      expect(await speech.selected(), 'base');
+    });
+
+    test('tells which engine build runs here', () async {
+      expect(speech.engineBuild, isNull);
+      final known = build(
+        engineBuild: () => const WhisperEngineBuild(
+          variant: WhisperCpuVariant.i8mm,
+          library: 'libmozhi_whisper_i8mm.so',
+        ),
+      );
+      addTearDown(known.dispose);
+      expect(known.engineBuild?.variant, WhisperCpuVariant.i8mm);
+      final failing = build(
+        engineBuild: () => throw const FileSystemException('cpuinfo'),
+      );
+      addTearDown(failing.dispose);
+      expect(failing.engineBuild, isNull);
+    });
+  });
+}
+
+/// A picked document for [OfflineSpeech.importSources].
+class _Document implements WhisperImportSource {
+  new(this.name, this.bytes);
+
+  @override
+  final String name;
+
+  final List<int> bytes;
+
+  @override
+  int? get length => bytes.length;
+
+  @override
+  Future<int> copyTo(File destination, {required int maxBytes}) async {
+    await destination.writeAsBytes(bytes, flush: true);
+    return bytes.length;
+  }
 }

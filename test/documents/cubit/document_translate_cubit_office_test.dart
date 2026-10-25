@@ -160,8 +160,8 @@ void main() {
     });
 
     test('office documents keep their format and are never pasted', () {
-      final cubit = build()..loadFile('report.docx', report);
-      cubit
+      final cubit = build()
+        ..loadFile('report.docx', report)
         ..setFormat(DocumentFormat.plainText)
         ..setFormat(DocumentFormat.pptx);
       expect(cubit.state.format, DocumentFormat.docx);
@@ -193,8 +193,9 @@ void main() {
       // Custom AI "languages" leave the language as it is.
       cubit.setTarget(const Language.custom('Pirate speak'));
       expect(languageOf(cubit), isNull);
-      cubit.setTarget(spanish);
-      cubit.setTarget(spanish);
+      cubit
+        ..setTarget(spanish)
+        ..setTarget(spanish);
       expect(languageOf(cubit), 'es');
 
       // Changed in text mode, the file follows when it is shown again.
@@ -247,8 +248,9 @@ void main() {
       });
 
       test('a file replaced or removed meanwhile is ignored', () async {
-        final cubit = build(backgroundBytes: 0)..loadFile('a.docx', report);
-        cubit.clear();
+        final cubit = build(backgroundBytes: 0)
+          ..loadFile('a.docx', report)
+          ..clear();
         expect(cubit.state.hasDocument, isFalse);
         await Future<void>.delayed(const Duration(milliseconds: 500));
         expect(cubit.state.hasDocument, isFalse);
@@ -256,8 +258,9 @@ void main() {
       });
 
       test('pasting text meanwhile keeps the file for the file mode', () async {
-        final cubit = build(backgroundBytes: 0)..loadFile('a.docx', report);
-        cubit.setText('Pasted');
+        final cubit = build(backgroundBytes: 0)
+          ..loadFile('a.docx', report)
+          ..setText('Pasted');
         expect(cubit.state.mode, DocumentInputMode.text);
         await Future<void>.delayed(const Duration(milliseconds: 500));
         expect(cubit.state.text, 'Pasted');
@@ -305,9 +308,9 @@ void main() {
     });
 
     test('other formats are parsed once', () {
-      final cubit = build(parser: fakeParser)
-        ..loadFile('notes.txt', bytesOf('Hello'));
-      cubit.setTarget(spanish);
+      build(parser: fakeParser)
+        ..loadFile('notes.txt', bytesOf('Hello'))
+        ..setTarget(spanish);
       expect(parsed, [(DocumentFormat.plainText, 'de')]);
     });
 

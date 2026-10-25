@@ -492,18 +492,10 @@ abstract final class LocalisationPatterns {
   static const qt = r'%L?\d{1,2}(?!\d)';
 
   /// Placeholders of string resources (Android, Apple, xcstrings): format
-  /// conversions, braces, templates, URLs and e-mail addresses.
+  /// conversions, braces, templates, URLs, e-mail addresses, and markup or
+  /// character references written as text (for `Html.fromHtml` and
+  /// attributed strings).
   static final RegExp resource = ProtectedPatterns.combine([
-    ProtectedPatterns.url,
-    ProtectedPatterns.email,
-    ProtectedPatterns.template,
-    braces,
-    printf,
-  ]);
-
-  /// [resource] where the strings hold HTML markup as text (Android
-  /// CDATA, Apple strings shown as attributed text).
-  static final RegExp markupResource = ProtectedPatterns.combine([
     ProtectedPatterns.htmlTag,
     ProtectedPatterns.htmlEntity,
     ProtectedPatterns.url,
