@@ -17,7 +17,66 @@ enum DocumentFormat {
 
   /// JSON / ARB string tables: only string values are translated; keys,
   /// `@` metadata and ICU placeholders/plurals are kept.
-  json(['json', 'arb'], 'application/json', 'json');
+  json(['json', 'arb'], 'application/json', 'json'),
+
+  /// HTML and XHTML pages: text is translated, markup, scripts and styles
+  /// are kept.
+  html(['html', 'htm', 'xhtml'], 'text/html', 'html'),
+
+  /// XLIFF 1.2 and 2.x translation files: sources are translated into
+  /// their targets.
+  xliff(['xlf', 'xliff'], 'application/xliff+xml', 'xlf'),
+
+  /// Android string resources (`res/values/strings.xml`).
+  androidStrings(['xml'], 'application/xml', 'xml'),
+
+  /// Gettext catalogues (`.po`, `.pot` templates).
+  po(['po', 'pot'], 'text/x-gettext-translation', 'po'),
+
+  /// Comma-separated values.
+  csv(['csv'], 'text/csv', 'csv'),
+
+  /// Tab-separated values.
+  tsv(['tsv', 'tab'], 'text/tab-separated-values', 'tsv'),
+
+  /// Apple `.strings` files.
+  appleStrings(['strings'], 'text/plain', 'strings'),
+
+  /// Xcode string catalogues (`.xcstrings`, JSON).
+  xcstrings(['xcstrings'], 'application/json', 'xcstrings'),
+
+  /// Word documents (Office Open XML).
+  docx(
+    ['docx'],
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'docx',
+  ),
+
+  /// PowerPoint presentations (Office Open XML).
+  pptx(
+    ['pptx'],
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'pptx',
+  ),
+
+  /// Excel workbooks (Office Open XML).
+  xlsx(
+    ['xlsx'],
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'xlsx',
+  ),
+
+  /// OpenDocument text.
+  odt(['odt'], 'application/vnd.oasis.opendocument.text', 'odt'),
+
+  /// OpenDocument presentations.
+  odp(['odp'], 'application/vnd.oasis.opendocument.presentation', 'odp'),
+
+  /// OpenDocument spreadsheets.
+  ods(['ods'], 'application/vnd.oasis.opendocument.spreadsheet', 'ods'),
+
+  /// EPUB e-books.
+  epub(['epub'], 'application/epub+zip', 'epub');
 
   new(this.extensions, this.mimeType, this.defaultExtension);
 
@@ -27,6 +86,19 @@ enum DocumentFormat {
   final String defaultExtension;
 
   bool get isSubtitle => this == srt || this == vtt;
+
+  /// Whether the format records the target language (it is passed to
+  /// `parseDocument`, and the document is parsed again when it changes).
+  bool get usesTargetLanguage =>
+      this == xliff || this == po || this == xcstrings;
+
+  /// Whether files of this format are ZIP packages (office documents and
+  /// e-books) rather than text: they are read and written as bytes, never
+  /// pasted.
+  bool get isBinary => switch (this) {
+    docx || pptx || xlsx || odt || odp || ods || epub => true,
+    _ => false,
+  };
 
   /// Whether a bilingual export (original line + translation) makes sense.
   bool get supportsBilingual => isSubtitle;

@@ -115,7 +115,8 @@ class Chunker {
   /// Batch encoding used for [format].
   static ChunkEncoding encodingFor(DocumentFormat format) => switch (format) {
     DocumentFormat.plainText || DocumentFormat.markdown => .paragraphs,
-    DocumentFormat.srt || DocumentFormat.vtt || DocumentFormat.json => .markers,
+    // TEMP W6 scaffold: W6-A and W6-B choose the encoding of their formats.
+    _ => .markers,
   };
 
   /// Plans the chunks for [document].

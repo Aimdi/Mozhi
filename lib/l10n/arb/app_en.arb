@@ -12536,5 +12536,65 @@
   "settingsAssistEngineAutomaticOnDeviceSubtitle": "The on-device model when your text should stay on this device, else the first enabled AI provider",
   "@settingsAssistEngineAutomaticOnDeviceSubtitle": {
     "description": "Subtitle of the Automatic choice of the AI assistant for insights when an on-device assistant model is installed"
+  },
+  "documentsFormatHtml": "HTML page",
+  "@documentsFormatHtml": {
+    "description": "documentsFormatHtml"
+  },
+  "documentsFormatXliff": "XLIFF translation file",
+  "@documentsFormatXliff": {
+    "description": "documentsFormatXliff"
+  },
+  "documentsFormatAndroidStrings": "Android strings (strings.xml)",
+  "@documentsFormatAndroidStrings": {
+    "description": "documentsFormatAndroidStrings"
+  },
+  "documentsFormatPo": "Gettext catalogue (PO)",
+  "@documentsFormatPo": {
+    "description": "documentsFormatPo"
+  },
+  "documentsFormatCsv": "CSV table",
+  "@documentsFormatCsv": {
+    "description": "documentsFormatCsv"
+  },
+  "documentsFormatTsv": "TSV table",
+  "@documentsFormatTsv": {
+    "description": "documentsFormatTsv"
+  },
+  "documentsFormatAppleStrings": "Apple strings (.strings)",
+  "@documentsFormatAppleStrings": {
+    "description": "documentsFormatAppleStrings"
+  },
+  "documentsFormatXcstrings": "Xcode string catalogue",
+  "@documentsFormatXcstrings": {
+    "description": "documentsFormatXcstrings"
+  },
+  "documentsFormatDocx": "Word document (DOCX)",
+  "@documentsFormatDocx": {
+    "description": "documentsFormatDocx"
+  },
+  "documentsFormatPptx": "PowerPoint presentation (PPTX)",
+  "@documentsFormatPptx": {
+    "description": "documentsFormatPptx"
+  },
+  "documentsFormatXlsx": "Excel workbook (XLSX)",
+  "@documentsFormatXlsx": {
+    "description": "documentsFormatXlsx"
+  },
+  "documentsFormatOdt": "OpenDocument text (ODT)",
+  "@documentsFormatOdt": {
+    "description": "documentsFormatOdt"
+  },
+  "documentsFormatOdp": "OpenDocument presentation (ODP)",
+  "@documentsFormatOdp": {
+    "description": "documentsFormatOdp"
+  },
+  "documentsFormatOds": "OpenDocument spreadsheet (ODS)",
+  "@documentsFormatOds": {
+    "description": "documentsFormatOds"
+  },
+  "documentsFormatEpub": "EPUB e-book",
+  "@documentsFormatEpub": {
+    "description": "documentsFormatEpub"
   }
 }

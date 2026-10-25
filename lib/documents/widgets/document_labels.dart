@@ -13,6 +13,21 @@ String documentFormatLabel(AppLocalizations l10n, DocumentFormat format) =>
       DocumentFormat.srt => l10n.documentsFormatSrt,
       DocumentFormat.vtt => l10n.documentsFormatVtt,
       DocumentFormat.json => l10n.documentsFormatJson,
+      DocumentFormat.html => l10n.documentsFormatHtml,
+      DocumentFormat.xliff => l10n.documentsFormatXliff,
+      DocumentFormat.androidStrings => l10n.documentsFormatAndroidStrings,
+      DocumentFormat.po => l10n.documentsFormatPo,
+      DocumentFormat.csv => l10n.documentsFormatCsv,
+      DocumentFormat.tsv => l10n.documentsFormatTsv,
+      DocumentFormat.appleStrings => l10n.documentsFormatAppleStrings,
+      DocumentFormat.xcstrings => l10n.documentsFormatXcstrings,
+      DocumentFormat.docx => l10n.documentsFormatDocx,
+      DocumentFormat.pptx => l10n.documentsFormatPptx,
+      DocumentFormat.xlsx => l10n.documentsFormatXlsx,
+      DocumentFormat.odt => l10n.documentsFormatOdt,
+      DocumentFormat.odp => l10n.documentsFormatOdp,
+      DocumentFormat.ods => l10n.documentsFormatOds,
+      DocumentFormat.epub => l10n.documentsFormatEpub,
     };
 
 /// Icon for [format].
@@ -21,6 +36,19 @@ IconData documentFormatIcon(DocumentFormat? format) => switch (format) {
   DocumentFormat.markdown => Icons.text_snippet_outlined,
   DocumentFormat.srt || DocumentFormat.vtt => Icons.subtitles_outlined,
   DocumentFormat.json => Icons.data_object,
+  DocumentFormat.html => Icons.code,
+  DocumentFormat.xliff ||
+  DocumentFormat.androidStrings ||
+  DocumentFormat.po ||
+  DocumentFormat.appleStrings ||
+  DocumentFormat.xcstrings => Icons.translate,
+  DocumentFormat.csv ||
+  DocumentFormat.tsv ||
+  DocumentFormat.xlsx ||
+  DocumentFormat.ods => Icons.table_chart_outlined,
+  DocumentFormat.docx || DocumentFormat.odt => Icons.description_outlined,
+  DocumentFormat.pptx || DocumentFormat.odp => Icons.slideshow_outlined,
+  DocumentFormat.epub => Icons.menu_book_outlined,
   null => Icons.insert_drive_file_outlined,
 };
 
