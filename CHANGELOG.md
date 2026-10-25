@@ -36,6 +36,25 @@ in `-rc.N`).
   the lock. The setting stays on the device: it is not synced or
   restored onto another phone.
 
+### Changed
+
+- **Downloads check the free space first.** Offline languages, text
+  recognition data, voice models, on-device AI models, dictionary packs
+  and starter phrasebooks are not started when the phone lacks room for
+  them ("Not enough free space: needs 1.2 GB, 300 MB free").
+- **On-device AI waits while the phone is hot.** A long text, a document
+  or a web page translated part by part pauses between its parts while
+  the phone is hot or battery saver is on, says so, and offers
+  **Continue anyway**. Heat and battery saver changes now arrive at once
+  instead of being polled. The AI extras show the same loading notice as
+  the main translation while the model loads.
+- **Importing an on-device AI or voice model** no longer makes a second
+  copy of the file first, so it needs half the space.
+- **Faster CPU builds fall back safely.** If a phone crashes when it
+  first loads the faster on-device AI or voice engine build, Mozhi uses
+  the baseline build from then on. The build in use is shown on the
+  On-device AI page and in the voice settings.
+
 ## 0.1.0-rc.3
 
 ### Added
