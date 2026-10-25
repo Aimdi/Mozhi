@@ -42,8 +42,8 @@ bool _hasVfpv4() {
 /// the baseline `libmozhi_whisper.so`; see `WhisperBindings.resolve`).
 ///
 /// With [variantGuardDirectory] (the app's support directory), a faster
-/// build that crashed the app is turned off for good and the baseline is
-/// used ([CpuVariantGuard]).
+/// build that crashed the app twice in a row is turned off for good and
+/// the baseline is used ([CpuVariantGuard]).
 WhisperEngine createWhisperEngine({
   String? libraryPath,
   String? variantGuardDirectory,

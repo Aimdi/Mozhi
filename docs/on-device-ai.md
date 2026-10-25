@@ -159,7 +159,9 @@ translation that is already shown.
 The page also names the **engine build** this phone uses (for support:
 `i8mm`, `dotprod` or `baseline`). If a faster build ever stopped the app
 (a phone that reports processor features it doesn't really have), Mozhi
-notices it at the next start, turns that build off for good and uses the
+notices it at the next start and tries that build once more (Android may
+have closed the app for another reason, such as low memory); if it stops
+the app a second time in a row, Mozhi turns it off for good and uses the
 baseline, which every phone runs; the line then says so.
 
 Tips:
@@ -316,8 +318,8 @@ no model is never copied at all.
   page waits between its parts; it goes on by itself, or tap **Continue
   anyway**.
 - **"Engine build: baseline (the faster … build stopped the app …)":** the
-  app crashed once with the faster build for this processor, so it now
-  uses the slower baseline; mention it when you report a problem.
+  app crashed twice in a row with the faster build for this processor, so
+  it now uses the slower baseline; mention it when you report a problem.
 - **"The file is damaged" after a download or import:** the size or
   fingerprint didn't match. Download again (or from another model source).
 - **It doesn't appear in the engine list:** the translation model is
@@ -364,7 +366,18 @@ writes `llama_cpu_variant.<role>.marker` in the support directory before a
 non-baseline build is opened and before its first generation, and removes
 it once that worked (then `llama_cpu_variants.json` records the build as
 verified for its engine version). A marker left by another process at the
-next start means that process died there: the build is added to the
-skipped ones for good and the baseline runs. The explicit library path and
-`$LLAMA_LIBRARY_PATH` are never guarded. `llamaEngineBuild()` names the
-build for the page.
+next start means that process died there: a crash of the build, counted
+in `llama_cpu_variants.json` (`crashes`, once per dead process; it also
+drops the verification, so the next first generation is guarded again).
+After `CpuVariantGuard.crashLimit` (2) crashes in a row, with no
+successful first generation in between (which clears the count), the
+build is added to the skipped ones for good and the baseline runs. One
+crash isn't enough because the process may have been killed for another
+reason while the marker was there (the low-memory killer, a force stop, a
+reboot for an update), which would turn a working build off for good; a
+build the CPU really can't run dies with an illegal instruction on every
+try, so the second chance costs such a phone one extra crash at most. Only
+the guarded library names are read from the JSON (others are ignored), and
+a damaged or oversized file counts as empty and is written again at the
+next start. The explicit library path and `$LLAMA_LIBRARY_PATH` are never
+guarded. `llamaEngineBuild()` names the build for the page.

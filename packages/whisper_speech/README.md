@@ -169,7 +169,11 @@ and another (`compute-<role>`) until its first transcription or detection
 succeeded, removing them afterwards (the build is then recorded as
 verified for its version in `whisper_cpu_variants.json`). A marker of
 another process found when an engine starts means that process died
-there: the build is skipped from then on and the baseline runs. An
+there: a crash of the build, counted once per dead process; after two
+crashes in a row (no successful first computation between them) the build
+is skipped from then on and the baseline runs (one crash may be an
+unrelated kill, such as the low-memory killer's, while an illegal
+instruction repeats on every try, so this costs one extra crash at most). An
 explicit `libraryPath` or `$WHISPER_LIBRARY_PATH` is never guarded.
 `whisperEngineBuild()` names the build for the settings.
 

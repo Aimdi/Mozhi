@@ -44,10 +44,10 @@ import java.util.Locale
  * a selection that arrived through [TRANSLATE_OFFLINE_ALIAS] also carries
  * `action: "translateOffline"`. Clipboard requests are always sent on the
  * event channel, once the window has input focus (Android 10+ only lets the
- * focused app read the clipboard), as `{action: "translateClipboard"}` plus,
- * when the clipboard holds text, `text`/`readOnly: true`/`processText: false`. Readers that
- * ignore `action` therefore treat clipboard text like shared text, and an
- * empty clipboard (no `text`) is ignored.
+ * focused app read the clipboard), as `{action: "translateClipboard"}`
+ * alone: this side never reads the clipboard. Dart reads it itself, and
+ * only once the app lock lets it (`SharedTextHandler`), so nothing of it is
+ * read while Mozhi is locked.
  *
  * Privacy helpers on [PRIVACY_CHANNEL] (`lib/platform/privacy_channel.dart`):
  * `setSecureScreen(Boolean)` sets or clears `FLAG_SECURE` (no content in
@@ -72,6 +72,13 @@ import java.util.Locale
  * the Flutter router as the plain route `/<screen>[/<path>][?<query>]...`
  * (see [deepLinkRoute]), e.g. `mozhi://image` -> `/image` and
  * `mozhi://translate?text=hola&from=es&to=en` -> `/translate?text=hola&from=es&to=en`.
+ * This window never starts at the route of a window that has an activity
+ * of its own ([isWindowRoute]: the quick translate and Translate screen
+ * windows), however the intent asks for it (Flutter's `route` extra, a
+ * link, the data of an explicit intent): it would otherwise run as that
+ * window, which the app lock treats differently. Dart also learns which
+ * window it is from this activity's class, never from the intent
+ * ([lockWindow], [getDartEntrypointArgs]).
  *
  * Open for [QuickTranslateActivity], the translucent window of text
  * selections, which shares all of the above.
@@ -114,17 +121,51 @@ open class MainActivity : FlutterActivity() {
             clipboardRequested = isTranslateClipboard(intent)
         }
         super.onCreate(savedInstanceState)
+        // A Translate screen PNG an earlier app process left behind (it
+        // ended between saving and reading it): once per process, off the
+        // main thread.
+        ScreenCaptures.sweepLeftovers(this)
     }
 
     /**
      * Initial route for a cold start from a `mozhi://` deep link. Returning
      * null lets Flutter fall back to its defaults (`/` for normal launches).
+     * The route of a window with an activity of its own ([isWindowRoute])
+     * becomes [DEFAULT_ROUTE], whichever way the intent asks for it: the
+     * `route` extra (read by Flutter's own [getInitialRoute], which any app
+     * can set), a deep link or, as Flutter would fall back to, the intent's
+     * data. [QuickTranslateActivity] and [ScreenTranslateActivity] override
+     * this with their own route.
      */
     override fun getInitialRoute(): String? {
-        super.getInitialRoute()?.let { return it }
-        val route = deepLinkRoute(intent?.data) ?: return null
-        return if (freshStart) route else DEFAULT_ROUTE
+        val route = super.getInitialRoute()
+            ?: deepLinkRoute(intent?.data)?.let { if (freshStart) it else DEFAULT_ROUTE }
+        if (route != null) return if (isWindowRoute(route)) DEFAULT_ROUTE else route
+        // Null: Flutter takes the intent's data as it is, when deep links
+        // are handled (see shouldHandleDeeplinking).
+        val data = intent?.dataString
+        return if (data != null && shouldHandleDeeplinking() && isWindowRoute(data)) {
+            DEFAULT_ROUTE
+        } else {
+            null
+        }
     }
+
+    /**
+     * Which window this is, for the app lock in Dart (`AppLockWindow` in
+     * `lib/app_lock/data/app_lock_windows.dart`): [WINDOW_MAIN] here,
+     * [WINDOW_QUICK_TRANSLATE] and [WINDOW_SCREEN_TRANSLATE] in the windows
+     * that override it. Set by the activity's class, never by the intent.
+     */
+    protected open val lockWindow: String
+        get() = WINDOW_MAIN
+
+    /**
+     * Dart's entrypoint arguments: only `window=<name>` ([WINDOW_ARGUMENT],
+     * [lockWindow]), which `main` reads. Flutter's default would take them
+     * from the intent extra `dart_entrypoint_args`, which any app can set.
+     */
+    override fun getDartEntrypointArgs(): List<String> = listOf(WINDOW_ARGUMENT + lockWindow)
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -283,11 +324,24 @@ open class MainActivity : FlutterActivity() {
     }
 
     override fun startActivityForResult(intent: Intent, requestCode: Int, options: Bundle?) {
-        // The camera or a file picker opened by Mozhi is part of using it
-        // (AppLockPlugin.kt); plain startActivity calls pass -1.
-        if (requestCode >= 0) AppLockPlugin.noteActivityStartedForResult()
+        // Picking or saving a file and taking a photo for Mozhi are part of
+        // using it, an own trip of the app lock (AppLockPlugin.kt); the
+        // share sheet and anything else are not. Plain startActivity calls
+        // pass -1.
+        if (requestCode >= 0) {
+            AppLockPlugin.noteActivityStartedForResult(ownTrip = isOwnTrip(intent, requestCode))
+        }
         super.startActivityForResult(intent, requestCode, options)
     }
+
+    /**
+     * Whether starting [intent] for a result ([requestCode]) is an own trip
+     * of the app lock: a picker, the camera or saving a file
+     * ([AppLockPlugin.isOwnTripIntent]). [ScreenTranslateActivity] adds the
+     * screen-capture consent.
+     */
+    protected open fun isOwnTrip(intent: Intent, requestCode: Int): Boolean =
+        AppLockPlugin.isOwnTripIntent(intent)
 
     /**
      * Puts [text] on the clipboard marked as sensitive, so the system's copy
@@ -380,28 +434,13 @@ open class MainActivity : FlutterActivity() {
         }
     }
 
-    private fun clipboardPayload(): Map<String, Any> {
-        val text = clipboardText()
-        val action = KEY_ACTION to ACTION_VALUE_TRANSLATE_CLIPBOARD
-        return if (text.isNullOrBlank()) {
-            mapOf(action)
-        } else {
-            payload(text, readOnly = true, processText = false) + action
-        }
-    }
-
-    private fun clipboardText(): String? = try {
-        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
-        val clip = clipboard?.primaryClip
-        if (clip == null || clip.itemCount == 0) {
-            null
-        } else {
-            clip.getItemAt(0).coerceToText(this)?.toString()
-        }
-    } catch (e: SecurityException) {
-        // Not focused after all (Android 10+); Dart may retry on its own.
-        null
-    }
+    /**
+     * The clipboard request, without the clipboard: Dart reads it once the
+     * app lock lets it (with the window focused, which is why this waits for
+     * the focus), so nothing of it is read while Mozhi is locked.
+     */
+    private fun clipboardPayload(): Map<String, Any> =
+        mapOf(KEY_ACTION to ACTION_VALUE_TRANSLATE_CLIPBOARD)
 
     private fun sharedTextOf(intent: Intent?): Map<String, Any>? {
         if (intent == null) return null
@@ -504,6 +543,17 @@ open class MainActivity : FlutterActivity() {
         /** Scheme of the deep links handled by [deepLinkRoute]. */
         const val DEEP_LINK_SCHEME = "mozhi"
 
+        /**
+         * Prefix of the Dart entrypoint argument that names the window
+         * ([getDartEntrypointArgs]; `AppLockWindow.entrypointArgumentPrefix`).
+         */
+        const val WINDOW_ARGUMENT = "window="
+
+        // The windows ([lockWindow]): the names of Dart's `AppLockWindow`.
+        const val WINDOW_MAIN = "main"
+        const val WINDOW_QUICK_TRANSLATE = "quickTranslate"
+        const val WINDOW_SCREEN_TRANSLATE = "screenTranslate"
+
         private const val METHOD_CHANNEL = "io.github.aimdi.mozhi/shared_text"
         private const val EVENT_CHANNEL = "io.github.aimdi.mozhi/shared_text_events"
         private const val PRIVACY_CHANNEL = "io.github.aimdi.mozhi/privacy"
@@ -512,6 +562,31 @@ open class MainActivity : FlutterActivity() {
         private const val ACTION_VALUE_TRANSLATE_CLIPBOARD = "translateClipboard"
         private const val ACTION_VALUE_TRANSLATE_OFFLINE = "translateOffline"
         private const val DEFAULT_ROUTE = "/"
+
+        /**
+         * The start routes of the windows that have an activity of their
+         * own, without the leading slash ([isWindowRoute]).
+         */
+        private val WINDOW_ROUTE_NAMES = listOf(
+            QuickTranslateActivity.ROUTE.trimStart('/'),
+            ScreenTranslateActivity.ROUTE.trimStart('/'),
+        )
+
+        /**
+         * Whether [route] could start Flutter as one of the windows that have
+         * an activity of their own ([QuickTranslateActivity.ROUTE],
+         * [ScreenTranslateActivity.ROUTE]). Dart reads a route's path after
+         * resolving `.` and `..`, decoding `%2D` and the like and reading `\`
+         * as `/` (`Uri.parse`), so this is broader on purpose: any decoded
+         * path segment that is such a route's name, in any case, with or
+         * without a scheme or host.
+         */
+        fun isWindowRoute(route: String): Boolean {
+            val segments = Uri.parse(route.replace('\\', '/')).pathSegments
+            return segments.any { segment ->
+                WINDOW_ROUTE_NAMES.any { it.equals(segment, ignoreCase = true) }
+            }
+        }
 
         /**
          * Intent that brings Mozhi to the front to translate the clipboard

@@ -569,9 +569,14 @@ llama.cpp (MIT, built from a pinned release in the repository's
 - **A faster native build that crashes is turned off.** Before a faster
   engine build (dotprod, i8mm) is opened, and before its first
   computation, a marker file is written in the app's private storage; a
-  marker left by a process that died at that step turns the build off for
-  good, so a phone that misreports its processor features doesn't crash
-  in a loop. Explicit library paths (tests) are never affected.
+  marker left by a process that died at that step counts as a crash, and
+  two crashes in a row (with no successful first computation between them)
+  turn the build off for good, so a phone that misreports its processor
+  features doesn't crash in a loop (one extra crash at most, the price of
+  not turning a working build off when Android kills the app for another
+  reason during that step). Only the guarded build names are read from the
+  state file; a damaged one counts as empty. Explicit library paths
+  (tests) are never affected.
 - **No state between requests.** Each request starts with an empty
   context (the cache is cleared), so one text can't leak into the answer
   to another, and requests run one at a time. Prompts that don't fit the

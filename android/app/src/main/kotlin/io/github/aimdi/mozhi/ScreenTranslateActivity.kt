@@ -41,7 +41,8 @@ import java.util.concurrent.Executors
  * - `screenshot()` answers once the capture ended: `{status: "ok", bytes,
  *   width, height, blank}`, `{status: "declined"}` or `{status: "failed",
  *   reason}`; the PNG is deleted as soon as its bytes are read (and in any
- *   case when the window closes, and at the next window's start).
+ *   case when the window closes, at the next window's start, and when the
+ *   next app process opens its first window, [ScreenCaptures.sweepLeftovers]).
  * - `close()` finishes the window: the app below is back.
  * - `openInApp({text})` / `openInApp({location})` continue in
  *   [MainActivity] (the recognised text in the translate tab, or an app
@@ -118,6 +119,10 @@ class ScreenTranslateActivity : MainActivity() {
     override fun getBackgroundMode(): BackgroundMode = BackgroundMode.transparent
 
     override fun getInitialRoute(): String = ROUTE
+
+    /** For the app lock, which trusts neither this nor [ROUTE] alone. */
+    override val lockWindow: String
+        get() = WINDOW_SCREEN_TRANSLATE
 
     override fun shouldHandleDeeplinking(): Boolean = false
 
@@ -202,6 +207,14 @@ class ScreenTranslateActivity : MainActivity() {
         if (requestCode >= 0) awaitingResult = true
         super.startActivityForResult(intent, requestCode, options)
     }
+
+    /**
+     * The screen-capture consent is part of Translate screen: an own trip
+     * of the app lock, like a picker (its intent names only the system's
+     * dialog, no action).
+     */
+    override fun isOwnTrip(intent: Intent, requestCode: Int): Boolean =
+        requestCode == REQUEST_CONSENT || super.isOwnTrip(intent, requestCode)
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         awaitingResult = false

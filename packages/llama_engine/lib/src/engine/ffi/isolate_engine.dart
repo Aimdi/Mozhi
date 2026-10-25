@@ -30,8 +30,9 @@ typedef LlamaNativeOpener = LlamaNative Function(List<String> libraries);
 /// [LlamaEngineException] and the next call starts a new one.
 ///
 /// With a [variantGuard], a faster build of the library that crashed the
-/// app before is left out of [libraries], and a marker is written while a
-/// build that never ran here is opened and runs its first generation (see
+/// app twice in a row before is left out of [libraries] (after one crash it
+/// is tried once more), and a marker is written while a build that never
+/// ran here is opened and runs its first generation (see
 /// [CpuVariantGuard]).
 final class IsolateLlamaEngine implements LlamaEngine {
   /// [libraries] are tried in order inside the isolate (see

@@ -29,8 +29,8 @@ bool _detect() {
 /// [libraryPath] (or `$LLAMA_LIBRARY_PATH`) picks a library instead.
 ///
 /// With [variantGuardDirectory] (the app's support directory), a faster
-/// build that crashed the app is turned off for good and the next one
-/// (in the end the baseline) is used ([CpuVariantGuard]).
+/// build that crashed the app twice in a row is turned off for good and
+/// the next one (in the end the baseline) is used ([CpuVariantGuard]).
 LlamaEngine createLlamaEngine({
   String? libraryPath,
   String? variantGuardDirectory,

@@ -164,9 +164,9 @@ final class WhisperBindings {
   /// Deterministic for a device, so every isolate that resolves it opens
   /// the same library.
   ///
-  /// With [guard], a variant that crashed the app before is not probed
-  /// (the baseline runs), and a marker of [role] is written while one is
-  /// probed ([CpuVariantGuard]).
+  /// With [guard], a variant that crashed the app twice in a row before is
+  /// not probed (the baseline runs), and a marker of [role] is written
+  /// while one is probed ([CpuVariantGuard]).
   static String resolve({
     String? path,
     Map<String, String>? environment,

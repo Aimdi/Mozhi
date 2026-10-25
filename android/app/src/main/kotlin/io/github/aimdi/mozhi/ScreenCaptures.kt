@@ -8,6 +8,8 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import java.io.File
+import java.util.Collections
+import kotlin.concurrent.thread
 
 /** How a screen capture of [ScreenCaptureService] ended. */
 sealed class ScreenCaptureOutcome {
@@ -39,7 +41,10 @@ sealed class ScreenCaptureOutcome {
  * Each window asks under a request id of its own; a result whose window is
  * gone (or not listening yet) waits in memory until a window with that id
  * listens, [discard]s it, or the next window deletes every leftover file
- * ([deleteAll]). Main thread only, except [deliver].
+ * ([deleteAll]). A file left by an earlier app process (one that ended
+ * between saving a PNG and reading it) also goes when this process opens
+ * its first window of any kind ([sweepLeftovers]). Main thread only, except
+ * [deliver] and [newFile].
  */
 object ScreenCaptures {
     /**
@@ -53,13 +58,46 @@ object ScreenCaptures {
     private val listeners = mutableMapOf<String, (ScreenCaptureOutcome) -> Unit>()
     private val pending = mutableMapOf<String, ScreenCaptureOutcome>()
 
+    /**
+     * The names of the files this process made ([newFile], on the capture
+     * service's thread): [sweepLeftovers] leaves them to their window.
+     */
+    private val ownFiles: MutableSet<String> = Collections.synchronizedSet(HashSet())
+
+    /** Whether this process ran [sweepLeftovers] already. */
+    private var leftoversSwept = false
+
     fun folder(context: Context): File = File(context.cacheDir, FOLDER)
 
-    /** A new file for a screenshot named [token] (the folder is created). */
+    /**
+     * A new file for a screenshot named [token] (the folder is created).
+     * Any thread.
+     */
     fun newFile(context: Context, token: String): File {
         val folder = folder(context)
         folder.mkdirs()
-        return File(folder, "$token.png")
+        val name = "$token.png"
+        // Before the file exists: the sweep can never take it.
+        ownFiles.add(name)
+        return File(folder, name)
+    }
+
+    /**
+     * Deletes the screenshots an earlier app process left behind, once per
+     * process and on a thread of its own (the folder is listed and files
+     * are deleted). Called when any window of the app opens
+     * ([MainActivity.onCreate]). Files this process made ([newFile]) stay:
+     * a Translate screen window may be about to read one.
+     */
+    fun sweepLeftovers(context: Context) {
+        if (leftoversSwept) return
+        leftoversSwept = true
+        val folder = folder(context.applicationContext)
+        thread(name = SWEEP_THREAD) {
+            folder.listFiles()?.forEach { file ->
+                if (file.name !in ownFiles) file.delete()
+            }
+        }
     }
 
     /** Deletes every screenshot left behind by an earlier window. */
@@ -93,6 +131,8 @@ object ScreenCaptures {
     fun discard(requestId: String) {
         (pending.remove(requestId) as? ScreenCaptureOutcome.Captured)?.file?.delete()
     }
+
+    private const val SWEEP_THREAD = "MozhiScreenshotSweep"
 }
 
 /**

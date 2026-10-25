@@ -23,6 +23,8 @@ import io.flutter.plugin.common.MethodChannel
  *   on a transparent surface ([getBackgroundMode]).
  * - Flutter starts at [ROUTE] (`AppRoutes.quickTranslate` in
  *   `lib/app/router.dart`), a transparent page; deep links are ignored.
+ *   Dart learns it is this window from [lockWindow] too, which no intent
+ *   can set (the app lock trusts neither alone).
  * - [CHANNEL] (`lib/quick_translate/quick_translate_host.dart`): `close()`
  *   finishes the window; `openInApp({text})` opens the text in
  *   [MainActivity]'s translate tab (as `ACTION_SEND`, like shared text) and
@@ -37,6 +39,9 @@ class QuickTranslateActivity : MainActivity() {
     override fun getBackgroundMode(): BackgroundMode = BackgroundMode.transparent
 
     override fun getInitialRoute(): String = ROUTE
+
+    override val lockWindow: String
+        get() = WINDOW_QUICK_TRANSLATE
 
     override fun shouldHandleDeeplinking(): Boolean = false
 

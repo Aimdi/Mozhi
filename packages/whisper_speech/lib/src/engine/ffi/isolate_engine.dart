@@ -37,9 +37,10 @@ WhisperLibraryResolver _guardedResolver(CpuVariantGuard guard, String role) =>
 /// the next call starts a new one.
 ///
 /// With a [variantGuard], a faster build of the library that crashed the
-/// app before is not used (the baseline is), and a marker is written while
-/// a build that never ran here is opened and runs its first transcription
-/// (see [CpuVariantGuard]).
+/// app twice in a row before is not used (the baseline is; after one crash
+/// it is tried once more), and a marker is written while a build that
+/// never ran here is opened and runs its first transcription (see
+/// [CpuVariantGuard]).
 final class IsolateWhisperEngine implements WhisperEngine {
   new({
     this.libraryPath,

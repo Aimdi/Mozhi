@@ -50,10 +50,11 @@ in `-rc.N`).
   the main translation while the model loads.
 - **Importing an on-device AI or voice model** no longer makes a second
   copy of the file first, so it needs half the space.
-- **Faster CPU builds fall back safely.** If a phone crashes when it
-  first loads the faster on-device AI or voice engine build, Mozhi uses
-  the baseline build from then on. The build in use is shown on the
-  On-device AI page and in the voice settings.
+- **Faster CPU builds fall back safely.** If a phone crashes twice in a
+  row when it first loads the faster on-device AI or voice engine build,
+  Mozhi uses the baseline build from then on (one crash gets another try,
+  since Android may have closed the app for another reason). The build in
+  use is shown on the On-device AI page and in the voice settings.
 
 ## 0.1.0-rc.3
 

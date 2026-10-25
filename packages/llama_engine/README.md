@@ -137,9 +137,12 @@ baseline. A variant on a CPU without its instructions would crash
 feature it does not have, `createLlamaEngine(variantGuardDirectory: …)`
 adds a `CpuVariantGuard`: a marker file while a faster build opens and
 until its first generation computed a token, a marker of a dead process
-at the next start turning that build off for good (`llama_cpu_variants
-.json`), the baseline then running (`llamaEngineBuild()` names the build;
-explicit paths are never guarded). Only ggml's CPU backend
+at the next start counting as a crash of that build and two crashes in a
+row (no successful first generation between them) turning it off for good
+(`llama_cpu_variants.json`; one crash may be an unrelated kill, while an
+illegal instruction repeats, so this costs one extra crash at most), the
+baseline then running (`llamaEngineBuild()` names the build; explicit
+paths are never guarded). Only ggml's CPU backend
 differs between the variants (as in ggml's own `GGML_CPU_ALL_VARIANTS`):
 `native/CMakeLists.txt` compiles it once per variant from the sources and
 settings of the baseline target with its own `-march`, and links each

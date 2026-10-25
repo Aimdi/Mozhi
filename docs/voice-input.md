@@ -107,7 +107,9 @@ A build is used only if every core of the processor supports it (some
 phones mix cores of different generations); if it cannot be loaded, the
 baseline is. If a faster build ever stopped the app (a phone that reports
 processor features it doesn't really have), Mozhi notices it at the next
-start, turns that build off for good and uses the baseline. **Settings >
+start and tries that build once more (Android may have closed the app for
+another reason, such as low memory); if it stops the app a second time in
+a row, Mozhi turns it off for good and uses the baseline. **Settings >
 Read aloud & voice > Voice input** names the build in use (**Engine
 build: i8mm**, `dotprod` or `baseline`, and why when a faster one was
 turned off), for support. The quantized models (Better (compact), Best, Large) gain the
@@ -234,10 +236,19 @@ best one and falls back to the baseline when it does not open or reports
 another ABI version; see the package README's "CPU variants"; a
 `CpuVariantGuard` writes `whisper_cpu_variant.<role>.marker` in the support
 directory while a faster build is probed and runs its first transcription
-or speech detection, one marker per engine isolate, and turns the build
-off for good, in `whisper_cpu_variants.json`, when a marker of a process
-that died is found at the next start; `whisperEngineBuild()` names the
-build for the settings),
+or speech detection, one marker per engine isolate; a marker of a process
+that died, found at the next start, counts as a crash of the build in
+`whisper_cpu_variants.json` (once per dead process, however many of its
+isolates left one), and the build is turned off for good after
+`CpuVariantGuard.crashLimit` (2) crashes in a row with no successful first
+computation in between, which clears the count. One crash isn't enough:
+the process may have been killed for another reason (the low-memory
+killer, a force stop, a reboot for an update), which would turn a working
+build off for good, while a build the CPU really can't run dies with an
+illegal instruction on every try, so the second chance costs such a phone
+one extra crash at most. Only the guarded library names are read from the
+JSON, and a damaged or oversized file counts as empty and is written
+again; `whisperEngineBuild()` names the build for the settings),
 the model catalogue (the speech models and the `kind: vad` entry),
 the verified model manager and the Dart FFI engine in a background isolate,
 with Silero VAD (`mozhi_whisper_vad_*`) in another isolate so it keeps up

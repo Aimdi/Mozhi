@@ -13,6 +13,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.CancellationSignal
 import android.os.SystemClock
+import android.provider.MediaStore
 import android.view.WindowManager
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.embedding.engine.plugins.activity.ActivityAware
@@ -56,9 +57,14 @@ import java.util.WeakHashMap
  * activity of the app ([Application.ActivityLifecycleCallbacks]) with
  * [SystemClock.elapsedRealtime], which keeps counting while the phone sleeps
  * and does not change with the phone's clock. An activity that Mozhi starts
- * for a result (camera, file picker; [noteActivityStartedForResult], from
- * [MainActivity.startActivityForResult]) makes the absence an "own trip",
- * which Dart gives more time.
+ * for a result to pick or save a file or take a photo ([isOwnTripIntent]:
+ * a file or photo picker, the camera, saving a file, also through a
+ * chooser; and Translate screen's screen-capture consent;
+ * [noteActivityStartedForResult], from [MainActivity.startActivityForResult])
+ * makes the absence an "own trip", which Dart gives more time. Anything
+ * else Mozhi starts for a result is an ordinary absence: above all the
+ * share sheet (share_plus starts its chooser for a result too), which hands
+ * the text to another app the user stays in.
  */
 class AppLockPlugin :
     FlutterPlugin,
@@ -371,12 +377,63 @@ class AppLockPlugin :
         }
 
         /**
-         * A Mozhi activity starts another one for a result (camera, file
-         * picker, saving a file): the absence that follows is part of using
-         * the app (an own trip). Called by [MainActivity.startActivityForResult].
+         * A Mozhi activity starts another one for a result. With [ownTrip]
+         * (a picker, the camera, saving a file: [isOwnTripIntent]) the
+         * absence that follows is part of using the app; otherwise (the
+         * share sheet, ...) it is an ordinary one, also when an own trip was
+         * asked for just before. Called by [MainActivity.startActivityForResult].
          */
-        fun noteActivityStartedForResult() {
-            AppLockSession.ownTripRequested = true
+        fun noteActivityStartedForResult(ownTrip: Boolean) {
+            AppLockSession.ownTripRequested = ownTrip
+        }
+
+        /**
+         * The actions of the activities whose trip is part of using Mozhi:
+         * picking a file, a folder or a photo, saving a file and taking a
+         * photo. The photo picker of image_picker (androidx `PickVisualMedia`)
+         * is `MediaStore.ACTION_PICK_IMAGES` (Android 13+, or 11+ with the
+         * SDK extension; a literal here, the constant needs API 33) or one
+         * of its fallbacks, else `ACTION_OPEN_DOCUMENT`.
+         */
+        private val OWN_TRIP_ACTIONS = setOf(
+            Intent.ACTION_OPEN_DOCUMENT,
+            Intent.ACTION_CREATE_DOCUMENT,
+            Intent.ACTION_OPEN_DOCUMENT_TREE,
+            Intent.ACTION_GET_CONTENT,
+            Intent.ACTION_PICK,
+            MediaStore.ACTION_IMAGE_CAPTURE,
+            "android.provider.action.PICK_IMAGES",
+            "androidx.activity.result.contract.action.PICK_IMAGES",
+            "com.google.android.gms.provider.action.PICK_IMAGES",
+        )
+
+        /**
+         * Whether starting [intent] for a result is an own trip: its action
+         * is one of [OWN_TRIP_ACTIONS], or it is a chooser
+         * ([Intent.createChooser], [Intent.ACTION_CHOOSER]) of such an
+         * intent ([Intent.EXTRA_INTENT]). A chooser of `ACTION_SEND` or
+         * `ACTION_SEND_MULTIPLE` (sharing) is not, nor is anything else.
+         */
+        fun isOwnTripIntent(intent: Intent): Boolean {
+            val action = intent.action ?: return false
+            if (action != Intent.ACTION_CHOOSER) return action in OWN_TRIP_ACTIONS
+            val targetAction = chooserTarget(intent)?.action ?: return false
+            return targetAction in OWN_TRIP_ACTIONS
+        }
+
+        /** The intent a chooser offers apps for; null when it has none. */
+        @Suppress("DEPRECATION")
+        private fun chooserTarget(chooser: Intent): Intent? = try {
+            // The typed getter is unreliable on Android 13 (as IntentCompat
+            // knows), so it is used from 14 on.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                chooser.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java)
+            } else {
+                chooser.getParcelableExtra<Intent>(Intent.EXTRA_INTENT)
+            }
+        } catch (e: RuntimeException) {
+            // E.g. a BadParcelableException: not known to be a picker.
+            null
         }
     }
 }
@@ -405,9 +462,11 @@ internal object AppLockSession : Application.ActivityLifecycleCallbacks {
     var authenticating = false
 
     /**
-     * Set when a Mozhi activity started another one for a result; the
-     * absence that starts next is an own trip. Cleared when that absence
-     * ends, when a result arrives and when a Mozhi activity resumes.
+     * Set when a Mozhi activity started a picker, the camera or a save
+     * dialog for a result ([AppLockPlugin.isOwnTripIntent]); the absence
+     * that starts next is an own trip. Cleared when that absence ends, when
+     * a result arrives, when a Mozhi activity resumes and when it starts
+     * anything else for a result (the share sheet).
      */
     var ownTripRequested = false
 
