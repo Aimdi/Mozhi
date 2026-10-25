@@ -132,11 +132,20 @@ pick ones you trust, or self-host them ([guide](self-hosting-mozhi.md)).
   `FLAG_SECURE`, which also blocks screen recording and sharing.
 - **App lock** (Android, off by default): protects against someone who
   holds your phone while it is unlocked, or picks it up later. While Mozhi
-  is locked it builds none of its screens (no history, phrasebook,
-  conversations, settings or keys to see, read aloud or tap), the quick
-  translate and Translate screen windows ask to unlock first (they would
-  otherwise show your languages and spend your AI providers' credit), and
-  Recents shows no preview while the lock is on. Unlocking uses Android's
+  is locked its screens are hidden: before the first unlock after a start
+  none is built; after that they stay in memory so running work goes on,
+  but under the lock screen they are `Offstage` (nothing painted, no hit
+  testing, left out of the accessibility tree), their animations stop and
+  they can't take keyboard focus (a focused field loses it, which closes
+  the on-screen keyboard); messages they show don't appear on the lock
+  screen. So there is no history, phrasebook, conversation, setting or key
+  to see, read aloud, type into or tap. Text shared to the app, the
+  clipboard actions and `mozhi://` links (also shared files and the
+  widget's buttons) wait for the unlock before they fill anything in,
+  open a screen, translate or are saved; the clipboard is only read then.
+  The quick translate and Translate screen windows ask to unlock first
+  (they would otherwise show your languages and spend your AI providers'
+  credit), and Recents shows no preview while the lock is on. Unlocking uses Android's
   system prompt (framework `BiometricPrompt` with `BIOMETRIC_WEAK` or the
   device credential on Android 11+, the device credential allowed on 10,
   the screen lock's own screen as fallback on 9 and as the only way on 7
@@ -155,7 +164,8 @@ pick ones you trust, or self-host them ([guide](self-hosting-mozhi.md)).
   as before (history, phrasebook and practice with their Keystore-wrapped
   keys, secrets in secure storage), not with a key that needs the unlock,
   so it doesn't protect against someone who can read the app's storage (a
-  rooted phone, a forensic tool on an unlocked device) or against malware.
+  rooted phone, a forensic tool on an unlocked device) or against malware;
+  and while locked, the hidden screens' data is in memory as when unlocked.
   The home-screen widget shows no translations anyway.
 - **Clipboard:** on Android 13+ copies are marked sensitive
   (`EXTRA_IS_SENSITIVE`), so the system's preview and keyboard suggestions

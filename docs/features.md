@@ -1258,8 +1258,8 @@ and **Data** (details in [Privacy](privacy.md)):
   1 minute**, **After 5 minutes** or **After 15 minutes**. Until you
   unlock, it shows only **Mozhi is locked** and **Unlock** (the prompt
   opens by itself once each time you come back; if you cancel it, tap
-  **Unlock**). Nothing of the app is opened behind it, and Recents shows
-  no preview of Mozhi while the lock is on (on Android 12 and older that
+  **Unlock**). Nothing of the app shows behind it, and Recents shows no
+  preview of Mozhi while the lock is on (on Android 12 and older that
   also blocks screenshots of Mozhi, as **Hide content in recents** does).
   - Turning it on asks you to unlock once, so you can't lock yourself out.
     It needs a screen lock on the phone; without one the row says so, and
@@ -1273,10 +1273,17 @@ and **Data** (details in [Privacy](privacy.md)):
     let anyone use your AI providers. Unlocking there unlocks the app. The
     home-screen widget only has buttons and never shows your text, so it
     stays the same.
-  - Locking closes the screens behind it, as closing the app does: a
-    conversation, a document being translated, a shared conversation or
-    Transcribe end. The text in the translator, the history and everything
-    saved stay, and the screen you were on opens again after you unlock.
+  - What was running keeps running while it is locked: a document being
+    translated, a conversation, a shared conversation or Transcribe go on
+    behind the lock, and after you unlock you are back where you were.
+    Until then the screens are hidden from view, touch, screen readers and
+    the keyboard (a text field loses the focus and the keyboard closes).
+    Before the first unlock after Mozhi starts, none of its screens opens.
+  - Text shared to Mozhi, **Translate clipboard** (tile, widget, shortcut)
+    and links (`mozhi://…`, the widget's **Type** and **Camera**, shared
+    images and files) wait for the unlock: nothing is filled in,
+    translated, opened or saved before, and the clipboard is read only
+    then.
   - It is a setting of this phone: backups, sync and Phone to phone never
     carry it, and restoring one doesn't change it.
 - **Network > HTTP proxy** (Android): every request goes through it, for

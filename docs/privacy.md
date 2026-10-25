@@ -453,8 +453,11 @@ In the web app, clearing the site's data does the same.
   prompt (`BiometricPrompt`, or the screen lock's own screen on Android 7
   and 8), when it starts and after it was in the background for the time
   you choose. Mozhi never sees your fingerprint, face or PIN: Android only
-  tells it whether you passed. Until then nothing of the app is opened,
-  the quick translate and Translate screen windows ask first, and Recents
+  tells it whether you passed. Until then nothing of the app shows (what
+  was running keeps running, hidden), shared text, the clipboard and links
+  wait (nothing is translated or saved, and the clipboard is read only
+  after the unlock), the quick translate and Translate screen windows ask
+  first, and Recents
   shows no preview of Mozhi while the lock is on (Android 13+:
   `setRecentsScreenshotEnabled(false)`; older versions: `FLAG_SECURE`, so
   screenshots are blocked too). The time away is measured with Android's

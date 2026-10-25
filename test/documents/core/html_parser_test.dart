@@ -1,3 +1,5 @@
+// Markup fixtures are built from adjacent strings.
+// ignore_for_file: missing_whitespace_between_adjacent_strings
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mozhi/documents/core/core.dart';
 import 'package:mozhi/documents/core/parsers/html_parser.dart';
@@ -53,8 +55,8 @@ void main() {
         'About',
         'Welcome to ⟨1⟩our⟨2⟩ site',
         'A sleepy cat',
-        'This is a long paragraph with a ⟨1⟩link⟨2⟩, an image ⟨3⟩ and '
-            'café & more.',
+        ('This is a long paragraph with a ⟨1⟩link⟨2⟩, an image ⟨3⟩ and '
+            'café & more.'),
         'Run ⟨1⟩ first.',
         'Our product ⟨1⟩ is free.',
         'Your name',
@@ -73,8 +75,8 @@ void main() {
         'Über',
         'Willkommen auf ⟨1⟩unserer⟨2⟩ Seite',
         'Eine "schläfrige" Katze',
-        'Dies ist ein langer Absatz mit einem ⟨1⟩Link⟨2⟩, einem Bild ⟨3⟩ '
-            'und Café & mehr <3.',
+        ('Dies ist ein langer Absatz mit einem ⟨1⟩Link⟨2⟩, einem Bild ⟨3⟩ '
+            'und Café & mehr <3.'),
         'Führe ⟨1⟩ zuerst aus.',
         'Unser Produkt ⟨1⟩ ist kostenlos.',
         'Dein Name',
