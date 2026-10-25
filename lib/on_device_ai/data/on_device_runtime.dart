@@ -46,7 +46,7 @@ class OnDeviceRuntime {
     required this._pathOf,
     this.idleUnloadAfter = OnDeviceAi.defaultIdleUnloadAfter,
     DeviceConditions? deviceConditions,
-    this.continuationGap = const Duration(seconds: 2),
+    this.continuationGap = const Duration(seconds: 1),
     this.pauseCheckInterval = const Duration(milliseconds: 500),
     DateTime Function()? clock,
   }) : _deviceConditions = deviceConditions ?? DeviceConditions.instance,

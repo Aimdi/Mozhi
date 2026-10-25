@@ -204,8 +204,9 @@ session warms the phone. Mozhi is careful about that:
   anyway** lets the rest of that job run regardless. What you just asked
   for never waits: the first part of a job, a single translation or an
   extra starts at once. (The rule: a request that comes while another one
-  runs, or less than two seconds after one ended, is the next part of the
-  same job.)
+  runs, or less than a second after one ended, is the next part of the
+  same job; so the extras that follow a translation by themselves wait
+  too, and say so.)
 - Android tells Mozhi when the heat or battery saver changes (Android 10
   and later for the heat), so these rules follow it right away without
   asking the system again and again.

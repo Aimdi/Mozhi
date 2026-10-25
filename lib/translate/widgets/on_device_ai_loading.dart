@@ -6,6 +6,7 @@ import 'package:mozhi/core/on_device_ai_engine.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/on_device_ai/data/on_device_ai.dart';
+import 'package:mozhi/on_device_ai/view/on_device_ai_paused_notice.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:translation_repository/translation_repository.dart'
     show TranslationEngine;
@@ -146,8 +147,10 @@ OnDeviceAi? maybeOnDeviceAi(BuildContext context) {
 
 /// The waiting state of an AI extra: [child] (its progress indicator) and,
 /// when the extra runs on on-device AI ([engine] is an on-device AI
-/// engine, [isOnDeviceAiEngine]) and the model is loading, the
-/// [OnDeviceAiLoadingNotice.extra] above it. Just [child] otherwise.
+/// engine, [isOnDeviceAiEngine]), the [OnDeviceAiLoadingNotice.extra]
+/// above it while the model loads, or the [OnDeviceAiPausedNotice] while
+/// it waits for the phone to cool down (an extra that followed other
+/// on-device work, see `OnDeviceRuntime`). Just [child] otherwise.
 class OnDeviceAiExtraLoading extends StatelessWidget {
   const new({
     required this.engine,
@@ -177,6 +180,7 @@ class OnDeviceAiExtraLoading extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         OnDeviceAiLoadingNotice.extra(ai: ai, onCancel: onCancel),
+        OnDeviceAiPausedNotice(ai: ai, onCancel: onCancel),
         child,
       ],
     );

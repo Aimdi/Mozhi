@@ -21,6 +21,7 @@ import java.io.FileOutputStream
 import java.io.IOException
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
 
 /**
  * Storage helpers for the on-device models (`lib/platform/free_space.dart`
@@ -58,7 +59,9 @@ class DeviceStoragePlugin :
     private var context: Context? = null
     private var binding: ActivityPluginBinding? = null
     private var pendingPick: MethodChannel.Result? = null
-    private val executor: ExecutorService = Executors.newSingleThreadExecutor()
+
+    /** Background threads: provider queries and copies (never the main one). */
+    private val executor: ExecutorService = Executors.newCachedThreadPool()
     private val main = Handler(Looper.getMainLooper())
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
@@ -165,9 +168,14 @@ class DeviceStoragePlugin :
             return true
         }
         // Names and sizes come from the provider (a query, no reading).
-        executor.execute {
-            val files = uris.map { describe(resolver, it) }
-            main.post { result.success(files) }
+        try {
+            executor.execute {
+                val files = uris.map { describe(resolver, it) }
+                main.post { result.success(files) }
+            }
+        } catch (e: RejectedExecutionException) {
+            // The engine is gone (no more threads): nothing to import.
+            result.success(emptyList<Map<String, Any>>())
         }
         return true
     }
@@ -225,20 +233,25 @@ class DeviceStoragePlugin :
                 ({ result.error("io", e.message, null) })
             } catch (e: IllegalArgumentException) {
                 ({ result.error("not_found", e.message, null) })
+            } catch (e: RuntimeException) {
+                // Whatever else a provider throws: Dart is always answered.
+                ({ result.error("io", e.message, null) })
             }
-            main.post(answer)
+            main.post { answer() }
         }
     }
 
     /** Copies at most [maxBytes] + 1 bytes of [uri] to [target]. */
     private fun copy(resolver: ContentResolver, uri: Uri, target: File, maxBytes: Long): Long {
         val input = resolver.openInputStream(uri) ?: throw IOException("Cannot open $uri")
+        val limit = maxBytes.coerceAtMost(Long.MAX_VALUE - 1) + 1
         var written = 0L
         input.use { source ->
             FileOutputStream(target).use { output ->
                 val buffer = ByteArray(BUFFER_SIZE)
-                while (written <= maxBytes) {
-                    val read = source.read(buffer)
+                while (written < limit) {
+                    val wanted = minOf(buffer.size.toLong(), limit - written).toInt()
+                    val read = source.read(buffer, 0, wanted)
                     if (read < 0) break
                     output.write(buffer, 0, read)
                     written += read

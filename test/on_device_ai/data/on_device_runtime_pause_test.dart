@@ -102,7 +102,7 @@ void main() {
   test('a part asked for right after the last one waits too', () async {
     await runtime.run('gemma', (_) async {});
     await strain(powerSave: true);
-    now = now.add(const Duration(seconds: 1));
+    now = now.add(const Duration(milliseconds: 500));
     final next = runtime.run('gemma', (_) async => 'next');
     await pumpEventQueue();
     expect(
@@ -113,12 +113,12 @@ void main() {
     expect(await next, 'next');
 
     // Continue anyway holds for the rest of the job.
-    now = now.add(const Duration(seconds: 1));
+    now = now.add(const Duration(milliseconds: 500));
     expect(await runtime.run('gemma', (_) async => 'rest'), 'rest');
 
-    // A new job after a pause in the work starts without waiting, and its
-    // later parts wait again.
-    now = now.add(const Duration(minutes: 1));
+    // A part asked for a second or more after the last one is a new job:
+    // it starts without waiting, and its later parts wait again.
+    now = now.add(runtime.continuationGap);
     expect(await runtime.run('gemma', (_) async => 'new'), 'new');
     final later = runtime.run('gemma', (_) async => 'later');
     await pumpEventQueue();

@@ -67,6 +67,13 @@ void main() {
     expect(result.installed, [model]);
   }
 
+  test('installs picked documents', () async {
+    final result = await speech.importSources([
+      _Document(tiny.name, tinyBytes),
+    ]);
+    expect(result.installed, [tiny]);
+  });
+
   test('defaults follow the platform (no engine on the test host)', () {
     final created = WhisperSpeech(
       catalog: WhisperModelCatalog(models: [tiny]),
@@ -296,4 +303,23 @@ void main() {
       verifyNever(() => engine.dispose());
     });
   });
+}
+
+/// A picked document for [WhisperSpeech.importSources].
+class _Document implements WhisperImportSource {
+  new(this.name, this.bytes);
+
+  @override
+  final String name;
+
+  final List<int> bytes;
+
+  @override
+  int? get length => bytes.length;
+
+  @override
+  Future<int> copyTo(File destination, {required int maxBytes}) async {
+    await destination.writeAsBytes(bytes, flush: true);
+    return bytes.length;
+  }
 }

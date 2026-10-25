@@ -76,5 +76,25 @@ void main() {
       expect(markers(), isEmpty);
       expect(guard().read().verified.keys, [library]);
     });
+
+    test('the guarded default resolver opens an explicit library', () async {
+      final engine = IsolateWhisperEngine(
+        libraryPath: library,
+        variantGuard: guard(),
+      );
+      addTearDown(engine.dispose);
+      await engine.transcribe(testModelPath()!, Float32List(16000));
+      expect(await engine.library, library);
+      final vad = IsolateWhisperVadEngine(
+        libraryPath: library,
+        variantGuard: guard(),
+      );
+      addTearDown(vad.dispose);
+      await expectLater(
+        vad.detect(testModelPath()!, Float32List(512)),
+        throwsA(isA<WhisperEngineException>()),
+      );
+      expect(markers(), isEmpty);
+    });
   });
 }

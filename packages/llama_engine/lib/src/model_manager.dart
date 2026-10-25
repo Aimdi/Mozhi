@@ -667,6 +667,9 @@ class LlamaModelManager {
       final StreamHasher hasher;
       try {
         hasher = await hashing.stream();
+        // An isolate that cannot start: the download fails like an
+        // interrupted one.
+        // coverage:ignore-start
       } on Object catch (error) {
         unawaited(response.stream.listen(null).cancel());
         throw LlamaDownloadException(
@@ -675,6 +678,7 @@ class LlamaModelManager {
           mirror: source,
         );
       }
+      // coverage:ignore-end
       try {
         if (resumed) {
           // The same source as the bytes on disk: hash them (in the

@@ -227,17 +227,23 @@ final class _IsolateStreamHasher implements StreamHasher {
         onError: responses.sendPort,
         onExit: responses.sendPort,
       );
+      // An isolate that cannot start (out of memory): the download fails
+      // with this error.
+      // coverage:ignore-start
     } on Object {
       responses.close();
       rethrow;
     }
+    // coverage:ignore-end
     final stream = responses.asBroadcastStream();
     final first = await stream.first;
+    // coverage:ignore-start
     if (first is! SendPort) {
       responses.close();
       isolate.kill(priority: Isolate.immediate);
       throw StateError('The hashing isolate did not start: $first');
     }
+    // coverage:ignore-end
     return _IsolateStreamHasher._(isolate, first, stream);
   }
 
@@ -263,8 +269,10 @@ final class _IsolateStreamHasher implements StreamHasher {
         final waiting = _waiting;
         _waiting = null;
         waiting?.complete(result.value);
+      // The isolate died ([message] is its error or the exit message): a
+      // crash of the hashing code, which nothing here provokes.
+      // coverage:ignore-start
       default:
-        // The isolate died ([message] is its error or the exit message).
         _fail(StateError('The hashing isolate stopped: $message'));
     }
   }
@@ -277,6 +285,7 @@ final class _IsolateStreamHasher implements StreamHasher {
     _caughtUp = null;
     abort();
   }
+  // coverage:ignore-end
 
   Future<Object?> _ask(Object request) {
     if (_failure case final failure?) return Future.error(failure);

@@ -23,8 +23,9 @@ import io.flutter.plugin.common.EventChannel
  * [PowerManager.OnThermalStatusChangedListener] (Android 10, API 29, and
  * later) and a receiver of [PowerManager.ACTION_POWER_SAVE_MODE_CHANGED],
  * both registered only while Dart listens. Before Android 10 the thermal
- * status stays -1 and Dart keeps asking `thermalStatus()` on the privacy
- * channel as a fallback.
+ * status is always -1 (unknown, as `thermalStatus()` on the privacy channel
+ * answers there too), so only battery saver can pause work. Dart polls the
+ * privacy channel only when this channel is missing or fails.
  */
 class DeviceConditionsPlugin : FlutterPlugin, EventChannel.StreamHandler {
     private var channel: EventChannel? = null

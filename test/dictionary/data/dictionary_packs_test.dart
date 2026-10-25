@@ -70,9 +70,7 @@ void main() {
     });
 
     test('a pack that fits is', () async {
-      await packs(
-        freeSpace: answering(requiredFreeSpace(es.size)),
-      ).install(es);
+      await packs(freeSpace: answering(requiredFreeSpace(es.size))).install(es);
       expect(requested, [es.url]);
     });
   });

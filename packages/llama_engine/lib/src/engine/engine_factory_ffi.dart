@@ -73,9 +73,10 @@ LlamaEngineBuild llamaEngineBuild({
       ? null
       : llamaVariantGuard(variantGuardDirectory);
   final skipped = guard?.read().skipped ?? const <String>{};
+  // The baseline (or an explicit library) is never skipped: it is found.
   final library = candidates.firstWhere(
     (candidate) => !skipped.contains(candidate),
-    orElse: () => LlamaBindings.libraryName,
+    orElse: () => LlamaBindings.libraryName, // coverage:ignore-line
   );
   return LlamaEngineBuild(
     variant: switch (library) {

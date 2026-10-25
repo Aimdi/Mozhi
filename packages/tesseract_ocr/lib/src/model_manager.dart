@@ -546,6 +546,9 @@ class TessdataManager {
       final StreamHasher hasher;
       try {
         hasher = await hashing.stream();
+        // An isolate that cannot start: the download fails like an
+        // interrupted one.
+        // coverage:ignore-start
       } on Object catch (error) {
         unawaited(response.stream.listen(null).cancel());
         throw TessdataDownloadException(
@@ -554,6 +557,7 @@ class TessdataManager {
           mirror: source,
         );
       }
+      // coverage:ignore-end
       try {
         if (resumed) {
           // Hash what is already on disk (in the background), then append.
@@ -765,10 +769,13 @@ class TessdataManager {
         output.path,
         maxBytes: language.size,
       );
+      // A file that vanished or a full disk: no partial copy is left.
+      // coverage:ignore-start
     } on Object {
       await _deleteQuietly(output);
       rethrow;
     }
+    // coverage:ignore-end
     if (digest.size != language.size || digest.sha256 != language.sha256) {
       await _deleteQuietly(output);
       throw TessdataChecksumException(

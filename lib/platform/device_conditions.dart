@@ -165,9 +165,8 @@ class DeviceConditions {
     if (!_isAndroid || _pushes != null || _changes.isClosed) return;
     final events =
         _events ??
-        const EventChannel(
-          deviceConditionsChannelName,
-        ).receiveBroadcastStream();
+        const EventChannel(deviceConditionsChannelName)
+            .receiveBroadcastStream();
     _pushes = events.listen(
       _onPush,
       // Polling takes over.

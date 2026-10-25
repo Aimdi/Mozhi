@@ -144,6 +144,14 @@ void main() {
       await tester.pump();
       expect(find.text(_loadingText), findsNothing);
       expect(find.byKey(const Key('extra_progress')), findsOneWidget);
+
+      // An extra right after a translation waits through a pause, and says so.
+      ai.report(const OnDeviceAiPaused('qwen3-1.7b-q4', DeviceStrain.heat));
+      await tester.pump();
+      expect(find.text('Paused while the phone cools down'), findsOneWidget);
+      expect(find.byKey(const Key('on_device_ai_paused_cancel')), findsNothing);
+      await tester.tap(find.text('Continue anyway'));
+      expect(ai.continued, 1);
     });
 
     testWidgets('only for an extra on on-device AI', (tester) async {
@@ -204,9 +212,7 @@ void main() {
     });
   });
 
-  testWidgets('a long text waiting between its parts says so', (
-    tester,
-  ) async {
+  testWidgets('a long text waiting between its parts says so', (tester) async {
     ai.currentStatus = const OnDeviceAiPaused(
       'hy-mt2-1.8b-q4',
       DeviceStrain.heat,
