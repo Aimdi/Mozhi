@@ -1,3 +1,4 @@
+import '../_tmp_w6e/debug.dart';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
@@ -10,6 +11,7 @@ import 'package:mozhi/platform/model_file_picker.dart';
 class _MockFallback extends Mock implements OfflineModelFilePicker;
 
 void main() {
+  dumpFailures();
   TestWidgetsFlutterBinding.ensureInitialized();
 
   const channel = MethodChannel(storageChannelName);

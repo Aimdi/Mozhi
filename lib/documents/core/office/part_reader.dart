@@ -27,8 +27,10 @@ final class PartTemplate {
 }
 
 /// Makes the builder of a part.
-typedef PartBuilderFactory =
-    PartBuilder Function(SourceDocument document, SegmentTable table);
+typedef PartBuilderFactory = PartBuilder Function(
+  SourceDocument document,
+  SegmentTable table,
+);
 
 /// Reads, parses and builds the template of [entry].
 PartTemplate readPart(

@@ -328,8 +328,7 @@ final class ZipPackage {
       count = uint64(record + 32);
       directorySize = uint64(record + 40);
     }
-    if (count > limits.maxEntries ||
-        directorySize > limits.maxEntries * 1024) {
+    if (count > limits.maxEntries || directorySize > limits.maxEntries * 1024) {
       throw const PackageParseException(
         PackageProblem.unsafe,
         'too many entries',

@@ -1,7 +1,6 @@
 // XML fixtures are written as adjacent string literals.
 // ignore_for_file: missing_whitespace_between_adjacent_strings
 
-import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';

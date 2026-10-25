@@ -903,12 +903,11 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
 }
 
 /// Parses a text document (`parseDocument`, replaceable in tests).
-typedef TextDocumentParser =
-    ParsedDocument Function(
-      String text,
-      DocumentFormat format, {
-      String? targetLanguage,
-    });
+typedef TextDocumentParser = ParsedDocument Function(
+  String text,
+  DocumentFormat format, {
+  String? targetLanguage,
+});
 
 class _FileInput {
   const new({

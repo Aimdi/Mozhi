@@ -181,10 +181,9 @@ void main() {
 
     test('worksheets are read only for their inline strings', () {
       // Not even parsed without inline strings (this one is malformed).
-      final plain = xlsx(
-        ['<si><t>Name</t></si>'],
-        sheetData: '<row><c r="A1" t="s"><v>0</v></c>',
-      );
+      final plain = xlsx([
+        '<si><t>Name</t></si>',
+      ], sheetData: '<row><c r="A1" t="s"><v>0</v></c>');
       expect(textsOf(parse(plain)), ['Name']);
 
       // Too large to read: the worksheet is left as it is.

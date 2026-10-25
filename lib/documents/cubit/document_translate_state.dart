@@ -113,6 +113,7 @@ class DocumentTranslateState extends Equatable {
   final TextEncoding encoding;
   final int sizeBytes;
   final DocumentFormat? format;
+
   /// A parsed text document.
   final ParsedDocument? document;
 
@@ -187,8 +188,7 @@ class DocumentTranslateState extends Equatable {
 
   /// The original of segment [index] as the side-by-side view shows it.
   String segmentSource(int index) =>
-      document?.segmentSource(index) ??
-      segmentPreview(segments[index].text);
+      document?.segmentSource(index) ?? segmentPreview(segments[index].text);
 
   /// How segment [index] reads with [translation].
   String segmentOutput(int index, String translation) =>

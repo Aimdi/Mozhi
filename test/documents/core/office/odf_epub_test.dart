@@ -56,7 +56,7 @@ void main() {
         'Hello ⟨1⟩bold⟨2⟩ and ⟨3⟩a link⟨4⟩.  Two spaces⟨5⟩tab\n'
                 'next line':
             'Hallo ⟨1⟩fett⟨2⟩ und ⟨3⟩ein Link⟨4⟩.  Zwei⟨5⟩Tab\n'
-                'nächste Zeile',
+            'nächste Zeile',
         'The note.': 'Die Notiz.',
         'Indented': 'Eingerückt',
         'Page header': 'Kopfzeile',
