@@ -288,6 +288,24 @@ void main() {
       );
       expect(
         OnDeviceModelError.of(
+          const LlamaInsufficientSpaceException(
+            'hy',
+            'full',
+            requiredBytes: 9,
+            availableBytes: 3,
+          ),
+        ),
+        const OnDeviceModelError(
+          OnDeviceModelErrorKind.space,
+          space: SpaceShortfall(requiredBytes: 9, availableBytes: 3),
+        ),
+      );
+      expect(
+        OnDeviceModelError.of(const OnDeviceModelTooBigException('x')).kind,
+        OnDeviceModelErrorKind.tooBig,
+      );
+      expect(
+        OnDeviceModelError.of(
           LlamaDownloadCancelledException('x', 'stop', mirror: mirror),
         ),
         const OnDeviceModelError(
