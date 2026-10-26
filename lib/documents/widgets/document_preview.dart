@@ -53,7 +53,7 @@ class _DocumentPreviewTabsState extends State<DocumentPreviewTabs>
               Tab(text: l10n.documentsTabTranslation),
             ],
           ),
-          if (state.isBinary) const _TextOnlyHint(),
+          if (state.isBinary) _OfficeHints(state: state),
           ListenableBuilder(
             listenable: _tabs,
             builder: (context, _) => Padding(
@@ -110,17 +110,46 @@ class _PreviewText extends StatelessWidget {
 }
 
 /// Says that an office document's preview is its text only.
-class _TextOnlyHint extends StatelessWidget {
-  const new();
+/// Notes about an office document or e-book: the preview shows its text
+/// only, and the translated file keeps its macros (when it has some).
+class _OfficeHints extends StatelessWidget {
+  const new({required this.state});
+
+  final DocumentTranslateState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _Hint(
+          key: const Key('documents_preview_text_only'),
+          text: l10n.documentsPreviewTextOnly,
+        ),
+        if (state.keepsMacros)
+          _Hint(
+            key: const Key('documents_keeps_macros'),
+            text: l10n.documentsKeepsMacros,
+          ),
+      ],
+    );
+  }
+}
+
+/// A short note about the document.
+class _Hint extends StatelessWidget {
+  const new({required this.text, super.key});
+
+  final String text;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Padding(
-      key: const Key('documents_preview_text_only'),
       padding: const EdgeInsets.fromLTRB(4, 12, 4, 0),
       child: Text(
-        context.l10n.documentsPreviewTextOnly,
+        text,
         style: theme.textTheme.bodySmall?.copyWith(
           color: AppPalette.of(context).secondaryText,
         ),
@@ -197,9 +226,9 @@ class DocumentSideBySide extends StatelessWidget {
           ),
           const Hairline(),
           if (state.isBinary)
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 12),
-              child: _TextOnlyHint(),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: _OfficeHints(state: state),
             ),
           Expanded(
             child: ListView.separated(

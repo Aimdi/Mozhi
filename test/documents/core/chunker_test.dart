@@ -92,6 +92,13 @@ void main() {
       expect(parts.first, (text: '今日は晴れです。', separator: ''));
     });
 
+    test('always cuts something off, even before a lone surrogate', () {
+      final text = '\uD800⟨${'1' * 20}';
+      final parts = splitText(text, 10);
+      expect(parts.first.text, '\uD800');
+      expect(parts.map((p) => '${p.text}${p.separator}').join(), text);
+    });
+
     test('cuts hard but never inside a placeholder or surrogate pair', () {
       final placeholder = splitText('abcdefgh⟨12⟩ijk', 10);
       expect(placeholder.first.text, 'abcdefgh');

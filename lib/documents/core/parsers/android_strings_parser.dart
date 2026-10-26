@@ -60,7 +60,10 @@ const _styleTags = {
   'u',
 };
 
-final _reference = RegExp(r'^[@?][\w.:+-]*/?[\w.$]+$');
+// `^[@?][\w.:+-]*/?[\w.$]+$` without its quadratic backtracking (the two
+// runs overlap): the last part is a `/` and a name, one more name
+// character, or a `$` and the rest.
+final _reference = RegExp(r'^[@?][\w.:+-]*(?:/[\w.$]+|[\w.]|\$[\w.$]*)$');
 
 class _AndroidParser {
   new(this.tree) : source = tree.source;

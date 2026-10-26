@@ -399,13 +399,27 @@ Office documents and e-books are ZIP packages of XML files, and they come
 from anywhere, so they are read defensively (on the device, before anything
 is translated):
 
-- **Size limits:** at most 25 MB per file and 10,000 entries (checked in the
-  ZIP directory before it is unpacked). Only the XML parts with text are
-  unpacked: each at most 32 MB, at most 128 MB together, and a part over
-  1 MB that compresses better than 500:1 is refused (decompression bombs).
-  Unpacking never goes past the size an entry declares. Images, fonts,
-  embedded files and macros are never unpacked: they are copied into the
-  translated file exactly as they were stored.
+- **Size limits:** at most 25 MB per file and 10,000 entries. Only the XML
+  parts with text are unpacked: each at most 32 MB, at most 128 MB
+  together, and a part over 1 MB that compresses better than 500:1 is
+  refused (decompression bombs). Unpacking never goes past the size an
+  entry declares. Images, fonts, embedded files and macros are never
+  unpacked: they are copied into the translated file exactly as they were
+  stored.
+- **The ZIP directory is checked first,** byte by byte, before the ZIP
+  library decodes anything: the entry count, the sizes entries declare
+  (at most 2 GB together, and at most 500 times the size of the file),
+  and where each entry lies. Entries outside the file are refused as
+  damaged; entries that overlap each other or the directory are refused
+  (copied entries would repeat the same bytes on every save, turning a
+  small file into a huge one), and so are symbolic links (the library
+  would unpack them while decoding, before any limit applies).
+- **Macros are kept, never run:** Word, PowerPoint and Excel files with
+  macros (VBA projects), ActiveX controls or Excel 4 macro sheets, and
+  OpenDocument files with Basic or script libraries, are accepted under
+  their usual extensions, as they are the user's own files. Their macros
+  are neither unpacked nor translated: the translated file keeps them
+  byte for byte, and the documents page says so.
 - **No entities, no fetching:** XML parts with a document type declaration
   are refused (office files never have one; e-books may name the XHTML
   doctype, but never with an internal subset that could declare entities).
@@ -447,8 +461,24 @@ files are text, read on the device with the same care:
   CSV (an unclosed quote) or JSON is refused, never half-read.
 - **Linear time on hostile input:** HTML is read the forgiving way browsers
   do, but without ever reading the same text twice (a tag cut off by the
-  end of the file ends the markup, as in a browser), so a crafted page
-  can't freeze the screen.
+  end of the file ends the markup, as in a browser). The patterns that
+  find placeholders, tags, values and formats (also when pasted text is
+  recognised) never have two repetitions that can match the same text
+  next to each other, CSV cells are only compared with the value patterns
+  up to 256 characters, and text is never copied over and over while a
+  document is put together, so a file of crafted cells, comments or runs
+  of spaces is read in linear time and can't freeze the screen (tests
+  check 200,000-character inputs of each kind). On Android, text
+  documents from 64,000 characters on, and office files from 64 KB on,
+  are read in a background isolate.
+- **No formulas from translations (CSV and TSV):** a translated cell that a
+  spreadsheet would run as a formula or a DDE call (it starts with `=`,
+  `+`, `-`, `@`, a tab or a carriage return, after leading spaces) gets a
+  `'` in front, as OWASP advises against CSV injection, so an engine
+  (say, a prompt-injected AI) can't plant `=HYPERLINK(…)` or
+  `=WEBSERVICE(…)` to leak other cells. A cell whose original already
+  starts that way is the file's own and is left as it is; formulas of the
+  original are never translated.
 - **The output stays valid:** translations are escaped for the format,
   inline tags are put back into balanced elements whatever order an engine
   returns them in, and markup the engine never saw (scripts, styles,

@@ -458,9 +458,15 @@ class _PluralParser {
 // ---------------------------------------------------------------------------
 
 /// Placeholder patterns of string resources.
+///
+/// All of them take linear time on hostile text: no two adjacent or nested
+/// repetitions can match the same characters (a width never starts with
+/// `0`, which is a flag), so the regular expression engine never
+/// backtracks over more than one run of characters. [ProtectedPatterns]
+/// are only used where they are linear too.
 abstract final class LocalisationPatterns {
   static const _flags = "[-+0#']*";
-  static const _width = r'(?:\d+|\*)?(?:\.(?:\d+|\*))?';
+  static const _width = r'(?:[1-9]\d*|\*)?(?:\.(?:\d+|\*))?';
   static const _length = '(?:hh|h|ll|l|L|q|j|z|t)?';
   static const _conversion = '[diouxXeEfFgGaAcspn@]';
 
@@ -481,7 +487,19 @@ abstract final class LocalisationPatterns {
 
   /// Python named conversions (`%(name)s`).
   static const pythonNamed =
-      r'%\([A-Za-z_]\w*\)[-+0# ]*\d*(?:\.\d+)?[diouxXeEfFgGcrsa%]';
+      r'%\([A-Za-z_]\w*\)[-+0# ]*(?:[1-9]\d*)?(?:\.\d+)?[diouxXeEfFgGcrsa%]';
+
+  /// printf placeholders of JSON and ARB values ([ProtectedPatterns.printf],
+  /// whose width may start with the `0` flag: quadratic on `%000…`).
+  static const jsonPrintf =
+      r'%(?:\d+\$)?(?:\([A-Za-z_]\w*\))?[-+ 0#]*(?:[1-9]\d*)?(?:\.\d+)?[sdifuxXeEgGcp@]';
+
+  /// HTML/XML tags and comments: what [ProtectedPatterns.htmlTag] matches,
+  /// in linear time (that one takes minutes on `<a` followed by a few
+  /// thousand spaces). A comment never contains `<!--`, so that text full
+  /// of unclosed `<!--` is not scanned to its end again and again.
+  static const htmlTag =
+      r'<!--(?:(?!<!--)[\s\S])*?-->|</?[A-Za-z][\w:.-]*(?:\s[^<>]*)?/?>';
 
   /// Brace placeholders: `{name}`, `{0}`, `{0:.2f}`, `{name!r}`, Java
   /// `{0,number}`.
@@ -496,7 +514,7 @@ abstract final class LocalisationPatterns {
   /// character references written as text (for `Html.fromHtml` and
   /// attributed strings).
   static final RegExp resource = ProtectedPatterns.combine([
-    ProtectedPatterns.htmlTag,
+    htmlTag,
     ProtectedPatterns.htmlEntity,
     ProtectedPatterns.url,
     ProtectedPatterns.email,
@@ -509,7 +527,7 @@ abstract final class LocalisationPatterns {
   /// strings (XLIFF, CSV, HTML text): [printfInText] instead of [printf],
   /// and escaped markup (`&lt;b&gt;` reads as `<b>`).
   static final RegExp text = ProtectedPatterns.combine([
-    ProtectedPatterns.htmlTag,
+    htmlTag,
     ProtectedPatterns.url,
     ProtectedPatterns.email,
     ProtectedPatterns.template,
@@ -520,9 +538,42 @@ abstract final class LocalisationPatterns {
   /// HTML text: URLs, e-mail addresses, escaped markup and template
   /// placeholders (`{{name}}`, `${name}`).
   static final RegExp html = ProtectedPatterns.combine([
-    ProtectedPatterns.htmlTag,
+    htmlTag,
     ProtectedPatterns.url,
     ProtectedPatterns.email,
     ProtectedPatterns.template,
+  ]);
+
+  /// JSON / ARB string values: [ProtectedPatterns.json] in linear time.
+  static final RegExp json = ProtectedPatterns.combine([
+    htmlTag,
+    ProtectedPatterns.htmlEntity,
+    ProtectedPatterns.url,
+    ProtectedPatterns.email,
+    ProtectedPatterns.template,
+    jsonPrintf,
+  ]);
+
+  /// Markdown inline content: [ProtectedPatterns.markdown] in linear time
+  /// (image descriptions and footnote labels never contain `[`, so that a
+  /// line full of `![` or `[^` is not scanned to its end from each).
+  static final RegExp markdown = ProtectedPatterns.combine([
+    // Code spans (single or double backticks).
+    r'``(?:[^`]|`(?!`))+``|`[^`\n]+`',
+    // Images are kept whole (a destination with one pair of parentheses).
+    r'!\[[^\[\]\n]*\]\([^()\s]*(?:\([^()]*\)[^()\s]*)?(?:\s+"[^"]*")?\)',
+    // Link destinations and reference labels right after `]`.
+    r'''(?<=\])\((?:[^()\s]|\([^()]*\))*(?:\s+(?:"[^"]*"|'[^']*'|\([^()]*\)))?\)''',
+    r'(?<=\])\[[^\]\n]*\]',
+    // Footnote references.
+    r'\[\^[^\[\]\n]+\]',
+    // Autolinks.
+    r'<(?:https?|ftp|mailto):[^<>\s]+>|<[^<>\s@]+@[^<>\s@]+>',
+    htmlTag,
+    ProtectedPatterns.htmlEntity,
+    ProtectedPatterns.url,
+    ProtectedPatterns.email,
+    // Inline math.
+    r'\$\$[^$\n]+\$\$',
   ]);
 }

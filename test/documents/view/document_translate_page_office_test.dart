@@ -94,6 +94,7 @@ void main() {
         find.byKey(const Key('documents_preview_text_only')),
         findsOneWidget,
       );
+      expect(find.byKey(const Key('documents_keeps_macros')), findsNothing);
       expect(find.textContaining('Hello world\n\nRead this'), findsOneWidget);
 
       await tester.tap(find.byKey(const Key('documents_translate')));
@@ -205,6 +206,27 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('documents_reading')), findsNothing);
       expect(find.text('1 segment'), findsOneWidget);
+    });
+
+    testWidgets('documents with macros say the translation keeps them', (
+      tester,
+    ) async {
+      final macros = docx(
+        '<w:p><w:r><w:t>Hello world</w:t></w:r></w:p>',
+        extra: {'word/vbaProject.bin': 'VBA'},
+      );
+      await pumpPage(
+        tester,
+        initialFile: PickedFile(name: 'macros.docx', bytes: macros),
+      );
+      expect(find.byKey(const Key('documents_keeps_macros')), findsOneWidget);
+      expect(
+        find.text(
+          'This document contains macros or ActiveX controls: the '
+          'translated file keeps them as they are.',
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets('wide layout lists the text of each segment', (tester) async {

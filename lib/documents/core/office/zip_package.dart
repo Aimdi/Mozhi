@@ -90,12 +90,16 @@ final class ZipPackage {
     final Archive archive;
     try {
       archive = decoder.decodeBytes(bytes);
-      // Bad data inside an archive surfaces as any kind of error.
+      // Bad data inside an archive surfaces as any kind of error. After
+      // _checkDirectory, nothing is left for the decoder to fail on; kept
+      // in case a later version of it reads more while decoding.
     } catch (error) {
+      // coverage:ignore-start
       throw PackageParseException(
         PackageProblem.damaged,
         'damaged ZIP package ($error)',
       );
+      // coverage:ignore-end
     }
     // Entry count and sizes were checked by _checkDirectory.
     final headers = decoder.directory.fileHeaders;

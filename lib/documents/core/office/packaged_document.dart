@@ -48,6 +48,8 @@ PackagedDocument parsePackagedDocument(
 /// * The target language replaces the document's language where the file
 ///   records one (Word's `w:lang`, run languages in slides, OpenDocument
 ///   text properties, `dc:language`, the XHTML `lang`).
+/// * Macros and ActiveX controls are the user's own: they are accepted and
+///   copied unchanged ([hasMacros] tells).
 final class OfficePackage implements PackagedDocument {
   new _({
     required this.format,
@@ -55,6 +57,7 @@ final class OfficePackage implements PackagedDocument {
     required this._parts,
     required List<Segment> segments,
     required this.language,
+    required this.hasMacros,
     required this._limits,
   }) : segments = List.unmodifiable(segments);
 
@@ -86,8 +89,22 @@ final class OfficePackage implements PackagedDocument {
       parts: parts,
       segments: table.segments,
       language: LanguageTag.tryParse(targetLanguage),
+      hasMacros: zip.entries.any((entry) => isMacroPart(entry.name)),
       limits: limits,
     );
+  }
+
+  /// Whether the entry [name] holds macros or ActiveX controls: a VBA
+  /// project (`word/vbaProject.bin`), ActiveX controls (`word/activeX/`),
+  /// Excel 4 macro sheets (`xl/macrosheets/`), or OpenDocument Basic and
+  /// script libraries (`Basic/`, `Scripts/`).
+  static bool isMacroPart(String name) {
+    final path = '/${name.toLowerCase()}';
+    return path.endsWith('/vbaproject.bin') ||
+        path.contains('/activex/') ||
+        path.contains('/macrosheets/') ||
+        path.startsWith('/basic/') ||
+        path.startsWith('/scripts/');
   }
 
   @override
@@ -97,6 +114,10 @@ final class OfficePackage implements PackagedDocument {
 
   /// The language written into translated documents (null: unchanged).
   final LanguageTag? language;
+
+  /// Whether the package holds macros or ActiveX controls (see
+  /// [isMacroPart]), which the translated file keeps.
+  final bool hasMacros;
   final Uint8List _bytes;
   final List<PartTemplate> _parts;
   final PackageLimits _limits;
@@ -116,6 +137,7 @@ final class OfficePackage implements PackagedDocument {
     parts: _parts,
     segments: segments,
     language: LanguageTag.tryParse(targetLanguage),
+    hasMacros: hasMacros,
     limits: _limits,
   );
 

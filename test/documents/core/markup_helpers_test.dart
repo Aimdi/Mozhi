@@ -358,6 +358,43 @@ void main() {
       }
     });
 
+    test('linear patterns match what the shared ones match', () {
+      List<(int, int)> spans(RegExp pattern, String text) => [
+        for (final match in pattern.allMatches(text)) (match.start, match.end),
+      ];
+      const texts = [
+        '<b>bold</b> and <a href="x">link</a> <br/> <br /> <img alt=x>',
+        '<p\nclass="x"> <a/b> <x:y z="1"> </ b> <1a> < a> <a\t>',
+        '<!-- note --> text <!----> <!-- a -- b --> <a <b>',
+        r'%05d %-05d %00012d %1$05.2f %(n)05d %s %.2f %10s %0s %+0#5x',
+        'see ![alt](img.png) and ![a](b(c)d "t") [^1] [x](y) <http://a.b>',
+        r'<a@b.c> $$x$$ `code` ``co`de`` [a](b) ![x](y)',
+        'mail me: a.b@example.com, www.example.com/x. https://a.b/(c)',
+        r'&amp; &#160; &#x2014; {{name}} ${x} $t(key) @:key {0} {name}',
+      ];
+      for (final text in texts) {
+        for (final (fast, slow) in [
+          (
+            ProtectedPatterns.combine([LocalisationPatterns.htmlTag]),
+            ProtectedPatterns.combine([ProtectedPatterns.htmlTag]),
+          ),
+          (LocalisationPatterns.json, ProtectedPatterns.json),
+          (LocalisationPatterns.markdown, ProtectedPatterns.markdown),
+        ]) {
+          expect(spans(fast, text), spans(slow, text), reason: text);
+        }
+      }
+      final printf = RegExp(LocalisationPatterns.printf);
+      final python = RegExp(LocalisationPatterns.pythonNamed);
+      for (final spec in ['%05d', '%-05d', '%00012d', r'%1$05.2f', '%0s']) {
+        expect(printf.stringMatch('x $spec y'), spec, reason: spec);
+      }
+      expect(python.stringMatch('a %(n)05d'), '%(n)05d');
+      // A comment never contains `<!--`: the inner one is the comment.
+      final tag = RegExp(LocalisationPatterns.htmlTag);
+      expect(tag.stringMatch('<!-- a <!-- b -->'), '<!-- b -->');
+    });
+
     test('protects format specifiers', () {
       final printf = RegExp(LocalisationPatterns.printf);
       final inText = RegExp(LocalisationPatterns.printfInText);

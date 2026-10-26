@@ -913,12 +913,17 @@ they are translated with the engine and privacy mode you choose.
 - **The preview** shows the text only (the saved file keeps the layout).
   Office files can't be pasted, their format can't be changed, and there is
   no bilingual export.
+- **Macros** (VBA projects, ActiveX controls, Excel 4 macro sheets,
+  OpenDocument Basic and scripts) are neither translated nor run: the
+  translated file keeps them as they are, and the page says so when a
+  document has some.
 - **Limits:** office files and e-books up to 25 MB (text files up to 2 MB);
-  on Android, large ones are read in the background. Not opened:
+  on Android, files from 64 KB on are read in the background. Not opened:
   password-protected or encrypted files (remove the protection first),
   e-books with DRM (fonts that are only obfuscated are fine), old `.doc`,
-  `.xls` and `.ppt` files renamed to the new extensions, damaged files, and
-  files that unpack to far too much data (see
+  `.xls` and `.ppt` files renamed to the new extensions, damaged files,
+  files that unpack to far too much data, and ZIP files with symbolic
+  links or overlapping entries (see
   [Security](security.md#documents-and-e-books)).
 - **Not translated:** text in images, alternative text, spreadsheet
   comments, sheet names, the data behind charts, slide master and layout
@@ -995,10 +1000,15 @@ with its line endings, byte order mark, indentation and comments.
   its filled cells are numbers, dates, times, URLs, e-mail addresses,
   `true`/`false`/`null` or identifiers (`snake_case`, `SKU-123`, UUIDs), or
   when it repeats a handful of one-word codes (at least 4 filled cells, at
-  most half of them different). In the other columns every cell with words
-  is translated; formulas (`=SUM(A1:A3)`) stay as they are. To fill a
-  language column of a translation table, copy the source column into it
-  first.
+  most half of them different); only cells of up to 256 characters count
+  as such values. In the other columns every cell with words is
+  translated; formulas (`=SUM(A1:A3)`) stay as they are. A translation
+  that a spreadsheet would read as a formula (one that starts with `=`,
+  `+`, `-`, `@`, a tab or a carriage return) gets a `'` in front, so that
+  it shows as text and can't run anything (see
+  [Security](security.md#localisation-files-and-web-pages)); cells whose
+  original starts that way already are left alone. To fill a language
+  column of a translation table, copy the source column into it first.
 - **Pasting:** HTML, XLIFF, Android strings, PO catalogues, Xcode string
   catalogues, `.strings` files and cells copied from a spreadsheet (TSV)
   are recognised when pasted; choose **CSV** yourself.

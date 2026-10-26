@@ -12917,5 +12917,9 @@
   "documentsTextHintFormats": "Paste or type text, Markdown, subtitles, JSON, HTML, XLIFF, PO, Android or Apple strings, CSV or TSV",
   "@documentsTextHintFormats": {
     "description": "documentsTextHintFormats"
+  },
+  "documentsKeepsMacros": "This document contains macros or ActiveX controls: the translated file keeps them as they are.",
+  "@documentsKeepsMacros": {
+    "description": "Note on the documents page for an office file with macros (VBA, ActiveX, OpenDocument Basic)."
   }
 }

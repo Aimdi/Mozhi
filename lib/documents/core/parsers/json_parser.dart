@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:mozhi/documents/core/document_builder.dart';
 import 'package:mozhi/documents/core/document_format.dart';
 import 'package:mozhi/documents/core/parsed_document.dart';
+import 'package:mozhi/documents/core/parsers/locale_rules.dart'
+    show LocalisationPatterns;
 import 'package:translation_repository/translation_repository.dart'
     show ProtectedPatterns;
 
@@ -200,11 +202,11 @@ class _JsonParser {
 
   static final RegExp _fallbackPattern = ProtectedPatterns.combine([
     r'\{[^{}]*\}',
-    ProtectedPatterns.htmlTag,
+    LocalisationPatterns.htmlTag,
     ProtectedPatterns.url,
     ProtectedPatterns.email,
     ProtectedPatterns.template,
-    ProtectedPatterns.printf,
+    LocalisationPatterns.jsonPrintf,
   ]);
 }
 
@@ -230,7 +232,7 @@ class IcuMessageParser {
   List<Piece> _pieces(List<_Icu> message) => [
     for (final part in message)
       ...switch (part) {
-        _IcuText(:final text) => protect(text, ProtectedPatterns.json),
+        _IcuText(:final text) => protect(text, LocalisationPatterns.json),
         _IcuToken(:final text) => [TokenPiece.text(text)],
         _IcuComplex(:final parts) => [
           TokenPiece([

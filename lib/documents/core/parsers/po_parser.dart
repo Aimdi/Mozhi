@@ -107,6 +107,10 @@ class _PoParser {
 
   late final String _lineBreak = dominantLineBreak(lines);
 
+  /// The placeholder pattern for entries with or without percent formats
+  /// and Qt formats, compiled once each.
+  static final _patterns = <(bool, bool), RegExp>{};
+
   ParsedDocument parse() {
     final entries = _entries();
     _Entry? header;
@@ -345,15 +349,15 @@ class _PoParser {
     final percent =
         flags.any(_percentFormats.contains) && !flags.contains('no-c-format');
     final braces = flags.contains('python-brace-format');
-    final pattern = ProtectedPatterns.combine([
-      ProtectedPatterns.htmlTag,
+    final qt = flags.contains('qt-format') || flags.contains('kde-format');
+    final pattern = _patterns[(percent, qt)] ??= ProtectedPatterns.combine([
+      LocalisationPatterns.htmlTag,
       ProtectedPatterns.url,
       ProtectedPatterns.email,
       ProtectedPatterns.template,
       LocalisationPatterns.pythonNamed,
       LocalisationPatterns.braces,
-      if (flags.contains('qt-format') || flags.contains('kde-format'))
-        LocalisationPatterns.qt,
+      if (qt) LocalisationPatterns.qt,
       if (percent)
         LocalisationPatterns.printf
       else

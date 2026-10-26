@@ -167,15 +167,19 @@ enum DocumentFormat {
 
   /// HTML, XLIFF or Android strings from the first element of [text].
   static DocumentFormat? _sniffMarkup(String text, {required bool markdown}) {
-    var rest = text;
+    // Moves through the text without copying it (linear time for a text
+    // full of declarations and comments).
+    var start = 0;
     while (true) {
-      rest = rest.trimLeft();
-      final prolog = _markupProlog.matchAsPrefix(rest);
+      while (start < text.length && text[start].trim().isEmpty) {
+        start++;
+      }
+      final prolog = _markupProlog.matchAsPrefix(text, start);
       if (prolog == null) break;
-      if (_htmlDoctype.matchAsPrefix(rest) != null) return html;
-      rest = rest.substring(prolog.end);
+      if (_htmlDoctype.matchAsPrefix(text, start) != null) return html;
+      start = prolog.end;
     }
-    final element = _firstElement.matchAsPrefix(rest);
+    final element = _firstElement.matchAsPrefix(text, start);
     if (element == null) return null;
     final name = element.group(1)!.toLowerCase();
     final local = name.contains(':')
@@ -191,14 +195,33 @@ enum DocumentFormat {
 
   static bool _isAppleStrings(String text) {
     if (!text.startsWith('"') && !text.startsWith('/')) return false;
-    final code = text
-        .replaceAll(_blockComment, '\n')
+    final code = _withoutBlockComments(text)
         .split(RegExp(r'\r?\n'))
         .where(
           (line) => line.trim().isNotEmpty && !line.trimLeft().startsWith('//'),
         )
         .toList();
     return code.isNotEmpty && code.every(_appleStringsPair.hasMatch);
+  }
+
+  /// [text] with each `/* … */` comment replaced by a line break (an
+  /// unclosed one runs to the end). A loop, as `/\*[\s\S]*?\*/` scans to
+  /// the end of the text from every `/*` that is never closed.
+  static String _withoutBlockComments(String text) {
+    final out = StringBuffer();
+    var position = 0;
+    while (true) {
+      final open = text.indexOf('/*', position);
+      if (open == -1) break;
+      final close = text.indexOf('*/', open + 2);
+      if (close == -1) break;
+      out
+        ..write(text.substring(position, open))
+        ..write('\n');
+      position = close + 2;
+    }
+    out.write(text.substring(position));
+    return out.toString();
   }
 
   static bool _isTsv(String text) {
@@ -214,8 +237,10 @@ enum DocumentFormat {
         lines.any(_innerTab.hasMatch);
   }
 
+  // `(?:\[…\]\s*)?>` rather than `(?:\[…\])?\s*>`: the spaces before
+  // `>` are part of `[^>\[]*` unless there is an internal subset.
   static final _markupProlog = RegExp(
-    r'<\?[\s\S]*?\?>|<!--[\s\S]*?-->|<!DOCTYPE[^>\[]*(?:\[[\s\S]*?\])?\s*>',
+    r'<\?[\s\S]*?\?>|<!--[\s\S]*?-->|<!DOCTYPE[^>\[]*(?:\[[\s\S]*?\]\s*)?>',
     caseSensitive: false,
   );
   static final _htmlDoctype = RegExp(
@@ -299,7 +324,6 @@ enum DocumentFormat {
     r'^msgstr(?:\[\d+\])?[ \t]+"',
     multiLine: true,
   );
-  static final _blockComment = RegExp(r'/\*[\s\S]*?\*/');
   static final _appleStringsPair = RegExp(
     r'^\s*"(?:[^"\\]|\\.)*"\s*=\s*"(?:[^"\\]|\\.)*"\s*;\s*(?://.*)?$',
   );
@@ -310,15 +334,21 @@ enum DocumentFormat {
   );
 
   /// Headings, fences and tables.
+  ///
+  /// The sniffing patterns take linear time: no two adjacent repetitions
+  /// match the same characters (`[ \t]*(?:\|[ \t]*)?`, not
+  /// `[ \t]*\|?[ \t]*`), and a link text never contains `[` (or every `[`
+  /// of a line full of them would scan to its end).
   static final _markdownStrong = RegExp(
-    r'^(?:#{1,6}[ \t]+\S|```|~~~|\|.*\|[ \t]*\r?\n[ \t]*\|?[ \t]*:?-{3,})',
+    r'^(?:#{1,6}[ \t]+\S|```|~~~'
+    r'|\|.*\|[ \t]*\r?\n[ \t]*(?:\|[ \t]*)?:?-{3,})',
     multiLine: true,
   );
 
   /// Lists, quotes, links, emphasis and inline code.
   static final _markdownWeak = RegExp(
-    r'^[ \t]*(?:[-*+]|\d{1,3}[.)])[ \t]+\S|^>[ \t]?\S|\[[^\]\n]+\]\([^)\s]+\)'
-    r'|\*\*[^*\n]+\*\*|`[^`\n]+`',
+    r'^[ \t]*(?:[-*+]|\d{1,3}[.)])[ \t]+\S|^>[ \t]?\S'
+    r'|\[[^\[\]\n]+\]\([^)\s]+\)|\*\*[^*\n]+\*\*|`[^`\n]+`',
     multiLine: true,
   );
 }

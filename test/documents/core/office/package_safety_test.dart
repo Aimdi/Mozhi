@@ -2,6 +2,7 @@
 // ignore_for_file: missing_whitespace_between_adjacent_strings
 
 import 'dart:convert';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
@@ -127,6 +128,27 @@ void main() {
       expect(
         () => parse(bytes),
         throwsProblem(PackageProblem.unsafe, contains('compressed')),
+      );
+      // A part that compresses too well, in a package that doesn't.
+      final random = Random(1);
+      final mixed = zipOf(
+        {
+          '[Content_Types].xml': bytesTypes,
+          'word/document.xml':
+              '<w:document xmlns:w="$wNs"><w:body>${' ' * 20000}'
+              '</w:body></w:document>',
+          'word/media/noise.bin': [
+            for (var i = 0; i < 10000; i++) random.nextInt(256),
+          ],
+        },
+        stored: {'word/media/noise.bin'},
+      );
+      expect(
+        () => parse(
+          mixed,
+          limits: const PackageLimits(ratioFloorBytes: 1000, maxRatio: 20),
+        ),
+        throwsProblem(PackageProblem.unsafe, contains('word/document.xml')),
       );
     });
 
@@ -276,11 +298,21 @@ void main() {
     });
 
     test('entries that overlap or lie outside the file', () {
-      // Two names for the same bytes: copied twice on every save.
-      final a = _RawEntry('a.xml', ascii.encode('<a/>'));
-      final twice = _rawZip([a, a.renamed('b.xml', offset: 0)]);
+      // An entry whose data takes in the next entry (header and data): its
+      // bytes would be copied twice on every save, and many such entries
+      // would make a huge file out of a small one.
+      final nested = _rawZip([
+        _RawEntry('a.bin', ascii.encode('aaaa'), compressed: 43, size: 43),
+        _RawEntry('b.bin', ascii.encode('bbbb')),
+      ]);
       expect(
-        () => ZipPackage.read(twice),
+        () => ZipPackage.read(nested),
+        throwsProblem(PackageProblem.unsafe, contains('overlapping')),
+      );
+      // Two directory entries for the same local header.
+      final a = _RawEntry('a.xml', ascii.encode('<a/>'));
+      expect(
+        () => ZipPackage.read(_rawZip([a, a.renamed('b.xml', offset: 0)])),
         throwsProblem(PackageProblem.unsafe, contains('overlapping')),
       );
       // Data running into the directory.
@@ -369,6 +401,41 @@ void main() {
       );
       // A locator pointing at something else: the end record's values.
       expect(ZipPackage.read(zip64(signature: 0)).entries, hasLength(1));
+    });
+
+    test('macros and ActiveX controls are kept and reported', () {
+      const body = '<w:p><w:r><w:t>Hello</w:t></w:r></w:p>';
+      expect(parse(docx(body)), isA<OfficePackage>());
+      expect((parse(docx(body)) as OfficePackage).hasMacros, isFalse);
+      final document = OfficePackage.parse(
+        docx(body, extra: {'word/vbaProject.bin': 'VBA'}),
+        DocumentFormat.docx,
+        targetLanguage: 'de',
+      );
+      expect(document.hasMacros, isTrue);
+      expect(document.withTargetLanguage('fr').hasMacros, isTrue);
+      final output = document.render(['Hallo']);
+      final project = entriesOf(output)
+          .singleWhere((entry) => entry.name == 'word/vbaProject.bin');
+      expect(utf8.decode(project.readBytes()!), 'VBA');
+      for (final name in [
+        'word/vbaProject.bin',
+        'xl/vbaProject.bin',
+        'ppt/activeX/activeX1.xml',
+        'xl/macrosheets/sheet1.xml',
+        'Basic/Standard/Module1.xml',
+        'Scripts/python/macro.py',
+      ]) {
+        expect(OfficePackage.isMacroPart(name), isTrue, reason: name);
+      }
+      for (final name in [
+        'word/document.xml',
+        'word/media/basic/a.png',
+        'word/myvbaProject.bin',
+        'content.xml',
+      ]) {
+        expect(OfficePackage.isMacroPart(name), isFalse, reason: name);
+      }
     });
 
     test('a compressed mimetype is unpacked within the limits', () {

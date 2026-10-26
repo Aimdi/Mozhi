@@ -47,14 +47,38 @@ List<Piece> protect(String text, RegExp? pattern) {
 
 final _letter = RegExp(r'\p{L}', unicode: true);
 final _leadingSpace = RegExp(r'^\s+');
-final _trailingSpace = RegExp(r'\s+$');
+
+/// The whitespace (`\s` of regular expressions) at the end of [text]. A
+/// loop, as `\s+$` takes quadratic time on a long run of spaces before
+/// the last word.
+String _trailingSpace(String text) {
+  var start = text.length;
+  while (start > 0 && _isSpace(text.codeUnitAt(start - 1))) {
+    start--;
+  }
+  return text.substring(start);
+}
+
+/// Whether [unit] matches `\s`.
+bool _isSpace(int unit) =>
+    unit == 0x20 ||
+    (unit >= 0x09 && unit <= 0x0D) ||
+    unit == 0xA0 ||
+    unit == 0x1680 ||
+    (unit >= 0x2000 && unit <= 0x200A) ||
+    unit == 0x2028 ||
+    unit == 0x2029 ||
+    unit == 0x202F ||
+    unit == 0x205F ||
+    unit == 0x3000 ||
+    unit == 0xFEFF;
 
 /// Whether [text] contains at least one letter (in any script).
 bool containsLetter(String text) => _letter.hasMatch(text);
 
 /// Collects template nodes and segments while a parser walks a document.
 class DocumentBuilder {
-  final List<DocNode> _nodes = [];
+  final _Nodes _nodes = _Nodes();
   final List<Segment> _segments = [];
   final List<SegmentNode> _segmentNodes = [];
 
@@ -62,10 +86,10 @@ class DocumentBuilder {
   int get segmentCount => _segments.length;
 
   /// Appends verbatim text.
-  void literal(String text) => _append(_nodes, [TextNode(text)]);
+  void literal(String text) => _nodes.addAll([TextNode(text)]);
 
   /// Appends arbitrary nodes (e.g. from [content]).
-  void add(List<DocNode> nodes) => _append(_nodes, nodes);
+  void add(List<DocNode> nodes) => _nodes.addAll(nodes);
 
   /// Appends the nodes for [pieces] (see [content]).
   void addContent(
@@ -130,11 +154,14 @@ class DocumentBuilder {
         items.removeLast();
         continue;
       }
-      final source = _trailingSpace.stringMatch(last.source) ?? '';
+      final source = _trailingSpace(last.source);
       trailing.insert(0, source);
       items[items.length - 1] = TextPiece(
         last.source.substring(0, last.source.length - source.length),
-        last.text.replaceFirst(_trailingSpace, ''),
+        last.text.substring(
+          0,
+          last.text.length - _trailingSpace(last.text).length,
+        ),
       );
       break;
     }
@@ -148,17 +175,16 @@ class DocumentBuilder {
     final translatable =
         containsLetter(words) && (accept == null || accept(words));
 
-    final nodes = <DocNode>[];
-    _append(nodes, [TextNode(lead.toString())]);
+    final nodes = _Nodes()..addAll([TextNode(lead.toString())]);
     if (!translatable) {
       for (final item in items) {
-        _append(nodes, switch (item) {
+        nodes.addAll(switch (item) {
           TextPiece(:final source) => [TextNode(source)],
           TokenPiece(nodes: final tokenNodes) => tokenNodes,
         });
       }
     } else {
-      _append(nodes, [
+      nodes.addAll([
         _segment(
           items,
           lineBreak: lineBreak,
@@ -168,8 +194,7 @@ class DocumentBuilder {
         ),
       ]);
     }
-    _append(nodes, [TextNode(trail.toString())]);
-    return nodes;
+    return (nodes..addAll([TextNode(trail.toString())])).list;
   }
 
   SegmentNode _segment(
@@ -231,44 +256,66 @@ class DocumentBuilder {
   /// Builds the document.
   ParsedDocument build(DocumentFormat format) => ParsedDocument(
     format: format,
-    nodes: _nodes,
+    nodes: _nodes.list,
     segments: _segments,
     segmentNodes: _segmentNodes,
   );
 
+  /// [pieces] with adjacent text merged and empty text dropped. The text is
+  /// collected in buffers: merging strings one by one copies them again and
+  /// again (quadratic time for text made of many small pieces).
   static List<Piece> _merge(List<Piece> pieces) {
     final merged = <Piece>[];
+    final source = StringBuffer();
+    final text = StringBuffer();
+    void flush() {
+      if (source.isEmpty && text.isEmpty) return;
+      merged.add(TextPiece(source.toString(), text.toString()));
+      source.clear();
+      text.clear();
+    }
+
     for (final piece in pieces) {
-      final previous = merged.isEmpty ? null : merged.last;
-      if (piece is TextPiece && previous is TextPiece) {
-        merged[merged.length - 1] = TextPiece(
-          '${previous.source}${piece.source}',
-          '${previous.text}${piece.text}',
-        );
-      } else if (piece is TextPiece &&
-          piece.source.isEmpty &&
-          piece.text.isEmpty) {
-        continue;
-      } else {
-        merged.add(piece);
+      switch (piece) {
+        case TextPiece():
+          source.write(piece.source);
+          text.write(piece.text);
+        case TokenPiece():
+          flush();
+          merged.add(piece);
       }
     }
+    flush();
     return merged;
   }
+}
 
-  /// Appends [nodes] to [target], merging adjacent text and dropping empty
-  /// text nodes.
-  static void _append(List<DocNode> target, List<DocNode> nodes) {
+/// Nodes with adjacent text merged and empty text dropped (collected in a
+/// buffer, see [DocumentBuilder._merge]).
+final class _Nodes {
+  final List<DocNode> _list = [];
+  final StringBuffer _text = StringBuffer();
+
+  /// The nodes added so far.
+  List<DocNode> get list {
+    _flush();
+    return _list;
+  }
+
+  void addAll(List<DocNode> nodes) {
     for (final node in nodes) {
       if (node is TextNode) {
-        if (node.text.isEmpty) continue;
-        final previous = target.isEmpty ? null : target.last;
-        if (previous is TextNode) {
-          target[target.length - 1] = TextNode('${previous.text}${node.text}');
-          continue;
-        }
+        _text.write(node.text);
+      } else {
+        _flush();
+        _list.add(node);
       }
-      target.add(node);
     }
+  }
+
+  void _flush() {
+    if (_text.isEmpty) return;
+    _list.add(TextNode(_text.toString()));
+    _text.clear();
   }
 }

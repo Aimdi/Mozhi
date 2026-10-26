@@ -27,6 +27,23 @@ void main() {
       );
     });
 
+    test('keeps closing sequences of headings', () {
+      const text =
+          '# Title ##  \n'
+          '## Title#\n'
+          '### C# and F#\n'
+          '#### Spaced   #\t\n'
+          '##### ##\n';
+      final document = parseMarkdown(text);
+      expect(texts(document), ['Title', 'Title#', 'C# and F#', 'Spaced']);
+      expectRoundTrip(document, text);
+      expect(
+        renderUpper(document),
+        '# TITLE ##  \n## TITLE#\n### C# AND F#\n#### SPACED   #\t\n'
+        '##### ##\n',
+      );
+    });
+
     test('never translates fenced, tilde and indented code blocks', () {
       const text =
           'Intro\n'

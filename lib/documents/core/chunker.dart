@@ -200,32 +200,35 @@ final _placeholderAt = RegExp(r'[⟨〈]\d*$');
 /// Joining `part.text + part.separator` for all parts gives [text] back.
 List<TextPart> splitText(String text, int max) {
   final parts = <TextPart>[];
-  var rest = text;
-  while (rest.length > max) {
-    final cut = _cutPoint(rest, max);
+  // Offsets into [text]: copying the rest after every cut would take
+  // quadratic time on a long text.
+  var start = 0;
+  while (text.length - start > max) {
+    final cut = start + _cutPoint(text.substring(start, start + max + 1), max);
     var end = cut;
-    while (end > 0 && _isSpace(rest.codeUnitAt(end - 1))) {
+    while (end > start && _isSpace(text.codeUnitAt(end - 1))) {
       end--;
     }
     var next = cut;
-    while (next < rest.length && _isSpace(rest.codeUnitAt(next))) {
+    while (next < text.length && _isSpace(text.codeUnitAt(next))) {
       next++;
     }
-    if (end == 0) {
+    if (end == start) {
       end = cut;
       next = cut;
     }
     parts.add((
-      text: rest.substring(0, end),
-      separator: rest.substring(end, next),
+      text: text.substring(start, end),
+      separator: text.substring(end, next),
     ));
-    rest = rest.substring(next);
+    start = next;
   }
-  parts.add((text: rest, separator: ''));
+  parts.add((text: text.substring(start), separator: ''));
   return parts;
 }
 
-/// Where to cut [text] (longer than [max]) so the first part fits.
+/// Where to cut [text] (longer than [max]; only its first `max + 1`
+/// characters are looked at) so the first part fits.
 int _cutPoint(String text, int max) {
   final window = text.substring(0, max + 1);
   final minimum = max ~/ 3;
@@ -249,7 +252,9 @@ int _cutPoint(String text, int max) {
   final open = _placeholderAt.firstMatch(text.substring(0, cut));
   if (open != null && open.start > 0) cut = open.start;
   final unit = text.codeUnitAt(cut - 1);
-  if (unit >= 0xD800 && unit <= 0xDBFF) cut--;
+  // Never at the very start (a lone surrogate before a placeholder), or
+  // nothing would be cut off.
+  if (cut > 1 && unit >= 0xD800 && unit <= 0xDBFF) cut--;
   return cut;
 }
 

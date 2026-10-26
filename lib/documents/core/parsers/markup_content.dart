@@ -394,50 +394,52 @@ List<DocNode> inlineContent(
   String lineBreak = '\n',
   String Function(String fragment)? repair,
 }) {
-  final items = [...inlines];
   final prefix = <DocNode>[];
-  final suffix = <DocNode>[];
+  // The suffix's parts, last first.
+  final suffixParts = <List<DocNode>>[];
 
   bool isBlank(Inline item) => item is InlineText && item.text.trim().isEmpty;
+  bool isEdge(Inline item) =>
+      isBlank(item) || (item is InlineCode && item.movable);
   List<DocNode> nodesOf(Inline item) => switch (item) {
     InlineText(:final source) => [TextNode(source)],
     InlineCode(:final nodes) => nodes,
   };
 
+  // The items kept inside are inlines[start..end) (indices, so that a long
+  // run of edge items is moved out in linear time).
+  var start = 0;
+  var end = inlines.length;
   var changed = true;
-  while (changed && items.isNotEmpty) {
+  while (changed && start < end) {
     changed = false;
-    while (items.isNotEmpty &&
-        (isBlank(items.first) ||
-            (items.first is InlineCode &&
-                (items.first as InlineCode).movable))) {
-      prefix.addAll(nodesOf(items.removeAt(0)));
+    while (start < end && isEdge(inlines[start])) {
+      prefix.addAll(nodesOf(inlines[start++]));
       changed = true;
     }
-    while (items.isNotEmpty &&
-        (isBlank(items.last) ||
-            (items.last is InlineCode && (items.last as InlineCode).movable))) {
-      suffix.insertAll(0, nodesOf(items.removeLast()));
+    while (start < end && isEdge(inlines[end - 1])) {
+      suffixParts.add(nodesOf(inlines[--end]));
       changed = true;
     }
-    if (items.length >= 2) {
-      final first = items.first;
-      final last = items.last;
+    if (end - start >= 2) {
+      final first = inlines[start];
+      final last = inlines[end - 1];
       if (first is InlineCode &&
           last is InlineCode &&
           first.role == CodeRole.open &&
           last.role == CodeRole.close &&
           first.pair == last.pair &&
-          _balancedInside(items)) {
+          _balancedInside(inlines, start, end)) {
         prefix.addAll(first.nodes);
-        suffix.insertAll(0, last.nodes);
-        items
-          ..removeAt(0)
-          ..removeLast();
+        suffixParts.add(last.nodes);
+        start++;
+        end--;
         changed = true;
       }
     }
   }
+  final items = inlines.sublist(start, end);
+  final suffix = [for (final part in suffixParts.reversed) ...part];
 
   final pieces = <Piece>[
     for (final item in items)
@@ -469,12 +471,12 @@ List<DocNode> inlineContent(
   ];
 }
 
-/// Whether the codes strictly inside the first and last item of [items]
-/// never close the pair those two form (so removing both keeps the run
-/// balanced).
-bool _balancedInside(List<Inline> items) {
-  final pair = (items.first as InlineCode).pair;
-  for (var i = 1; i < items.length - 1; i++) {
+/// Whether the codes strictly inside the first and last item of
+/// `items[start..end)` never close the pair those two form (so removing
+/// both keeps the run balanced).
+bool _balancedInside(List<Inline> items, int start, int end) {
+  final pair = (items[start] as InlineCode).pair;
+  for (var i = start + 1; i < end - 1; i++) {
     final item = items[i];
     if (item is InlineCode && item.pair == pair) return false;
   }

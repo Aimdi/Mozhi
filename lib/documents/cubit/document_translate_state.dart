@@ -159,6 +159,13 @@ class DocumentTranslateState extends Equatable {
   /// as bytes).
   bool get isBinary => packagedDocument != null || (format?.isBinary ?? false);
 
+  /// Whether the office document holds macros or ActiveX controls, which
+  /// the translated file keeps.
+  bool get keepsMacros => switch (packagedDocument) {
+    OfficePackage(:final hasMacros) => hasMacros,
+    _ => false,
+  };
+
   /// The segments of the document.
   List<Segment> get segments =>
       document?.segments ?? packagedDocument?.segments ?? const [];
@@ -314,7 +321,8 @@ abstract final class DocumentTranslateCubitDefaults {
   /// are copied, only the text parts are read).
   static const int maxPackageBytes = 25 * 1024 * 1024;
 
-  /// Office documents and e-books from this size on are read and written
-  /// off the UI isolate.
-  static const int backgroundBytes = 256 * 1024;
+  /// Office documents and e-books from this size on (text documents from
+  /// this many characters on) are read and written off the UI isolate. The
+  /// parsers take linear time, so smaller ones are read right away.
+  static const int backgroundBytes = 64 * 1024;
 }
