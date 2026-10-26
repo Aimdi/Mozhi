@@ -5,17 +5,18 @@ import 'package:bergamot_translator/bergamot_translator.dart';
 import 'package:mozhi/offline/data/offline_model_details.dart';
 import 'package:mozhi/offline/data/offline_model_error.dart';
 import 'package:mozhi/offline/data/offline_model_import.dart';
+import 'package:mozhi/offline/data/picked_import_file.dart';
 import 'package:mozhi/settings/models/model_source.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 /// The [OfflineModelDetails] of [translator] when it is a
 /// [BergamotTranslator], otherwise null. In the web app (models in the
-/// browser's storage, [OpfsModelManager]) they have no imports: a browser
-/// has no model files to read.
+/// browser's storage, [OpfsModelManager]) imports read the picked files by
+/// their contents ([WebBergamotModelDetails]): a browser has no paths.
 OfflineModelDetails? offlineModelDetailsOf(OfflineTranslator translator) =>
     switch (translator) {
-      BergamotTranslator(models: OpfsModelManager()) =>
-        DownloadOnlyModelDetails(BergamotModelDetails(translator)),
+      BergamotTranslator(:final OpfsModelManager models) =>
+        WebBergamotModelDetails(translator, models),
       final BergamotTranslator bergamot => BergamotModelDetails(bergamot),
       _ => null,
     };
@@ -120,34 +121,39 @@ class BergamotModelDetails implements OfflineModelDetails, OfflineModelImport {
     final result = await translator.models.importFiles([
       for (final path in paths) File(path),
     ], catalog: translator.catalog);
-    return OfflineImportReport(
-      models: [
-        for (final outcome in result.models)
-          OfflineImportedModel(
-            source: ModelRouter.reportedCode(outcome.model.source),
-            target: ModelRouter.reportedCode(outcome.model.target),
-            status: switch (outcome.status) {
-              ModelImportStatus.installed => OfflineImportStatus.installed,
-              ModelImportStatus.alreadyInstalled =>
-                OfflineImportStatus.alreadyInstalled,
-              ModelImportStatus.incomplete => OfflineImportStatus.incomplete,
-              ModelImportStatus.checksumMismatch => OfflineImportStatus.damaged,
-              ModelImportStatus.failed => OfflineImportStatus.failed,
-            },
-            missingFiles: [
-              for (final file in outcome.missing) file.downloadName,
-            ],
-            error: switch (outcome.error) {
-              final Object error => OfflineModelError.of(error),
-              null => null,
-            },
-          ),
-      ],
-      unmatchedFiles: [
-        for (final file in result.unmatched) file.uri.pathSegments.last,
-      ],
-    );
+    return reportOf(result.models, [
+      for (final file in result.unmatched) file.uri.pathSegments.last,
+    ]);
   }
+
+  /// The [OfflineImportReport] of an import that ended with [outcomes]
+  /// and the names of the [unmatched] files.
+  static OfflineImportReport reportOf(
+    List<ModelImportOutcome> outcomes,
+    List<String> unmatched,
+  ) => OfflineImportReport(
+    models: [
+      for (final outcome in outcomes)
+        OfflineImportedModel(
+          source: ModelRouter.reportedCode(outcome.model.source),
+          target: ModelRouter.reportedCode(outcome.model.target),
+          status: switch (outcome.status) {
+            ModelImportStatus.installed => OfflineImportStatus.installed,
+            ModelImportStatus.alreadyInstalled =>
+              OfflineImportStatus.alreadyInstalled,
+            ModelImportStatus.incomplete => OfflineImportStatus.incomplete,
+            ModelImportStatus.checksumMismatch => OfflineImportStatus.damaged,
+            ModelImportStatus.failed => OfflineImportStatus.failed,
+          },
+          missingFiles: [for (final file in outcome.missing) file.downloadName],
+          error: switch (outcome.error) {
+            final Object error => OfflineModelError.of(error),
+            null => null,
+          },
+        ),
+    ],
+    unmatchedFiles: unmatched,
+  );
 
   @override
   List<OfflineModelFile> manualFiles(String code) => [
@@ -161,4 +167,33 @@ class BergamotModelDetails implements OfflineModelDetails, OfflineModelImport {
           size: file.size,
         ),
   ];
+}
+
+/// [BergamotModelDetails] of the web app's translator (models in the
+/// browser's private storage, [models]): imports read the picked files by
+/// their contents ([OpfsModelManager.importSources]) with the same checks
+/// as the Android app's; a browser has no paths for [importFiles].
+class WebBergamotModelDetails extends BergamotModelDetails
+    implements OfflineModelContentsImport {
+  new(super.translator, this.models, {super.modelSource});
+
+  /// The translator's model manager.
+  final OpfsModelManager models;
+
+  @override
+  Future<OfflineImportReport> importFiles(List<String> paths) =>
+      Future.error(UnsupportedError('A browser has no file paths'));
+
+  @override
+  Future<OfflineImportReport> importContents(
+    List<PickedImportFile> files,
+  ) async {
+    final result = await models.importSources(
+      files,
+      catalog: translator.catalog,
+    );
+    return BergamotModelDetails.reportOf(result.models, [
+      for (final file in result.unmatched) file.name,
+    ]);
+  }
 }

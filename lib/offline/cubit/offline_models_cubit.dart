@@ -157,20 +157,27 @@ class OfflineModelsCubit extends Cubit<OfflineModelsState> {
       emit(state.copyWith(importing: true, importOutcome: () => null));
     }
 
+    void cancelled() {
+      if (!isClosed && state.importing) emit(state.copyWith(importing: false));
+    }
+
     OfflineImportOutcome outcome;
     try {
-      final paths = await _picker.pick(onCopying: start);
-      if (paths.isEmpty) {
-        if (!isClosed && state.importing) {
-          emit(state.copyWith(importing: false));
+      if (importer is OfflineModelContentsImport) {
+        // The web app: the picked files are read by their contents.
+        final files = await _picker.pickContents(onCopying: start);
+        if (files.isEmpty) return cancelled();
+        start();
+        outcome = _outcomeOf(await importer.importContents(files));
+      } else {
+        final paths = await _picker.pick(onCopying: start);
+        if (paths.isEmpty) return cancelled();
+        start();
+        try {
+          outcome = _outcomeOf(await importer.importFiles(paths));
+        } finally {
+          await _clearPickedCopies();
         }
-        return;
-      }
-      start();
-      try {
-        outcome = _outcomeOf(await importer.importFiles(paths));
-      } finally {
-        await _clearPickedCopies();
       }
     } on Object catch (error, stackTrace) {
       outcome = OfflineImportOutcome(error: OfflineModelError.of(error));

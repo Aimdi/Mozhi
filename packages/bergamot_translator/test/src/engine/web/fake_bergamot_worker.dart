@@ -94,6 +94,7 @@ class FakeBergamotWorker implements BergamotWorkerChannel {
       'downloadOpen' => _downloadOpen(arguments),
       'downloadWrite' => _downloadWrite(arguments),
       'downloadClose' => _close(arguments['path']! as String),
+      'fingerprint' => _fingerprint(arguments['path']! as String),
       'install' => _install(arguments),
       'commit' => _commit(arguments),
       'remove' => _remove(arguments['path']! as String),
@@ -222,6 +223,18 @@ class FakeBergamotWorker implements BergamotWorkerChannel {
     return {'size': next.length};
   }
 
+  Map<String, Object?> _fingerprint(String path) {
+    _open.remove(path);
+    final bytes = files[path];
+    if (bytes == null) {
+      throw BergamotWorkerException(
+        BergamotWorkerErrorKind.missing,
+        '$path is not there',
+      );
+    }
+    return {'size': bytes.length, 'sha256': '${sha256.convert(bytes)}'};
+  }
+
   Map<String, Object?> _install(Map<String, Object?> arguments) {
     final part = arguments['part']! as String;
     _open.remove(part);
@@ -232,6 +245,21 @@ class FakeBergamotWorker implements BergamotWorkerChannel {
         '$part is not there',
       );
     }
+    if (arguments['compressed'] == false) {
+      // Imported decompressed: checked as it is.
+      if (compressed.length != arguments['uncompressedSize'] ||
+          '${sha256.convert(compressed)}' != arguments['uncompressedSha256']) {
+        files.remove(part);
+        throw BergamotWorkerException(
+          BergamotWorkerErrorKind.checksum,
+          '${arguments['target']}: checksum mismatch',
+        );
+      }
+      files
+        ..[arguments['target']! as String] = compressed
+        ..remove(part);
+      return {'size': compressed.length};
+    }
     if (compressed.length != arguments['size'] ||
         '${sha256.convert(compressed)}' != arguments['sha256']) {
       files.remove(part);
@@ -240,7 +268,16 @@ class FakeBergamotWorker implements BergamotWorkerChannel {
         '$part: checksum mismatch',
       );
     }
-    final bytes = Uint8List.fromList(gzip.decode(compressed));
+    final Uint8List bytes;
+    try {
+      bytes = Uint8List.fromList(gzip.decode(compressed));
+    } on FormatException {
+      files.remove(part);
+      throw BergamotWorkerException(
+        BergamotWorkerErrorKind.checksum,
+        '$part: not a valid gzip file',
+      );
+    }
     if (bytes.length != arguments['uncompressedSize'] ||
         '${sha256.convert(bytes)}' != arguments['uncompressedSha256']) {
       files.remove(part);

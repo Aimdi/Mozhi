@@ -28,7 +28,7 @@ void main() {
   );
   final client = MockClient((_) async => http.Response('', 404));
 
-  test('the web translator has details without imports', () {
+  test('the web translator imports picked files by their contents', () {
     final translator = createWebBergamotTranslator(
       catalog: catalog,
       channel: _NoWorker(),
@@ -36,13 +36,12 @@ void main() {
       isAvailable: true,
     );
     final details = offlineModelDetailsOf(translator);
-    expect(details, isA<DownloadOnlyModelDetails>());
-    expect(details, isNot(isA<OfflineModelImport>()));
-    expect(
-      (details! as DownloadOnlyModelDetails).details,
-      isA<BergamotModelDetails>(),
-    );
-    expect(details.downloadSize('de'), translator.downloadSize('de'));
+    expect(details, isA<WebBergamotModelDetails>());
+    expect(details, isA<OfflineModelContentsImport>());
+    expect(details!.downloadSize('de'), translator.downloadSize('de'));
+    expect((details as WebBergamotModelDetails).manualFiles('de'), isNotEmpty);
+    // A browser has no paths.
+    expect(details.importFiles(['/x']), throwsUnsupportedError);
   });
 
   test('the Android translator keeps its imports', () {

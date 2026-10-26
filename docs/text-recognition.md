@@ -15,6 +15,11 @@ page, with Tesseract in every Android build (the Play variant too): each
 page is drawn on the phone at up to 300 dpi and read with the source
 language's data.
 
+The [live camera](features.md#live-camera) reads with Tesseract too, in
+every Android build: the camera's grey frames, turned upright, one at a
+time, in memory, with the same language data (missing data is offered the
+same way).
+
 ## How it works
 
 1. You pick or take a photo. With **On-device text recognition** selected
