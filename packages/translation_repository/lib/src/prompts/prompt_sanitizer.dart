@@ -32,7 +32,8 @@ abstract final class PromptSanitizer {
   static String neutraliseTag(String content, String name) =>
       content.replaceAll(
         RegExp(
-          '<(?=\\s*/?\\s*${RegExp.escape(name)}(?![\\w-]))',
+          // One run of spaces on each side of the `/` (linear time).
+          '<(?=\\s*(?:/\\s*)?${RegExp.escape(name)}(?![\\w-]))',
           caseSensitive: false,
         ),
         '<$zeroWidthSpace',

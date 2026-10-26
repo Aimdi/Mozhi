@@ -832,9 +832,10 @@ abstract final class ResponseParsers {
   /// Text in brackets as a whole, e.g. `(not translated)`.
   static final _bracketed = RegExp(r'^\s*[(\[{<（【].*[)\]}>）】]\s*$');
 
-  /// Edge characters ignored when a span is compared with [_spanNotes].
+  /// Edge characters ignored when a span is compared with [_spanNotes]
+  /// (a trailing run is only tried from its start: linear time).
   static final _noteEdges = RegExp(
-    r'''^[\s"'“”‘’«»*_.…:-]+|[\s"'“”‘’«»*_.…:-]+$''',
+    r'''^[\s"'“”‘’«»*_.…:-]+|(?<![\s"'“”‘’«»*_.…:-])[\s"'“”‘’«»*_.…:-]+$''',
   );
 
   /// What models write instead of a span (lower case).
@@ -877,7 +878,11 @@ abstract final class ResponseParsers {
       .trim()
       .toLowerCase()
       .replaceAll(RegExp(r'[\s-]+'), '_')
-      .replaceAll(RegExp(r'^[^a-z]+|[^a-z]+$'), '');
+      .replaceAll(_meaningKeyEdges, '');
+
+  /// What [_meaningKey] drops at the ends (a trailing run is only tried
+  /// from its start: linear time).
+  static final _meaningKeyEdges = RegExp(r'^[^a-z]+|(?<![^a-z])[^a-z]+$');
 
   /// A [MeaningVerdict] from a model's verdict (see [parseMeaningCheck]),
   /// or null.
@@ -1023,7 +1028,7 @@ abstract final class ResponseParsers {
     '(?:romani[sz]ation|romani[sz]ed(?: text| version)?|transliteration'
     '|transliterated text|r[oō]maji|pinyin|jyutping)'
     r'(?: \([^\n)]{1,40}\))?'
-    r'\s*(?:\*\*|__)?\s*[:：]\s*(?:\*\*|__)?[ \t]*(?:\r?\n)?',
+    r'\s*(?:(?:\*\*|__)\s*)?[:：]\s*(?:\*\*|__)?[ \t]*(?:\r?\n)?',
     caseSensitive: false,
   );
 
@@ -1208,7 +1213,8 @@ abstract final class ResponseParsers {
     caseSensitive: false,
   );
   static final _trailingMarker = RegExp(
-    '\\s*\\[\\[\\s*$_keyword$_codePattern\\s*\\]\\]\\s*\$',
+    // Tried from the start of a run of spaces only (linear time).
+    '(?<!\\s)\\s*\\[\\[\\s*$_keyword$_codePattern\\s*\\]\\]\\s*\$',
     caseSensitive: false,
   );
 
@@ -1294,12 +1300,9 @@ abstract final class ResponseParsers {
   static String _unwrapTags(String text, String sourceLower) {
     var t = text;
     if (!sourceLower.contains('<translation')) {
-      final inner = RegExp(
-        r'<translation(?:\s[^>]*)?>([\s\S]*?)</translation>',
-        caseSensitive: false,
-      ).firstMatch(t);
-      if (inner != null && inner.group(1)!.trim().isNotEmpty) {
-        t = inner.group(1)!.trim();
+      final inner = _translationContent(t);
+      if (inner != null && inner.trim().isNotEmpty) {
+        t = inner.trim();
       }
     }
     for (final tag in _wrapperTags) {
@@ -1315,11 +1318,44 @@ abstract final class ResponseParsers {
             '',
           )
           .replaceFirst(
-            RegExp('\\r?\\n?[ \\t]*</$tag>\\s*\$', caseSensitive: false),
+            // Spaces before the closing tag are only tried from their start
+            // (linear time).
+            RegExp(
+              '\\r?\\n?(?<![ \\t])[ \\t]*</$tag>\\s*\$',
+              caseSensitive: false,
+            ),
             '',
           );
     }
     return t.trim().isEmpty ? text : t;
+  }
+
+  /// The start of an opening `<translation>` tag (with or without
+  /// attributes).
+  static final _translationOpening = RegExp(
+    r'<translation(?=[\s>])',
+    caseSensitive: false,
+  );
+
+  static final _translationClosing = RegExp(
+    '</translation>',
+    caseSensitive: false,
+  );
+
+  /// What the first match of the case-insensitive
+  /// `<translation(?:\s[^>]*)?>([\s\S]*?)</translation>` in [text]
+  /// captures, or null when there is none, in linear time (that expression
+  /// scans the rest of the text again from each opening tag that no
+  /// closing tag follows): the text between the end of the first opening
+  /// tag and the first closing tag after it. When the first opening tag is
+  /// not followed by a closing tag, no later one is.
+  static String? _translationContent(String text) {
+    final opening = _translationOpening.firstMatch(text);
+    if (opening == null) return null;
+    final close = text.indexOf('>', opening.end);
+    if (close < 0) return null;
+    final closing = _translationClosing.allMatches(text, close + 1).firstOrNull;
+    return closing == null ? null : text.substring(close + 1, closing.start);
   }
 
   static final _labelPattern = RegExp(
@@ -1329,7 +1365,7 @@ abstract final class ResponseParsers {
     r'rewritten text|improved text)[^\n:：]{0,60}'
     r'|(?:the )?translation(?: in(?:to)? [^\n:：]{1,40}| \([^\n)]{1,40}\))?'
     '|translated text)'
-    r'\s*(?:\*\*|__)?\s*[:：]\s*(?:\*\*|__)?[ \t]*(?:\r?\n)?',
+    r'\s*(?:(?:\*\*|__)\s*)?[:：]\s*(?:\*\*|__)?[ \t]*(?:\r?\n)?',
     caseSensitive: false,
   );
 
@@ -1392,7 +1428,7 @@ abstract final class ResponseParsers {
   }
 
   static final _notePattern = RegExp(
-    r"^\s*[(\[]?\s*(?:\*\*|__|\*|_)?(?:note|translator'?s? note|n\.b\.)"
+    r"^\s*(?:[(\[]\s*)?(?:\*\*|__|\*|_)?(?:note|translator'?s? note|n\.b\.)"
     r'(?:\*\*|__|\*|_)?\s*[:：]',
     caseSensitive: false,
   );
@@ -1429,35 +1465,89 @@ abstract final class ResponseParsers {
     return value;
   }
 
+  /// [text] without reasoning blocks (`<think>…</think>`; also
+  /// `thinking`, `reasoning` and `thought`), without what comes before the
+  /// last closing tag (its opening tag was swallowed by the server) and
+  /// without an unterminated block (cut off by a token limit).
   static String _stripThink(String text) {
-    const tags = 'think|thinking|reasoning|thought';
-    var s = text.replaceAll(
-      RegExp('<($tags)\\b[^>]*>[\\s\\S]*?</\\1\\s*>', caseSensitive: false),
-      '',
-    );
+    var s = _withoutThinkBlocks(text);
     // A closing tag whose opening tag was swallowed by the server.
-    final closing = RegExp(
-      '</(?:$tags)\\s*>',
-      caseSensitive: false,
-    ).allMatches(s).lastOrNull;
+    final closing = _thinkClosing.allMatches(s).lastOrNull;
     if (closing != null) s = s.substring(closing.end);
-    // An unterminated block (e.g. cut off by a token limit).
-    final opening = RegExp(
-      '<(?:$tags)\\b[^>]*>',
-      caseSensitive: false,
-    ).firstMatch(s);
-    if (opening != null) s = s.substring(0, opening.start);
+    // An unterminated block (e.g. cut off by a token limit): an opening tag
+    // ends at the first `>` after its name.
+    final opening = _thinkOpening.firstMatch(s);
+    if (opening != null && s.contains('>', opening.end)) {
+      s = s.substring(0, opening.start);
+    }
     return s;
   }
+
+  static const _thinkTags = 'think|thinking|reasoning|thought';
+
+  /// The start of an opening reasoning tag, with its name.
+  static final _thinkOpening = RegExp(
+    '<($_thinkTags)\\b',
+    caseSensitive: false,
+  );
+
+  /// A closing reasoning tag, with its name.
+  static final _thinkClosing = RegExp(
+    '</($_thinkTags)\\s*>',
+    caseSensitive: false,
+  );
+
+  /// [text] with every reasoning block removed, as `text.replaceAll(
+  /// RegExp('<($_thinkTags)\\b[^>]*>[\\s\\S]*?</\\1\\s*>', caseSensitive:
+  /// false), '')` would, in linear time (that expression scans the rest of
+  /// the text again from each opening tag that no closing tag follows): an
+  /// opening tag ends at the first `>` after its name, and its block at the
+  /// first closing tag with the same name after that.
+  static String _withoutThinkBlocks(String text) {
+    final closings = <String, List<Match>>{};
+    for (final closing in _thinkClosing.allMatches(text)) {
+      (closings[closing.group(1)!.toLowerCase()] ??= []).add(closing);
+    }
+    if (closings.isEmpty) return text;
+    // The next closing tag of each name that may end a block (blocks start
+    // further and further into the text).
+    final next = <String, int>{};
+    final buffer = StringBuffer();
+    var kept = 0;
+    var close = -1;
+    for (final opening in _thinkOpening.allMatches(text)) {
+      if (opening.start < kept) continue;
+      final name = opening.group(1)!.toLowerCase();
+      final ends = closings[name];
+      if (ends == null) continue;
+      if (close < opening.end) close = text.indexOf('>', opening.end);
+      if (close < 0) break;
+      var i = next[name] ?? 0;
+      while (i < ends.length && ends[i].start <= close) {
+        i++;
+      }
+      next[name] = i;
+      if (i == ends.length) continue;
+      buffer.write(text.substring(kept, opening.start));
+      kept = ends[i].end;
+    }
+    if (kept == 0) return text;
+    return (buffer..write(text.substring(kept))).toString();
+  }
+
+  /// A fenced code block. The info string is matched whole, so that an
+  /// unclosed fence is not scanned to the end again from each shorter one
+  /// (linear time).
+  static final _jsonFence = RegExp(
+    r'```[\w-]*(?![\w-])[ \t]*(?![ \t])\r?\n?([\s\S]*?)```',
+  );
 
   static Object? _findJson(String text) {
     final trimmed = text.trim();
     if (trimmed.isEmpty) return null;
     if (_acceptable(_decode(trimmed)) case final value?) return value;
 
-    for (final fence in RegExp(
-      r'```[\w-]*[ \t]*\r?\n?([\s\S]*?)```',
-    ).allMatches(trimmed)) {
+    for (final fence in _jsonFence.allMatches(trimmed)) {
       final inner = fence.group(1)!.trim();
       if (_acceptable(_decode(inner)) case final value?) return value;
     }
@@ -1727,11 +1817,15 @@ abstract final class ResponseParsers {
             s,
     ],
     final String s when s.trim().isNotEmpty => [
-      for (final part in s.split(RegExp(r'\s*[,;、，]\s*')))
+      for (final part in s.split(_listSeparator))
         if (part.trim().isNotEmpty) part.trim(),
     ],
     _ => const [],
   };
+
+  /// What separates the items of a list written as one string (the items
+  /// are trimmed).
+  static final _listSeparator = RegExp('[,;、，]');
 
   static bool _bool(Object? value) => switch (value) {
     final bool b => b,
@@ -1869,8 +1963,10 @@ abstract final class ResponseParsers {
     return haystack.substring(index, index + trimmed.length);
   }
 
+  /// Quotes and emphasis at the ends of a span (a trailing run is only
+  /// tried from its start: linear time).
   static final _edgePunctuation = RegExp(
-    '^["\'“”„«»‘’「」『』*]+|["\'“”„«»‘’「」『』*]+\$',
+    '^["\'“”„«»‘’「」『』*]+|(?<!["\'“”„«»‘’「」『』*])["\'“”„«»‘’「」『』*]+\$',
   );
 
   /// The best occurrence of [needle] in [haystack] (see [parseAlignment]):
@@ -2085,6 +2181,14 @@ abstract final class ResponseParsers {
     atWordBoundary: true,
   );
 
+  /// Quotes and emphasis before a language code, and those or a full stop
+  /// after it. What follows leading quotes is dropped with them when it is
+  /// all trailing characters; any other trailing run is only tried from
+  /// its start (linear time).
+  static final _codeEdges = RegExp(
+    '^["\'`*]+(?:["\'`*.]*\$)?|(?<!["\'`*.])["\'`*.]+\$',
+  );
+
   /// A catalogue code for a code or English language name; empty for
   /// placeholders (see [isPlaceholderLanguageCode]).
   static String _languageCode(String raw) {
@@ -2092,7 +2196,7 @@ abstract final class ResponseParsers {
     if (s.isEmpty) return '';
     final marker = splitLanguageMarker(s).language;
     if (marker != null) return marker;
-    s = s.replaceAll(RegExp('^["\'`*]+|["\'`*.]+\$'), '').trim();
+    s = s.replaceAll(_codeEdges, '').trim();
     if (s.isEmpty || isPlaceholderLanguageCode(s)) return '';
     final isCode = RegExp(r'^[A-Za-z]{2,3}(?:[-_][A-Za-z0-9]{1,8})*$')
         .hasMatch(s);

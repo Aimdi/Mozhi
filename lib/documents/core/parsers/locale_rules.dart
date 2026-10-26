@@ -489,14 +489,14 @@ abstract final class LocalisationPatterns {
   static const pythonNamed =
       r'%\([A-Za-z_]\w*\)[-+0# ]*(?:[1-9]\d*)?(?:\.\d+)?[diouxXeEfFgGcrsa%]';
 
-  /// printf placeholders of JSON and ARB values ([ProtectedPatterns.printf],
-  /// whose width may start with the `0` flag: quadratic on `%000…`).
+  /// printf placeholders of JSON and ARB values (like
+  /// [ProtectedPatterns.printf]; a width never starts with `0`, which the
+  /// `0` flag absorbs, so `%000…` stays linear).
   static const jsonPrintf =
       r'%(?:\d+\$)?(?:\([A-Za-z_]\w*\))?[-+ 0#]*(?:[1-9]\d*)?(?:\.\d+)?[sdifuxXeEgGcp@]';
 
-  /// HTML/XML tags and comments: what [ProtectedPatterns.htmlTag] matches,
-  /// in linear time (that one takes minutes on `<a` followed by a few
-  /// thousand spaces). A comment never contains `<!--`, so that text full
+  /// HTML/XML tags and comments, the same as [ProtectedPatterns.htmlTag]
+  /// (both are linear). A comment never contains `<!--`, so that text full
   /// of unclosed `<!--` is not scanned to its end again and again.
   static const htmlTag =
       r'<!--(?:(?!<!--)[\s\S])*?-->|</?[A-Za-z][\w:.-]*(?:\s[^<>]*)?/?>';

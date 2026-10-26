@@ -94,21 +94,27 @@ abstract final class TranslationQa {
       [for (final email in _all(_email, output)) email.toLowerCase()],
     );
     if (emails.isNotEmpty) add(TranslationWarningKind.emails, emails);
-    final numbers = _missingNumbers(source, output);
+    // Each text without its protected spans, made once (a pass over it;
+    // the output's only when a check needs it).
+    final plainSource = _withoutProtected(source);
+    late final plainOutput = _withoutProtected(output);
+    final numbers = _missingNumbers(plainSource, () => plainOutput);
     if (numbers.isNotEmpty) add(TranslationWarningKind.numbers, numbers);
-    final terms = missingGlossaryTargets(
-      source,
-      output,
-      glossary,
-      caseSensitive: caseSensitiveGlossaryTerms,
-    );
+    final terms = glossary.isEmpty
+        ? const <String>[]
+        : _missingGlossaryTargets(
+            plainSource,
+            output,
+            glossary,
+            caseSensitive: caseSensitiveGlossaryTerms,
+          );
     if (terms.isNotEmpty) add(TranslationWarningKind.glossary, terms);
 
-    if (checksSuspects(source)) {
+    if (_checksSuspects(plainSource)) {
       final from = sourceLanguage.isAuto ? detectedSource : sourceLanguage.code;
-      if (_isEcho(source, output, from, sourceLanguage, target)) {
+      if (_isEcho(source, plainSource, output, from, sourceLanguage, target)) {
         add(TranslationWarningKind.echo);
-      } else if (_wrongScript(output, target)) {
+      } else if (_wrongScript(plainOutput, target)) {
         add(TranslationWarningKind.wrongLanguage);
       }
       if (_extremeLength(source, output)) add(TranslationWarningKind.length);
@@ -124,8 +130,12 @@ abstract final class TranslationQa {
   /// scripts with case, at least two lower-case words (so that names,
   /// product names and codes, which engines rightly keep, are not
   /// flagged).
-  static bool checksSuspects(String source) {
-    final text = _withoutProtected(source).trim();
+  static bool checksSuspects(String source) =>
+      _checksSuspects(_withoutProtected(source));
+
+  /// [checksSuspects] for a source without its protected spans.
+  static bool _checksSuspects(String plainSource) {
+    final text = plainSource.trim();
     if (text.split(_space).length <= maxSkippedTokens) return false;
     if (!_letterPattern.hasMatch(text)) return false;
     final cased = _casedLetter.allMatches(text).length;
@@ -205,12 +215,26 @@ abstract final class TranslationQa {
     String output,
     Map<String, String> glossary, {
     Set<String> caseSensitive = const {},
+  }) => glossary.isEmpty
+      ? const []
+      : _missingGlossaryTargets(
+          _withoutProtected(source),
+          output,
+          glossary,
+          caseSensitive: caseSensitive,
+        );
+
+  /// [missingGlossaryTargets] for a source without its protected spans.
+  static List<String> _missingGlossaryTargets(
+    String plainSource,
+    String output,
+    Map<String, String> glossary, {
+    required Set<String> caseSensitive,
   }) {
-    if (glossary.isEmpty) return const [];
     final found = {
       for (final occurrence in TranslationPrompts.glossaryOccurrences(
         glossary,
-        _withoutProtected(source),
+        plainSource,
         caseSensitive: caseSensitive,
       ))
         occurrence.term: occurrence.rendering,
@@ -353,17 +377,21 @@ abstract final class TranslationQa {
     return missing;
   }
 
-  /// Numbers of [source] (two or more digits, separators ignored, any
-  /// script's digits) that [output] has fewer of, also accepting a number
+  /// Numbers of the source (two or more digits, separators ignored, any
+  /// script's digits) that the output has fewer of, also accepting a number
   /// that appears inside the output's digits (`1.000,50` for `1,000.50`,
-  /// `10:30` for `10.30`).
-  static List<String> _missingNumbers(String source, String output) {
+  /// `10:30` for `10.30`). [plainSource] and [plainOutput] are the texts
+  /// without their protected spans (the latter only made when needed).
+  static List<String> _missingNumbers(
+    String plainSource,
+    String Function() plainOutput,
+  ) {
     final expected = [
-      for (final number in _numbers(_withoutProtected(source)))
+      for (final number in _numbers(plainSource))
         if (number.length >= 2) number,
     ];
     if (expected.isEmpty) return const [];
-    final found = _numbers(_withoutProtected(output));
+    final found = _numbers(plainOutput());
     final digits = found.join(' ');
     final concatenated = found.join();
     return [
@@ -440,6 +468,7 @@ abstract final class TranslationQa {
 
   static bool _isEcho(
     String source,
+    String plainSource,
     String output,
     String? from,
     Language sourceLanguage,
@@ -453,14 +482,14 @@ abstract final class TranslationQa {
     }
     // Unknown source language: an echo when its script does not fit.
     final expected = WritingScript.expectedFor(target);
-    final script = WritingScript.dominant(_withoutProtected(source));
+    final script = WritingScript.dominant(plainSource);
     return expected != null && script != null && !expected.contains(script);
   }
 
-  static bool _wrongScript(String output, Language target) {
+  static bool _wrongScript(String plainOutput, Language target) {
     final expected = WritingScript.expectedFor(target);
     if (expected == null) return false;
-    final counts = WritingScript.count(_withoutProtected(output));
+    final counts = WritingScript.count(plainOutput);
     final letters = counts.values.fold(0, (sum, count) => sum + count);
     if (letters < minScriptLetters) return false;
     final fitting = expected.fold(
