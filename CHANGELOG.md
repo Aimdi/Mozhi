@@ -56,6 +56,13 @@ in `-rc.N`).
   since Android may have closed the app for another reason). The build in
   use is shown on the On-device AI page and in the voice settings.
 
+### Fixed
+
+- **Text that froze the translate screen.** Some pasted or typed text
+  (for example `<a` followed by thousands of spaces, or `%000…`) made the
+  placeholder protection and the translation checks run for minutes; they
+  now take milliseconds.
+
 ## 0.1.0-rc.3
 
 ### Added

@@ -144,7 +144,12 @@ Carried over to later waves:
   nullable local assigned in `catch`, captured by a closure, read stale on
   the success path) to the Dart SDK; a connection given up during the TLS
   handshake through the proxy stays open until the server closes it;
-  Documents' own placeholder tokens are still limited to four digits.
+  Documents' own placeholder tokens are still limited to four digits;
+  two spots stay quadratic on hostile engine replies of about 100,000
+  characters (the JSON search in AI replies on bracket-heavy text, and the
+  personal data shield restoring a streamed reply with a long run of
+  spaces after a placeholder); full-width formula characters (`＝`) are not
+  guarded in translated CSV cells.
 - **Backup and sync:** Unicode normalisation of passphrases (a passphrase
   typed with another keyboard's composed characters doesn't match); the
   web app's Argon2id uses lighter settings (19 MiB, 2 passes) than
