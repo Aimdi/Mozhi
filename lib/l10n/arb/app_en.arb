@@ -13663,5 +13663,41 @@
   "appShellReload": "Reload",
   "@appShellReload": {
     "description": "appShellReload"
+  },
+  "offlineManualBodyWeb": "To install {language} without Mozhi going online, download these files (in this browser or on another device) and choose “Import from files”. Keep the file names.",
+  "@offlineManualBodyWeb": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "offlineImportSubtitleWeb": "Install language packs you downloaded by hand into this browser. Mozhi doesn’t go online for this.",
+  "@offlineImportSubtitleWeb": {
+    "description": "offlineImportSubtitleWeb"
+  },
+  "offlineDictionariesImportSubtitle": "Install dictionary packs (.mzd files) you downloaded by hand. Mozhi doesn’t go online for this.",
+  "@offlineDictionariesImportSubtitle": {
+    "description": "offlineDictionariesImportSubtitle"
+  },
+  "offlineDictionariesImportTitleDone": "Dictionaries imported",
+  "@offlineDictionariesImportTitleDone": {
+    "description": "offlineDictionariesImportTitleDone"
+  },
+  "offlineDictionariesImportDamaged": "The file for {dictionary} is damaged or of another version (checksum mismatch)",
+  "@offlineDictionariesImportDamaged": {
+    "placeholders": {
+      "dictionary": {
+        "type": "String"
+      }
+    }
+  },
+  "offlineDictionariesImportUnmatched": "{count, plural, =1{1 file didn’t match any dictionary} other{{count} files didn’t match any dictionary}}",
+  "@offlineDictionariesImportUnmatched": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
   }
 }

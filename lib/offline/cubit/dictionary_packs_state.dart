@@ -2,6 +2,7 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter/foundation.dart';
 import 'package:mozhi/dictionary/data/dictionary_packs.dart';
 import 'package:mozhi/offline/cubit/offline_models_state.dart';
+import 'package:mozhi/offline/data/offline_model_error.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 /// One downloadable dictionary, named for display.
@@ -36,6 +37,8 @@ class DictionaryPacksState extends Equatable {
     this.wifiOnly = true,
     this.query = '',
     this.outcome,
+    this.importing = false,
+    this.importOutcome,
   });
 
   final OfflineModelsStatus status;
@@ -62,6 +65,16 @@ class DictionaryPacksState extends Equatable {
 
   /// The latest finished operation (null once a new one starts).
   final OfflineModelOutcome? outcome;
+
+  /// An import from files is running.
+  final bool importing;
+
+  /// The latest finished import from files (null once a new one starts).
+  final DictionaryImportOutcome? importOutcome;
+
+  /// Whether packs can be imported from files (stored here, and a
+  /// catalogue to check them against).
+  bool get canImport => isAvailable && packs.isNotEmpty;
 
   bool isInstalled(String id) => installed.containsKey(id);
 
@@ -114,6 +127,8 @@ class DictionaryPacksState extends Equatable {
     bool? wifiOnly,
     String? query,
     ValueGetter<OfflineModelOutcome?>? outcome,
+    bool? importing,
+    ValueGetter<DictionaryImportOutcome?>? importOutcome,
   }) => DictionaryPacksState(
     status: status ?? this.status,
     isAvailable: isAvailable ?? this.isAvailable,
@@ -124,6 +139,8 @@ class DictionaryPacksState extends Equatable {
     wifiOnly: wifiOnly ?? this.wifiOnly,
     query: query ?? this.query,
     outcome: outcome != null ? outcome() : this.outcome,
+    importing: importing ?? this.importing,
+    importOutcome: importOutcome != null ? importOutcome() : this.importOutcome,
   );
 
   @override
@@ -137,5 +154,22 @@ class DictionaryPacksState extends Equatable {
     wifiOnly,
     query,
     outcome,
+    importing,
+    importOutcome,
   ];
+}
+
+/// What an import of dictionary packs from files did, shown once by the
+/// view: [report], or the [error] that stopped it.
+@immutable
+class DictionaryImportOutcome extends Equatable {
+  const new({this.report = const DictionaryImportReport(), this.error});
+
+  final DictionaryImportReport report;
+
+  /// Why the import as a whole failed (null when it ran).
+  final OfflineModelError? error;
+
+  @override
+  List<Object?> get props => [report.packs, report.unmatchedFiles, error];
 }

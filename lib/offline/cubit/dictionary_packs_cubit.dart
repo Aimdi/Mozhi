@@ -7,6 +7,7 @@ import 'package:mozhi/dictionary/data/dictionary_packs.dart';
 import 'package:mozhi/offline/cubit/dictionary_packs_state.dart';
 import 'package:mozhi/offline/cubit/offline_models_cubit.dart';
 import 'package:mozhi/offline/data/offline_model_error.dart';
+import 'package:mozhi/offline/data/offline_model_file_picker.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 export 'dictionary_packs_state.dart';
@@ -22,11 +23,18 @@ export 'dictionary_packs_state.dart';
 /// never throw: [load] switches to [OfflineModelsStatus.failure],
 /// operations report an [OfflineModelOutcome]; errors other than a
 /// metered network also go to `addError`.
+///
+/// [importFromFiles] installs packs from files the user picks (with
+/// `picker`, read by their contents: on Android and in the browser), with
+/// the checks of a download and without the network
+/// ([DictionaryPacks.importFiles]), and reports a
+/// [DictionaryImportOutcome].
 class DictionaryPacksCubit extends Cubit<DictionaryPacksState> {
   new({
     required this._packs,
     required this._store,
     this._describe = describeOfflineLanguage,
+    this._picker = const OfflineModelFilePicker(),
   }) : super(const DictionaryPacksState()) {
     _changes = _packs.changes.listen((_) => unawaited(_refreshInstalled()));
   }
@@ -34,6 +42,7 @@ class DictionaryPacksCubit extends Cubit<DictionaryPacksState> {
   final DictionaryPacks _packs;
   final KeyValueStore _store;
   final OfflineLanguageDescriber _describe;
+  final OfflineModelFilePicker _picker;
   late final StreamSubscription<void> _changes;
 
   Future<void> load() async {
@@ -94,6 +103,45 @@ class DictionaryPacksCubit extends Cubit<DictionaryPacksState> {
 
   /// Filters [DictionaryPacksState.visible] (case-insensitive).
   void search(String query) => emit(state.copyWith(query: query));
+
+  /// Lets the user pick dictionary pack files (downloaded by hand) and
+  /// installs the packs they are, checked like downloads. Nothing is sent
+  /// over the network, so this works in every privacy mode. Cancelling the
+  /// picker changes nothing.
+  Future<void> importFromFiles() async {
+    if (!state.canImport || state.importing) return;
+    void start() {
+      if (isClosed || state.importing) return;
+      emit(state.copyWith(importing: true, importOutcome: () => null));
+    }
+
+    DictionaryImportOutcome outcome;
+    try {
+      final files = await _picker.pickContents(onCopying: start);
+      if (files.isEmpty) {
+        if (!isClosed && state.importing) {
+          emit(state.copyWith(importing: false));
+        }
+        return;
+      }
+      start();
+      outcome = DictionaryImportOutcome(
+        report: await _packs.importFiles(files),
+      );
+    } on Object catch (error, stackTrace) {
+      outcome = DictionaryImportOutcome(error: OfflineModelError.of(error));
+      addError(error, stackTrace);
+    }
+    final installed = await _readInstalled();
+    if (isClosed) return;
+    emit(
+      state.copyWith(
+        importing: false,
+        installed: installed,
+        importOutcome: () => outcome,
+      ),
+    );
+  }
 
   Future<void> _run(
     String id,
