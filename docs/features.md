@@ -641,6 +641,11 @@ don't matter (`cafe` finds *café*), and an inflected form finds its lemma
 AI provider for its fuller entry; a word the dictionaries don't have goes to
 the AI provider as before. Without one, the tab suggests similar words of
 the dictionaries, or says how to get a dictionary for the word's language.
+**Import from files** on the Dictionaries screen installs packs you
+downloaded by hand (`<language>.mzd`, from the links of the [pack
+catalogue](dictionary-packs.md)), on Android and in the web app: matched by
+name (or, renamed, by size and checksum) and checked like a download,
+without any request.
 The panel under a short translation shows the dictionaries' definitions
 when the engine returned none, and so does the word card of a word you tap
 in a translation ([Tap a word](#translate)). Details: [Offline dictionary
@@ -1197,7 +1202,8 @@ with its line endings, byte order mark, indentation and comments.
   as such values. In the other columns every cell with words is
   translated; formulas (`=SUM(A1:A3)`) stay as they are. A translation
   that a spreadsheet would read as a formula (one that starts with `=`,
-  `+`, `-`, `@`, a tab or a carriage return) gets a `'` in front, so that
+  `+`, `-`, `@`, their full-width forms `＝＋－＠`, a tab or a carriage
+  return) gets a `'` in front, so that
   it shows as text and can't run anything (see
   [Security](security.md#localisation-files-and-web-pages)); cells whose
   original starts that way already are left alone. To fill a language
@@ -1264,7 +1270,27 @@ site (they stay after a reload and are removed with the site's data). It
 needs a recent browser (Chrome or Edge 102, Firefox 125, Safari 16.4 or
 later), `https` (or `localhost`) and the site's storage (Firefox's private
 windows have none); the Offline languages screen says what is missing. It is slower than on Android (about 120 to 150 words a
-second on a desktop computer) and **Import from files** isn't available.
+second on a desktop computer). **Import from files** works there too: tap a
+language for the links of its files, download them (in the browser or on
+another device), then pick them under **Import from files**; they are read
+in the browser, checked against the bundled checksums like downloads (by
+name, or renamed by size and checksum, published or decompressed) and kept
+in its private storage, without any request.
+
+### The web app with no network
+
+Once you have opened the web app, it opens again with no network at all:
+with **Settings > General > Keep the web app for offline use** on (the
+default; web app only), the browser keeps the app's own files (about 35 MB,
+plus the fonts of the scripts you see), and with offline languages
+downloaded or imported it also translates offline. The switch says where
+the copy is (**Saving the app in this browser…**, **Opens in this browser
+without a network**, or that the browser can't keep it: that needs `https`
+or `localhost`). When the server has a new version, the app keeps it in the
+background and says **Update ready** with **Reload**; the settings offer
+**Reload** too, and otherwise the new version starts the next time every tab
+of the app was closed. Turning the switch off removes the copy. Hosting it
+needs two headers ([Serve the web app](self-hosting-mozhi.md#serve-the-web-app)).
 
 ## On-device AI
 
@@ -1598,7 +1624,8 @@ and **Data** (details in [Privacy](privacy.md)):
 - **Hide personal data from online engines** (on by default): e-mail
   addresses, phone numbers, IBANs, card numbers and IP addresses are
   replaced before text goes online and put back into the translation; the
-  result says how many items stayed on the device.
+  result says how many items stayed on the device (also for the text of a
+  photo and for documents, under their translation).
 - **Network activity**: every request of this session, grouped by
   destination, with its purpose and size and never its text. Kept in
   memory only.
@@ -1877,7 +1904,7 @@ field, then eight categories, each on a page of its own:
 
 | Category | What it holds |
 | --- | --- |
-| **General** | App language, tab order, haptic feedback, multiline input; **Android integration**: [Translate screen](#android-integration) (with **Add the Quick Settings tile** on Android 13+) and the **Translate bubble** |
+| **General** | App language, tab order, haptic feedback, multiline input, **Keep the web app for offline use** (web app); **Android integration**: [Translate screen](#android-integration) (with **Add the Quick Settings tile** on Android 13+) and the **Translate bubble** |
 | **Privacy & data** | **Privacy** (privacy mode, incognito, screenshot blocking, [app lock](#privacy-controls), hiding personal data), **History** (saving, automatic deletion, export and import, the phrasebook, recent language pairs), **Network** (approved pairs and cloud providers, HTTP proxy, network activity) and **Data** (**Clear history** and **Delete all local data**, last and in red) |
 | **Backup & sync** | **Encrypted backup** ([**Back up now**](#backup-and-restore) with the date of the last backup, **Restore from a backup**), then sync and phone to phone |
 | **Translation engines** | Offline languages, on-device AI, Mozhi instances, translation services (DeepL API, LibreTranslate), quality modes, **Remember quality selection** and **Instant translate** |
@@ -1933,7 +1960,8 @@ unprotected.**).
 | Mozhi engines, AI providers, Proofread, history | ✓ | ✓ |
 | Text selection menu and share target | ✓ | |
 | `mozhi://` links | ✓ | |
-| Offline translation | ✓ | ✓ (models in the browser's private storage) |
+| Offline translation | ✓ | ✓ (models in the browser's private storage; **Import from files** too) |
+| Opens with no network (after a first visit) | ✓ | ✓ (**Keep the web app for offline use**) |
 | On-device AI | ✓ (64-bit phones with enough memory) | |
 | On-device text recognition | ✓ (Tesseract; ML Kit in the Play variant) | |
 | Live camera (translation over the camera picture) | ✓ (a camera; Camera2) | |

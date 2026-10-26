@@ -155,9 +155,11 @@ flutter build appbundle --release --flavor production -t lib/main_production.dar
   --obfuscate --split-debug-info=build/symbols/aab
 
 # Web zip (no CDN; for the root of a web server), then its fallback fonts
+# and the list of files the app shell keeps for offline use (last)
 flutter build web --release -t lib/main_production.dart \
   --base-href / --no-web-resources-cdn
 python3 tool/web_fallback_fonts.py build/web
+python3 tool/web_shell_manifest.py build/web
 ```
 
 CI on branches (`main.yaml`) builds the APKs **without** `--obfuscate`, so
@@ -271,6 +273,40 @@ when it is the app's language (`preloadAppLocalizations`). In a build of
 the development flavor this took `main.dart.js` from 7.9 MB to 5.0 MB
 (1.92 MB to 1.45 MB gzipped). Serve the `*.part.js` files with the rest of
 the build.
+
+## Web build: the app shell
+
+The web app keeps its own files in the browser so that it opens with no
+network once it has been opened (**Settings > General > Keep the web app
+for offline use**): `web/mozhi_sw.js`, a service worker, caches exactly the
+files that `mozhi_sw_manifest.json` lists. The release zip and the CI
+builds write that list as the last step:
+
+```sh
+python3 tool/web_shell_manifest.py build/web
+```
+
+- **What it does**: lists every file of the build with its size and
+  SHA-256 in `build/web/mozhi_sw_manifest.json`, and stamps the list's
+  version (the SHA-256 of the list) and the paths into
+  `build/web/mozhi_sw.js`. A build with other files gets another version,
+  which browsers install as an update in the background (**Update ready**,
+  **Reload**). Running it again changes nothing.
+- **Left out**: the worker and the list themselves, Flutter's deprecated
+  `flutter_service_worker.js`, hidden files, source maps and `*.symbols`,
+  and model files next to the app (`models/`, folders below `bergamot/`).
+- **Kept when first used** (`"lazy": true`): the fallback fonts and the
+  renderer files that no build in `_flutter.buildConfig` loads (`skwasm`
+  without a WebAssembly build of the app, CanvasKit's `webparagraph`);
+  about 34 MB are kept at the install, 38 MB more only as pages use them.
+- **`index.html`** is hashed with its `<base href>` emptied, so editing it
+  for a sub-path keeps the list valid. Any other change to the files
+  needs the tool again: the worker refuses a file that doesn't match.
+- **Without it** (a plain `flutter build web`), the worker never installs
+  and the app works online only, as before. Debug runs never get it.
+- **Tests**: `python3 tool/web_shell_manifest_test.py` (also checks with
+  Node.js, when installed, that the worker reads what the tool writes);
+  `e2e/tests/offline_shell.spec.js` in a browser.
 
 ## Compare two builds
 

@@ -115,7 +115,13 @@ class BrowserAppShellBridge implements AppShellBridge {
 
   @override
   Future<bool> activateWaiting() async {
-    final waiting = _registration?.getProperty<JSObject?>('waiting'.toJS);
+    final registration = _registration;
+    if (registration == null) return false;
+    // The installed worker: `waiting`, or still `installing` when the
+    // registration's attributes lag behind its state.
+    final waiting = _workersOf(registration)
+        .where((worker) => _stateOf(worker) == 'installed')
+        .firstOrNull;
     if (waiting == null) return false;
     waiting.callMethod<JSAny?>(
       'postMessage'.toJS,
@@ -206,15 +212,39 @@ class BrowserAppShellBridge implements AppShellBridge {
     }
   }
 
+  /// The workers of [registration] (installing, waiting, active), each
+  /// once.
+  static List<JSObject> _workersOf(JSObject registration) {
+    final workers = <JSObject>[];
+    for (final name in ['installing', 'waiting', 'active']) {
+      final worker = registration.getProperty<JSObject?>(name.toJS);
+      if (worker != null &&
+          !workers.any((known) => known.strictEquals(worker).toDart)) {
+        workers.add(worker);
+      }
+    }
+    return workers;
+  }
+
+  static String _stateOf(JSObject worker) {
+    final state = worker.getProperty<JSAny?>('state'.toJS);
+    return state.isA<JSString>() ? (state! as JSString).toDart : '';
+  }
+
+  /// The workers by their own states, not by the registration's
+  /// attributes: Chrome fires a worker's `statechange` (to `installed`)
+  /// before it moves the worker from `installing` to `waiting`, and no
+  /// event follows that move.
   static AppShellWorkers _snapshot(JSObject registration, JSObject container) {
-    bool present(String name) =>
-        registration.getProperty<JSObject?>(name.toJS) != null;
+    final states = [
+      for (final worker in _workersOf(registration)) _stateOf(worker),
+    ];
     final controller = container.getProperty<JSObject?>('controller'.toJS);
     final script = controller?.getProperty<JSAny?>('scriptURL'.toJS);
     return AppShellWorkers(
-      installing: present('installing'),
-      waiting: present('waiting'),
-      active: present('active'),
+      installing: states.contains('installing') || states.contains('parsed'),
+      waiting: states.contains('installed'),
+      active: states.contains('activating') || states.contains('activated'),
       controlled:
           script.isA<JSString>() &&
           (script! as JSString).toDart.endsWith('/$_script'),

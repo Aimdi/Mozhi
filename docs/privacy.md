@@ -130,7 +130,10 @@ When a model changes a placeholder so that it can't be put back (for
 example an explanation that writes about "the token"), the placeholder
 stays as the model wrote it: the value is never sent to fill the gap.
 Dictionary entries and proofreading results say how many items stayed on
-the device.
+the device, and so do translations of the text read in a photo and of
+documents (**2 items kept on this device** under the result; for a
+document, counted over its requests, so an address in two parts counts
+twice).
 
 It doesn't apply to the on-device engine, which never sends anything. It
 can't apply to what isn't text: a photo sent to an AI model with **Supports
@@ -259,7 +262,32 @@ the Android app's ([Network activity](#network-activity)). **Offline only**
 and **Offline first** work as on Android. A browser without what the engine
 needs (an old one, a private window without site storage, a page opened over
 plain `http`) keeps the old behaviour, online only, and **Offline languages**
-says why. Details: [offline engine](offline-engine.md#web-app).
+says why. **Import from files** installs language packs you downloaded by
+hand (in the browser or on another device) without any request: the files
+are read in the browser, checked against the same checksums and copied into
+that private storage; nothing is uploaded. Details: [offline
+engine](offline-engine.md#web-app).
+
+### The web app with no network
+
+With **Settings > General > Keep the web app for offline use** on (the
+default in the web app), the browser keeps a copy of the web app's own
+files (its code, CanvasKit, the offline engine's worker and WebAssembly,
+icons and the app's texts: about 35 MB, plus the fonts of the scripts you
+see as they are first shown) in its storage for the site (Cache Storage),
+so that the app opens with no network once it has been opened. These are
+the files of the build, the same for everyone: none of your text,
+settings, history or language packs is in them. A service worker of the
+site (`mozhi_sw.js`, from the same server as the app) answers the app's
+requests for exactly those files; requests to anything else (your Mozhi
+instances, AI providers, model downloads, other paths of the server) go
+out as before, untouched. Each time the app starts, the browser asks the
+server the app comes from whether there is a new version (`mozhi_sw.js`
+and its list of files, `mozhi_sw_manifest.json`) and keeps it next to the
+running one; **Update ready** with **Reload** then switches to it. No
+other server is contacted for this. Turning the setting off removes the
+worker and the kept files (clearing the site's data does too); the app then
+needs the network to open, as before.
 
 ### On-device AI
 
@@ -360,6 +388,7 @@ the fastest server** during setup.
 | Cached engine and language lists | App preferences | Lists only, keyed by instance address without any password. |
 | Sync setup | App preferences (server address, user name, folder, what to sync, the last sync's time and result, the sync file's ETag and a fingerprint of the synced data); secure storage (the app password and the key derived from your passphrase) | Never the passphrase. In the web app the app password and the key last as long as the tab. **Turn off sync** and **Delete all local data** forget all of it. |
 | Offline language models | App storage (`<app files>/bergamot`); in the web app the browser's private storage for the site (the Origin Private File System, folder `bergamot`), which no other site and no page script outside the app can read | About 50 MB to download and 73 MB on disk per language. Delete them under **Settings > Translation engines > Offline languages**; in the web app clearing the site's data deletes them too. |
+| The web app's own files (web app only) | The browser's Cache Storage for the site (`mozhi-shell:<path>:<version>`) | The build's files, so that the app opens with no network ([details](#the-web-app-with-no-network)); no personal data. **Settings > General > Keep the web app for offline use** off deletes them. |
 | Text recognition data | App storage (`<app files>/tesseract`) | 0.4 to 12 MB per language (median 2.4 MB). Delete it under **Settings > Translation engines > Offline languages > Text recognition**. |
 | Screenshots of Translate screen | App cache (`<cache>/screen_translate`) | One PNG of the screen for the second it takes to read it into memory, then deleted; leftovers are deleted when the window closes, when the next one opens and, for one left by an app process that ended in between, when the app next starts. Never in the gallery, shared storage or a backup. |
 | Live captions | Memory only | Other apps' sound passes through in blocks of a tenth of a second and is gone once Whisper has read it; the recognised text and its translations stay in memory while the captions screen is open (at most 2,000 phrases). Nothing is written to disk, logged or backed up unless you save the transcript (History, a file). The caption bar's position is the only thing kept (app preferences). |

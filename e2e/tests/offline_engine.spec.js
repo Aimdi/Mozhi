@@ -66,6 +66,17 @@ async function serveModels(context) {
   return requested;
 }
 
+/**
+ * The row of a language on Offline languages: a group, or a button when
+ * the row also opens the list of files to download by hand (the web app
+ * has it since its "Import from files").
+ */
+function languageRow(page, name) {
+  return page
+    .getByRole('button', { name })
+    .or(page.getByRole('group', { name }));
+}
+
 /** Cuts the model host off: every model request fails from now on. */
 async function cutModelHost(context) {
   await context.unrouteAll({ behavior: 'ignoreErrors' });
@@ -109,7 +120,7 @@ test.describe('on-device translation in the browser', () => {
       page.getByRole('searchbox', { name: 'Search languages' }),
       'German',
     );
-    const download = page.getByRole('group', { name: /^Download German/ });
+    const download = languageRow(page, /^Download German/);
     await expect(download).toHaveAccessibleName(/48\.8 MB download/);
     await download.getByRole('button', { name: 'Download' }).click();
     // The snack bar (its text is also announced to screen readers).
@@ -117,7 +128,7 @@ test.describe('on-device translation in the browser', () => {
       page.locator('span', { hasText: 'German is ready for offline use' }),
     ).toBeVisible({ timeout: 120_000 });
     await expect(
-      page.getByRole('group', { name: /^Delete German .*on this device/ }),
+      languageRow(page, /^Delete German .*on this device/),
     ).toBeVisible();
     // Both directions, three files each, each fetched once.
     expect(requested).toHaveLength(6);
@@ -156,12 +167,11 @@ test.describe('on-device translation in the browser', () => {
       page.getByRole('searchbox', { name: 'Search languages' }),
       'German',
     );
-    await page
-      .getByRole('group', { name: /^Download German/ })
+    await languageRow(page, /^Download German/)
       .getByRole('button', { name: 'Download' })
       .click();
     await expect(
-      page.getByRole('group', { name: /^Delete German .*on this device/ }),
+      languageRow(page, /^Delete German .*on this device/),
     ).toBeVisible({ timeout: 120_000 });
 
     const attempts = await cutModelHost(context);

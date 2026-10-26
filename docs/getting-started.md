@@ -71,6 +71,13 @@ To serve it from a sub-path, change `<base href>` in its `index.html` (for
 example to `/mozhi/`), or build it yourself with a different `--base-href`
 (see [Contributing](contributing.md#building-releases)).
 
+Once opened, the web app keeps its own files in the browser and opens again
+without a network (turn it off in **Settings > General > Keep the web app
+for offline use**); changing `<base href>` doesn't break this. Your server
+should send `mozhi_sw.js`, `mozhi_sw_manifest.json`, `index.html` and
+`flutter_bootstrap.js` with `Cache-Control: no-cache`; see
+[Serve the web app](self-hosting-mozhi.md#serve-the-web-app).
+
 The web app runs entirely in your browser and talks to Mozhi instances and AI
 providers directly, which has a few consequences; see
 [the FAQ](faq.md#does-the-web-app-work-with-my-self-hosted-servers).

@@ -17,9 +17,11 @@
  *   version holds with the same SHA-256 is copied from it, not downloaded.
  *   Lazy files (the fonts of scripts a page may never show, renderer builds
  *   this build never loads) are kept when the page first loads them.
- * - Fetch: same-origin GET requests for the files of the manifest, and
- *   navigations to the app (the scope itself or its index.html), are
- *   answered from the cache. Nothing else is touched: other servers (Mozhi
+ * - Fetch: same-origin GET requests for the files of the manifest (and
+ *   HEAD requests for them: the offline engine's worker asks whether its
+ *   WebAssembly file is there), and navigations to the app (the scope
+ *   itself or its index.html), are answered from the cache. Nothing else
+ *   is touched: other servers (Mozhi
  *   instances, AI providers, model downloads), other methods, other paths
  *   (a model mirror next to the app, an API on the same server), and the
  *   offline language packs in the browser's private storage (OPFS) never
@@ -81,7 +83,7 @@ self.addEventListener('message', (event) => {
 
 self.addEventListener('fetch', (event) => {
   const request = event.request;
-  if (!SHELL_VERSION || request.method !== 'GET') return;
+  if (!SHELL_VERSION || (request.method !== 'GET' && request.method !== 'HEAD')) return;
   const target = new URL(request.url);
   if (target.origin !== SCOPE.origin || !target.pathname.startsWith(SCOPE.pathname)) return;
   let path = target.pathname.slice(SCOPE.pathname.length);
@@ -206,11 +208,19 @@ async function download(entry) {
 /* -------------------------------------------------------------------------- */
 
 async function respond(event, path) {
+  const head = event.request.method === 'HEAD';
   const cached = await caches.match(urlOf(path), { cacheName: CACHE });
-  if (cached) return cached;
+  if (cached) {
+    if (!head) return cached;
+    return new Response(null, {
+      status: cached.status,
+      statusText: cached.statusText,
+      headers: cached.headers,
+    });
+  }
   // Not kept (yet): a lazy file, or storage the browser cleared.
   const response = await fetch(event.request);
-  if (response.ok && response.type === 'basic') {
+  if (!head && response.ok && response.type === 'basic') {
     event.waitUntil(keep(path, response.clone()).catch(() => {}));
   }
   return response;

@@ -12,6 +12,11 @@
 //   E2E_APP_PORT  port for the web build (default 8080)
 //   E2E_MOCK_PORT port for the mock server (default 8787; the settings
 //                 fixtures are rewritten to it)
+//   E2E_SERVICE_WORKERS  `allow` runs every spec with the app shell's
+//                 service worker (web/mozhi_sw.js) registered; by default
+//                 only offline_shell.spec.js allows it: each test starts a
+//                 fresh browser profile, where the worker would download
+//                 the whole build again (about 30 MB) next to the test.
 const path = require('node:path');
 const { defineConfig, devices } = require('@playwright/test');
 
@@ -42,6 +47,8 @@ module.exports = defineConfig({
     viewport: { width: 412, height: 915 },
     // The specs read the translation through the Copy button.
     permissions: ['clipboard-read', 'clipboard-write'],
+    serviceWorkers:
+      process.env.E2E_SERVICE_WORKERS === 'allow' ? 'allow' : 'block',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',

@@ -37,6 +37,14 @@ nothing is sent anywhere. The AI entry becomes an optional **More detail**.
   a margin of 5 %, at least 50 MB (in a browser, what its storage quota
   leaves); without enough room nothing is downloaded and the screen says
   how much is needed.
+- **Import from files** (on the Dictionaries screen, Android and the web
+  app): installs packs downloaded by hand (`<id>.mzd`, from the catalogue's
+  URLs), without any request. A file is matched by its name (any case) or,
+  renamed, by its size and then its SHA-256, and installed with the checks
+  of a download; a pack already installed in that version is not read
+  again. A summary lists what was installed, already there, damaged (a
+  checksum mismatch) or failed, and the files that matched no pack
+  (`DictionaryPacks.importFiles`).
 - **Storage**: app files on Android (`<support>/dictionary/<id>.mzd`, not
   backed up, removed with the app); the origin private file system (OPFS)
   in a browser (Chrome, Edge, Firefox, Safari 26). A browser without OPFS
@@ -267,8 +275,6 @@ name.
   Spanish words in English, whatever the app's language. Other editions
   (German, French, ...) are extracted by kaikki.org too; a pack of them
   sets `glossLanguage` and gets its own id.
-- No *Import from files* for packs yet (the translation models and text
-  recognition data have it).
 - Downloads restart from the beginning when interrupted (no `Range`
   resume).
 - Bilingual pairs from WikDict and example sentences from Tatoeba would

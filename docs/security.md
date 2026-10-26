@@ -827,6 +827,20 @@ llama.cpp (MIT, built from a pinned release in the repository's
   `.wasm` files as `application/wasm` (Caddy and nginx do by default).
   Debug web runs (`flutter run` in debug mode) are blocked by the
   policy; see [Contributing](contributing.md).
+- **Web app shell (service worker):** `mozhi_sw.js` is served from the
+  app's own origin (`worker-src 'self'`, no inline script) and only
+  answers `GET` and `HEAD` requests for the files its build lists in
+  `mozhi_sw_manifest.json`, under the app's own path; requests to other
+  hosts (Mozhi instances, AI providers, model downloads), `POST`s, the
+  language packs in the browser's private storage and every other path go
+  to the network untouched. It keeps a file only when its size and
+  SHA-256 match the manifest, which it fetches past the HTTP cache, and a
+  new build waits until you choose **Reload**. Its caches are named after
+  the app's path, so two copies of the app on one origin don't mix.
+  Turning off **Settings > General > Keep the web app for offline use**
+  unregisters it and deletes what it kept. Whoever controls the server can
+  still change the app, as for any web app: the manifest only protects
+  against damaged or half-finished downloads.
 - Android release builds made without a signing key (forks, local builds)
   are signed with the debug key. Official releases must use the release
   key.

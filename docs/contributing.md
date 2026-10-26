@@ -87,9 +87,12 @@ flutter build apk --release --flavor production -t lib/main_production.dart --sp
 flutter build apk --release --flavor production -t lib/main_production.dart
 
 # Web (for the root of a web server, like the CI and release builds; change
-# --base-href for a sub-path, e.g. /mozhi/)
+# --base-href for a sub-path, e.g. /mozhi/), then its fonts and the list of
+# files the app shell keeps for offline use (docs/building.md)
 flutter build web --release -t lib/main_production.dart \
   --base-href / --no-web-resources-cdn
+python3 tool/web_fallback_fonts.py build/web
+python3 tool/web_shell_manifest.py build/web
 ```
 
 Release signing for Android, the CI artifacts and tagged releases are
@@ -251,9 +254,12 @@ seeded into `localStorage` before the app starts.
 Requirements: Node.js 18 or newer and Python 3.
 
 ```sh
-# 1. Build the development flavor, served from /
+# 1. Build the development flavor, served from /, with its fonts and the
+#    app shell's list of files (offline_shell.spec.js)
 flutter build web --release -t lib/main_development.dart \
   --no-web-resources-cdn --base-href / -o build/web-e2e
+python3 tool/web_fallback_fonts.py build/web-e2e
+python3 tool/web_shell_manifest.py build/web-e2e
 
 # 2. Install Playwright and its Chromium (once)
 cd e2e
@@ -266,8 +272,13 @@ npx playwright show-report        # after a failure: screenshots and traces
 ```
 
 Environment variables: `E2E_WEB_DIR` (the build to serve, default
-`../build/web`), `E2E_APP_PORT` (default 8080) and `E2E_MOCK_PORT` (default
-8787; the fixtures are rewritten to it). Outside CI, servers that already
+`../build/web`), `E2E_APP_PORT` (default 8080), `E2E_MOCK_PORT` (default
+8787; the fixtures are rewritten to it) and `E2E_SERVICE_WORKERS` (`allow`
+runs every spec with the app shell's service worker; by default only
+`offline_shell.spec.js` allows it, since each test starts a fresh browser
+profile where the worker would download the whole build again).
+`E2E_MODELS_DIR` (`python3 fetch_models.py de <dir>`) enables the specs
+that need real offline models. Outside CI, servers that already
 listen on those ports are reused, so pick free ports if something else
 uses them.
 
