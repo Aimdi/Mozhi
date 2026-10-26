@@ -1,5 +1,7 @@
 // Play variant only: tool/play_prepare.sh copies this test to
 // test/image_translate/data/ with the ML Kit text recognition service.
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -118,10 +120,82 @@ void main() {
       verify(() => recognizer.close()).called(1);
     });
 
-    test('fails without a file path', () async {
+    test('reads an image without a file path from a temporary copy and '
+        'deletes it', () async {
+      final directory = Directory.systemTemp.createTempSync('mlkit_test');
+      addTearDown(() => directory.deleteSync(recursive: true));
+      final written = <Uint8List>[];
+      service = MlKitTextRecognitionService(
+        platform: TargetPlatform.android,
+        isWeb: false,
+        recognizerFactory: (script) {
+          scripts.add(script);
+          return recognizer;
+        },
+        temporaryImageWriter: (bytes) async {
+          written.add(bytes);
+          final file = File('${directory.path}/still.img')
+            ..writeAsBytesSync(bytes);
+          return file.path;
+        },
+      );
+      when(
+        () => recognizer.processImage(any()),
+      ).thenAnswer((_) async => RecognizedText(text: 'Exit', blocks: const []));
       final image = PickedImage(bytes: pngBytes, mimeType: 'image/png');
+
+      expect(await service.recognize(image, source: english), 'Exit');
+
+      expect(written, [pngBytes]);
+      final input =
+          verify(() => recognizer.processImage(captureAny())).captured.single
+              as InputImage;
+      expect(input.filePath, '${directory.path}/still.img');
+      expect(File('${directory.path}/still.img').existsSync(), isFalse);
+    });
+
+    test('deletes the temporary copy when reading fails', () async {
+      final directory = Directory.systemTemp.createTempSync('mlkit_test');
+      addTearDown(() => directory.deleteSync(recursive: true));
+      service = MlKitTextRecognitionService(
+        platform: TargetPlatform.android,
+        isWeb: false,
+        recognizerFactory: (_) => recognizer,
+        temporaryImageWriter: (bytes) async {
+          final file = File('${directory.path}/still.img')
+            ..writeAsBytesSync(bytes);
+          return file.path;
+        },
+      );
+      when(() => recognizer.processImage(any()))
+          .thenThrow(PlatformException(code: 'failed'));
+
       await expectLater(
-        service.recognize(image, source: english),
+        service.recognize(
+          PickedImage(bytes: pngBytes, mimeType: 'image/png'),
+          source: english,
+        ),
+        throwsA(isA<ImageTranslateException>()),
+      );
+      expect(File('${directory.path}/still.img').existsSync(), isFalse);
+    });
+
+    test('fails when the temporary copy cannot be written', () async {
+      service = MlKitTextRecognitionService(
+        platform: TargetPlatform.android,
+        isWeb: false,
+        recognizerFactory: (script) {
+          scripts.add(script);
+          return recognizer;
+        },
+        temporaryImageWriter: (_) async =>
+            throw const FileSystemException('full'),
+      );
+      await expectLater(
+        service.recognize(
+          PickedImage(bytes: pngBytes, mimeType: 'image/png'),
+          source: english,
+        ),
         throwsA(
           const ImageTranslateException(
             ImageTranslateErrorKind.recognitionFailed,

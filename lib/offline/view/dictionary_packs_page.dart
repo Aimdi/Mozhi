@@ -10,8 +10,10 @@ import 'package:mozhi/dictionary/widgets/dictionary_attribution.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/offline/cubit/dictionary_packs_cubit.dart';
 import 'package:mozhi/offline/cubit/offline_models_state.dart';
+import 'package:mozhi/offline/data/offline_model_file_picker.dart';
 import 'package:mozhi/offline/view/offline_models_page.dart'
     show MeteredDownloadDialog, offlineOutcomeMessage;
+import 'package:mozhi/offline/widgets/dictionary_import_summary.dart';
 import 'package:mozhi/offline/widgets/offline_language_tile.dart';
 import 'package:mozhi/settings/view/widgets/delete_local_data.dart'
     show formatStoredSize;
@@ -27,10 +29,13 @@ import 'package:mozhi/settings/view/widgets/settings_section.dart';
 /// Uses [store] when given, otherwise the [KeyValueStore] provided above
 /// (falling back to the platform preferences).
 class DictionaryPacksPage extends StatelessWidget {
-  const new({required this.packs, super.key, this.store});
+  const new({required this.packs, super.key, this.store, this.picker});
 
   final DictionaryPacks packs;
   final KeyValueStore? store;
+
+  /// Picks the files of "Import from files" (default: the platform's).
+  final OfflineModelFilePicker? picker;
 
   @override
   Widget build(BuildContext context) {
@@ -39,6 +44,7 @@ class DictionaryPacksPage extends StatelessWidget {
         final cubit = DictionaryPacksCubit(
           packs: packs,
           store: store ?? _maybeStore(context) ?? PreferencesStore(),
+          picker: picker ?? const OfflineModelFilePicker(),
         );
         unawaited(cubit.load());
         return cubit;
@@ -106,11 +112,28 @@ class DictionaryPacksView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    return BlocListener<DictionaryPacksCubit, DictionaryPacksState>(
-      listenWhen: (previous, current) =>
-          current.outcome != null && previous.outcome != current.outcome,
-      listener: (context, state) =>
-          unawaited(_onOutcome(context, state.outcome!)),
+    return MultiBlocListener(
+      listeners: [
+        BlocListener<DictionaryPacksCubit, DictionaryPacksState>(
+          listenWhen: (previous, current) =>
+              current.outcome != null && previous.outcome != current.outcome,
+          listener: (context, state) =>
+              unawaited(_onOutcome(context, state.outcome!)),
+        ),
+        // What an import from files did.
+        BlocListener<DictionaryPacksCubit, DictionaryPacksState>(
+          listenWhen: (previous, current) =>
+              current.importOutcome != null &&
+              previous.importOutcome != current.importOutcome,
+          listener: (context, state) => showDialog<void>(
+            context: context,
+            builder: (_) => DictionaryImportSummaryDialog(
+              outcome: state.importOutcome!,
+              nameOf: (pack) => state.item(pack.id)?.display.name ?? pack.name,
+            ),
+          ),
+        ),
+      ],
       child: Scaffold(
         appBar: AppBar(title: Text(l10n.offlineDictionariesTitle)),
         body: BlocBuilder<DictionaryPacksCubit, DictionaryPacksState>(
@@ -232,8 +255,54 @@ class _PacksList extends StatelessWidget {
                     ?.copyWith(color: AppPalette.of(context).secondaryText),
               ),
             ),
+          if (state.canImport) ...[
+            const Hairline(),
+            _ImportTile(importing: state.importing),
+          ],
         ],
       ),
+    );
+  }
+}
+
+/// "Import from files": picks dictionary pack files and installs them,
+/// without the network.
+class _ImportTile extends StatelessWidget {
+  const new({required this.importing});
+
+  final bool importing;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final palette = AppPalette.of(context);
+    return ListTile(
+      key: const Key('dictionary_packs_import'),
+      leading: const Icon(Icons.file_open_outlined),
+      title: Text(l10n.offlineImportAction),
+      subtitle: Text(
+        importing
+            ? l10n.offlineImporting
+            : l10n.offlineDictionariesImportSubtitle,
+        style: TextStyle(
+          color: importing ? theme.colorScheme.primary : palette.secondaryText,
+        ),
+      ),
+      trailing: importing
+          ? SizedBox.square(
+              dimension: 24,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                semanticsLabel: l10n.offlineImporting,
+              ),
+            )
+          : null,
+      onTap: importing
+          ? null
+          : () => unawaited(
+              context.read<DictionaryPacksCubit>().importFromFiles(),
+            ),
     );
   }
 }

@@ -242,7 +242,9 @@ class DictionaryPacks implements OfflineDictionary {
     }
     final outcomes = <String, DictionaryImportedPack>{};
     final unmatched = <String>[];
-    void report(DictionaryPackInfo pack, DictionaryImportStatus status, [
+    void report(
+      DictionaryPackInfo pack,
+      DictionaryImportStatus status, [
       Object? error,
     ]) {
       final known = outcomes[pack.id]?.status;
