@@ -556,6 +556,29 @@ void main() {
       );
 
       mutation(
+        'removeProvider clears the live engine pointing at it',
+        initial: AppSettings(
+          providers: [_provider('a'), _provider('b')],
+          liveEngineId: 'ai:a',
+        ),
+        act: (cubit) => cubit.removeProvider('a'),
+        expected: AppSettings(providers: [_provider('b')]),
+      );
+
+      mutation(
+        'removeProvider keeps the live engine of another provider',
+        initial: AppSettings(
+          providers: [_provider('a'), _provider('b')],
+          liveEngineId: 'mt:b',
+        ),
+        act: (cubit) => cubit.removeProvider('a'),
+        expected: AppSettings(
+          providers: [_provider('b')],
+          liveEngineId: 'mt:b',
+        ),
+      );
+
+      mutation(
         'removeProvider keeps selections of other engines',
         initial: AppSettings(
           providers: [_provider('a'), _provider('b')],
@@ -765,6 +788,37 @@ void main() {
         'setMaskPersonalData stores the flag',
         act: (cubit) => cubit.setMaskPersonalData(enabled: false),
         expected: const AppSettings(maskPersonalData: false),
+      );
+
+      mutation(
+        'setLiveEngine stores the engine',
+        act: (cubit) => cubit.setLiveEngine('ai:a'),
+        expected: const AppSettings(liveEngineId: 'ai:a'),
+      );
+
+      mutation(
+        'setLiveEngine(null) goes back to the offline engine',
+        initial: const AppSettings(liveEngineId: 'ai:a'),
+        act: (cubit) => cubit.setLiveEngine(null),
+        expected: const AppSettings(),
+      );
+
+      mutation(
+        'setTapToLookUp stores the flag',
+        act: (cubit) => cubit.setTapToLookUp(enabled: false),
+        expected: const AppSettings(tapToLookUp: false),
+      );
+
+      mutation(
+        'setHighlightSpokenWord stores the flag',
+        act: (cubit) => cubit.setHighlightSpokenWord(enabled: false),
+        expected: const AppSettings(highlightSpokenWord: false),
+      );
+
+      mutation(
+        'setOfflineAppShell stores the flag',
+        act: (cubit) => cubit.setOfflineAppShell(enabled: false),
+        expected: const AppSettings(offlineAppShell: false),
       );
 
       mutation(

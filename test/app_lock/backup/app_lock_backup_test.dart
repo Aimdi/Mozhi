@@ -28,8 +28,8 @@ void main() {
   /// [data] through JSON, as a backup file carries it.
   Object? throughJson(Object? data) => jsonDecode(jsonEncode(data));
 
-  test('is the only device-only field', () {
-    expect(SettingsBackupSection.deviceOnlyFields, {'appLock'});
+  test('is a device-only field', () {
+    expect(SettingsBackupSection.deviceOnlyFields, contains('appLock'));
   });
 
   group('export', () {

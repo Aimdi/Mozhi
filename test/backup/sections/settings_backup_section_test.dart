@@ -77,8 +77,12 @@ void main() {
       final data = await section.export(includeSecrets: false);
       final text = jsonEncode(data);
 
-      // Without the device-only app lock (test/app_lock covers it).
-      expect(data, {'settings': mine.toJson()..remove('appLock')});
+      // Without the device-only fields (test/app_lock covers the lock).
+      expect(data, {
+        'settings': mine.toJson()
+          ..remove('appLock')
+          ..remove('offlineAppShell'),
+      });
       expect(text, isNot(contains('key-a')));
       expect(text, isNot(contains('pw@')));
       expect(text, isNot(contains('X-Org')));
@@ -274,6 +278,18 @@ void main() {
 
         expect((await repository.load()).onboardingComplete, isTrue);
       });
+
+      test("keeps this browser's offline app setting", () async {
+        await repository.save(mine.copyWith(offlineAppShell: false));
+
+        await section.restore(
+          throughJson({'settings': const AppSettings().toJson()}),
+          version: 1,
+          mode: BackupRestoreMode.replace,
+        );
+
+        expect((await repository.load()).offlineAppShell, isFalse);
+      });
     });
 
     group('merge', () {
@@ -441,6 +457,7 @@ void main() {
             assistEngineId: () => 'ai:c',
             fastEngineId: () => 'mt:c',
             bestEngineId: () => 'ai:a',
+            liveEngineId: () => 'ai:c',
             compareEngineIds: const ['ai:c', 'ai:a', 'mozhi:google'],
             consentedProviders: const ['c', 'a'],
           ),
@@ -458,6 +475,7 @@ void main() {
         expect(merged.assistEngineId, isNull);
         expect(merged.fastEngineId, isNull);
         expect(merged.bestEngineId, 'ai:a');
+        expect(merged.liveEngineId, isNull);
         expect(merged.compareEngineIds, ['ai:a', 'mozhi:google']);
         expect(merged.consentedProviders, ['a']);
       });
