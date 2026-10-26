@@ -79,10 +79,17 @@ typedef ConversationTimerFactory = Timer Function(
 ///   not read aloud is also followed by `echoDelay`, and an announcement
 ///   by a screen reader ([announced]) keeps the microphone closed until
 ///   it was probably said.
-/// * Recognisers that detect the spoken language (on-device Whisper)
-///   assign the turn to the side whose language was heard; any other
-///   language, or a recogniser that cannot detect, keeps the side whose
-///   turn it is.
+/// * With "Detect the speaker" ([ConversationState.detectSpeaker], on by
+///   default, [setDetectSpeaker]) recognisers that detect the spoken
+///   language (on-device Whisper) assign the turn to the side whose
+///   language was heard; any other language, or a recogniser that cannot
+///   detect, keeps the side whose turn it is. Off, the side whose turn it
+///   is is listened for in its own language.
+/// * A turn ends at a real pause: [ConversationState.turnPause] (0.8 s by
+///   default, 0.5 to 2 s, [setTurnPause]) of silence after speech for a
+///   recogniser that tells speech from silence itself (on-device Whisper
+///   with its voice activity detection); the system recogniser keeps its
+///   own end of speech.
 /// * Without speech for `silenceTimeout` the session pauses; silence or
 ///   unintelligible speech before that listens again. Speech is what the
 ///   recogniser recognised or detected ([ConversationHeardPartial],
@@ -688,6 +695,26 @@ class ConversationCubit extends Cubit<ConversationState> {
     emit(state.copyWith(autoSpeak: enabled));
   }
 
+  /// "Detect the speaker" (see [ConversationState.detectSpeaker]). A
+  /// hands-free conversation that is listening starts over with it.
+  void setDetectSpeaker({required bool enabled}) {
+    if (enabled == state.detectSpeaker) return;
+    emit(state.copyWith(detectSpeaker: enabled));
+    _relistenAfterLanguageChange();
+  }
+
+  /// The silence that ends a turn ([ConversationState.turnPause]), kept
+  /// within [ConversationState.minTurnPause] and
+  /// [ConversationState.maxTurnPause]; from the next utterance on.
+  void setTurnPause(Duration pause) {
+    final kept = pause < ConversationState.minTurnPause
+        ? ConversationState.minTurnPause
+        : pause > ConversationState.maxTurnPause
+        ? ConversationState.maxTurnPause
+        : pause;
+    if (kept != state.turnPause) emit(state.copyWith(turnPause: kept));
+  }
+
   /// Face-to-face mode stops a hands-free conversation.
   void setFaceToFace({required bool enabled}) {
     if (enabled) unawaited(stopSession());
@@ -892,7 +919,11 @@ class ConversationCubit extends Cubit<ConversationState> {
     final a = _primaryLanguage(state.languageA);
     final b = _primaryLanguage(state.languageB);
     _hearing = _recognizer!
-        .listen(state.languageOf(side), detectLanguage: a != b)
+        .listen(
+          state.languageOf(side),
+          detectLanguage: state.detectSpeaker && a != b,
+          pause: state.turnPause,
+        )
         .listen((event) => _onHearing(token, side, event));
   }
 
@@ -936,7 +967,10 @@ class ConversationCubit extends Cubit<ConversationState> {
         } else {
           _cancelSilence();
           _emptyUtterances = 0;
-          unawaited(_sessionTurn(_speakerOf(language, side), text));
+          final speaker = state.detectSpeaker
+              ? _speakerOf(language, side)
+              : side;
+          unawaited(_sessionTurn(speaker, text));
         }
       case ConversationHeardFailure(failure: SpeechInputFailure.noMatch):
         _hearing = null;

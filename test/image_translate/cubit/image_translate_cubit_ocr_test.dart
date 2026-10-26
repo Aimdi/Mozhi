@@ -66,6 +66,24 @@ void main() {
     expect(cubit.state.result?.translatedText, 'Exit');
   });
 
+  test('keeps what the personal data shield kept on the device', () async {
+    when(() => repository.translate(any(), any())).thenAnswer(
+      (_) => Stream.value(
+        TranslationResult(
+          engineId: deepl.id,
+          engineName: deepl.name,
+          text: 'Exit',
+          maskedPersonalData: 2,
+        ),
+      ),
+    );
+    data.installed = {'deu': 1};
+    final cubit = build();
+    addTearDown(cubit.close);
+    await cubit.setImage(jpegImage);
+    expect(cubit.state.result?.maskedPersonalData, 2);
+  });
+
   test('offers missing data without downloading it', () async {
     final cubit = build();
     addTearDown(cubit.close);

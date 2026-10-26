@@ -22,6 +22,7 @@ class DocumentProgress extends Equatable {
     this.results = const {},
     this.failures = const {},
     this.isComplete = false,
+    this.maskedPersonalData = 0,
   });
 
   /// Number of chunks in the plan.
@@ -36,6 +37,11 @@ class DocumentProgress extends Equatable {
   /// True on the last event of a run.
   final bool isComplete;
 
+  /// Items of personal data the personal data shield kept on the device
+  /// in this run's requests (`TranslationResult.maskedPersonalData`,
+  /// summed over the requests: an address in two chunks counts twice).
+  final int maskedPersonalData;
+
   int get done => results.length;
   int get failed => failures.length;
 
@@ -43,7 +49,13 @@ class DocumentProgress extends Equatable {
   double get fraction => total == 0 ? 1 : done / total;
 
   @override
-  List<Object?> get props => [total, results, failures, isComplete];
+  List<Object?> get props => [
+    total,
+    results,
+    failures,
+    isComplete,
+    maskedPersonalData,
+  ];
 }
 
 /// Decides whether a failed request is worth repeating.
@@ -159,6 +171,7 @@ class DocumentTranslator {
       results: Map.unmodifiable(results),
       failures: Map.unmodifiable(failures),
       isComplete: complete,
+      maskedPersonalData: language.maskedPersonalData,
     );
 
     Future<void> worker() async {
@@ -405,6 +418,7 @@ class DocumentTranslator {
                 when detected.trim().isNotEmpty) {
               language.detected ??= detected;
             }
+            language.maskedPersonalData += result.maskedPersonalData;
             if (!result.fromCache) {
               try {
                 onTranslated?.call(engine, request, result);
@@ -425,9 +439,13 @@ class _Cancelled implements Exception {
   const new();
 }
 
-/// The source language of one [DocumentTranslator.translate] run.
+/// The source language of one [DocumentTranslator.translate] run (and
+/// what its requests kept on the device).
 class _RunLanguage {
   new(this.source);
+
+  /// See [DocumentProgress.maskedPersonalData].
+  int maskedPersonalData = 0;
 
   /// The language every request uses: the requested one, or the one
   /// identified for the whole document.

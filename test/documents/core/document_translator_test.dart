@@ -69,6 +69,37 @@ void main() {
   ).planSegments([for (final t in texts) Segment(t)], ChunkEncoding.markers);
 
   group('DocumentTranslator', () {
+    test('sums what the personal data shield kept on the device', () async {
+      stub(
+        (request) => Stream.fromIterable([
+          _result('…', complete: false).copyWith(maskedPersonalData: 9),
+          _result(request.text.toUpperCase()).copyWith(maskedPersonalData: 2),
+        ]),
+      );
+      final events = await translator()
+          .translate(
+            plan(['one', 'two', 'three'], maxUnits: 1),
+            engine: _mozhi,
+            source: _en,
+            target: _de,
+          )
+          .toList();
+      // Each request's final result counts once.
+      expect(events.first.maskedPersonalData, 0);
+      expect(events.last.isComplete, isTrue);
+      expect(events.last.maskedPersonalData, 6);
+      expect(
+        events.last,
+        isNot(
+          DocumentProgress(
+            total: events.last.total,
+            results: events.last.results,
+            isComplete: true,
+          ),
+        ),
+      );
+    });
+
     group('onTranslated', () {
       test('reports each answered request but not cache hits', () async {
         stub(

@@ -10,7 +10,7 @@ import 'package:mozhi/image_translate/models/text_layout.dart';
 /// [translatedFrom].
 @immutable
 class LiveBlock extends Equatable {
-  const LiveBlock({
+  const new({
     required this.id,
     required this.paragraph,
     this.translation,

@@ -139,6 +139,29 @@ void main() {
       );
     });
 
+    test('full-width formula characters get a quote too', () {
+      final document = parseDelimited(sheet, DocumentFormat.csv);
+      final output = document.render([
+        '＝HYPERLINK("https://evil.example/")',
+        '\u3000＋1+1',
+        '－2+3',
+        '＠SUM(1+1)',
+      ]);
+      expect(
+        output,
+        'id,text\n'
+        '1,"\'＝HYPERLINK(""https://evil.example/"")"\n'
+        "2,'\u3000＋1+1\n"
+        "3,'－2+3\n"
+        '4,"\'＠SUM(1+1)"\n',
+      );
+      // Elsewhere in a cell they are text.
+      expect(
+        document.render(['1＋1', 'A ＝ B', 'x', 'y']),
+        'id,text\n1,1＋1\n2,A ＝ B\n3,x\n4,"y"\n',
+      );
+    });
+
     test('in TSV too, without quotes', () {
       const tsv = 'id\ttext\n1\tHello there\n2\tHow are you\n';
       final document = parseDelimited(tsv, DocumentFormat.tsv);

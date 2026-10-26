@@ -6,7 +6,7 @@ import 'package:mozhi/live_camera/data/live_camera_controller.dart';
 /// coordinates of the boxes it reports.
 @immutable
 class UprightFrame {
-  const UprightFrame({
+  const new({
     required this.pixels,
     required this.width,
     required this.height,

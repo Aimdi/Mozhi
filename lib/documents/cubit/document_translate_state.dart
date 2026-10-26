@@ -105,6 +105,7 @@ class DocumentTranslateState extends Equatable {
     this.bilingual = false,
     this.notice,
     this.noticeId = 0,
+    this.maskedPersonalData = 0,
   });
 
   final DocumentInputMode mode;
@@ -165,6 +166,11 @@ class DocumentTranslateState extends Equatable {
 
   /// Incremented with every [notice] so repeated notices are delivered.
   final int noticeId;
+
+  /// Items of personal data the personal data shield kept on the device
+  /// while translating [results] (`DocumentProgress.maskedPersonalData`
+  /// of the runs since the last fresh translation).
+  final int maskedPersonalData;
 
   bool get hasDocument =>
       document != null || packagedDocument != null || pdf != null;
@@ -282,6 +288,7 @@ class DocumentTranslateState extends Equatable {
     bool? bilingual,
     DocumentNotice? Function()? notice,
     int? noticeId,
+    int? maskedPersonalData,
   }) {
     return DocumentTranslateState(
       mode: mode ?? this.mode,
@@ -313,6 +320,7 @@ class DocumentTranslateState extends Equatable {
       bilingual: bilingual ?? this.bilingual,
       notice: notice != null ? notice() : this.notice,
       noticeId: noticeId ?? this.noticeId,
+      maskedPersonalData: maskedPersonalData ?? this.maskedPersonalData,
     );
   }
 
@@ -345,6 +353,7 @@ class DocumentTranslateState extends Equatable {
     bilingual,
     notice,
     noticeId,
+    maskedPersonalData,
   ];
 }
 

@@ -61,10 +61,9 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
     Language target = _english,
     TranslationOptions options = const TranslationOptions(),
     UsageTracker? usageTracker,
-    PdfTranslator? pdfTranslator,
+    this._pdfTranslator,
     this._ocrPreferred = const [],
   }) : _repository = repository,
-       _pdfTranslator = pdfTranslator,
        _translator =
            translator ??
            DocumentTranslator(
@@ -108,11 +107,10 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
 
   /// Translates PDFs (created on first use: [PdfTranslator.platform]).
   PdfTranslator? _pdfTranslator;
-  PdfTranslator get _pdf =>
-      _pdfTranslator ??= PdfTranslator.platform(
-        translator: _translator,
-        chunker: _chunker,
-      );
+  PdfTranslator get _pdf => _pdfTranslator ??= PdfTranslator.platform(
+    translator: _translator,
+    chunker: _chunker,
+  );
 
   /// App codes of the languages a PDF in "Detect language" is most likely
   /// in (recent source languages, the app's language): read with their
@@ -822,6 +820,8 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
     );
     if (fresh) next = _rendered(next.copyWith(translations: const []));
     emit(next);
+    // What earlier runs of this translation kept on the device.
+    final maskedBefore = fresh ? 0 : state.maskedPersonalData;
 
     final run = ++_run;
     final done = _runDone = Completer<void>();
@@ -845,6 +845,8 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
                   results: progress.results,
                   failures: {...kept, ...progress.failures},
                   translations: translations,
+                  maskedPersonalData:
+                      maskedBefore + progress.maskedPersonalData,
                 ),
               ),
             );
@@ -892,6 +894,403 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
   }
 
   // ---------------------------------------------------------------------
+  // PDF (lib/documents/pdf/)
+  // ---------------------------------------------------------------------
+
+  /// The text recognition data PDFs are read with, for the offer to get the
+  /// data of a language ([PdfSource.missingData]); null when there is none
+  /// to download.
+  // Read-only query; it changes nothing.
+  // ignore: prefer_void_public_cubit_methods
+  TextRecognitionLanguageData? get pdfLanguageData => _pdf.languageData;
+
+  /// Opens the PDF [bytes] and reads its first page for the preview.
+  Future<void> _loadPdf(
+    DocumentTranslateState base,
+    String name,
+    Uint8List bytes,
+  ) async {
+    final request = _loadRequest;
+    final start = base.copyWith(format: () => DocumentFormat.pdf);
+    final pdf = _pdf;
+    if (!pdf.isSupported) {
+      _file = null;
+      emit(start.copyWith(error: () => DocumentError.pdfNeedsApp));
+      return;
+    }
+    if (bytes.length > PdfLimits.maxBytes) {
+      _file = null;
+      emit(start.copyWith(error: () => DocumentError.tooLarge));
+      return;
+    }
+    emit(start.copyWith(status: DocumentStatus.loading));
+    final PdfInfo info;
+    try {
+      _pdfOpen = true;
+      info = await pdf.open(bytes);
+    } on Object catch (error) {
+      if (isClosed || request != _loadRequest) return;
+      _file = null;
+      emit(
+        start.copyWith(
+          status: DocumentStatus.empty,
+          error: () => switch (error) {
+            PdfOpenException(kind: PdfOpenErrorKind.encrypted) =>
+              DocumentError.encrypted,
+            PdfOpenException(kind: PdfOpenErrorKind.tooLarge) =>
+              DocumentError.tooLarge,
+            PdfOpenException(kind: PdfOpenErrorKind.unsupported) =>
+              DocumentError.pdfNeedsApp,
+            PdfOpenException() => DocumentError.damagedFile,
+            // The copy for the platform could not be written.
+            _ => DocumentError.readFailed,
+          },
+        ),
+      );
+      return;
+    }
+    // Closed or replaced meanwhile: whoever did it closes the PDF.
+    if (isClosed || request != _loadRequest) return;
+    final source = PdfSource(pageSizes: info.pageSizes);
+    final file = _FileInput(
+      name: name,
+      text: '',
+      format: DocumentFormat.pdf,
+      encoding: TextEncoding.utf8,
+      sizeBytes: bytes.length,
+      pdf: source,
+    );
+    _file = file;
+    _pdfOutput = null;
+    // Pasted text was opened meanwhile: the file waits in file mode.
+    if (state.mode != DocumentInputMode.file) return;
+    emit(_pdfState(start, file, source));
+    await _previewPdf();
+  }
+
+  /// [base] showing the PDF [source] (the file [file]).
+  DocumentTranslateState _pdfState(
+    DocumentTranslateState base,
+    _FileInput file,
+    PdfSource source,
+  ) => _withoutTranslation(base).copyWith(
+    status: DocumentStatus.ready,
+    fileName: () => file.name,
+    text: pdfText(source, const {}, translated: false),
+    encoding: TextEncoding.utf8,
+    sizeBytes: file.sizeBytes,
+    format: () => DocumentFormat.pdf,
+    document: () => null,
+    packagedDocument: () => null,
+    // A preview that was being read when the file was left is read again.
+    pdf: () => source.withoutTranslation().copyWith(previewing: false),
+    plan: () => null,
+    error: () => null,
+  );
+
+  /// Emits [source] as the PDF of [base] (default: the state), with its
+  /// original text, and remembers it for the file mode.
+  void _emitPdf(PdfSource source, [DocumentTranslateState? base]) {
+    if (isClosed) return;
+    final file = _file;
+    if (file != null && file.pdf != null) _file = file.withPdf(source);
+    emit(
+      (base ?? state).copyWith(
+        pdf: () => source,
+        text: pdfText(source, const {}, translated: false),
+      ),
+    );
+  }
+
+  /// Whether the PDF of load [request] is still the one shown.
+  bool _pdfCurrent(int request) =>
+      !isClosed && request == _loadRequest && state.pdf != null;
+
+  /// Reads the first page for the preview with the source language's
+  /// recognition data (again when that changed); missing data is offered
+  /// ([PdfSource.missingData]), never downloaded.
+  Future<void> _previewPdf() async {
+    final source = state.pdf;
+    if (source == null || state.isTranslating) return;
+    if (source.previewing) {
+      _previewAgain = true;
+      return;
+    }
+    final request = _loadRequest;
+    final pdf = _pdf;
+    if (!pdf.canRead) {
+      _emitPdf(
+        source.copyWith(issue: () => PdfReadIssue.recognitionUnavailable),
+      );
+      return;
+    }
+    _previewAgain = false;
+    _emitPdf(
+      source.copyWith(
+        previewing: true,
+        missingData: () => null,
+        issue: () => null,
+      ),
+    );
+    PdfReadIssue? issue;
+    OcrDataMissingException? missing;
+    PdfPageText? page;
+    try {
+      switch (await pdf.plan(state.source, preferred: _ocrPreferred)) {
+        case TextRecognitionNeedsData(missing: final data):
+          missing = data;
+        case TextRecognitionUnsupported():
+          issue = PdfReadIssue.languageUnsupported;
+        case TextRecognitionReady(:final codes):
+          final known = state.pdf?.firstPage;
+          page = known != null && known.readWith(codes)
+              ? known
+              : await pdf.read(0, source.pageSizes.first, codes);
+      }
+    } on OcrDataMissingException catch (error) {
+      missing = error;
+    } on Object {
+      issue = PdfReadIssue.readFailed;
+    }
+    if (!_pdfCurrent(request)) return;
+    final current = state.pdf!;
+    _emitPdf(
+      current.copyWith(
+        previewing: false,
+        missingData: () => missing,
+        issue: () => issue,
+        pages: page == null ? null : {...current.pages, 0: page},
+      ),
+    );
+    if (_previewAgain) await _previewPdf();
+  }
+
+  /// Text recognition data was installed for the PDF (the offer of
+  /// [PdfSource.missingData]): reads the preview again, and translates the
+  /// pages that stopped for want of it.
+  Future<void> pdfDataInstalled() async {
+    if (!state.isPdf) return;
+    final waiting = state.failures.values.any(
+      (error) => error is OcrDataMissingException,
+    );
+    await _previewPdf();
+    if (waiting && !isClosed && state.canTranslate) await retryFailed();
+  }
+
+  /// Translates the PDF page by page ([PdfTranslator.translate]).
+  Future<void> _startPdf({required bool fresh, List<int>? only}) async {
+    final source = state.pdf;
+    final engine = state.engine;
+    if (!state.canTranslate || source == null || engine == null) return;
+    final completed = fresh ? const <int, List<String>>{} : state.results;
+    final kept = fresh
+        ? const <int, Object>{}
+        : {
+            for (final entry in state.failures.entries)
+              if (only != null && !only.contains(entry.key))
+                entry.key: entry.value,
+          };
+    final partial = fresh
+        ? const <int, Map<int, List<String>>>{}
+        : source.partial;
+    // What earlier runs of this translation kept on the device.
+    final maskedBefore = fresh ? 0 : state.maskedPersonalData;
+    final run = ++_run;
+    final done = _runDone = Completer<void>();
+    final started = source.copyWith(
+      partial: partial,
+      missingData: () => null,
+      issue: () => null,
+    );
+    emit(
+      _rendered(
+        state.copyWith(
+          status: DocumentStatus.translating,
+          results: completed,
+          failures: kept,
+          pdf: () => started,
+          error: () => null,
+        ),
+      ),
+    );
+    TextRecognitionPlan plan;
+    try {
+      plan = await _pdf.plan(state.source, preferred: _ocrPreferred);
+    } on Object {
+      plan = const TextRecognitionUnsupported();
+    }
+    // Cancelled meanwhile: cancel() settled the state and the run.
+    if (isClosed || run != _run) return;
+    final codes = switch (plan) {
+      TextRecognitionReady(:final codes) => codes,
+      _ => null,
+    };
+    if (codes == null) {
+      _runDone = null;
+      emit(
+        state.copyWith(
+          status: state.hasTranslation
+              ? DocumentStatus.translated
+              : DocumentStatus.ready,
+          pdf: () => started.copyWith(
+            missingData: () => switch (plan) {
+              TextRecognitionNeedsData(:final missing) => missing,
+              _ => null,
+            },
+            issue: () => plan is TextRecognitionUnsupported
+                ? (_pdf.canRead
+                      ? PdfReadIssue.languageUnsupported
+                      : PdfReadIssue.recognitionUnavailable)
+                : null,
+          ),
+        ),
+      );
+      done.complete();
+      return;
+    }
+    _pdfSubscription = _pdf
+        .translate(
+          pageSizes: source.pageSizes,
+          codes: codes,
+          engine: engine,
+          source: state.source,
+          target: state.target,
+          options: state.options,
+          known: source.pages,
+          completed: completed,
+          partial: partial,
+          only: only,
+        )
+        .listen(
+          (progress) {
+            if (run != _run) return;
+            final missing = progress.failures.values
+                .whereType<OcrDataMissingException>()
+                .firstOrNull;
+            final pdf = state.pdf!.copyWith(
+              pages: progress.pages,
+              partial: progress.partial,
+              currentPage: () => progress.page,
+              stage: () => progress.stage,
+              missingData: missing == null ? null : () => missing,
+            );
+            _emitPdf(
+              pdf,
+              _rendered(
+                state.copyWith(
+                  results: progress.results,
+                  failures: {...kept, ...progress.failures},
+                  pdf: () => pdf,
+                  maskedPersonalData:
+                      maskedBefore + progress.maskedPersonalData,
+                ),
+              ),
+            );
+          },
+          // The translator reports failures as progress, never as errors.
+          onError: (Object _) {}, // coverage:ignore-line
+          onDone: () {
+            if (run == _run) {
+              _pdfSubscription = null;
+              final pdf = state.pdf!.copyWith(
+                currentPage: () => null,
+                stage: () => null,
+              );
+              // Every page read, none with text.
+              final noText =
+                  state.isComplete &&
+                  state.failures.isEmpty &&
+                  !state.hasTranslation;
+              emit(
+                state.copyWith(
+                  status: noText
+                      ? DocumentStatus.ready
+                      : DocumentStatus.translated,
+                  results: noText ? const {} : null,
+                  pdf: () => pdf,
+                  error: noText ? () => DocumentError.pdfNoText : null,
+                ),
+              );
+            }
+            if (!done.isCompleted) done.complete();
+          },
+        );
+    await done.future;
+  }
+
+  /// The translated PDF's bytes: written once for the current results.
+  Future<Uint8List> _pdfBytes() {
+    final cached = _pdfOutput;
+    if (cached != null && identical(cached.results, state.results)) {
+      return Future.value(cached.bytes);
+    }
+    return _pdfWriting ??= _writePdf().whenComplete(() => _pdfWriting = null);
+  }
+
+  Future<Uint8List> _writePdf() async {
+    final source = state.pdf!;
+    final results = state.results;
+    final target = state.target;
+    _emitPdf(source.copyWith(writing: true));
+    try {
+      final bytes = await _pdf.write(
+        pdfOutputPages(
+          source,
+          results,
+          direction: (text) => pdfTextDirection(target, text),
+        ),
+      );
+      _pdfOutput = (results: results, bytes: bytes);
+      return bytes;
+    } finally {
+      if (state.pdf case final pdf? when !isClosed) {
+        _emitPdf(pdf.copyWith(writing: false));
+      }
+    }
+  }
+
+  /// Saves the translated text of a PDF, page by page (each page starts
+  /// with [pageHeading] of its number, when given), as plain text
+  /// ([DocumentTranslateState.pdfTextFileName]).
+  Future<void> saveText({String Function(int number)? pageHeading}) async {
+    final source = state.pdf;
+    if (source == null || !state.hasTranslation) return;
+    try {
+      final saved = await _files.saveFile(
+        fileName: state.pdfTextFileName,
+        bytes: utf8.encode(
+          pdfText(source, state.results, heading: pageHeading),
+        ),
+        mimeType: DocumentFormat.plainText.mimeType,
+      );
+      if (saved) _notify(DocumentNotice.saved);
+    } on Object {
+      _notify(DocumentNotice.saveFailed);
+    }
+  }
+
+  /// Closes the PDF on the platform side, if one may be open.
+  void _closePdf() {
+    _pdfOutput = null;
+    if (!_pdfOpen) return;
+    _pdfOpen = false;
+    unawaited(_pdf.close().then((_) {}, onError: (Object _) {}));
+  }
+
+  @override
+  void onChange(Change<DocumentTranslateState> change) {
+    super.onChange(change);
+    // A PDF is read with its source language's recognition data: read the
+    // preview again when that changes.
+    final next = change.nextState;
+    if (next.isPdf &&
+        change.currentState.isPdf &&
+        change.currentState.source != next.source) {
+      scheduleMicrotask(() => unawaited(_previewPdf()));
+    }
+  }
+
+  // ---------------------------------------------------------------------
   // Export
   // ---------------------------------------------------------------------
 
@@ -910,7 +1309,7 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
 
   /// [outputBytes], rendered off the UI isolate for large packages.
   Future<Uint8List> _exportBytes() async {
-    if (state.isPdf) return _pdfBytes();
+    if (state.isPdf) return await _pdfBytes();
     final package = state.packagedDocument;
     if (package == null || state.sizeBytes < backgroundBytes) {
       return outputBytes;
@@ -1013,6 +1412,7 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
       translations: const [],
       output: '',
       pdf: base.pdf == null ? null : () => base.pdf!.withoutTranslation(),
+      maskedPersonalData: 0,
     );
   }
 

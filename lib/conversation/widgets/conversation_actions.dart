@@ -9,6 +9,7 @@ import 'package:mozhi/conversation/models/conversation_transcript.dart';
 import 'package:mozhi/conversation/share/view/conversation_share_page.dart';
 import 'package:mozhi/conversation/share/widgets/conversation_share_guard.dart';
 import 'package:mozhi/conversation/widgets/conversation_turn_bubble.dart';
+import 'package:mozhi/conversation/widgets/conversation_voice_options.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/platform/clipboard_service.dart';
 import 'package:share_plus/share_plus.dart';
@@ -77,13 +78,23 @@ class ConversationLayoutButton extends StatelessWidget {
   }
 }
 
-enum _MenuAction { autoSpeak, copy, share, clear, networkShare, transcribe }
+enum _MenuAction {
+  autoSpeak,
+  copy,
+  share,
+  clear,
+  voiceOptions,
+  networkShare,
+  transcribe,
+}
 
 /// Overflow menu: copy or share the transcript, clear the conversation,
-/// share it on the local network (with a `ConversationShareCubit` above:
-/// the Android app), open Transcribe (a rolling transcript of a talk;
-/// with a [GoRouter] above); with [showAutoSpeak] (narrow app bars) also
-/// the [ConversationAutoSpeakButton]'s toggle, as a checked item.
+/// the voice options of a hands-free conversation
+/// ([showConversationVoiceOptions]), share it on the local network (with
+/// a `ConversationShareCubit` above: the Android app), open Transcribe
+/// (a rolling transcript of a talk; with a [GoRouter] above); with
+/// [showAutoSpeak] (narrow app bars) also the
+/// [ConversationAutoSpeakButton]'s toggle, as a checked item.
 class ConversationMenuButton extends StatelessWidget {
   const new({
     this.share = shareConversationText,
@@ -175,6 +186,8 @@ class ConversationMenuButton extends StatelessWidget {
             unawaited(_share(context, state));
           case _MenuAction.clear:
             unawaited(_clear(context));
+          case _MenuAction.voiceOptions:
+            unawaited(showConversationVoiceOptions(context));
           case _MenuAction.networkShare:
             unawaited(openConversationShare(context));
           case _MenuAction.transcribe:
@@ -218,6 +231,17 @@ class ConversationMenuButton extends StatelessWidget {
             title: Text(l10n.conversationClear),
           ),
         ),
+        if (context.read<ConversationCubit>().state.handsFree) ...[
+          const PopupMenuDivider(),
+          PopupMenuItem(
+            key: const Key('conversation_menu_voice_options'),
+            value: _MenuAction.voiceOptions,
+            child: ListTile(
+              leading: const Icon(Icons.tune),
+              title: Text(l10n.conversationVoiceOptions),
+            ),
+          ),
+        ],
         if (maybeConversationShare(context) != null) ...[
           const PopupMenuDivider(),
           PopupMenuItem(

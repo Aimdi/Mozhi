@@ -23,6 +23,7 @@ import 'package:mozhi/platform/clipboard_service.dart';
 import 'package:mozhi/platform/device_conditions.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
+import 'package:mozhi/speech/widgets/spoken_range_builder.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/widgets/aligned_text.dart';
 import 'package:mozhi/translate/widgets/copy_action_button.dart';
@@ -50,6 +51,9 @@ import 'package:mozhi/translate/widgets/translate_more.dart';
 import 'package:mozhi/translate/widgets/translation_memory_card.dart'
     show MemoryResultBadge;
 import 'package:mozhi/translate/widgets/translation_notes.dart';
+import 'package:mozhi/word_lookup/view/word_lookup_sheet.dart'
+    show lookUpWordAt;
+import 'package:mozhi/word_lookup/widgets/word_tap_tracker.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -134,6 +138,18 @@ const translateOutputSpeechId = 'target';
 TextDirection? outputTextDirection(TranslateState state) =>
     textDirectionForLanguage(state.target) ??
     textDirectionForText(state.output);
+
+/// The other side of [state]'s translation, for the word card of a word of
+/// the translation: the source language, the detected one with "Detect
+/// language" (when the catalogue knows it); null for a custom language or
+/// while undetected.
+Language? wordLookupInto(TranslateState state) {
+  final source = state.source;
+  if (source.isCustom) return null;
+  if (!source.isAuto) return source;
+  final detected = state.result?.detectedSource?.trim() ?? '';
+  return detected.isEmpty ? null : LanguageCatalog.byCode(detected);
+}
 
 /// Whether the engine's languages could not be loaded (e.g. offline first
 /// has not loaded the lists of this server yet): the output shows the
@@ -259,6 +275,15 @@ bool outputIsStreaming(TranslateState state) =>
 /// pressed again it hides the check. The difference highlighted there
 /// (`TranslateState.focusedMeaningIssue`) is highlighted in the
 /// translation too, over the alignment and insights.
+///
+/// **Tap a word** (`AppSettings.tapToLookUp`): a tap on a word of a
+/// finished translation opens its word card ([lookUpWordAt]: the offline
+/// dictionaries first), while no other highlight mode (alignment,
+/// insights, a meaning check difference) is on; selecting, copying and
+/// the long press work as before ([WordTapTracker]). **The word being
+/// read** (`AppSettings.highlightSpokenWord`): while Listen reads the
+/// translation with a voice that reports its progress, the word it reads
+/// is highlighted ([SpokenRangeBuilder]; not while text is selected).
 class OutputCard extends StatefulWidget {
   const new({
     this.meaningButtonFocusNode,
@@ -873,7 +898,7 @@ class _OutputCardState extends State<OutputCard>
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _text(context, state),
+              _text(context, state, settings),
               if (insightsReady)
                 InsightChips(
                   insights: state.insights,
@@ -1050,7 +1075,11 @@ class _OutputCardState extends State<OutputCard>
   /// check difference, the alignment, insights, or the plain text (with the
   /// changed words of a refinement and the unsure sentences); in the
   /// "Translation" container, dimmed while out of date or being replaced.
-  Widget _text(BuildContext context, TranslateState state) {
+  Widget _text(
+    BuildContext context,
+    TranslateState state,
+    AppSettings settings,
+  ) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final output = state.output;
@@ -1115,7 +1144,30 @@ class _OutputCardState extends State<OutputCard>
             unawaited(showInsightSheet(context, insight, offset: offset)),
       );
     } else {
-      text = _plainText(context, state, style, direction, locale);
+      final tapToLookUp =
+          settings.tapToLookUp &&
+          !_showAlignment &&
+          !_showInsights &&
+          complete &&
+          !state.target.isCustom &&
+          !state.target.isAuto &&
+          output.trim().isNotEmpty;
+      text = SpokenRangeBuilder(
+        id: translateOutputSpeechId,
+        text: output,
+        enabled: settings.highlightSpokenWord,
+        builder: (context, spoken) => _plainText(
+          context,
+          state,
+          style,
+          direction,
+          locale,
+          spoken: spoken,
+          onWordTap: tapToLookUp
+              ? (offset) => unawaited(_lookUpWord(state, offset))
+              : null,
+        ),
+      );
     }
 
     // On the web the text is the container's value: the selectable text
@@ -1159,16 +1211,40 @@ class _OutputCardState extends State<OutputCard>
     );
   }
 
+  /// Whether a word card is being opened ([_lookUpWord]).
+  bool _lookingUpWord = false;
+
+  /// Opens the word card for the word of [state]'s translation at
+  /// [offset], unless one is being opened.
+  Future<void> _lookUpWord(TranslateState state, int offset) async {
+    if (_lookingUpWord) return;
+    _lookingUpWord = true;
+    try {
+      await lookUpWordAt(
+        context,
+        text: state.output,
+        offset: offset,
+        language: state.target,
+        into: wordLookupInto(state),
+      );
+    } finally {
+      _lookingUpWord = false;
+    }
+  }
+
   /// The plain translation ([_PlainOutputText]): the changed words of a
   /// refinement lit up (fading), the sentences the on-device engine is
-  /// unsure about with a dotted underline and a tooltip.
+  /// unsure about with a dotted underline and a tooltip, the [spoken] word
+  /// highlighted; a tap on a word calls [onWordTap] with its offset.
   Widget _plainText(
     BuildContext context,
     TranslateState state,
     TextStyle? style,
     TextDirection? direction,
-    Locale? locale,
-  ) {
+    Locale? locale, {
+    TextRange? spoken,
+    ValueChanged<int>? onWordTap,
+  }) {
     final output = state.output;
     final flash = _flashText == output ? _flash : const <TextRange>[];
     return _PlainOutputText(
@@ -1188,6 +1264,8 @@ class _OutputCardState extends State<OutputCard>
       ],
       contextMenuBuilder: (context, editable) =>
           _contextMenu(context, editable, state),
+      spoken: spoken,
+      onWordTap: onWordTap,
     );
   }
 
@@ -1648,7 +1726,11 @@ class _RefinementTag extends StatelessWidget {
 /// changed) with a background that fades with [flashStrength] (its
 /// strength from [strengthOf]), and the [uncertain] ranges (sentences the
 /// on-device engine is unsure about) with a dotted underline, a help
-/// cursor and a tooltip shown on hover or tap.
+/// cursor and a tooltip shown on hover or tap. The [spoken] range (the
+/// word Listen reads) is highlighted ([spokenWordStyle]); while text is
+/// selected it holds still, as a new highlight would clear the selection.
+/// With [onWordTap], a tap on the text reports where it placed the caret
+/// ([WordTapTracker]: not a double tap, a long press or a drag).
 class _PlainOutputText extends StatefulWidget {
   const new({
     required this.text,
@@ -1660,6 +1742,8 @@ class _PlainOutputText extends StatefulWidget {
     this.style,
     this.textDirection,
     this.locale,
+    this.spoken,
+    this.onWordTap,
   });
 
   final String text;
@@ -1671,6 +1755,8 @@ class _PlainOutputText extends StatefulWidget {
   final TextStyle? style;
   final TextDirection? textDirection;
   final Locale? locale;
+  final TextRange? spoken;
+  final ValueChanged<int>? onWordTap;
 
   @override
   State<_PlainOutputText> createState() => _PlainOutputTextState();
@@ -1682,10 +1768,40 @@ class _PlainOutputTextState extends State<_PlainOutputText> {
   late final TapGestureRecognizer _tap = TapGestureRecognizer()
     ..onTap = _showTooltip;
 
+  late final WordTapTracker _words = WordTapTracker(
+    onWordTap: (offset) {
+      if (mounted) widget.onWordTap?.call(offset);
+    },
+  );
+
+  /// The spoken range drawn last (held while text is selected).
+  TextRange? _shownSpoken;
+
+  @override
+  void didUpdateWidget(_PlainOutputText oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.text != oldWidget.text || widget.onWordTap == null) {
+      _words.cancel();
+    }
+  }
+
   @override
   void dispose() {
     _tap.dispose();
+    _words.dispose();
     super.dispose();
+  }
+
+  void _onTextTap() => _words.onTap(context);
+
+  /// The spoken range to draw: [_PlainOutputText.spoken], or the one drawn
+  /// last while text is selected.
+  TextRange? _spoken() {
+    final spoken = _words.hasSelection ? _shownSpoken : widget.spoken;
+    final text = widget.text;
+    return _shownSpoken = spoken != null && spoken.end <= text.length
+        ? spoken
+        : null;
   }
 
   void _showTooltip() => _tooltip.currentState?.ensureTooltipVisible();
@@ -1716,13 +1832,18 @@ class _PlainOutputTextState extends State<_PlainOutputText> {
     final text = widget.text;
     final flash = widget.flash;
     final uncertain = widget.uncertain;
-    if (flash.isEmpty && uncertain.isEmpty) {
+    final spoken = _spoken();
+    final onTap = widget.onWordTap == null ? null : _onTextTap;
+    if (flash.isEmpty && uncertain.isEmpty && spoken == null) {
       return SelectableText.rich(
         TextSpan(text: text, locale: widget.locale),
         key: const Key('translate_output_text'),
         style: widget.style,
         textDirection: widget.textDirection,
         contextMenuBuilder: widget.contextMenuBuilder,
+        focusNode: _words.focusNode,
+        onSelectionChanged: _words.onSelectionChanged,
+        onTap: onTap,
       );
     }
     final scheme = Theme.of(context).colorScheme;
@@ -1738,10 +1859,14 @@ class _PlainOutputTextState extends State<_PlainOutputText> {
       decorationColor: scheme.tertiary,
       decorationThickness: 2,
     );
+    final spokenStyle = spokenWordStyle(scheme);
     final cuts = {
       0,
       text.length,
-      for (final range in [...flash, ...uncertain]) ...[range.start, range.end],
+      for (final range in [...flash, ...uncertain, ?spoken]) ...[
+        range.start,
+        range.end,
+      ],
     }.where((offset) => offset >= 0 && offset <= text.length).toList()..sort();
     bool covers(List<TextRange> ranges, int start, int end) =>
         ranges.any((range) => range.start <= start && end <= range.end);
@@ -1755,8 +1880,11 @@ class _PlainOutputTextState extends State<_PlainOutputText> {
                 text.substring(cuts[i], cuts[i + 1]),
                 unsure: covers(uncertain, cuts[i], cuts[i + 1]),
                 flashed: strength > 0 && covers(flash, cuts[i], cuts[i + 1]),
+                spoken:
+                    spoken != null && covers([spoken], cuts[i], cuts[i + 1]),
                 unsureStyle: unsureStyle,
                 flashStyle: flashStyle,
+                spokenStyle: spokenStyle,
               ),
         ],
       ),
@@ -1764,6 +1892,9 @@ class _PlainOutputTextState extends State<_PlainOutputText> {
       style: widget.style,
       textDirection: widget.textDirection,
       contextMenuBuilder: widget.contextMenuBuilder,
+      focusNode: _words.focusNode,
+      onSelectionChanged: _words.onSelectionChanged,
+      onTap: onTap,
     );
   }
 
@@ -1771,11 +1902,14 @@ class _PlainOutputTextState extends State<_PlainOutputText> {
     String text, {
     required bool unsure,
     required bool flashed,
+    required bool spoken,
     required TextStyle unsureStyle,
     required TextStyle flashStyle,
+    required TextStyle spokenStyle,
   }) {
     var style = unsure ? unsureStyle : null;
     if (flashed) style = (style ?? const TextStyle()).merge(flashStyle);
+    if (spoken) style = (style ?? const TextStyle()).merge(spokenStyle);
     if (!unsure) return TextSpan(text: text, style: style);
     return TextSpan(
       text: text,

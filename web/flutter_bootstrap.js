@@ -14,15 +14,12 @@
 // scripts they read. See docs/building.md.
 const mozhiSelfHostedFonts = false;
 
-const mozhiServiceWorkerVersion = {{flutter_service_worker_version}};
-
+// No `serviceWorkerSettings`: Flutter's own service worker (deprecated; it
+// only removes itself) would take the place of Mozhi's app shell
+// (mozhi_sw.js, registered by the app: lib/platform/app_shell.dart), whose
+// registration replaces an old one of Flutter's.
 _flutter.loader.load({
   config: mozhiSelfHostedFonts
     ? { fontFallbackBaseUrl: new URL('fallback_fonts/', document.baseURI).href }
     : {},
-  // Flutter's service worker only removes itself (it is deprecated); kept
-  // so that installs which still have the old one get rid of it.
-  serviceWorkerSettings: mozhiServiceWorkerVersion
-    ? { serviceWorkerVersion: mozhiServiceWorkerVersion }
-    : undefined,
 });

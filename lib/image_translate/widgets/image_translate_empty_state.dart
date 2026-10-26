@@ -11,6 +11,7 @@ import 'package:mozhi/image_translate/models/models.dart';
 import 'package:mozhi/image_translate/widgets/image_translate_labels.dart';
 import 'package:mozhi/image_translate/widgets/image_translate_links.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/live_camera/live_camera_entry.dart';
 
 /// Shown before an image is picked: what the feature does, pick buttons and
 /// the available methods (or how to get one).
@@ -70,6 +71,17 @@ class ImageTranslateEmptyState extends StatelessWidget {
                         : null,
                     icon: const Icon(Icons.photo_camera_outlined),
                     label: Text(l10n.imageTranslateTakePhoto),
+                  ),
+                // Live camera (W7-A): the Android app only.
+                if (liveCameraOffered)
+                  Tooltip(
+                    message: l10n.liveCameraOpenHint,
+                    child: OutlinedButton.icon(
+                      key: const Key('image_translate_live_camera_button'),
+                      onPressed: () => unawaited(openLiveCamera(context)),
+                      icon: const Icon(Icons.center_focus_weak),
+                      label: Text(l10n.liveCameraOpen),
+                    ),
                   ),
               ],
             ),

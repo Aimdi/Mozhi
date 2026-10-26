@@ -15,11 +15,7 @@ import 'package:translation_repository/translation_repository.dart';
 /// written without spaces with the words of the installed dictionary of
 /// the text's language ([indexFor]).
 class WordLookupService {
-  WordLookupService({
-    this.repository,
-    this.offlineDictionary,
-    this.usageTracker,
-  });
+  new({this.repository, this.offlineDictionary, this.usageTracker});
 
   /// Sends the explicit look-ups ([lookUpOnline]); null: offline only.
   final TranslationRepository? repository;
@@ -52,9 +48,18 @@ class WordLookupService {
     return installed.any((pack) => dictionaryLanguageMatches(pack, code));
   }
 
+  /// An elided article or pronoun before an apostrophe (French `l’homme`,
+  /// Italian `dell’anno`, ...) and the word after it.
+  static final _elision = RegExp(
+    r"^\p{L}{1,4}['’ʼ](\p{L}{2,})$",
+    unicode: true,
+  );
+
   /// The installed dictionaries' entry for [word] in [language], with
   /// translations into [into] when they have them; null when they don't
-  /// have it (or there are none). Throws what the dictionary throws.
+  /// have it (or there are none). A word after an elided article or
+  /// pronoun (`l’homme`) is looked up without it when the dictionaries
+  /// don't have the whole. Throws what the dictionary throws.
   Future<OfflineDictionaryAnswer?> lookUpOffline(
     String word, {
     required Language language,
@@ -62,11 +67,15 @@ class WordLookupService {
   }) async {
     final offline = offlineDictionary;
     if (offline == null || word.trim().isEmpty) return null;
-    return offline.lookUp(
-      word,
+    Future<OfflineDictionaryAnswer?> find(String text) => offline.lookUp(
+      text,
       language: dictionaryCode(language),
       target: into == null ? null : dictionaryCode(into),
     );
+    final answer = await find(word);
+    if (answer != null) return answer;
+    final elided = _elision.firstMatch(word.trim())?.group(1);
+    return elided == null ? null : await find(elided);
   }
 
   /// [engine]'s dictionary entry for [word] (in [language]), with
@@ -115,13 +124,17 @@ class WordLookupService {
     int offset, {
     required Language language,
   }) async {
-    final clusters = WordSegmenter.wordAt(text, offset);
-    if (clusters == null ||
-        !WordSegmenter.writtenWithoutSpaces(clusters.text) ||
+    final plain = WordSegmenter.wordAt(text, offset);
+    if (plain == null ||
+        !WordSegmenter.writtenWithoutSpaces(plain.text) ||
         !await hasDictionaryFor(language)) {
-      return clusters;
+      return plain;
     }
-    return WordSegmenter.lookUpWordAt(text, offset, index: indexFor(language));
+    return await WordSegmenter.lookUpWordAt(
+      text,
+      offset,
+      index: indexFor(language),
+    );
   }
 
   void _recordUsage(
@@ -163,7 +176,7 @@ class WordLookupService {
 
 /// The words of the installed dictionaries of [_language] (null: all).
 class _DictionaryWordIndex implements WordIndex {
-  _DictionaryWordIndex(this._dictionary, this._language);
+  new(this._dictionary, this._language);
 
   final OfflineDictionary _dictionary;
   final String? _language;

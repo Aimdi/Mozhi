@@ -7,10 +7,15 @@ import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/documents/core/core.dart';
 import 'package:mozhi/documents/cubit/document_translate_cubit.dart';
 import 'package:mozhi/documents/data/document_file_service.dart';
+import 'package:mozhi/documents/pdf/pdf_translator.dart';
 import 'package:mozhi/documents/widgets/widgets.dart';
+import 'package:mozhi/image_translate/view/image_translate_page.dart'
+    show ocrPreferredLanguages;
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/platform/clipboard_service.dart'
     show systemShowsCopyConfirmation;
+import 'package:mozhi/settings/cubit/settings_cubit.dart';
+import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/usage/usage.dart';
 import 'package:translation_repository/translation_repository.dart';
@@ -28,6 +33,7 @@ class DocumentTranslatePage extends StatelessWidget {
     this.initialText,
     this.fileService,
     this.translator,
+    this.pdfTranslator,
     super.key,
   });
 
@@ -43,11 +49,18 @@ class DocumentTranslatePage extends StatelessWidget {
   final DocumentFileService? fileService;
   final DocumentTranslator? translator;
 
+  /// Reads, translates and writes PDFs (default: the platform's, created
+  /// when a PDF is opened).
+  final PdfTranslator? pdfTranslator;
+
   @override
   Widget build(BuildContext context) {
+    // Read here: the create callback must not depend on inherited widgets.
+    final locale = Localizations.maybeLocaleOf(context);
     return BlocProvider(
       create: (context) {
         final translate = context.read<TranslateCubit>().state;
+        final settings = _settings(context);
         final cubit = DocumentTranslateCubit(
           repository: context.read<TranslationRepository>(),
           files: fileService ?? const PlatformDocumentFileService(),
@@ -60,6 +73,12 @@ class DocumentTranslatePage extends StatelessWidget {
           target: translate.target,
           options: translate.options,
           usageTracker: _usageTracker(context),
+          pdfTranslator: pdfTranslator,
+          // A PDF in "Detect language" is read with these languages' text
+          // recognition data first, as photos are.
+          ocrPreferred: settings == null
+              ? const []
+              : ocrPreferredLanguages(settings, locale),
         );
         if (initialFile case final file?) {
           cubit.loadFile(file.name, file.bytes);
@@ -245,6 +264,15 @@ class _WideLayout extends StatelessWidget {
         ),
       ],
     );
+  }
+}
+
+/// The app settings, or null when none are provided (e.g. in tests).
+AppSettings? _settings(BuildContext context) {
+  try {
+    return context.read<SettingsCubit>().state;
+  } on ProviderNotFoundException {
+    return null;
   }
 }
 

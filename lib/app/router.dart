@@ -31,6 +31,11 @@ import 'package:mozhi/image_translate/view/image_translate_page.dart'
     deferred as image_page;
 import 'package:mozhi/image_translate/view/image_translate_page.dart'
     show ImageTranslatePage;
+import 'package:mozhi/live_camera/live_camera_entry.dart';
+import 'package:mozhi/live_camera/view/live_camera_page.dart'
+    deferred as live_camera_page;
+import 'package:mozhi/live_captions/view/live_captions_page.dart'
+    deferred as live_captions_page;
 import 'package:mozhi/offline/view/offline_models_page.dart'
     deferred as offline_page;
 import 'package:mozhi/on_device_ai/view/on_device_ai_page.dart'
@@ -154,8 +159,17 @@ abstract final class AppRoutes {
   static const documents = '/documents';
   static const web = '/web';
 
+  /// The live camera (Android), above the image screen, which opens it
+  /// with [LiveCameraLaunch.open] as `extra`; without it (a link) the
+  /// image screen shows instead.
+  static const String liveCamera = LiveCameraRoutes.location;
+
   /// Transcribe (a rolling transcript of a talk), above the tabs.
   static const transcribe = '/transcribe';
+
+  /// Live captions of other apps' sound (Android 10+), opened from
+  /// Transcribe ("Caption other apps").
+  static const liveCaptions = '/transcribe/captions';
 
   /// The phrasebook (collections of phrases), above the tabs;
   /// `?collection=<id>` opens one.
@@ -263,7 +277,9 @@ abstract final class DeferredFeatures {
     ]),
   );
   static final web = DeferredLibrary(web_page.loadLibrary);
+  static final liveCamera = DeferredLibrary(live_camera_page.loadLibrary);
   static final transcribe = DeferredLibrary(transcribe_page.loadLibrary);
+  static final liveCaptions = DeferredLibrary(live_captions_page.loadLibrary);
   static final phrasebook = DeferredLibrary(phrasebook_page.loadLibrary);
   static final practice = DeferredLibrary(practice_page.loadLibrary);
   static final pairing = DeferredLibrary(pairing_page.loadLibrary);
@@ -302,9 +318,11 @@ abstract final class DeferredFeatures {
   static List<DeferredLibrary> get all => [
     onboarding,
     image,
+    liveCamera,
     documents,
     web,
     transcribe,
+    liveCaptions,
     phrasebook,
     practice,
     pairing,
@@ -499,6 +517,18 @@ GoRouter createAppRouter({
           ),
         );
       }),
+      // Only the image screen opens the live camera: a link never turns
+      // the camera on by itself.
+      GoRoute(
+        path: AppRoutes.liveCamera,
+        parentNavigatorKey: rootKey,
+        redirect: (context, state) =>
+            state.extra == LiveCameraLaunch.open ? null : AppRoutes.image,
+        builder: (context, state) => DeferredPage(
+          library: DeferredFeatures.liveCamera,
+          builder: (context) => live_camera_page.LiveCameraPage(),
+        ),
+      ),
       fullScreenDeferred(AppRoutes.documents, DeferredFeatures.documents, (
         context,
         state,
@@ -536,6 +566,11 @@ GoRouter createAppRouter({
         AppRoutes.transcribe,
         DeferredFeatures.transcribe,
         (context, state) => transcribe_page.TranscribePage(),
+      ),
+      fullScreenDeferred(
+        AppRoutes.liveCaptions,
+        DeferredFeatures.liveCaptions,
+        (context, state) => live_captions_page.LiveCaptionsPage(),
       ),
       fullScreenDeferred(
         AppRoutes.phrasebook,

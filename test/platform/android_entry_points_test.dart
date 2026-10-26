@@ -174,7 +174,8 @@ void main() {
   });
 
   group('the share sheet', () {
-    test('takes text, images, text documents, office files and e-books', () {
+    test('takes text, images, text documents, office files, e-books and '
+        'PDFs', () {
       final share = _component(manifest, 'activity', '.ShareReceiverActivity');
       expect(share.attributes['exported'], 'true');
       expect(share.attributes['theme'], '@style/TransparentTheme');
@@ -189,6 +190,11 @@ void main() {
           for (final format in DocumentFormat.values)
             if (format.isBinary) format.mimeType,
         ]),
+      );
+      // A shared PDF without a name still opens as one.
+      expect(
+        _read('$_kotlin/ShareReceiverActivity.kt'),
+        contains('"application/pdf" -> "pdf"'),
       );
     });
 

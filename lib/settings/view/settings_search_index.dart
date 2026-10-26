@@ -383,6 +383,18 @@ List<SettingsSearchEntry> settingsSearchIndex(
       l10n.settingsShowTransliteration,
       subtitle: l10n.settingsShowTransliterationSubtitle,
     ),
+    entry(
+      appearance,
+      AppearanceAnchors.tapToLookUp,
+      l10n.settingsTapToLookUp,
+      subtitle: l10n.settingsTapToLookUpSubtitle,
+    ),
+    entry(
+      appearance,
+      AppearanceAnchors.highlightSpokenWord,
+      l10n.settingsHighlightSpokenWord,
+      subtitle: l10n.settingsHighlightSpokenWordSubtitle,
+    ),
     if (!dynamicColor || !settings.dynamicColor)
       entry(
         appearance,

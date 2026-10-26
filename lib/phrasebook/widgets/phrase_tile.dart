@@ -1,11 +1,14 @@
 import 'dart:async';
 
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/phrasebook/models/phrase.dart';
 import 'package:mozhi/phrasebook/widgets/phrasebook_labels.dart';
+import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/view/widgets/search_highlight.dart';
+import 'package:mozhi/speech/widgets/spoken_range_builder.dart';
 import 'package:mozhi/translate/widgets/copy_action_button.dart';
 import 'package:mozhi/translate/widgets/listen_button.dart';
 import 'package:mozhi/translate/widgets/output_card.dart' show copyToClipboard;
@@ -42,7 +45,9 @@ String phraseShareText(Phrase phrase) =>
 /// note ([onEditNote]), Copy to / Move to another collection ([onCopyTo],
 /// [onMoveTo]) and Remove ([onRemove], [removeLabel]); the entries without
 /// a callback are left out (a starter phrasebook is read-only). Matches
-/// of [query] are highlighted.
+/// of [query] are highlighted; while Listen reads the phrase or the
+/// translation, the word being read is (`AppSettings.highlightSpokenWord`,
+/// [SpokenRangeBuilder]).
 class PhraseTile extends StatelessWidget {
   const new({
     required this.phrase,
@@ -64,6 +69,21 @@ class PhraseTile extends StatelessWidget {
 
   /// The label of [onRemove] ("Remove from collection" by default).
   final String? removeLabel;
+
+  /// The `SpeechService` clip ids of the phrase and its translation.
+  String get _sourceSpeechId => 'phrasebook:${phrase.id}:source';
+  String get _targetSpeechId => 'phrasebook:${phrase.id}:target';
+
+  /// `AppSettings.highlightSpokenWord`, on without settings above.
+  static bool _highlightSpokenWord(BuildContext context) {
+    try {
+      return context.select<SettingsCubit, bool>(
+        (cubit) => cubit.state.highlightSpokenWord,
+      );
+    } on ProviderNotFoundException {
+      return true;
+    }
+  }
 
   Future<void> _share(BuildContext anchor) {
     final box = anchor.findRenderObject() as RenderBox?;
@@ -101,15 +121,35 @@ class PhraseTile extends StatelessWidget {
         ? null
         : phrase.targetCode;
 
-    Widget text(String value, String code, TextStyle? style) => Text.rich(
-      highlightedSpan(
-        value,
-        query,
-        highlight: highlight,
-        locale: phrasebookLocale(code),
+    final highlightSpoken = _highlightSpokenWord(context);
+    final spokenStyle = spokenWordStyle(colors);
+
+    Widget text(
+      String value,
+      String code,
+      TextStyle? style, {
+      required String speechId,
+    }) => SpokenRangeBuilder(
+      id: speechId,
+      text: value,
+      enabled: highlightSpoken,
+      builder: (context, spoken) => Text.rich(
+        spoken != null
+            ? spokenTextSpan(
+                value,
+                spoken,
+                highlight: spokenStyle,
+                locale: phrasebookLocale(code),
+              )
+            : highlightedSpan(
+                value,
+                query,
+                highlight: highlight,
+                locale: phrasebookLocale(code),
+              ),
+        style: style,
+        textDirection: phrasebookTextDirection(code, value),
       ),
-      style: style,
-      textDirection: phrasebookTextDirection(code, value),
     );
 
     final menu = PopupMenuButton<_PhraseAction>(
@@ -172,6 +212,7 @@ class PhraseTile extends StatelessWidget {
                   phrase.text,
                   phrase.sourceCode,
                   theme.textTheme.bodyLarge?.copyWith(color: colors.onSurface),
+                  speechId: _sourceSpeechId,
                 ),
                 text(
                   phrase.translation,
@@ -180,6 +221,7 @@ class PhraseTile extends StatelessWidget {
                     color: colors.primary,
                     fontWeight: FontWeight.w600,
                   ),
+                  speechId: _targetSpeechId,
                 ),
                 if (phrase.pronunciation.isNotEmpty)
                   Semantics(
@@ -230,14 +272,14 @@ class PhraseTile extends StatelessWidget {
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             ListenButton(
-              id: 'phrasebook:${phrase.id}:source',
+              id: _sourceSpeechId,
               text: phrase.text,
               languageCode: source,
               tooltip: l10n.phrasebookListenPhrase,
               quiet: true,
             ),
             ListenButton(
-              id: 'phrasebook:${phrase.id}:target',
+              id: _targetSpeechId,
               text: phrase.translation,
               languageCode: target,
               tooltip: l10n.phrasebookListenTranslation,

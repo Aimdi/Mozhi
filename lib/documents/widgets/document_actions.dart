@@ -24,7 +24,8 @@ class DocumentActions extends StatelessWidget {
     final cubit = context.read<DocumentTranslateCubit>();
     final state = context.watch<DocumentTranslateCubit>().state;
     if (!state.hasTranslation) return const SizedBox.shrink();
-    final enabled = !state.isTranslating;
+    final writing = state.pdf?.writing ?? false;
+    final enabled = !state.isTranslating && !writing;
     final palette = AppPalette.of(context);
 
     return Column(
@@ -61,6 +62,18 @@ class DocumentActions extends StatelessWidget {
                   label: Text(l10n.documentsShareFile),
                 ),
               ),
+            // A PDF's translation as plain text, page by page.
+            if (state.isPdf)
+              OutlinedButton.icon(
+                key: const Key('documents_save_text'),
+                onPressed: enabled
+                    ? () => unawaited(
+                        cubit.saveText(pageHeading: l10n.documentsPdfPageLabel),
+                      )
+                    : null,
+                icon: const Icon(Icons.text_snippet_outlined),
+                label: Text(l10n.documentsPdfSaveText),
+              ),
             OutlinedButton.icon(
               key: const Key('documents_copy'),
               onPressed: enabled ? () => unawaited(cubit.copy()) : null,
@@ -69,6 +82,26 @@ class DocumentActions extends StatelessWidget {
             ),
           ],
         ),
+        if (writing)
+          Semantics(
+            key: const Key('documents_pdf_writing'),
+            liveRegion: true,
+            child: Row(
+              spacing: 12,
+              children: [
+                const SizedBox.square(
+                  dimension: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                Expanded(
+                  child: Text(
+                    l10n.documentsPdfWriting,
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                ),
+              ],
+            ),
+          ),
         Text(
           l10n.documentsOutputName(state.outputFileName),
           key: const Key('documents_output_name'),
@@ -76,9 +109,19 @@ class DocumentActions extends StatelessWidget {
             color: palette.secondaryText,
           ),
         ),
+        if (state.isPdf)
+          Text(
+            l10n.documentsPdfTextFileName(state.pdfTextFileName),
+            key: const Key('documents_pdf_text_name'),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: palette.secondaryText,
+            ),
+          ),
         if (!state.isComplete && !state.isTranslating)
           Text(
-            l10n.documentsPartialWarning,
+            state.isPdf
+                ? l10n.documentsPdfPartialWarning
+                : l10n.documentsPartialWarning,
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.error,
             ),

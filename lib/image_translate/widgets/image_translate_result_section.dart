@@ -13,6 +13,7 @@ import 'package:mozhi/image_translate/widgets/image_translate_links.dart';
 import 'package:mozhi/image_translate/widgets/overlay_export.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
+import 'package:mozhi/translate/widgets/personal_data_kept_note.dart';
 import 'package:mozhi/translate/widgets/translate_layout.dart'
     show TranslateLayout;
 import 'package:share_plus/share_plus.dart';
@@ -83,6 +84,13 @@ class ImageTranslateResultSection extends StatelessWidget {
             text: result.notes,
           ),
         ],
+        // Personal data the shield kept on the device, like the translate
+        // screen's note.
+        if (result.isComplete && !state.isWorking)
+          PersonalDataKeptNote(
+            key: const Key('image_translate_personal_data_kept'),
+            count: result.maskedPersonalData,
+          ),
         if (result.destination case final destination?
             when result.isComplete && !state.isWorking)
           Align(

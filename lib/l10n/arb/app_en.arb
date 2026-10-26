@@ -13403,5 +13403,265 @@
         "type": "String"
       }
     }
+  },
+  "documentsPdfPageNoText": "No text was found on this page: it is kept as it is.",
+  "@documentsPdfPageNoText": {
+    "description": "documentsPdfPageNoText"
+  },
+  "liveCameraOpen": "Live camera",
+  "@liveCameraOpen": {
+    "description": "liveCameraOpen"
+  },
+  "liveCameraOpenHint": "Point the camera at text and see it translated as you go",
+  "@liveCameraOpenHint": {
+    "description": "liveCameraOpenHint"
+  },
+  "liveCameraTitle": "Live camera",
+  "@liveCameraTitle": {
+    "description": "liveCameraTitle"
+  },
+  "liveCameraTorchOn": "Turn on the flashlight",
+  "@liveCameraTorchOn": {
+    "description": "liveCameraTorchOn"
+  },
+  "liveCameraTorchOff": "Turn off the flashlight",
+  "@liveCameraTorchOff": {
+    "description": "liveCameraTorchOff"
+  },
+  "liveCameraFreeze": "Freeze",
+  "@liveCameraFreeze": {
+    "description": "liveCameraFreeze"
+  },
+  "liveCameraFreezeHint": "Take a photo and translate it on the image screen",
+  "@liveCameraFreezeHint": {
+    "description": "liveCameraFreezeHint"
+  },
+  "liveCameraZoom": "Zoom {ratio}×",
+  "@liveCameraZoom": {
+    "placeholders": {
+      "ratio": {
+        "type": "String"
+      }
+    }
+  },
+  "liveCameraZoomHint": "Change the zoom",
+  "@liveCameraZoomHint": {
+    "description": "liveCameraZoomHint"
+  },
+  "liveCameraStatusStarting": "Starting the camera…",
+  "@liveCameraStatusStarting": {
+    "description": "liveCameraStatusStarting"
+  },
+  "liveCameraStatusLive": "Translating live with {engine}",
+  "@liveCameraStatusLive": {
+    "placeholders": {
+      "engine": {
+        "type": "String"
+      }
+    }
+  },
+  "liveCameraStatusSlowHeat": "Reading less often while the phone is hot",
+  "@liveCameraStatusSlowHeat": {
+    "description": "liveCameraStatusSlowHeat"
+  },
+  "liveCameraStatusSlowBattery": "Reading less often to save battery",
+  "@liveCameraStatusSlowBattery": {
+    "description": "liveCameraStatusSlowBattery"
+  },
+  "liveCameraStatusPausedHeat": "Paused: the phone is too hot. Live translation goes on when it has cooled down",
+  "@liveCameraStatusPausedHeat": {
+    "description": "liveCameraStatusPausedHeat"
+  },
+  "liveCameraStatusPausedLocked": "Paused while Mozhi is locked",
+  "@liveCameraStatusPausedLocked": {
+    "description": "liveCameraStatusPausedLocked"
+  },
+  "liveCameraStatusPaused": "Paused",
+  "@liveCameraStatusPaused": {
+    "description": "liveCameraStatusPaused"
+  },
+  "liveCameraStatusFreezing": "Taking the photo…",
+  "@liveCameraStatusFreezing": {
+    "description": "liveCameraStatusFreezing"
+  },
+  "liveCameraHint": "Point the camera at some text",
+  "@liveCameraHint": {
+    "description": "liveCameraHint"
+  },
+  "liveCameraPermissionTitle": "Allow the camera",
+  "@liveCameraPermissionTitle": {
+    "description": "liveCameraPermissionTitle"
+  },
+  "liveCameraPermissionBody": "Live camera reads the text the camera sees, here on your phone. The pictures stay in memory: they are never saved or sent anywhere.",
+  "@liveCameraPermissionBody": {
+    "description": "liveCameraPermissionBody"
+  },
+  "liveCameraPermissionAllow": "Allow camera",
+  "@liveCameraPermissionAllow": {
+    "description": "liveCameraPermissionAllow"
+  },
+  "liveCameraPermissionDenied": "Mozhi can’t use the camera without your permission.",
+  "@liveCameraPermissionDenied": {
+    "description": "liveCameraPermissionDenied"
+  },
+  "liveCameraBlockedBody": "Camera access is off for Mozhi. Turn it on in Android’s settings, under Permissions > Camera.",
+  "@liveCameraBlockedBody": {
+    "description": "liveCameraBlockedBody"
+  },
+  "liveCameraOpenSettings": "Open settings",
+  "@liveCameraOpenSettings": {
+    "description": "liveCameraOpenSettings"
+  },
+  "liveCameraUnsupportedTitle": "Live camera needs the Android app",
+  "@liveCameraUnsupportedTitle": {
+    "description": "liveCameraUnsupportedTitle"
+  },
+  "liveCameraUnsupported": "Live camera works in the Android app, on a phone or tablet with a camera.",
+  "@liveCameraUnsupported": {
+    "description": "liveCameraUnsupported"
+  },
+  "liveCameraErrorInUse": "Another app is using the camera. Close it and try again.",
+  "@liveCameraErrorInUse": {
+    "description": "liveCameraErrorInUse"
+  },
+  "liveCameraErrorDisabled": "The camera is turned off on this device.",
+  "@liveCameraErrorDisabled": {
+    "description": "liveCameraErrorDisabled"
+  },
+  "liveCameraErrorNoCamera": "This device has no camera Mozhi can use.",
+  "@liveCameraErrorNoCamera": {
+    "description": "liveCameraErrorNoCamera"
+  },
+  "liveCameraErrorFailed": "The camera stopped working.",
+  "@liveCameraErrorFailed": {
+    "description": "liveCameraErrorFailed"
+  },
+  "liveCameraErrorStalled": "The camera stopped sending pictures.",
+  "@liveCameraErrorStalled": {
+    "description": "liveCameraErrorStalled"
+  },
+  "liveCameraOcrUnsupported": "Text in {language} can’t be read on this device yet. Choose the language of the text.",
+  "@liveCameraOcrUnsupported": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "liveCameraRecognitionFailed": "Text recognition isn’t working right now. Try another language, or freeze the picture.",
+  "@liveCameraRecognitionFailed": {
+    "description": "liveCameraRecognitionFailed"
+  },
+  "liveCameraFreezeFailed": "Couldn’t take the photo. Try again.",
+  "@liveCameraFreezeFailed": {
+    "description": "liveCameraFreezeFailed"
+  },
+  "liveCameraTranslationError": "Couldn’t translate: {message}",
+  "@liveCameraTranslationError": {
+    "placeholders": {
+      "message": {
+        "type": "String"
+      }
+    }
+  },
+  "liveCameraChooseEngine": "Choose engine",
+  "@liveCameraChooseEngine": {
+    "description": "liveCameraChooseEngine"
+  },
+  "liveCameraEngineChip": "Translate live with {engine}. Change the engine",
+  "@liveCameraEngineChip": {
+    "placeholders": {
+      "engine": {
+        "type": "String"
+      }
+    }
+  },
+  "liveCameraBlockHint": "Original: {text}",
+  "@liveCameraBlockHint": {
+    "placeholders": {
+      "text": {
+        "type": "String"
+      }
+    }
+  },
+  "liveEnginePickerTitle": "Translate live with",
+  "@liveEnginePickerTitle": {
+    "description": "liveEnginePickerTitle"
+  },
+  "liveEnginePickerBody": "Live translation translates what it reads as it goes, many times a minute. On-device engines keep all of it on this phone.",
+  "@liveEnginePickerBody": {
+    "description": "liveEnginePickerBody"
+  },
+  "liveEngineOffline": "On this device · Recommended",
+  "@liveEngineOffline": {
+    "description": "liveEngineOffline"
+  },
+  "liveEngineOnDevice": "On this device",
+  "@liveEngineOnDevice": {
+    "description": "liveEngineOnDevice"
+  },
+  "liveEngineNetwork": "Sends the text off this device",
+  "@liveEngineNetwork": {
+    "description": "liveEngineNetwork"
+  },
+  "liveEngineConfirmTitle": "Translate live with {engine}?",
+  "@liveEngineConfirmTitle": {
+    "placeholders": {
+      "engine": {
+        "type": "String"
+      }
+    }
+  },
+  "liveEngineConfirmBody": "{engine} will get the text of everything live translation reads, as it comes in, until you choose another engine. On-device engines keep it on this phone.",
+  "@liveEngineConfirmBody": {
+    "placeholders": {
+      "engine": {
+        "type": "String"
+      }
+    }
+  },
+  "liveEngineConfirmAction": "Use {engine}",
+  "@liveEngineConfirmAction": {
+    "placeholders": {
+      "engine": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsOfflineAppShell": "Keep the web app for offline use",
+  "@settingsOfflineAppShell": {
+    "description": "settingsOfflineAppShell"
+  },
+  "settingsOfflineAppShellReady": "Opens in this browser without a network, with the offline languages you downloaded",
+  "@settingsOfflineAppShellReady": {
+    "description": "settingsOfflineAppShellReady"
+  },
+  "settingsOfflineAppShellInstalling": "Saving the app in this browser…",
+  "@settingsOfflineAppShellInstalling": {
+    "description": "settingsOfflineAppShellInstalling"
+  },
+  "settingsOfflineAppShellUnavailable": "This browser can’t keep the app: it needs an https site and a browser that allows it",
+  "@settingsOfflineAppShellUnavailable": {
+    "description": "settingsOfflineAppShellUnavailable"
+  },
+  "settingsOfflineAppShellOff": "The app needs a network to open",
+  "@settingsOfflineAppShellOff": {
+    "description": "settingsOfflineAppShellOff"
+  },
+  "settingsOfflineAppShellUpdate": "A new version is ready. Reload to use it.",
+  "@settingsOfflineAppShellUpdate": {
+    "description": "settingsOfflineAppShellUpdate"
+  },
+  "settingsOfflineAppShellKeywords": "offline, no network, service worker, cache, install, web app",
+  "@settingsOfflineAppShellKeywords": {
+    "description": "settingsOfflineAppShellKeywords"
+  },
+  "appShellUpdateReady": "Update ready",
+  "@appShellUpdateReady": {
+    "description": "appShellUpdateReady"
+  },
+  "appShellReload": "Reload",
+  "@appShellReload": {
+    "description": "appShellReload"
   }
 }

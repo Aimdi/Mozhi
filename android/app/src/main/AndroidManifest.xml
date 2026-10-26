@@ -159,7 +159,8 @@
              An invisible window (ShareReceiverActivity.kt) that copies a
              shared file into the app's cache and opens MainActivity at the
              image screen (image/*) or the document translator (subtitles,
-             text, Markdown, JSON; text/* includes text/vtt), or hands shared
+             text, Markdown, JSON, office files, e-books and PDFs; text/*
+             includes text/vtt), or hands shared
              text on as before. Only content:// files of other apps are
              read. Nothing is translated or sent because of a share. -->
         <activity
@@ -184,6 +185,8 @@
                 <data android:mimeType="application/vnd.oasis.opendocument.presentation"/>
                 <data android:mimeType="application/vnd.oasis.opendocument.spreadsheet"/>
                 <data android:mimeType="application/epub+zip"/>
+                <!-- PDF documents (Documents, W7-B). -->
+                <data android:mimeType="application/pdf"/>
             </intent-filter>
         </activity>
         <!-- "Translate clipboard" entry point (MainActivity action

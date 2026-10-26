@@ -274,6 +274,33 @@ void main() {
       expect(retranslate.onPressed, isNull);
     });
 
+    testWidgets('says what the personal data shield kept on the device', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        successState(
+          result: const ImageTranslation(
+            sourceText: 'Mail jane@x.org',
+            translatedText: 'Schreib jane@x.org',
+            maskedPersonalData: 1,
+          ),
+        ),
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('image_translate_personal_data_kept')),
+          matching: find.text('1 item kept on this device'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('shows no personal data note without one', (tester) async {
+      await pump(tester, successState());
+      expect(find.textContaining('kept on this device'), findsNothing);
+    });
+
     testWidgets('shows the translation as body text, not a heading', (
       tester,
     ) async {

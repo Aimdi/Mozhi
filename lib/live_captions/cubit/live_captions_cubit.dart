@@ -386,11 +386,8 @@ class LiveCaptionsCubit extends Cubit<LiveCaptionsState> {
 
   /// After a notice: the last caption again, or "Listening…".
   void _restoreBar() {
-    final last = state.entries.lastWhere(
-      (entry) => entry.isTranslated,
-      orElse: () => const TranscriptEntry(id: -1, start: .zero, end: .zero),
-    );
-    if (last.id < 0) {
+    final last = state.entries.where((entry) => entry.isTranslated).lastOrNull;
+    if (last == null) {
       _showNotice(LiveCaptionsBarText.listening);
     } else {
       _showCaption(last.id, force: true);

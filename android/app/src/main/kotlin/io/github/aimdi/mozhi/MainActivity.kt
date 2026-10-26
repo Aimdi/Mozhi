@@ -276,6 +276,8 @@ open class MainActivity : FlutterActivity() {
         flutterEngine.plugins.add(LiveCaptionsPlugin())
         // Live camera: Camera2 preview, frames and stills (LiveCameraPlugin.kt).
         flutterEngine.plugins.add(LiveCameraPlugin())
+        // PDF documents: pages rendered and the translation written (PdfPagesPlugin.kt).
+        flutterEngine.plugins.add(PdfPagesPlugin())
 
         EventChannel(messenger, EVENT_CHANNEL).setStreamHandler(
             object : EventChannel.StreamHandler {

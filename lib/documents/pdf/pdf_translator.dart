@@ -37,6 +37,7 @@ class PdfProgress extends Equatable {
     this.page,
     this.stage,
     this.isComplete = false,
+    this.maskedPersonalData = 0,
   });
 
   /// Pages of the PDF.
@@ -62,6 +63,11 @@ class PdfProgress extends Equatable {
   /// True on the last event of a run.
   final bool isComplete;
 
+  /// Items of personal data the personal data shield kept on the device in
+  /// this run's requests ([DocumentProgress.maskedPersonalData] of its
+  /// pages).
+  final int maskedPersonalData;
+
   int get done => results.length;
 
   @override
@@ -74,6 +80,7 @@ class PdfProgress extends Equatable {
     page,
     stage,
     isComplete,
+    maskedPersonalData,
   ];
 }
 
@@ -304,6 +311,7 @@ class _PdfRun {
   late final StreamController<PdfProgress> _controller;
   StreamSubscription<DocumentProgress>? _chunks;
   bool _cancelled = false;
+  int _masked = 0;
 
   Stream<PdfProgress> get stream => _controller.stream;
 
@@ -323,6 +331,7 @@ class _PdfRun {
           page: page,
           stage: stage,
           isComplete: complete,
+          maskedPersonalData: _masked,
         ),
       );
 
@@ -361,6 +370,7 @@ class _PdfRun {
       final progress = await _translatePage(plan, _partial[index] ?? const {});
       _chunks = null;
       if (_cancelled || progress == null) return;
+      _masked += progress.maskedPersonalData;
       if (progress.failures.isEmpty) {
         _results[index] = [
           for (final text in plan.assemble(progress.results)) text ?? '',

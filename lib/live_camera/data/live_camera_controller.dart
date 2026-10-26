@@ -43,7 +43,7 @@ enum LiveCameraErrorKind {
 /// The camera failed ([kind]).
 @immutable
 class LiveCameraException implements Exception {
-  const LiveCameraException(this.kind, {this.message});
+  const new(this.kind, {this.message});
 
   final LiveCameraErrorKind kind;
 
@@ -66,7 +66,7 @@ class LiveCameraException implements Exception {
 /// how to show it.
 @immutable
 class LivePreview extends Equatable {
-  const LivePreview({
+  const new({
     required this.textureId,
     required this.previewSize,
     required this.rotation,
@@ -124,7 +124,7 @@ class LivePreview extends Equatable {
 /// Equality is identity based on purpose, like [PickedImage].
 @immutable
 class CameraFrame {
-  const CameraFrame({
+  const new({
     required this.pixels,
     required this.width,
     required this.height,

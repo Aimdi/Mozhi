@@ -1,5 +1,3 @@
-import 'dart:ui' show Size;
-
 import 'package:flutter/services.dart';
 import 'package:mozhi/image_translate/models/picked_image.dart';
 import 'package:mozhi/live_camera/data/live_camera_controller.dart';
@@ -16,7 +14,7 @@ import 'package:mozhi/platform/android_device.dart';
 /// [LiveCameraErrorKind.failed].
 class MethodChannelLiveCameraController
     implements LiveCameraController, LiveCameraPlatform {
-  MethodChannelLiveCameraController({MethodChannel? channel, bool? isAndroid})
+  new({MethodChannel? channel, bool? isAndroid})
     : _channel = channel ?? const MethodChannel(channelName),
       _isAndroid = isAndroid ?? runsOnAndroid;
 
@@ -27,7 +25,7 @@ class MethodChannelLiveCameraController
   static const maxFrameSide = 4096;
 
   /// Largest still accepted (bytes).
-  static const maxStillBytes = 32 * 1024 * 1024;
+  static const int maxStillBytes = 32 * 1024 * 1024;
 
   final MethodChannel _channel;
   final bool _isAndroid;
@@ -239,7 +237,7 @@ class MethodChannelLiveCameraController
 /// The live camera where there is none (the web, desktop tests): never
 /// supported, never opens.
 class UnsupportedLiveCameraController implements LiveCameraController {
-  const UnsupportedLiveCameraController();
+  const new();
 
   @override
   bool get isSupported => false;

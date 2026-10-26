@@ -16,11 +16,14 @@ abstract final class AppearanceAnchors {
   static const darkLook = 'dark_look';
   static const transliteration = 'show_transliteration';
   static const accentColor = 'accent_color';
+  static const tapToLookUp = 'tap_to_look_up';
+  static const highlightSpokenWord = 'highlight_spoken_word';
 }
 
 /// The Appearance settings: theme mode, Material You colours (Android),
-/// the dark look (Dim or Lights out), romanization and, without Material
-/// You colours, the accent colour.
+/// the dark look (Dim or Lights out), romanization, tapping a word of a
+/// translation to look it up, highlighting the word being read aloud and,
+/// without Material You colours, the accent colour.
 class AppearanceSettings extends StatelessWidget {
   const new({required this.settings, super.key});
 
@@ -76,6 +79,28 @@ class AppearanceSettings extends StatelessWidget {
             subtitle: Text(l10n.settingsShowTransliterationSubtitle),
             value: settings.showTransliteration,
             onChanged: (value) => cubit.setShowTransliteration(enabled: value),
+          ),
+        ),
+        SettingsAnchor(
+          id: AppearanceAnchors.tapToLookUp,
+          child: SwitchListTile(
+            key: const Key('settings_tap_to_look_up'),
+            secondary: const SettingsIcon(Icons.touch_app_outlined),
+            title: Text(l10n.settingsTapToLookUp),
+            subtitle: Text(l10n.settingsTapToLookUpSubtitle),
+            value: settings.tapToLookUp,
+            onChanged: (value) => cubit.setTapToLookUp(enabled: value),
+          ),
+        ),
+        SettingsAnchor(
+          id: AppearanceAnchors.highlightSpokenWord,
+          child: SwitchListTile(
+            key: const Key('settings_highlight_spoken_word'),
+            secondary: const SettingsIcon(Icons.record_voice_over_outlined),
+            title: Text(l10n.settingsHighlightSpokenWord),
+            subtitle: Text(l10n.settingsHighlightSpokenWordSubtitle),
+            value: settings.highlightSpokenWord,
+            onChanged: (value) => cubit.setHighlightSpokenWord(enabled: value),
           ),
         ),
         if (showAccent)

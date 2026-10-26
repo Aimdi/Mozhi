@@ -10,27 +10,30 @@ import 'package:mozhi/live_camera/models/live_block.dart';
 ///
 /// * A paragraph found again (its box overlaps the block's and its text is
 ///   alike, or the text is nearly the same a little further on: the camera
-///   moved) keeps the block, its id and its translation. A box that moved
-///   only a little ([holdOverlap]) stays where it was; the colours stay.
-/// * Its text is replaced only when it really changed: a reading at least
-///   [jitterSimilarity] alike is recognition noise and keeps the text the
-///   block has (and its translation), unless it is clearly surer
-///   (confidence [betterConfidence] points higher).
+///   moved) keeps the block, its id and its translation; so does other
+///   text in much the same place (the text there changed). A box that
+///   moved only a little ([holdOverlap]) stays where it was; the colours
+///   stay.
+/// * Its text is replaced only when it really changed: a reading that
+///   differs in at most [jitterEdits] of its characters (at least one) is
+///   recognition noise and keeps the text the block has (and its
+///   translation), unless it is clearly surer (confidence
+///   [betterConfidence] points higher).
 /// * A block not found keeps its place for [maxMissed] frames.
 /// * Every other paragraph becomes a new block.
 ///
 /// Blocks are returned top to bottom, left to right.
 class BlockTracker {
-  BlockTracker({
+  new({
     this.maxMissed = 2,
     this.holdOverlap = 0.6,
-    this.jitterSimilarity = 0.85,
+    this.jitterEdits = 0.12,
     this.betterConfidence = 10,
   });
 
   final int maxMissed;
   final double holdOverlap;
-  final double jitterSimilarity;
+  final double jitterEdits;
   final int betterConfidence;
 
   int _nextId = 1;
@@ -56,6 +59,7 @@ class BlockTracker {
         final distance = (block.box.center - found[j].box.center).distance;
         final near = diagonal > 0 && distance <= diagonal * 0.2;
         final matches =
+            overlap >= 0.5 ||
             (overlap >= 0.3 && similarity >= 0.3) ||
             (overlap > 0 && similarity >= 0.6) ||
             (near && similarity >= 0.8);
@@ -101,7 +105,7 @@ class BlockTracker {
     final same = normalizeLiveText(old.text) == normalizeLiveText(found.text);
     final surer =
         (found.confidence ?? 0) >= (old.confidence ?? 0) + betterConfidence;
-    final keepText = same || (match.similarity >= jitterSimilarity && !surer);
+    final keepText = same || (!surer && _isJitter(old.text, found.text));
     final box = match.overlap >= holdOverlap ? old.box : found.box;
     final paragraph = keepText
         ? TextParagraph(
@@ -131,6 +135,17 @@ class BlockTracker {
     );
   }
 
+  /// Whether [found] differs from [kept] by recognition noise only.
+  bool _isJitter(String kept, String found) {
+    final a = normalizeLiveText(kept);
+    final b = normalizeLiveText(found);
+    final allowed = math.max(
+      1,
+      (math.max(a.length, b.length) * jitterEdits).floor(),
+    );
+    return editDistance(a, b, limit: allowed) <= allowed;
+  }
+
   static int _readingOrder(LiveBlock a, LiveBlock b) {
     final top = a.box.top.compareTo(b.box.top);
     if (top != 0) return top;
@@ -139,7 +154,7 @@ class BlockTracker {
 }
 
 class _Candidate {
-  _Candidate(this.block, this.found, this.overlap, this.similarity);
+  new(this.block, this.found, this.overlap, this.similarity);
 
   final int block;
   final int found;
@@ -188,4 +203,31 @@ double textSimilarity(String a, String b) {
     }
   }
   return 2 * shared / (first.length - 1 + second.length - 1);
+}
+
+/// The Levenshtein distance of [a] and [b] (insertions, deletions and
+/// substitutions of UTF-16 code units), or `limit + 1` as soon as it is
+/// sure to be more than [limit].
+int editDistance(String a, String b, {int? limit}) {
+  final bound = limit ?? math.max(a.length, b.length);
+  if ((a.length - b.length).abs() > bound) return bound + 1;
+  var previous = List<int>.generate(b.length + 1, (i) => i);
+  var current = List<int>.filled(b.length + 1, 0);
+  for (var i = 1; i <= a.length; i++) {
+    current[0] = i;
+    var rowBest = current[0];
+    for (var j = 1; j <= b.length; j++) {
+      final cost = a.codeUnitAt(i - 1) == b.codeUnitAt(j - 1) ? 0 : 1;
+      current[j] = math.min(
+        math.min(previous[j] + 1, current[j - 1] + 1),
+        previous[j - 1] + cost,
+      );
+      if (current[j] < rowBest) rowBest = current[j];
+    }
+    if (rowBest > bound) return bound + 1;
+    final swap = previous;
+    previous = current;
+    current = swap;
+  }
+  return math.min(previous[b.length], bound + 1);
 }

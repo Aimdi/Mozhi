@@ -67,6 +67,7 @@ class SpeechInputConversationRecognizer implements ConversationRecognizer {
   Stream<ConversationHearing> listen(
     Language language, {
     bool detectLanguage = false,
+    Duration? pause,
   }) {
     final previous = _current;
     if (previous != null) unawaited(previous.close());
@@ -80,7 +81,7 @@ class SpeechInputConversationRecognizer implements ConversationRecognizer {
       ..results = _service.results.listen(
         (result) => _onResult(utterance, result),
       );
-    unawaited(_start(utterance, language.code, detectLanguage));
+    unawaited(_start(utterance, language.code, detectLanguage, pause));
     return utterance.events.stream;
   }
 
@@ -88,6 +89,7 @@ class SpeechInputConversationRecognizer implements ConversationRecognizer {
     _Utterance utterance,
     String languageCode,
     bool detectLanguage,
+    Duration? pause,
   ) async {
     final bool started;
     try {
@@ -95,6 +97,7 @@ class SpeechInputConversationRecognizer implements ConversationRecognizer {
         languageCode,
         owner: utterance,
         detectLanguage: detectLanguage,
+        offlinePause: pause,
       );
     } on Object {
       _finish(

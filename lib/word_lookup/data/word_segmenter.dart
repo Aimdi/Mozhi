@@ -80,7 +80,7 @@ abstract final class WordSegmenter {
     "'", '’', 'ʼ', '‘', // Apostrophes (English, French, Ukrainian, ...).
     '-', '‐', '‑', // Hyphens.
     '\u00B7', '\u0387', // Catalan middle dot (l·l), Greek ano teleia.
-    '׳', '״', // Hebrew geresh and gershayim.
+    '׳', '״', '־', // Hebrew geresh, gershayim and maqaf.
     '\u200C', '\u200D', // Zero-width non-joiner (Persian) and joiner.
     '\u00AD', // Soft hyphen.
   };

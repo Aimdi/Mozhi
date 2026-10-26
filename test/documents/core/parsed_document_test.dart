@@ -33,6 +33,34 @@ void main() {
       expect(document.render(['eins\nzwei\ndrei']), 'eins\n> zwei\n> drei');
     });
 
+    test('placeholders beyond four digits', () {
+      // A segment with more protected spans than four digits can number.
+      const count = 10002;
+      final builder = DocumentBuilder()
+        ..addContent([
+          for (var i = 1; i <= count; i++) ...[
+            TextPiece('w$i '),
+            TokenPiece.text('<$i>'),
+          ],
+        ]);
+      final document = builder.build(DocumentFormat.plainText);
+      final text = texts(document).single;
+      expect(text, startsWith('w1 ⟨1⟩'));
+      expect(text, endsWith('w10002 ⟨10002⟩'));
+      // An engine that kept them, with spaces and CJK brackets.
+      final translation = text
+          .replaceAll('w', 'v')
+          .replaceAll('⟨10001⟩', '〈 10001 〉');
+      final output = document.render([translation]);
+      expect(output, contains('v9999 <9999>v10000 <10000>v10001'));
+      expect(output, endsWith('v10001 <10001>v10002 <10002>'));
+      expect(output, isNot(contains('⟨')));
+      // Old-style numbers still restore; a seven-digit one is text.
+      expect(placeholderPattern.firstMatch('⟨ 12 ⟩')?.group(1), '12');
+      expect(placeholderPattern.firstMatch('⟨999999⟩')?.group(1), '999999');
+      expect(placeholderPattern.hasMatch('⟨1000000⟩'), isFalse);
+    });
+
     test('accept can reject a segment', () {
       final builder = DocumentBuilder()
         ..addContent([const TextPiece('snake_case')], accept: (_) => false);

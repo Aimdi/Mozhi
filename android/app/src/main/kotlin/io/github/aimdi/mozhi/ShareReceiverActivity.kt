@@ -23,7 +23,7 @@ import java.util.concurrent.Executors
  *   `<cache>/[SHARED_FOLDER]/<token>/<name>`, on a background thread, then
  *   opened with the explicit link `mozhi://image?shared=<token>` (images) or
  *   `mozhi://documents?shared=<token>` (subtitles, text, Markdown, JSON,
- *   office documents and e-books),
+ *   office documents, e-books and PDFs),
  *   read by `lib/app/shared_files.dart`. Nothing is translated or sent
  *   because something was shared: the screens wait for the user (an image
  *   is only read on the device first, see `createAppRouter`).
@@ -201,7 +201,7 @@ class ShareReceiverActivity : Activity() {
 
         /**
          * Largest document copied (the document screen takes 2 MB of text
-         * and 25 MB office documents and e-books).
+         * and 25 MB office documents, e-books and PDFs).
          */
         const val MAX_DOCUMENT_BYTES = 25L * 1024 * 1024
 
@@ -229,6 +229,7 @@ class ShareReceiverActivity : Activity() {
             "application/vnd.oasis.opendocument.presentation" -> "odp"
             "application/vnd.oasis.opendocument.spreadsheet" -> "ods"
             "application/epub+zip" -> "epub"
+            "application/pdf" -> "pdf"
             "text/markdown", "text/x-markdown" -> "md"
             "text/plain" -> "txt"
             else -> if (isImage) "jpg" else if (type?.startsWith("text/") == true) "txt" else null
