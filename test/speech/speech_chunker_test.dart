@@ -234,4 +234,49 @@ void main() {
       });
     });
   });
+
+  group('speechChunks', () {
+    test('gives each chunk its place in the text as given', () {
+      const text = '  One two. Three four.\n\nFive six.  ';
+      final chunks = speechChunks(text, maxLength: 12);
+      expect(
+        [for (final chunk in chunks) chunk.text],
+        ['One two.', 'Three four.', 'Five six.'],
+      );
+      for (final chunk in chunks) {
+        expect(text.substring(chunk.start, chunk.end), chunk.text);
+      }
+      expect(chunks.first.start, 2);
+    });
+
+    test('a text that fits is one chunk after its leading space', () {
+      expect(speechChunks(' Hi '), [const SpeechChunk(1, 'Hi')]);
+      expect(speechChunks('   '), isEmpty);
+    });
+
+    test('dropped chunks keep the offsets of the others', () {
+      const text = 'Hello there ... ... ... friend';
+      final chunks = speechChunks(text, maxLength: 12);
+      for (final chunk in chunks) {
+        expect(text.substring(chunk.start, chunk.end), chunk.text);
+      }
+      expect([
+        for (final chunk in chunks) chunk.text,
+      ], splitTextForSpeech(text, maxLength: 12));
+    });
+
+    test('compares chunks by value', () {
+      expect(const SpeechChunk(1, 'a'), const SpeechChunk(1, 'a'));
+      expect(const SpeechChunk(1, 'a'), isNot(const SpeechChunk(2, 'a')));
+      expect(
+        const SpeechChunk(1, 'a').hashCode,
+        const SpeechChunk(1, 'a').hashCode,
+      );
+      expect('${const SpeechChunk(1, 'a')}', 'SpeechChunk(1, a)');
+    });
+
+    test('rejects a length below one', () {
+      expect(() => speechChunks('a', maxLength: 0), throwsArgumentError);
+    });
+  });
 }

@@ -12,6 +12,7 @@ import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_languages.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/settings/view/widgets/choice_dialog.dart';
+import 'package:mozhi/settings/view/widgets/offline_app_shell_tile.dart';
 import 'package:mozhi/settings/view/widgets/settings_search.dart';
 import 'package:mozhi/settings/view/widgets/settings_section.dart';
 
@@ -21,11 +22,13 @@ abstract final class GeneralAnchors {
   static const tabOrder = 'tab_order';
   static const hapticFeedback = 'haptic_feedback';
   static const multilineInput = 'multiline_input';
+  static const offlineAppShell = 'offline_app_shell';
 }
 
 /// The General settings: app language, tab order, haptic feedback (not in
-/// browsers, which cannot vibrate) and multiline input, then **Android
-/// integration** (Translate screen and its bubble,
+/// browsers, which cannot vibrate), multiline input and, in the web app,
+/// "Keep the web app for offline use" ([OfflineAppShellTile]), then
+/// **Android integration** (Translate screen and its bubble,
 /// [ScreenTranslateSettingsSection]).
 class GeneralSettings extends StatelessWidget {
   const new({required this.settings, super.key});
@@ -34,6 +37,9 @@ class GeneralSettings extends StatelessWidget {
 
   /// Whether the haptic feedback switch is shown.
   static bool get hapticFeedbackSupported => !kIsWeb;
+
+  /// Whether "Keep the web app for offline use" is shown (the web app).
+  static bool get offlineAppShellSupported => kIsWeb;
 
   @override
   Widget build(BuildContext context) {
@@ -80,6 +86,11 @@ class GeneralSettings extends StatelessWidget {
             onChanged: (value) => cubit.setMultilineInput(enabled: value),
           ),
         ),
+        if (offlineAppShellSupported)
+          SettingsAnchor(
+            id: GeneralAnchors.offlineAppShell,
+            child: OfflineAppShellTile(enabled: settings.offlineAppShell),
+          ),
       ],
     );
     return Column(

@@ -77,7 +77,10 @@ void main() {
     testWidgets('picks, translates and saves a Word document', (tester) async {
       await pumpPage(tester);
       expect(
-        find.textContaining('Word, PowerPoint, Excel, OpenDocument and EPUB'),
+        // PDFs too, in the Android app (W7-B).
+        find.textContaining(
+          'Word, PowerPoint, Excel, OpenDocument, EPUB and PDF',
+        ),
         findsOneWidget,
       );
       await pick(tester, 'report.docx', report);

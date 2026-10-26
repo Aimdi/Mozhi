@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mozhi/documents/core/core.dart';
 import 'package:mozhi/documents/pdf/pdf.dart';
-import 'package:mozhi/documents/pdf/pdf_scratch_io.dart';
+import 'package:mozhi/documents/pdf/pdf_scratch_io.dart' show FolderPdfScratch;
 import 'package:mozhi/image_translate/models/models.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -275,6 +275,12 @@ void main() {
       expect(defaultPdfPages(), isA<MethodChannelPdfPages>());
       debugDefaultTargetPlatformOverride = TargetPlatform.linux;
       expect(defaultPdfPages(), isA<UnsupportedPdfPages>());
+    });
+  });
+
+  group('defaultPdfScratch', () {
+    test('keeps its files in a folder of the cache', () {
+      expect(defaultPdfScratch(), isA<FolderPdfScratch>());
     });
   });
 

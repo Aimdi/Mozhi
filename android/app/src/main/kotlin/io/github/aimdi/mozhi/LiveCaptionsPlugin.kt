@@ -275,10 +275,12 @@ class LiveCaptionsPlugin :
 
     private fun stopCaptions(context: Context) {
         val service = LiveCaptions.service
-        if (service != null) {
-            service.stopFromDart()
-        } else {
-            context.stopService(Intent(context, LiveCaptionService::class.java))
+        when {
+            service != null -> service.stopFromDart()
+            // Starting (startForegroundService): it stops itself once it
+            // runs, as nobody listens any more (LiveCaptions.started).
+            LiveCaptions.awaitingService -> Unit
+            else -> context.stopService(Intent(context, LiveCaptionService::class.java))
         }
     }
 
@@ -357,14 +359,26 @@ object LiveCaptions {
         return session
     }
 
-    fun started(id: Int, captionBar: Boolean) = post(id) {
-        awaitingService = false
-        it.onStarted(captionBar)
+    /** The captions of session [id] run; stopped at once when nobody wants them. */
+    fun started(id: Int, captionBar: Boolean) {
+        main.post {
+            awaitingService = false
+            val current = listener
+            if (current != null && id == session) {
+                current.onStarted(captionBar)
+            } else {
+                // Stopped (or replaced) while starting.
+                service?.stopFromDart()
+            }
+        }
     }
 
-    fun failed(id: Int, reason: String) = post(id) {
-        awaitingService = false
-        it.onFailed(reason)
+    fun failed(id: Int, reason: String) {
+        main.post {
+            awaitingService = false
+            val current = listener
+            if (current != null && id == session) current.onFailed(reason)
+        }
     }
 
     fun audio(id: Int, samples: FloatArray) = post(id) { it.onAudio(samples) }

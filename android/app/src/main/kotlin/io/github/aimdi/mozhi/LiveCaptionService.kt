@@ -90,6 +90,12 @@ class LiveCaptionService : Service() {
     private var bar: CaptionBar? = null
     private var ended = false
 
+    /** onStartCommand ran: the service went to the foreground (or tried). */
+    private var commanded = false
+
+    /** Dart stopped the captions before onStartCommand ran. */
+    private var stopRequested = false
+
     /** Read by the reader thread. */
     @Volatile private var running = false
 
@@ -144,6 +150,13 @@ class LiveCaptionService : Service() {
         // Started with startForegroundService: into the foreground first,
         // whatever happens next.
         val foreground = startInForeground()
+        commanded = true
+        if (stopRequested) {
+            // Stopped while starting: never captures.
+            stopRequested = false
+            end(null)
+            return START_NOT_STICKY
+        }
         if (intent == null) {
             if (!running) end(null)
             return START_NOT_STICKY
@@ -279,8 +292,18 @@ class LiveCaptionService : Service() {
         stopSelf()
     }
 
-    /** Stops the captions for Dart ([LiveCaptionsPlugin]'s `stop`). */
-    fun stopFromDart() = end(null)
+    /**
+     * Stops the captions for Dart ([LiveCaptionsPlugin]'s `stop`); before
+     * onStartCommand ran, once it has (a service started with
+     * startForegroundService must reach the foreground first).
+     */
+    fun stopFromDart() {
+        if (!commanded) {
+            stopRequested = true
+            return
+        }
+        end(null)
+    }
 
     // ---------------------------------------------------------------------
     // Lock

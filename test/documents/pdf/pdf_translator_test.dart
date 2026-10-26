@@ -96,6 +96,17 @@ void main() {
     only: only,
   );
 
+  group('PdfTranslator.platform', () {
+    test("uses the platform's pages and recognizer", () {
+      final translator = PdfTranslator.platform(
+        translator: DocumentTranslator(repository: repository),
+      );
+      // Tests run as Android.
+      expect(translator.isSupported, isTrue);
+      expect(translator.languageData, isNotNull);
+    });
+  });
+
   group('PdfTranslator.open', () {
     test('opens a private copy and deletes it', () async {
       final info = await build().open(pdfBytes);

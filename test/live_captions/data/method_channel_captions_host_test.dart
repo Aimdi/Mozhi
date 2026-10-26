@@ -50,6 +50,10 @@ void main() {
       expect(build(isAndroid: false).isSupported, isFalse);
     });
 
+    test('off Android by default (a test host)', () {
+      expect(MethodChannelCaptionsHost(sdkInt: 34).isSupported, isFalse);
+    });
+
     test('unsupported, nothing is called', () async {
       final host = build(sdkInt: 28);
       expect(

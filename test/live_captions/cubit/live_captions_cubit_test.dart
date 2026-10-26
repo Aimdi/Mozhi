@@ -905,6 +905,64 @@ void main() {
     expect(const LiveCaptionsBehindException().toString(), contains('Behind'));
   });
 
+  test('the default bar texts are English: hot and silence', () async {
+    when(
+      () => conditions.latest,
+    ).thenReturn(const DeviceConditionsSnapshot(thermal: ThermalStatus.severe));
+    final cubit = LiveCaptionsCubit(
+      host: host,
+      repository: repository,
+      engine: () => engine,
+      source: Language.auto,
+      target: english,
+      recognizer: recognizer,
+      conditions: conditions,
+    );
+    await cubit.load();
+    await cubit.start();
+    await settle();
+    expect(host.bar, const CaptionLine.notice('Paused: the phone is hot'));
+    heat.add(DeviceConditionsSnapshot.unknown);
+    await settle();
+    for (var i = 0; i < 200; i++) {
+      host.sendAudio(block(0));
+    }
+    await settle();
+    expect(host.bar.translation, startsWith('No sound'));
+    await cubit.close();
+  });
+
+  test('a language the catalogue does not know is still the source', () async {
+    final cubit = await running();
+    recognizer.recording.phrase('Xyz', language: 'zz');
+    await settle();
+    expect(requests.single.source.code, 'zz');
+    await cubit.close();
+  });
+
+  test('retrying leaves the translated phrases alone', () async {
+    var fail = false;
+    when(() => repository.translate(any(), any())).thenAnswer((invocation) {
+      final request = invocation.positionalArguments[1] as TranslationRequest;
+      if (fail) return Stream.error(StateError('offline'));
+      return Stream.value(resultOf('ok ${request.text}'));
+    });
+    final cubit = await running();
+    recognizer.recording.phrase('Uno', language: 'es');
+    await settle();
+    fail = true;
+    recognizer.recording.phrase('Dos', language: 'es', index: 1);
+    await settle();
+    fail = false;
+    cubit.retryTranslations();
+    await settle();
+    expect(cubit.state.entries.map((entry) => entry.translation), [
+      'ok Uno',
+      'ok Dos',
+    ]);
+    await cubit.close();
+  });
+
   test('the default bar texts are English', () async {
     final cubit = LiveCaptionsCubit(
       host: host,

@@ -46,12 +46,13 @@ const gatoAnswer = OfflineDictionaryAnswer(
   attribution: wiktionary,
 );
 
-/// The answer for `gatos`: the entry of `gato`.
+/// The answer for `gatos`: the entry of `gato`, also a form of `gatear`.
 const gatosAnswer = OfflineDictionaryAnswer(
   entry: gatoEntry,
   language: 'es',
   attribution: wiktionary,
   inflectedForm: 'gatos',
+  otherLemmas: ['gatear'],
 );
 
 /// An AI model's entry for `gato`.
@@ -62,6 +63,12 @@ const aiGatoEntry = DictionaryEntry(
     DictionarySense(
       definition: 'A small domesticated feline.',
       translations: ['cat'],
+    ),
+  ],
+  examples: [
+    DictionaryExample(
+      source: 'El gato duerme.',
+      translation: 'The cat sleeps.',
     ),
   ],
 );

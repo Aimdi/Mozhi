@@ -27,7 +27,7 @@ class BlockTracker {
   new({
     this.maxMissed = 2,
     this.holdOverlap = 0.6,
-    this.jitterEdits = 0.12,
+    this.jitterEdits = 0.15,
     this.betterConfidence = 10,
   });
 

@@ -226,6 +226,19 @@ no request is made, nothing is logged, and only **More detail** (or a word
 the packs don't have, when you have an AI provider) goes to your AI
 provider, as before.
 
+The word card of a word you tap in a translation ([Tap a
+word](features.md#translate)) looks it up in the packs the same way, on
+the device; finding where a word starts and ends in Chinese, Japanese or
+Thai asks the installed pack too, and nothing else. Only **Look up with
+…** on the card, when you tap it, sends anything: the word and the
+sentence of the translation it is in (at most 400 characters) go to the AI
+model the Dictionary tab uses, as one request under your privacy mode and
+its consent prompts, with [personal data masked](#personal-data-shield).
+The card's look-ups stay in memory and are not saved to History; **Open
+in Dictionary** looks the word up on the Dictionary tab, under that tab's
+rules. Highlighting the word being read aloud uses what the device's voice
+reports and sends nothing.
+
 ### On-device translation in the web app
 
 The web app translates without the network too, in browsers that can run
@@ -304,11 +317,12 @@ stores on the device and what the other party may keep.
 | Offline translation | Nowhere | Nothing | History as above. |
 | Translation and AI extras with [on-device AI](#on-device-ai) | Nowhere: the model runs in the app | Nothing | In memory while the model writes; history as above. |
 | Language detection (**Detect language**, an "auto" source with a translation-only AI model) | The device first; if it is unsure, the AI provider itself or, for translation-only models, your Mozhi instance's Google engine, when the privacy rules allow that destination | The text | As for that destination. |
-| Kagi-style extras, **Check meaning**, **Proofread** | The AI model for extras (**Settings > AI > AI assistant for insights**) or the model you selected; **Check meaning** without one: the engine you translate with, to translate back | Source text, translation or both (the first 4,000 characters for **Check meaning**; the word for the dictionary), with [personal data masked](#personal-data-shield) | The provider's policy. Results stay in memory only, except Dictionary tab look-ups: on the device, the word, its languages, the model's name, the detail level and a one-line summary go to the history unless incognito or **Save history** is off (or when you heart the entry). |
+| Kagi-style extras, **Check meaning**, **Proofread** | The AI model for extras (**Settings > AI > AI assistant for insights**) or the model you selected; **Check meaning** without one: the engine you translate with, to translate back | Source text, translation or both (the first 4,000 characters for **Check meaning**; the word for the dictionary, with its sentence for the word card's **Look up with …**), with [personal data masked](#personal-data-shield) | The provider's policy. Results stay in memory only, except Dictionary tab look-ups: on the device, the word, its languages, the model's name, the detail level and a one-line summary go to the history unless incognito or **Save history** is off (or when you heart the entry). |
 | **Listen** (read aloud) | The device's text-to-speech voice, one on the device whenever the language has one. An [online voice](#online-voices) only after you agree, once per voice. A Mozhi instance only when the device has no voice for the language: never in Offline only or with **Device voice only**, and in Offline first only after you agree (**Listen online**) | Device voice on the device: nothing leaves it. Online voice: the text to the voice's speech service (for example Google). Mozhi: the text **in the request address** (`GET /api/tts?text=…`, up to 200 characters per part). The [personal data shield](#personal-data-shield) can't apply to speech | Online voice: its service's policy. Mozhi: the address can end up in the server's and any reverse proxy's access logs. The app keeps the last 20 clips in memory until it closes. |
 | Image translation | **On-device text recognition** (Android, the default) sends the image nowhere: Tesseract reads it on the phone ([text recognition](text-recognition.md); ML Kit in the [Play variant](#google-code)), and only the recognised text follows the translation rows above. The AI model with **Supports images** gets the image itself; so does your Mozhi instance (experimental), which passes it to Google Translate (at most two instances are tried) | AI vision and Mozhi: the image, re-encoded first (no EXIF data such as the GPS location). On-device: nothing | The provider's or instance's policy. The app doesn't store the image. |
 | Dictation, conversation | **System speech recognition** (the default): the system's recogniser (Google or the phone maker on Android; the browser's maker in the web app). **Offline (Whisper)** (Android, **Settings > Read aloud & voice > Voice input**): nobody, it runs on the phone. In **Offline only** always Whisper, never the system recogniser ([voice input](voice-input.md)) | System: your voice. Whisper: nothing leaves the phone | System: the recogniser's policy; **Prefer on-device speech recognition** (Android 12+) only asks to keep it on the phone. Whisper: the recording stays in memory until it is transcribed, and is never stored. |
 | Documents (text files, office documents, e-books) | The engine you choose, like typed text (the rows above) | The text of the document's paragraphs, cells and strings, part by part, with its formatting as numbered placeholders. Never the file itself, its images, embedded files or properties | On the device: nothing. The file and its translation stay in memory while the Documents screen is open (a large office file is read in a background isolate, in memory too); the translated file is written only where you save or share it. A file shared to Mozhi from another app is copied to the app cache until it is opened (at most an hour). |
+| PDF documents (Android) | The engine you choose, like other documents | The text read on each page, paragraph by paragraph. Never the file, its pages or pictures of them: the pages are drawn and read on the phone (Android's own PDF renderer and on-device text recognition with Tesseract) | On the device: the PDF is copied to the app's private cache only for Android to open it, and that copy is deleted as soon as it is open. A rendered page is kept in memory only while it is read; the text read from the pages, the translations and the translated PDF stay in memory while the Documents screen is open (nothing in History). The translated PDF is put together in the app's cache, read back and deleted from there at once; it is written only where you save or share it. |
 | Web page translator | The website you enter, then the translation engine | The page address and your IP address, with a desktop browser `User-Agent` and no cookies | The website's logs. The page text then follows the translation row above. |
 | Offline model download (**Settings > Translation engines > Offline languages**, or a language's download button in the language picker) | The [model source](#where-model-files-come-from); by default `storage.googleapis.com`: Mozilla's Firefox Translations bucket (`moz-fx-translations-data--303e-prod-translations-data`), hosted on Google Cloud Storage | Plain file requests (HTTPS `GET`, `Range` to resume): Google as the host sees your IP address, the time and which model files, so which languages, you download. No text, identifiers or cookies | Google Cloud Storage's logs. The models stay on the device until you delete them. |
 | Text recognition data download (**Download German text recognition**, **Settings > Translation engines > Offline languages > Text recognition**) | The [model source](#where-model-files-come-from); by default `raw.githubusercontent.com`: Tesseract's [tessdata_fast](https://github.com/tesseract-ocr/tessdata_fast) on GitHub (owned by Microsoft), pinned to one commit | Plain file requests (HTTPS `GET`, `Range` to resume): GitHub sees your IP address, the time and which language files you download. No picture, text, identifiers or cookies | GitHub's logs. The data stays on the device until you delete it; **Import from files** contacts nothing. |
@@ -347,6 +361,7 @@ the fastest server** during setup.
 | Offline language models | App storage (`<app files>/bergamot`); in the web app the browser's private storage for the site (the Origin Private File System, folder `bergamot`), which no other site and no page script outside the app can read | About 50 MB to download and 73 MB on disk per language. Delete them under **Settings > Translation engines > Offline languages**; in the web app clearing the site's data deletes them too. |
 | Text recognition data | App storage (`<app files>/tesseract`) | 0.4 to 12 MB per language (median 2.4 MB). Delete it under **Settings > Translation engines > Offline languages > Text recognition**. |
 | Screenshots of Translate screen | App cache (`<cache>/screen_translate`) | One PNG of the screen for the second it takes to read it into memory, then deleted; leftovers are deleted when the window closes, when the next one opens and, for one left by an app process that ended in between, when the app next starts. Never in the gallery, shared storage or a backup. |
+| Live captions | Memory only | Other apps' sound passes through in blocks of a tenth of a second and is gone once Whisper has read it; the recognised text and its translations stay in memory while the captions screen is open (at most 2,000 phrases). Nothing is written to disk, logged or backed up unless you save the transcript (History, a file). The caption bar's position is the only thing kept (app preferences). |
 | On-device AI models | App storage (`<app files>/llm`) | One to a few GB per model (the On-device AI page shows each size). Delete them under **Settings > On-device AI**. Which model translates and which does the extras is kept in the app preferences. |
 
 **History encryption.** Each history value is encrypted with AES-256-GCM (a
@@ -501,6 +516,24 @@ In the web app, clearing the site's data does the same.
   is locked), and opens it in the quick translate sheet, which shows it
   only after the unlock. Turning it off, dragging it onto
   ✕ or **Stop** removes it; it never starts by itself after a restart.
+- **Live captions** (Android 10+, [details](features.md#live-captions)):
+  other apps' sound is captured only while you caption, after Android's
+  consent every time (Android shows its recording or casting icon), and
+  only the sound: no picture of the screen is taken. Android needs the
+  microphone permission for it, but the microphone is not used. The sound
+  stays in memory, a tenth of a second at a time, and is never recorded,
+  saved or sent anywhere: Whisper turns it into text on the phone. Only
+  that text goes to the live engine (**Translate live with**): the
+  offline engine unless you picked another for live use, and a network
+  engine asks once before it gets every phrase, as it comes, then follows
+  your [privacy mode](#privacy-modes), consent prompts and the
+  [personal data shield](#personal-data-shield) like typed text, and shows
+  in [Network activity](#network-activity). The transcript stays in memory
+  and goes with the captions screen unless you save it. Apps that don't
+  allow capture (and phone calls) can't be captioned. The caption bar
+  (**Display over other apps**) shows what is playing to whoever looks at
+  the screen, also while the app lock is locked; it hides while the phone
+  is locked, when nothing is captured either.
 - **Reading the clipboard.** The app reads the clipboard only when you tap
   **Paste**, **Translate clipboard** or the start screen's **Paste and
   translate** (**Paste copied text**) chip. To offer that chip, the Android

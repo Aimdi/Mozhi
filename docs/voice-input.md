@@ -33,7 +33,9 @@ Whisper recognises speech on the phone, phrase by phrase:
    transcribed while you go on speaking, and its text appears in the source
    field.
 3. Tap again to stop, or just stop talking: recording ends after 3 seconds
-   of silence, and after a minute at most. Only the last phrase is left to
+   of silence (in a hands-free conversation after the turn's pause, 0.8 s
+   by default, see [Voice](features.md#voice)), and after a minute at
+   most. Only the last phrase is left to
    transcribe then (a "Transcribing…" ring shows meanwhile); tapping the
    microphone while it transcribes cancels.
 4. The text is added to the source field (or sent, in conversation mode).
@@ -57,7 +59,9 @@ screen's **More tools**, or the Conversation tab's menu): it listens for as
 long as you like and keeps a rolling transcript, one paragraph per phrase
 with its time, optionally translated (see
 [Transcribe](features.md#transcribe)). It always uses Whisper on Android,
-because the system recognizer stops after every pause.
+because the system recognizer stops after every pause. The same model
+captions the sound other apps play ([Live captions](features.md#live-captions),
+Android 10 and later).
 
 ### Models
 

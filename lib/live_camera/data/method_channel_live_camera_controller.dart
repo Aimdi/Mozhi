@@ -267,6 +267,12 @@ class UnsupportedLiveCameraController implements LiveCameraController {
 
 /// The app's live camera: the Camera2 plugin on Android, else
 /// [UnsupportedLiveCameraController].
-LiveCameraController defaultLiveCameraController() => runsOnAndroid
-    ? MethodChannelLiveCameraController()
-    : const UnsupportedLiveCameraController();
+LiveCameraController defaultLiveCameraController() {
+  // Tests run on a desktop host, never on Android.
+  // coverage:ignore-start
+  if (runsOnAndroid) {
+    return MethodChannelLiveCameraController();
+  }
+  // coverage:ignore-end
+  return const UnsupportedLiveCameraController();
+}

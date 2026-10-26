@@ -31,9 +31,9 @@ import 'package:translation_repository/translation_repository.dart';
 /// variant's ML Kit reads files only).
 TextRecognitionService liveTextRecognizer() {
   final app = createTextRecognitionService();
-  return textRecognitionPixelsOf(app) != null
-      ? app
-      : defaultTextRecognitionService();
+  if (textRecognitionPixelsOf(app) != null) return app;
+  // The Play variant (ML Kit).
+  return defaultTextRecognitionService(); // coverage:ignore-line
 }
 
 /// The live camera: point the camera at text and its translation is drawn

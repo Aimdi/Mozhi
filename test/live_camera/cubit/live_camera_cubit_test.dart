@@ -13,6 +13,37 @@ import 'package:translation_repository/translation_repository.dart';
 
 import '../helpers/live_camera_fakes.dart';
 
+/// A camera without the Android extras (settings, display rotation).
+class _PlainCamera implements LiveCameraController {
+  new(this._camera);
+
+  final FakeLiveCamera _camera;
+
+  @override
+  bool get isSupported => _camera.isSupported;
+
+  @override
+  Future<CameraAccess> requestAccess() => _camera.requestAccess();
+
+  @override
+  Future<LivePreview> start() => _camera.start();
+
+  @override
+  Future<CameraFrame?> nextFrame() => _camera.nextFrame();
+
+  @override
+  Future<void> setTorch({required bool on}) => _camera.setTorch(on: on);
+
+  @override
+  Future<void> setZoom(double ratio) => _camera.setZoom(ratio);
+
+  @override
+  Future<PickedImage?> takePicture() => _camera.takePicture();
+
+  @override
+  Future<void> stop() => _camera.stop();
+}
+
 const _fast = LiveCameraTiming(
   frameInterval: Duration(microseconds: 1),
   restartDelay: Duration.zero,
@@ -845,6 +876,56 @@ void main() {
   });
 
   group('controls', () {
+    test('a camera without the Android extras', () async {
+      camera
+        ..access = [CameraAccess.blocked, CameraAccess.granted]
+        ..rotation = 270;
+      final cubit = LiveCameraCubit(
+        camera: _PlainCamera(camera),
+        recognizer: recognizer,
+        repository: repository,
+        engine: offlineEngine,
+        source: english,
+        target: german,
+        timing: _fast,
+      );
+      addTearDown(cubit.close);
+      await cubit.start();
+      await cubit.openSettings();
+      expect(camera.settingsOpened, 0);
+      await cubit.retryAccess();
+      await pumpEventQueue();
+      expect(cubit.state.status, LiveCameraStatus.running);
+      await cubit.refreshRotation();
+      expect(cubit.state.displayRotation, 0);
+    });
+
+    test('keeps only so many translations in memory', () async {
+      final cubit = LiveCameraCubit(
+        camera: camera,
+        recognizer: recognizer,
+        repository: repository,
+        engine: offlineEngine,
+        source: english,
+        target: german,
+        timing: _fast,
+        maxCachedTranslations: 1,
+      );
+      addTearDown(cubit.close);
+      await cubit.start();
+      await pumpEventQueue();
+      await show([paragraph('Hello world')]);
+      await show([
+        paragraph('Goodbye moon', box: const Rect.fromLTWH(10, 300, 100, 20)),
+      ]);
+      for (var i = 0; i < 3; i++) {
+        await show(const []);
+      }
+      // "Hello world" was dropped from memory: it is translated again.
+      await show([paragraph('Hello world')]);
+      verify(() => repository.translate(any(), any())).called(3);
+    });
+
     test('torch', () async {
       final cubit = await running();
       await cubit.setTorch(on: true);

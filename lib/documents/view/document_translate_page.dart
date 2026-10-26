@@ -20,8 +20,9 @@ import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/usage/usage.dart';
 import 'package:translation_repository/translation_repository.dart';
 
-/// Document translation (DeepL/Kagi style): text formats, and office
-/// documents and e-books translated with their formatting.
+/// Document translation (DeepL/Kagi style): text formats, office
+/// documents and e-books translated with their formatting, and PDFs read
+/// and translated page by page on Android.
 ///
 /// Needs a [TranslationRepository] and the app-wide [TranslateCubit]
 /// above it; engine, languages and options start from the translate

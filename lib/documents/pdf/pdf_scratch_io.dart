@@ -10,10 +10,12 @@ import 'package:path_provider/path_provider.dart';
 /// ended mid-way are deleted the next time one is written.
 PdfScratch defaultPdfScratch() => FolderPdfScratch(_cacheFolder);
 
+// coverage:ignore-start
 Future<Directory> _cacheFolder() async {
   final cache = await getTemporaryDirectory();
   return Directory('${cache.path}${Platform.pathSeparator}pdf_pages');
 }
+// coverage:ignore-end
 
 /// [PdfScratch] in the folder its constructor's function gives.
 class FolderPdfScratch implements PdfScratch {
@@ -36,7 +38,7 @@ class FolderPdfScratch implements PdfScratch {
   Future<String> newPath() async {
     final folder = await _folder();
     await folder.create(recursive: true);
-    await _sweep(folder);
+    _sweep(folder);
     final name = [
       for (var i = 0; i < 16; i++) _random.nextInt(256).toRadixString(16),
     ].join();
@@ -62,21 +64,20 @@ class FolderPdfScratch implements PdfScratch {
     }
   }
 
-  static Future<void> _sweep(Directory folder) async {
+  static void _sweep(Directory folder) {
     final now = DateTime.now();
     try {
-      await for (final entry in folder.list()) {
-        if (entry is! File) continue;
-        try {
-          if (now.difference(entry.lastModifiedSync()) > maxAge) {
-            await entry.delete();
-          }
-        } on FileSystemException {
-          // Gone meanwhile.
+      for (final entry in folder.listSync()) {
+        if (entry is File &&
+            now.difference(entry.lastModifiedSync()) > maxAge) {
+          entry.deleteSync();
         }
       }
+      // coverage:ignore-start
     } on FileSystemException {
-      // The folder cannot be listed: nothing to sweep.
+      // A file that went meanwhile, or a folder that cannot be listed: the
+      // rest waits for the next time.
     }
+    // coverage:ignore-end
   }
 }

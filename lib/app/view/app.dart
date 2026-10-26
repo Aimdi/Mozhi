@@ -26,6 +26,7 @@ import 'package:mozhi/on_device_ai/data/on_device_models.dart';
 import 'package:mozhi/onboarding/onboarding_redirect.dart';
 import 'package:mozhi/phrasebook/data/phrasebook_repository.dart';
 import 'package:mozhi/platform/android_device.dart';
+import 'package:mozhi/platform/app_shell_scope.dart';
 import 'package:mozhi/platform/secure_screen_listener.dart';
 import 'package:mozhi/platform/shared_text_service.dart';
 import 'package:mozhi/platform/system_bars.dart';
@@ -455,7 +456,12 @@ class _AppState extends State<App> {
                                       onClose: () => unawaited(
                                         QuickTranslateHost.instance.close(),
                                       ),
-                                      child: child ?? const SizedBox.shrink(),
+                                      // The web app's offline copy and
+                                      // its "Update ready" notice.
+                                      child: AppShellScope(
+                                        messengerKey: _messengerKey,
+                                        child: child ?? const SizedBox.shrink(),
+                                      ),
                                     ),
                                   ),
                                 ),

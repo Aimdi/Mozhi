@@ -919,11 +919,13 @@ class LiveCameraCubit extends Cubit<LiveCameraState> {
     _cameraOpen = false;
     _restartTimer?.cancel();
     _restartTranslations();
+    // The camera first: nothing may keep it open.
+    final stopped = _quietly(_camera.stop);
     for (final subscription in _subscriptions) {
-      await subscription.cancel();
+      unawaited(subscription.cancel());
     }
     _cache.clear();
-    await _quietly(_camera.stop);
+    await stopped;
     await super.close();
   }
 }

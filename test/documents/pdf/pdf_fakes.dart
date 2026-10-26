@@ -53,6 +53,9 @@ class FakePdfPages implements PdfPages {
   /// While set, renders wait for it.
   Completer<void>? renderGate;
 
+  /// While set, writes wait for it.
+  Completer<void>? writeGate;
+
   final List<String> opened = [];
   final List<({int page, int maxPixels})> renders = [];
   final List<({String path, List<PdfOutputPage> pages})> writes = [];
@@ -81,6 +84,7 @@ class FakePdfPages implements PdfPages {
   @override
   Future<void> write(String outputPath, List<PdfOutputPage> pages) async {
     writes.add((path: outputPath, pages: pages));
+    if (writeGate case final gate?) await gate.future;
     if (writeError case final error?) throw error;
     scratch?.files[outputPath] = written;
   }

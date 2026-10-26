@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:mozhi/speech/browser_voices.dart';
 import 'package:mozhi/speech/device_tts.dart';
+import 'package:mozhi/speech/spoken_range.dart';
 
 /// Scriptable stand-in for the `flutter_tts` plugin; records calls.
 class _FakeFlutterTts extends Fake implements FlutterTts {
@@ -10,6 +13,7 @@ class _FakeFlutterTts extends Fake implements FlutterTts {
   VoidCallback? completion;
   VoidCallback? cancel;
   ErrorHandler? error;
+  ProgressHandler? progress;
 
   /// Answers per call; an [Exception] answer is thrown.
   Object? Function(String tag) available = (_) => true;
@@ -36,6 +40,9 @@ class _FakeFlutterTts extends Fake implements FlutterTts {
 
   @override
   void setErrorHandler(ErrorHandler handler) => error = handler;
+
+  @override
+  void setProgressHandler(ProgressHandler callback) => progress = callback;
 
   @override
   Future<dynamic> isLanguageAvailable(String language) async {
@@ -943,6 +950,69 @@ void main() {
       await device.dispose();
 
       expect(tts.calls, ['speak one']);
+    });
+
+    group('progress', () {
+      test('reports the word being read', () async {
+        final device = deviceTts();
+        final ranges = <SpokenRange>[];
+        device.onProgress.listen(ranges.add);
+        await device.speak('Hello world');
+        tts.progress!('Hello world', 0, 5, 'Hello');
+        tts.progress!('Hello world', 6, 11, 'world');
+        await flush();
+
+        expect(ranges, [const SpokenRange(0, 5), const SpokenRange(6, 11)]);
+      });
+
+      test('ends a web word at punctuation', () async {
+        final device = deviceTts(isWeb: true);
+        final ranges = <SpokenRange>[];
+        device.onProgress.listen(ranges.add);
+        await device.speak('我们今天去公园。明天');
+        // The web plugin runs the word on to the next ASCII separator.
+        tts.progress!('我们今天去公园。明天', 2, 10, '今天去公园。明天');
+        await flush();
+
+        expect(ranges, [const SpokenRange(2, 7)]);
+      });
+
+      test('drops Android 7’s report of the whole text', () async {
+        final device = deviceTts();
+        final ranges = <SpokenRange>[];
+        device.onProgress.listen(ranges.add);
+        await device.speak('Hello world');
+        tts.progress!('Hello world', 0, 11, 'Hello world');
+        await flush();
+
+        expect(ranges, isEmpty);
+      });
+
+      test('ignores other texts and reports while nothing speaks', () async {
+        final device = deviceTts();
+        final ranges = <SpokenRange>[];
+        device.onProgress.listen(ranges.add);
+        await device.speak('one two');
+        tts.progress!('another text', 0, 7, 'another');
+        tts.completion!();
+        tts.progress!('one two', 4, 7, 'two');
+        await device.speak('three four');
+        await device.stop();
+        tts.progress!('three four', 0, 5, 'three');
+        await flush();
+
+        expect(ranges, isEmpty);
+      });
+
+      test('the stream closes with the engine', () async {
+        final device = deviceTts();
+        final done = Completer<void>();
+        device.onProgress.listen(null, onDone: done.complete);
+        await device.speak('one');
+        await device.dispose();
+        tts.progress!('one', 0, 3, 'one');
+        await done.future;
+      });
     });
   });
 }

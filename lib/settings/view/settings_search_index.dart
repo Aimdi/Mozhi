@@ -76,6 +76,13 @@ List<SettingsSearchEntry> settingsSearchIndex(
       l10n.settingsMultilineInput,
       subtitle: l10n.settingsMultilineInputSubtitle,
     ),
+    if (GeneralSettings.offlineAppShellSupported)
+      entry(
+        general,
+        GeneralAnchors.offlineAppShell,
+        l10n.settingsOfflineAppShell,
+        keywords: [l10n.settingsOfflineAppShellKeywords],
+      ),
     // Android integration (ScreenTranslateSettingsSection).
     entry(
       general,

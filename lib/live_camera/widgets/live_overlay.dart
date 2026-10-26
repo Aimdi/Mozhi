@@ -202,18 +202,23 @@ class LiveOverlayPainter extends CustomPainter {
   }
 
   @override
-  SemanticsBuilderCallback get semanticsBuilder =>
-      (size) => [
-        for (final label in labels)
+  SemanticsBuilderCallback get semanticsBuilder => (size) {
+    final visible = Offset.zero & size;
+    return [
+      for (final label in labels)
+        // Only what shows: the preview's edges may be cut off.
+        if (_toScreen(label.fill).intersect(visible) case final rect
+            when rect.width > 0 && rect.height > 0)
           CustomPainterSemantics(
-            rect: _toScreen(label.fill),
+            rect: rect,
             properties: SemanticsProperties(
               label: label.translation,
               hint: hintOf(label.original),
               textDirection: direction,
             ),
           ),
-      ];
+    ];
+  };
 
   @override
   bool shouldRepaint(LiveOverlayPainter oldDelegate) =>

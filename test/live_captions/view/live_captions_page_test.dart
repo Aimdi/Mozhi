@@ -19,6 +19,7 @@ import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/widgets/language_picker_sheet.dart';
+import 'package:mozhi/voice/offline/offline_speech.dart';
 import 'package:mozhi/voice/offline/phrase_transcriber.dart';
 import 'package:mozhi/voice/widgets/voice_error_message.dart'
     show voiceSettingsLocation;
@@ -37,6 +38,8 @@ class _MockFiles extends Mock implements DocumentFileService;
 class _MockRouter extends Mock implements GoRouter;
 
 class _FakeHistoryEntry extends Fake implements HistoryEntry;
+
+class _MockOfflineSpeech extends Mock implements OfflineSpeech;
 
 void main() {
   late FakeCaptionsHost host;
@@ -92,6 +95,8 @@ void main() {
         engines: [offlineEngine, deepl],
         engine: deepl,
         source: spanish,
+        sourceLanguages: const [Language.auto, english, spanish, german],
+        targetLanguages: const [english, spanish, german],
       ),
     );
     when(() => settings.state).thenReturn(const AppSettings());
@@ -110,6 +115,7 @@ void main() {
     WidgetTester tester, {
     Size size = const Size(420, 900),
     GoRouter? router,
+    OfflineSpeech? speech,
   }) async {
     tester.view
       ..physicalSize = size
@@ -117,7 +123,7 @@ void main() {
     addTearDown(tester.view.reset);
     Widget page = LiveCaptionsPage(
       host: () async => host,
-      recognizer: recognizer,
+      recognizer: speech == null ? recognizer : null,
       overlay: overlay,
       conditions: conditions,
       files: files,
@@ -126,8 +132,12 @@ void main() {
     );
     if (router != null) page = InheritedGoRouter(goRouter: router, child: page);
     await tester.pumpWidget(
-      RepositoryProvider<TranslationRepository>.value(
-        value: repository,
+      MultiRepositoryProvider(
+        providers: [
+          RepositoryProvider<TranslationRepository>.value(value: repository),
+          if (speech != null)
+            RepositoryProvider<OfflineSpeech>.value(value: speech),
+        ],
         child: MultiBlocProvider(
           providers: [
             BlocProvider<TranslateCubit>.value(value: translate),
@@ -197,14 +207,75 @@ void main() {
 
   testWidgets('the language chips open the language picker', (tester) async {
     await pump(tester);
+    Finder inSheet(String text) => find.descendant(
+      of: find.byType(LanguagePickerSheet),
+      matching: find.text(text),
+    );
     await tester.tap(find.byKey(const Key('live_captions_target')));
     await tester.pumpAndSettle();
     expect(find.byType(LanguagePickerSheet), findsOneWidget);
-    await tester.tapAt(const Offset(10, 10));
+    await tester.tap(inSheet('German').first);
     await tester.pumpAndSettle();
+    expect(cubitOf(tester).state.target.code, 'de');
     await tester.tap(find.byKey(const Key('live_captions_source')));
     await tester.pumpAndSettle();
-    expect(find.byType(LanguagePickerSheet), findsOneWidget);
+    await tester.tap(inSheet('Spanish').first);
+    await tester.pumpAndSettle();
+    expect(cubitOf(tester).state.source.code, 'es');
+    // Dismissed: nothing changes.
+    await tester.tap(find.byKey(const Key('live_captions_source')));
+    await tester.pumpAndSettle();
+    await tester.tapAt(const Offset(10, 10));
+    await tester.pumpAndSettle();
+    expect(cubitOf(tester).state.source.code, 'es');
+  });
+
+  testWidgets('captions in English when the translator has no target', (
+    tester,
+  ) async {
+    when(
+      () => translate.state,
+    ).thenReturn(const TranslateState(engines: [deepl], target: Language.auto));
+    await pump(tester);
+    expect(find.text(l10n.liveCaptionsTargetValue('English')), findsOneWidget);
+  });
+
+  testWidgets('"Show the original" is a switch', (tester) async {
+    await pump(tester);
+    await tester.tap(find.byKey(const Key('live_captions_show_original')));
+    await tester.pump();
+    expect(cubitOf(tester).state.showOriginal, isFalse);
+  });
+
+  testWidgets('an engine no longer configured says nothing of where', (
+    tester,
+  ) async {
+    when(() => repository.destinationOf(any())).thenThrow(ArgumentError('x'));
+    await pump(tester);
+    expect(find.text(l10n.liveCaptionsEngineOnDevice), findsOneWidget);
+  });
+
+  group('with offline speech above', () {
+    late _MockOfflineSpeech speech;
+
+    setUp(() {
+      speech = _MockOfflineSpeech();
+      when(() => speech.isAvailable).thenReturn(true);
+      when(speech.isReady).thenAnswer((_) async => true);
+    });
+
+    testWidgets('Whisper writes the captions', (tester) async {
+      await pump(tester, speech: speech);
+      expect(find.byKey(const Key('live_captions_start')), findsOneWidget);
+    });
+
+    testWidgets('where Whisper does not run, the model is missing', (
+      tester,
+    ) async {
+      when(() => speech.isAvailable).thenReturn(false);
+      await pump(tester, speech: speech);
+      expect(find.text(l10n.liveCaptionsNeedsModelTitle), findsOneWidget);
+    });
   });
 
   testWidgets('captions, shows the transcript and stops', (tester) async {
@@ -379,6 +450,25 @@ void main() {
       expect(find.text(l10n.transcribeSavedHistory), findsOneWidget);
     });
 
+    testWidgets('says when it was saved as a favourite, or not saved', (
+      tester,
+    ) async {
+      when(() => history.state).thenReturn(const HistoryState(incognito: true));
+      await withPhrase(tester);
+      Future<void> save() async {
+        await tester.tap(find.byKey(const Key('live_captions_menu')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('live_captions_menu_history')));
+        await tester.pumpAndSettle();
+      }
+
+      await save();
+      expect(find.text(l10n.transcribeSavedFavorite), findsOneWidget);
+      when(() => history.add(any())).thenThrow(StateError('disk'));
+      await save();
+      expect(find.text(l10n.transcribeSaveHistoryFailed), findsOneWidget);
+    });
+
     testWidgets('is saved as text and subtitles, and shared', (tester) async {
       await withPhrase(tester);
       for (final action in ['saveText', 'saveSubtitles']) {
@@ -460,6 +550,44 @@ void main() {
       await tester.pumpAndSettle();
       expect(cubitOf(tester).state.entries, isEmpty);
       expect(find.byKey(const Key('live_captions_about')), findsOneWidget);
+    });
+
+    testWidgets('clearing can be cancelled', (tester) async {
+      await withPhrase(tester);
+      await tester.tap(find.byKey(const Key('live_captions_stop')));
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('live_captions_menu')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('live_captions_menu_clear')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(l10n.commonCancel));
+      await tester.pumpAndSettle();
+      expect(cubitOf(tester).state.entries, isNotEmpty);
+    });
+
+    testWidgets('follows the newest phrase, says what is translating', (
+      tester,
+    ) async {
+      final gate = StreamController<TranslationResult>();
+      addTearDown(gate.close);
+      when(() => repository.translate(any(), any())).thenAnswer((invocation) {
+        final request = invocation.positionalArguments[1] as TranslationRequest;
+        if (request.text == 'last') return gate.stream;
+        return Stream.value(resultOf('Hello (${request.text})'));
+      });
+      await pump(tester, size: const Size(420, 640));
+      await start(tester);
+      for (var i = 0; i < 12; i++) {
+        recognizer.recording.phrase('Frase $i', language: 'es', index: i);
+        await tester.pump();
+        await tester.pump();
+      }
+      recognizer.recording.phrase('last', language: 'es', index: 12);
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('last'), findsOneWidget);
+      expect(find.text(l10n.transcribeTranslating), findsOneWidget);
     });
 
     testWidgets('a failed translation offers Retry', (tester) async {

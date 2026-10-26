@@ -10,6 +10,11 @@ phone. This is the **On-device text recognition** method of
 Play bundle); the optional [Play variant](contributing.md#build-variants)
 uses Google ML Kit instead. The web app has no on-device recognition.
 
+[PDF documents](features.md#pdf-documents) are read the same way, page by
+page, with Tesseract in every Android build (the Play variant too): each
+page is drawn on the phone at up to 300 dpi and read with the source
+language's data.
+
 ## How it works
 
 1. You pick or take a photo. With **On-device text recognition** selected
@@ -74,7 +79,8 @@ adaptive thresholding and keeps the better result.
 Each language needs its data file (`<code>.traineddata`), downloaded once
 **only when you ask**:
 
-- On the image screen, when the data for the source language is missing:
+- On the image screen (and on the Documents screen for a PDF), when the
+  data for the source language is missing:
   **Download German text recognition (1.5 MB)**. With **Detect language**
   and no data at all, the app asks which language the text is in and
   offers your language's data.

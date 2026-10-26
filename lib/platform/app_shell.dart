@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer';
 
 import 'package:equatable/equatable.dart';
 import 'package:flutter/foundation.dart';
@@ -169,15 +170,14 @@ class AppShell {
         await _bridge.unregister();
       }
     } on Object catch (error, stackTrace) {
-      // A browser that refused: the app works online, as before.
+      // A browser that refused (a private window, a blocked worker): the
+      // app works online, as before.
       _set(AppShellStatus.unsupported);
-      FlutterError.reportError(
-        FlutterErrorDetails(
-          exception: error,
-          stack: stackTrace,
-          library: 'app shell',
-          silent: true,
-        ),
+      log(
+        'The app shell is unavailable',
+        name: 'mozhi',
+        error: error,
+        stackTrace: stackTrace,
       );
     }
   }
@@ -254,6 +254,7 @@ class AppShell {
   Future<void> dispose() async {
     _reloadTimer?.cancel();
     await _events?.cancel();
-    await _changes.close();
+    // Not awaited: a listener that never cancels would keep it open.
+    unawaited(_changes.close());
   }
 }

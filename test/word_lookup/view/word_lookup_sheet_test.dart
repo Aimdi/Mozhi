@@ -195,6 +195,47 @@ void main() {
     testWidgets('says which word an inflected form is of', (tester) async {
       await pumpSheet(tester, word: 'gatos');
       expect(find.text('“gatos” is a form of “gato”'), findsOneWidget);
+      // Another lemma is looked up in the card.
+      dictionary.answers = {
+        ...dictionary.answers,
+        'gatear': const OfflineDictionaryAnswer(
+          entry: DictionaryEntry(
+            word: 'gatear',
+            senses: [DictionarySense(definition: 'to crawl')],
+          ),
+          language: 'es',
+          attribution: wiktionary,
+        ),
+      };
+      await tester.tap(find.text('gatear'));
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('to crawl'), findsOneWidget);
+    });
+
+    testWidgets('a detected language takes the headword’s direction', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        app(
+          WordLookupSheet(
+            service: WordLookupService(
+              offlineDictionary: FakeOfflineDictionary(
+                languages: ['he'],
+                answers: {},
+                words: {'שלום'},
+              ),
+            ),
+            word: 'שלום',
+            language: Language.auto,
+          ),
+        ),
+      );
+      await tester.pump();
+      final headword = tester.widget<Text>(
+        find.byKey(const Key('word_lookup_headword')),
+      );
+      expect(headword.textDirection, TextDirection.rtl);
     });
 
     testWidgets('without the other language, translations stand alone', (

@@ -28,9 +28,9 @@ Future<void> pickLiveCameraLanguage(
 }) async {
   final l10n = context.l10n;
   final cubit = context.read<LiveCameraCubit>();
-  final translate = _translateState(context);
-  final sources = translate?.sourceLanguages ?? const [];
-  final targets = translate?.targetLanguages ?? const [];
+  final translate = context.read<TranslateCubit>().state;
+  final sources = translate.sourceLanguages;
+  final targets = translate.targetLanguages;
   final languages = source
       ? (sources.length > 1 ? sources : [Language.auto, ...LanguageCatalog.all])
       : (targets.isNotEmpty ? targets : LanguageCatalog.all);
@@ -48,14 +48,6 @@ Future<void> pickLiveCameraLanguage(
   );
   if (picked == null || cubit.isClosed) return;
   unawaited(source ? cubit.setSource(picked) : cubit.setTarget(picked));
-}
-
-TranslateState? _translateState(BuildContext context) {
-  try {
-    return context.read<TranslateCubit>().state;
-  } on ProviderNotFoundException {
-    return null;
-  }
 }
 
 /// What the live camera has to say over the preview, when anything: the
@@ -156,9 +148,10 @@ class LiveCameraMessages extends StatelessWidget {
     final l10n = context.l10n;
     final cubit = context.read<LiveCameraCubit>();
     final missing = state.ocrMissing;
-    if (missing != null) {
-      final data = _languageData(context);
-      if (data == null) return null;
+    final data = textRecognitionLanguageDataOf(
+      context.read<TextRecognitionService>(),
+    );
+    if (missing != null && data != null) {
       return _Surface(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -223,16 +216,6 @@ class LiveCameraMessages extends StatelessWidget {
       );
     }
     return null;
-  }
-
-  static TextRecognitionLanguageData? _languageData(BuildContext context) {
-    try {
-      return textRecognitionLanguageDataOf(
-        context.read<TextRecognitionService>(),
-      );
-    } on ProviderNotFoundException {
-      return null;
-    }
   }
 }
 

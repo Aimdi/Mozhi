@@ -51,8 +51,11 @@ import 'package:mozhi/translate/widgets/translate_more.dart';
 import 'package:mozhi/translate/widgets/translation_memory_card.dart'
     show MemoryResultBadge;
 import 'package:mozhi/translate/widgets/translation_notes.dart';
+import 'package:mozhi/word_lookup/cubit/word_lookup_cubit.dart'
+    show WordLookupCubit;
+import 'package:mozhi/word_lookup/data/word_segmenter.dart';
 import 'package:mozhi/word_lookup/view/word_lookup_sheet.dart'
-    show lookUpWordAt;
+    show lookUpWordAt, showWordLookupSheet;
 import 'package:mozhi/word_lookup/widgets/word_tap_tracker.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:translation_repository/translation_repository.dart';
@@ -280,7 +283,9 @@ bool outputIsStreaming(TranslateState state) =>
 /// finished translation opens its word card ([lookUpWordAt]: the offline
 /// dictionaries first), while no other highlight mode (alignment,
 /// insights, a meaning check difference) is on; selecting, copying and
-/// the long press work as before ([WordTapTracker]). **The word being
+/// the long press work as before ([WordTapTracker]), and "Look up" in the
+/// selection toolbar opens the card of a selected word or two (for
+/// keyboards and screen readers). **The word being
 /// read** (`AppSettings.highlightSpokenWord`): while Listen reads the
 /// translation with a voice that reports its progress, the word it reads
 /// is highlighted ([SpokenRangeBuilder]; not while text is selected).
@@ -1320,8 +1325,26 @@ class _OutputCardState extends State<OutputCard>
       (state.result?.isComplete ?? false) &&
       !state.isResultStale;
 
+  /// Most words of a selection offered for a word card ("Look up").
+  static const _maxLookUpWords = 3;
+
+  /// Whether the selected [text] of [state]'s translation can be looked up
+  /// on a word card: one to [_maxLookUpWords] words of a finished
+  /// translation into a known language.
+  static bool _offersWordLookUp(TranslateState state, String text) {
+    final words = text.trim();
+    return (state.result?.isComplete ?? false) &&
+        !state.target.isCustom &&
+        !state.target.isAuto &&
+        words.isNotEmpty &&
+        words.length <= WordLookupCubit.maxWordLength &&
+        words.split(RegExp(r'\s+')).length <= _maxLookUpWords;
+  }
+
   /// The platform's selection toolbar plus "Alternatives" for the selected
-  /// part of a finished translation.
+  /// part of a finished translation, and "Look up" (its word card) for a
+  /// selection of a few words: the word card's way for keyboards and
+  /// screen readers, which select text rather than tap a word.
   Widget _contextMenu(
     BuildContext context,
     EditableTextState editable,
@@ -1340,6 +1363,19 @@ class _OutputCardState extends State<OutputCard>
           onPressed: () {
             editable.hideToolbar();
             _alternativesForSelection(value);
+          },
+        ),
+      );
+    }
+    if (selection.isValid &&
+        !selection.isCollapsed &&
+        _offersWordLookUp(state, selection.textInside(value.text))) {
+      items.add(
+        ContextMenuButtonItem(
+          label: context.l10n.dictionaryLookUp,
+          onPressed: () {
+            editable.hideToolbar();
+            _lookUpSelection(state, value);
           },
         ),
       );
@@ -1365,6 +1401,26 @@ class _OutputCardState extends State<OutputCard>
       ),
     );
     unawaited(showSpanAlternativesSheet(context));
+  }
+
+  /// Opens the word card of the selected text (trimmed), with its sentence.
+  void _lookUpSelection(TranslateState state, TextEditingValue value) {
+    final selection = value.selection;
+    final raw = selection.textInside(value.text);
+    final word = raw.trim();
+    final start = selection.start + raw.length - raw.trimLeft().length;
+    unawaited(
+      showWordLookupSheet(
+        context,
+        word: word,
+        language: state.target,
+        into: wordLookupInto(state),
+        sentence: WordSegmenter.sentenceAround(
+          value.text,
+          TextWord(start, start + word.length, word),
+        ),
+      ),
+    );
   }
 
   /// Whether [state]'s engine is on-device AI.

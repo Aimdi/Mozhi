@@ -525,11 +525,8 @@ class LiveCaptionsCubit extends Cubit<LiveCaptionsState> {
   void _showCaption(int id, {bool force = false}) {
     final entry = _entry(id);
     if (entry == null || isClosed || !state.isRunning) return;
-    final newest = state.entries.lastWhere(
-      (other) => other.hasText,
-      orElse: () => entry,
-    );
-    if (newest.id != id && !force) return;
+    final newest = state.entries.where((other) => other.hasText).lastOrNull;
+    if (newest?.id != id && !force) return;
     unawaited(
       _host.show(
         CaptionLine(
