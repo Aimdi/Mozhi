@@ -386,6 +386,12 @@ jobs:
       - name: Self-host the fallback fonts
         run: python3 tool/web_fallback_fonts.py build/web
 
+      # The build's files (sizes and SHA-256) for the app shell service
+      # worker, which keeps the web app for offline use (docs/
+      # self-hosting-mozhi.md); after every step that adds files.
+      - name: List the app shell's files
+        run: python3 tool/web_shell_manifest.py build/web
+
       - name: Zip
         env:
           TAG: ${{ env.RELEASE_TAG }}

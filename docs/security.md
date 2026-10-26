@@ -596,6 +596,38 @@ capture only on purpose and to keep nothing:
   quick translate sheet, which shows it only after the unlock and never
   starts a paid AI request on its own.
 
+## Live camera (Android)
+
+The live camera sees whatever the phone is pointed at, so it runs only on
+purpose, only in front, and keeps nothing:
+
+- **Permission when asked for.** `CAMERA` is requested at run time when the
+  live camera opens (the framework's `requestPermissions`); a permanent
+  refusal is only ever undone by the user in Android's settings. The
+  camera is driven by the app's own `LiveCameraPlugin.kt` on the framework
+  Camera2 API: no CameraX, no androidx camera, no Google classes.
+- **Only from the app.** The route opens only from the image screen (an
+  in-app `extra`); a link, `mozhi://image/live` included, shows the image
+  screen instead, so no other app can turn the camera on through Mozhi.
+- **Only in front.** The camera is closed when the activity stops (it is
+  never used in the background, whatever Dart does), when the plugin
+  detaches and when the engine goes; the app closes it too while it is in
+  the background, while the app lock is locked and while the phone is
+  critically hot. Each opening has its own camera thread, session, readers
+  and texture, all released together.
+- **Frames on request, in memory.** Frames are pulled: the platform copies
+  a frame's grey plane only when Dart asks for one, at most a few a second,
+  and closes every other frame unread. Dart checks each frame against its
+  own size (at most 4096 pixels a side) before reading it, and a still
+  must be a JPEG of at most 32 MB. Nothing is written to disk, logged or
+  kept after it is read; translations stay in memory while the screen is
+  open and are not added to the history.
+- **The text** goes only to the live engine (the offline engine unless the
+  user picked another for live use and confirmed a network one once),
+  through the same privacy mode, consent prompts, personal data shield and
+  Network activity as typed text. Recognised text is only ever translated,
+  as text.
+
 ## Live captions (Android)
 
 Live captions hear whatever other apps play, so they capture only on

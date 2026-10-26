@@ -676,7 +676,10 @@ which is outside the app.
 
 Photo and camera translation reads text on the phone with the open-source
 Tesseract engine and language data downloaded from GitHub only when you ask,
-or imported from files ([text recognition](text-recognition.md)).
+or imported from files ([text recognition](text-recognition.md)). The live
+camera drives the camera through Android's own Camera2 interface, without
+CameraX or any other Google library, and reads with Tesseract in the Play
+variant too.
 
 An optional **Play variant** uses Google's ML Kit for on-device text
 recognition in image translation instead. The recognition runs on the phone, but

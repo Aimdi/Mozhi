@@ -135,6 +135,9 @@ jobs:
           python3 tool/dictionary_packs_test.py
           python3 tool/phrasebooks_test.py
           python3 tool/check_coverage_markers_test.py
+          # The web app shell's manifest, and that mozhi_sw.js reads it
+          # (with Node.js).
+          python3 tool/web_shell_manifest_test.py
           # A misplaced coverage marker makes `--coverage` hang (see the
           # script): fail here instead.
           python3 tool/check_coverage_markers.py
@@ -665,6 +668,13 @@ jobs:
         run: |
           python3 tool/web_fallback_fonts_test.py
           python3 tool/web_fallback_fonts.py build/web
+
+      # The list of the build's files (sizes and SHA-256) that the app shell
+      # service worker (web/mozhi_sw.js) keeps for offline use, stamped into
+      # the worker. Last: it lists what the steps above put in the build.
+      - name: List the app shell's files
+        run: |
+          python3 tool/web_shell_manifest.py build/web
           {
             echo "### Web build"
             echo
@@ -726,8 +736,10 @@ jobs:
         run: |
           flutter build web --release -t lib/main_development.dart \
             --no-web-resources-cdn --base-href / -o build/web-e2e
-          # Like the release: fallback fonts from the build, not Google.
+          # Like the release: fallback fonts from the build, not Google,
+          # then the app shell's files (offline_shell.spec.js).
           python3 tool/web_fallback_fonts.py build/web-e2e
+          python3 tool/web_shell_manifest.py build/web-e2e
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
