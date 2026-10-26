@@ -2584,5 +2584,6 @@
   "onDeviceAiPausedHint": "Kalan kısım, hazır olunca bölüm bölüm çevrilir.",
   "onDeviceAiContinueAnyway": "Yine de devam et",
   "onDeviceAiLoadingHint": "Bir aradan sonraki ilk istek birkaç saniye sürer.",
-  "documentsTextHintFormats": "Metin, Markdown, altyazı, JSON, HTML, XLIFF, PO, Android veya Apple dizeleri, CSV ya da TSV yapıştırın veya yazın"
+  "documentsTextHintFormats": "Metin, Markdown, altyazı, JSON, HTML, XLIFF, PO, Android veya Apple dizeleri, CSV ya da TSV yapıştırın veya yazın",
+  "documentsKeepsMacros": "Bu belge makro veya ActiveX denetimleri içeriyor. Çevrilen dosya bunları olduğu gibi korur."
 }

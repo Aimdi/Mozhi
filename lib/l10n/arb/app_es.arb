@@ -2584,5 +2584,6 @@
   "onDeviceAiPausedHint": "El resto se traduce parte por parte en cuanto esté listo.",
   "onDeviceAiContinueAnyway": "Continuar de todos modos",
   "onDeviceAiLoadingHint": "La primera solicitud después de una pausa tarda unos segundos.",
-  "documentsTextHintFormats": "Pega o escribe texto, Markdown, subtítulos, JSON, HTML, XLIFF, PO, cadenas de Android o Apple, CSV o TSV"
+  "documentsTextHintFormats": "Pega o escribe texto, Markdown, subtítulos, JSON, HTML, XLIFF, PO, cadenas de Android o Apple, CSV o TSV",
+  "documentsKeepsMacros": "Este documento contiene macros o controles ActiveX. El archivo traducido los conserva tal como están."
 }

@@ -2584,5 +2584,6 @@
   "onDeviceAiPausedHint": "Решту буде перекладено частинами, коли телефон буде готовий.",
   "onDeviceAiContinueAnyway": "Однаково продовжити",
   "onDeviceAiLoadingHint": "Перший запит після перерви триває кілька секунд.",
-  "documentsTextHintFormats": "Вставте або введіть текст, Markdown, субтитри, JSON, HTML, XLIFF, PO, рядки Android або Apple, CSV або TSV"
+  "documentsTextHintFormats": "Вставте або введіть текст, Markdown, субтитри, JSON, HTML, XLIFF, PO, рядки Android або Apple, CSV або TSV",
+  "documentsKeepsMacros": "Документ містить макроси або елементи керування ActiveX. У перекладеному файлі вони залишаються без змін."
 }

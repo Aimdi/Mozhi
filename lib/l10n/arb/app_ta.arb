@@ -2584,5 +2584,6 @@
   "onDeviceAiPausedHint": "ஃபோன் தயாரானதும் மீதமுள்ளவை பகுதி பகுதியாக மொழிபெயர்க்கப்படும்.",
   "onDeviceAiContinueAnyway": "இருந்தாலும் தொடர்",
   "onDeviceAiLoadingHint": "இடைவெளிக்குப் பிறகு முதல் கோரிக்கைக்குச் சில வினாடிகள் ஆகும்.",
-  "documentsTextHintFormats": "உரை, Markdown, வசனங்கள், JSON, HTML, XLIFF, PO, Android அல்லது Apple சரங்கள், CSV அல்லது TSV-ஐ ஒட்டவும் அல்லது தட்டச்சு செய்யவும்"
+  "documentsTextHintFormats": "உரை, Markdown, வசனங்கள், JSON, HTML, XLIFF, PO, Android அல்லது Apple சரங்கள், CSV அல்லது TSV-ஐ ஒட்டவும் அல்லது தட்டச்சு செய்யவும்",
+  "documentsKeepsMacros": "இந்த ஆவணத்தில் மேக்ரோக்கள் அல்லது ActiveX கட்டுப்பாடுகள் உள்ளன. மொழிபெயர்க்கப்பட்ட கோப்பில் அவை அப்படியே இருக்கும்."
 }

@@ -2584,5 +2584,6 @@
   "onDeviceAiPausedHint": "Il resto viene tradotto una parte alla volta appena è pronto.",
   "onDeviceAiContinueAnyway": "Continua comunque",
   "onDeviceAiLoadingHint": "La prima richiesta dopo una pausa richiede qualche secondo.",
-  "documentsTextHintFormats": "Incolla o scrivi testo, Markdown, sottotitoli, JSON, HTML, XLIFF, PO, stringhe Android o Apple, CSV o TSV"
+  "documentsTextHintFormats": "Incolla o scrivi testo, Markdown, sottotitoli, JSON, HTML, XLIFF, PO, stringhe Android o Apple, CSV o TSV",
+  "documentsKeepsMacros": "Questo documento contiene macro o controlli ActiveX. Il file tradotto li mantiene così come sono."
 }

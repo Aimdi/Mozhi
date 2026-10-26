@@ -2584,5 +2584,6 @@
   "onDeviceAiPausedHint": "準備が整い次第、残りの部分を順番に翻訳します。",
   "onDeviceAiContinueAnyway": "このまま続行",
   "onDeviceAiLoadingHint": "しばらく使わなかった後の最初のリクエストには数秒かかります。",
-  "documentsTextHintFormats": "テキスト、Markdown、字幕、JSON、HTML、XLIFF、PO、Android または Apple の文字列、CSV、TSV を貼り付けまたは入力"
+  "documentsTextHintFormats": "テキスト、Markdown、字幕、JSON、HTML、XLIFF、PO、Android または Apple の文字列、CSV、TSV を貼り付けまたは入力",
+  "documentsKeepsMacros": "このドキュメントにはマクロまたは ActiveX コントロールが含まれています。翻訳したファイルにもそのまま残ります。"
 }

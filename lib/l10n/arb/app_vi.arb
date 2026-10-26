@@ -2584,5 +2584,6 @@
   "onDeviceAiPausedHint": "Phần còn lại sẽ được dịch dần từng phần khi sẵn sàng.",
   "onDeviceAiContinueAnyway": "Vẫn tiếp tục",
   "onDeviceAiLoadingHint": "Yêu cầu đầu tiên sau một lúc tạm nghỉ sẽ mất vài giây.",
-  "documentsTextHintFormats": "Dán hoặc nhập văn bản, Markdown, phụ đề, JSON, HTML, XLIFF, PO, chuỗi Android hoặc Apple, CSV hoặc TSV"
+  "documentsTextHintFormats": "Dán hoặc nhập văn bản, Markdown, phụ đề, JSON, HTML, XLIFF, PO, chuỗi Android hoặc Apple, CSV hoặc TSV",
+  "documentsKeepsMacros": "Tài liệu này chứa macro hoặc điều khiển ActiveX. Tệp đã dịch vẫn giữ nguyên chúng."
 }

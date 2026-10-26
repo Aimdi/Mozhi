@@ -2584,5 +2584,6 @@
   "onDeviceAiPausedHint": "준비가 되면 나머지를 부분별로 번역합니다.",
   "onDeviceAiContinueAnyway": "그래도 계속",
   "onDeviceAiLoadingHint": "잠시 쉬었다가 처음 요청할 때는 몇 초가 걸립니다.",
-  "documentsTextHintFormats": "텍스트, Markdown, 자막, JSON, HTML, XLIFF, PO, Android 또는 Apple 문자열, CSV 또는 TSV를 붙여넣거나 입력하세요"
+  "documentsTextHintFormats": "텍스트, Markdown, 자막, JSON, HTML, XLIFF, PO, Android 또는 Apple 문자열, CSV 또는 TSV를 붙여넣거나 입력하세요",
+  "documentsKeepsMacros": "이 문서에는 매크로 또는 ActiveX 컨트롤이 포함되어 있습니다. 번역된 파일에도 그대로 유지됩니다."
 }

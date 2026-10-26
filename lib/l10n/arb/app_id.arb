@@ -2584,5 +2584,6 @@
   "onDeviceAiPausedHint": "Sisanya akan diterjemahkan bagian demi bagian setelah siap.",
   "onDeviceAiContinueAnyway": "Tetap lanjutkan",
   "onDeviceAiLoadingHint": "Permintaan pertama setelah jeda memerlukan beberapa detik.",
-  "documentsTextHintFormats": "Tempel atau ketik teks, Markdown, subtitel, JSON, HTML, XLIFF, PO, string Android atau Apple, CSV, atau TSV"
+  "documentsTextHintFormats": "Tempel atau ketik teks, Markdown, subtitel, JSON, HTML, XLIFF, PO, string Android atau Apple, CSV, atau TSV",
+  "documentsKeepsMacros": "Dokumen ini berisi makro atau kontrol ActiveX. File terjemahannya tetap menyimpannya apa adanya."
 }

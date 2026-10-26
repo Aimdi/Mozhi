@@ -2584,5 +2584,6 @@
   "onDeviceAiPausedHint": "ستُترجم البقية جزءًا جزءًا حين يصبح الهاتف جاهزًا.",
   "onDeviceAiContinueAnyway": "المتابعة على أي حال",
   "onDeviceAiLoadingHint": "يستغرق الطلب الأول بعد التوقّف بضع ثوانٍ.",
-  "documentsTextHintFormats": "الصق أو اكتب نصًا أو Markdown أو ترجمات مصاحبة أو JSON أو HTML أو XLIFF أو PO أو سلاسل Android أو Apple أو CSV أو TSV"
+  "documentsTextHintFormats": "الصق أو اكتب نصًا أو Markdown أو ترجمات مصاحبة أو JSON أو HTML أو XLIFF أو PO أو سلاسل Android أو Apple أو CSV أو TSV",
+  "documentsKeepsMacros": "يحتوي هذا المستند على وحدات ماكرو أو عناصر تحكم ActiveX. يحتفظ الملف المترجم بها كما هي."
 }

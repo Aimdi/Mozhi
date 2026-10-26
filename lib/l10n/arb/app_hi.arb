@@ -2584,5 +2584,6 @@
   "onDeviceAiPausedHint": "फ़ोन तैयार होते ही बाकी हिस्सों का अनुवाद एक-एक करके होगा।",
   "onDeviceAiContinueAnyway": "फिर भी जारी रखें",
   "onDeviceAiLoadingHint": "कुछ देर रुकने के बाद पहले अनुरोध में कुछ सेकंड लगते हैं।",
-  "documentsTextHintFormats": "टेक्स्ट, Markdown, सबटाइटल, JSON, HTML, XLIFF, PO, Android या Apple स्ट्रिंग, CSV या TSV चिपकाएं या टाइप करें"
+  "documentsTextHintFormats": "टेक्स्ट, Markdown, सबटाइटल, JSON, HTML, XLIFF, PO, Android या Apple स्ट्रिंग, CSV या TSV चिपकाएं या टाइप करें",
+  "documentsKeepsMacros": "इस दस्तावेज़ में मैक्रो या ActiveX कंट्रोल हैं। अनुवाद की गई फ़ाइल में वे जैसे हैं वैसे ही रहते हैं।"
 }

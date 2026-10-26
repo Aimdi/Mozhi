@@ -2584,5 +2584,6 @@
   "onDeviceAiPausedHint": "Der Rest wird Teil für Teil übersetzt, sobald es so weit ist.",
   "onDeviceAiContinueAnyway": "Trotzdem fortsetzen",
   "onDeviceAiLoadingHint": "Die erste Anfrage nach einer Pause dauert ein paar Sekunden.",
-  "documentsTextHintFormats": "Text, Markdown, Untertitel, JSON, HTML, XLIFF, PO, Android- oder Apple-Strings, CSV oder TSV einfügen oder eingeben"
+  "documentsTextHintFormats": "Text, Markdown, Untertitel, JSON, HTML, XLIFF, PO, Android- oder Apple-Strings, CSV oder TSV einfügen oder eingeben",
+  "documentsKeepsMacros": "Dieses Dokument enthält Makros oder ActiveX-Steuerelemente. Die übersetzte Datei behält sie unverändert bei."
 }

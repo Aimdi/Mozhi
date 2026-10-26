@@ -2584,5 +2584,6 @@
   "onDeviceAiPausedHint": "Остальное будет переведено по частям, когда телефон будет готов.",
   "onDeviceAiContinueAnyway": "Всё равно продолжить",
   "onDeviceAiLoadingHint": "Первый запрос после перерыва занимает несколько секунд.",
-  "documentsTextHintFormats": "Вставьте или введите текст, Markdown, субтитры, JSON, HTML, XLIFF, PO, строки Android или Apple, CSV или TSV"
+  "documentsTextHintFormats": "Вставьте или введите текст, Markdown, субтитры, JSON, HTML, XLIFF, PO, строки Android или Apple, CSV или TSV",
+  "documentsKeepsMacros": "Документ содержит макросы или элементы управления ActiveX. В переведённом файле они сохраняются без изменений."
 }

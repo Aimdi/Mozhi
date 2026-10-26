@@ -2584,5 +2584,6 @@
   "onDeviceAiPausedHint": "准备就绪后，其余内容会逐部分翻译。",
   "onDeviceAiContinueAnyway": "仍然继续",
   "onDeviceAiLoadingHint": "暂停一段时间后的首次请求需要几秒钟。",
-  "documentsTextHintFormats": "粘贴或输入文本、Markdown、字幕、JSON、HTML、XLIFF、PO、Android 或 Apple 字符串、CSV 或 TSV"
+  "documentsTextHintFormats": "粘贴或输入文本、Markdown、字幕、JSON、HTML、XLIFF、PO、Android 或 Apple 字符串、CSV 或 TSV",
+  "documentsKeepsMacros": "此文档包含宏或 ActiveX 控件。翻译后的文件会原样保留它们。"
 }

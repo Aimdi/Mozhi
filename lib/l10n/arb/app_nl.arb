@@ -2584,5 +2584,6 @@
   "onDeviceAiPausedHint": "De rest wordt deel voor deel vertaald zodra het zover is.",
   "onDeviceAiContinueAnyway": "Toch doorgaan",
   "onDeviceAiLoadingHint": "Het eerste verzoek na een pauze duurt een paar seconden.",
-  "documentsTextHintFormats": "Plak of typ tekst, Markdown, ondertitels, JSON, HTML, XLIFF, PO, Android- of Apple-strings, CSV of TSV"
+  "documentsTextHintFormats": "Plak of typ tekst, Markdown, ondertitels, JSON, HTML, XLIFF, PO, Android- of Apple-strings, CSV of TSV",
+  "documentsKeepsMacros": "Dit document bevat macro’s of ActiveX-besturingselementen. Het vertaalde bestand behoudt ze ongewijzigd."
 }

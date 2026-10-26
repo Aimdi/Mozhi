@@ -2584,5 +2584,6 @@
   "onDeviceAiPausedHint": "Reszta zostanie przetłumaczona część po części, gdy telefon będzie gotowy.",
   "onDeviceAiContinueAnyway": "Kontynuuj mimo to",
   "onDeviceAiLoadingHint": "Pierwsze żądanie po przerwie trwa kilka sekund.",
-  "documentsTextHintFormats": "Wklej lub wpisz tekst, Markdown, napisy, JSON, HTML, XLIFF, PO, ciągi Androida lub Apple, CSV lub TSV"
+  "documentsTextHintFormats": "Wklej lub wpisz tekst, Markdown, napisy, JSON, HTML, XLIFF, PO, ciągi Androida lub Apple, CSV lub TSV",
+  "documentsKeepsMacros": "Ten dokument zawiera makra lub kontrolki ActiveX. Przetłumaczony plik zachowuje je bez zmian."
 }
