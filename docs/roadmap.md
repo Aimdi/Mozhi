@@ -42,18 +42,19 @@ gaps that matter:
   is Android-only so far).
 - **Reach:** no image or file share target, quick translate opens the full
   app, no camera overlay, no continuous transcription, no office
-  documents, no way to translate other apps' screens (all but a live
-  camera overlay and PDF closed in waves 1 to 3 and 6).
+  documents or PDF, no way to translate other apps' screens or sound
+  (closed in waves 1 to 3, 6 and 7).
 - **Continuity:** no encrypted backup or sync, favorites aren't a
   phrasebook, no learning tools (all closed in wave 4).
 
-## Done: waves 1 to 6
+## Done: waves 1 to 7
 
 Wave 1 (trust, speed and transparency), wave 2 (feel like the best app),
 wave 3 (offline everywhere), wave 4 (continuity and learning), wave 5
-(offline AI) and wave 6 (translate everything, anywhere) are built; the
-[changelog](../CHANGELOG.md) lists what changed (0.1.0-rc.3 and
-0.1.0-rc.4 for wave 6). Wave 3
+(offline AI), wave 6 (translate everything, anywhere) and wave 7 (live and
+in place) are built; the [changelog](../CHANGELOG.md) lists what changed
+(0.1.0-rc.3 for wave 5, 0.1.0-rc.4 for wave 6 and 0.1.0-rc.5 for wave 7).
+Wave 3
 brought offline translation to the web app (Bergamot and CLD2 as
 WebAssembly in a worker, models in the browser's private storage), a model
 source setting with self-hosted mirrors, the translation drawn over photos,
@@ -111,24 +112,38 @@ review of the new code led to linear-time CSV parsing, protection against
 spreadsheet formulas in translated CSV cells, ZIP checks before anything
 is unpacked, and a tighter app lock grace period.
 
+Wave 7 made Mozhi translate what is in front of you as it happens, all on
+the phone by default: a live camera that draws the translation over the
+picture (Camera2, no camera library), PDF files read page by page and
+written back as a translated PDF with real text (the framework's PDF
+renderer and writer), translated captions of other apps' sound in a
+floating bar (Android 10's playback capture with Whisper), a tap on any
+word for a dictionary card from the offline packs, and the word being
+read highlighted while Listen plays. Live features use the offline engine
+unless the user picks another one for them, and an online engine asks
+once. Conversation now picks the speaker from the spoken language and
+ends a turn at a real pause; the web app keeps its own files for offline
+use (an app-shell service worker) and imports language packs and
+dictionaries from files; and wave 6's engineering leftovers are closed
+(linear JSON search and streamed restore, the full-width CSV formula
+guard, longer document placeholders, the "kept on this device" note for
+photos and documents).
+
 Carried over to later waves:
 
-- **Delight:** word highlighting while Listen plays (it needs progress
-  events from the read-aloud engines) and a mini dictionary when you tap a
-  word in the translation.
 - **Store presence:** fresh screenshots, an accurate store text in all
   listing languages, F-Droid per-ABI builds and changelogs.
-- **Web app offline, the rest of it:** an app-shell service worker so a
-  self-hosted web app opens with no network at all; **Import from files**
-  for language packs and dictionaries in a browser; checks in Firefox,
-  Safari and phone browsers (only Chromium was tested); Transcribe and the
-  screen wake lock in a real browser.
+- **Web app:** checks in Firefox, Safari and phone browsers (only
+  Chromium was tested), the offline app shell and its update notice
+  included; Transcribe and the screen wake lock in a real browser; the
+  nginx example for serving it is untested (Caddy is).
 - **Photos:** the overlay along tilted text lines (baselines, deskew),
   scene text (PP-OCR), and the overlay in the Play variant's ML Kit text
   recognition.
-- **Voice:** Conversation picking the speaker from the spoken language and
-  ending a turn at a real pause instead of after 3 seconds; long
-  transcripts are cut at History's 20,000 characters.
+- **Voice:** long transcripts are cut at History's 20,000 characters;
+  speaker detection and the pause that ends a turn work with the offline
+  voice models only (the system recogniser still ends a turn after 3
+  seconds).
 - **Dictionaries:** WikDict translations and Tatoeba example sentences;
   resuming interrupted downloads; the first pack release (the workflow is
   ready: its sizes and the kaikki.org URL pattern are checked on the first
@@ -136,20 +151,17 @@ Carried over to later waves:
 - **Mirrors:** the manual download lists still show the publishers' links;
   `tool/check_model_downloads.py --mirror`; the nginx example in the docs is
   untested.
-- **Privacy follow-ups:** the "kept on this device" note for photo and
-  document translations; the personal data shield can't apply to speech
+- **Privacy follow-ups:** the personal data shield can't apply to speech
   (documented); Tailscale `.ts.net` names count as private (no proxy),
   which also covers public Funnel addresses.
 - **Engineering:** report the dart2js miscompile found in wave 3 (a
   nullable local assigned in `catch`, captured by a closure, read stale on
   the success path) to the Dart SDK; a connection given up during the TLS
   handshake through the proxy stays open until the server closes it;
-  Documents' own placeholder tokens are still limited to four digits;
-  two spots stay quadratic on hostile engine replies of about 100,000
-  characters (the JSON search in AI replies on bracket-heavy text, and the
-  personal data shield restoring a streamed reply with a long run of
-  spaces after a placeholder); full-width formula characters (`＝`) are not
-  guarded in translated CSV cells.
+  Documents' own placeholder tokens stop at six digits per paragraph;
+  the JSON search in AI replies gives up (instead of slowing down) on
+  replies that are mostly brackets; `DownloadOnlyModelDetails` is unused
+  since the web imports.
 - **Backup and sync:** Unicode normalisation of passphrases (a passphrase
   typed with another keyboard's composed characters doesn't match); the
   web app's Argon2id uses lighter settings (19 MiB, 2 passes) than
@@ -186,8 +198,7 @@ Carried over to later waves:
   browser's private storage); images for the vision-capable models.
 - **Voice:** measure the CPU variants and the quantized models on phones,
   and try q8_0 models.
-- **Documents:** PDF (it needs pdfium built from source for F-Droid);
-  spreadsheet comments, chart data, alt text, sheet names and slide-master
+- **Documents:** spreadsheet comments, chart data, alt text, sheet names and slide-master
   prompts are not translated yet; PO plural forms other than the singular
   all get the same text and Android plurals keep the source quantities;
   XLIFF `seg-source` segmentation is not mirrored in the targets; large
@@ -199,7 +210,28 @@ Carried over to later waves:
   offline engine only.
 - **App lock:** while the app is locked, screens opened before keep their
   data in memory (hidden, not encrypted); Android 11+ accepts the
-  "weak" biometric class like the lock screen does.
+  "weak" biometric class like the lock screen does; the live caption bar
+  keeps showing captions while the app is locked (the transcript stays
+  behind the lock).
+- **Live camera:** try it on real phones: the preview's orientation in
+  portrait and both landscapes, the preview under Impeller/Vulkan, zoom
+  before and after Android 11, the torch, and the camera permission after
+  "Don't ask again"; text along tilted lines.
+- **PDF:** try the rendering colours, how translated text fits its box,
+  selecting and searching the result and the memory of a 200-page file
+  on real phones; PDFs with a text layer are still read with text
+  recognition (Android 15's text extraction could read them directly and
+  keep them sharp); the page backgrounds drop to about 40 dpi on 200-page
+  files; text recognition does not pause when the phone is hot; PDF in the
+  web app.
+- **Live captions:** check on real phones that capture keeps going in the
+  background on Android 14 and later with only the media projection
+  service type, the caption bar's Open button on Android 15, the consent
+  and permission order at the first start and the bar at 200% text; a
+  Quick Settings tile for captions.
+- **Tap a word:** words in the input can't be tapped yet; the highlight
+  while Listen plays depends on the voice reporting its progress
+  (browsers' word boundaries for Chinese, Japanese and Thai are rough).
 - **Not done on purpose:** measuring instance speed automatically during
   setup (it contacts every listed volunteer server, so it stays a button:
   "Find the fastest server"); on-device AI as an automatic fallback (it
@@ -209,11 +241,9 @@ Carried over to later waves:
 
 ## Later, or with owner sign-off
 
-- **Live camera viewfinder** with freeze-frame overlay. It needs the
-  `camera` package or an in-repo CameraX plugin, plus the CAMERA permission.
-- **PDF documents** with pdfium (Apache-2.0), built from source.
-- **Live captions** of other apps' audio (AudioPlaybackCapture with
-  Whisper), next to the screen translation.
+- **PDF translated in place** (the original text layer replaced, not
+  drawn over a picture of the page) with pdfium (Apache-2.0), built from
+  source.
 - **Bundled neural text-to-speech for degoogled phones.** Piper and
   espeak-ng are GPL-3.0, so this needs a licence-clean voice stack. Until
   then, point users to SherpaTTS on F-Droid.

@@ -3,6 +3,70 @@
 All notable changes to Mozhi, by release tag on GitHub (pre-releases end
 in `-rc.N`).
 
+## 0.1.0-rc.5
+
+### Added
+
+- **Live camera** (Android). Point the camera at a sign, a menu or a page
+  and the translation is drawn over the live picture: the text is read on
+  the phone a few times a second, only new or changed text is translated,
+  and the boxes hold still while you move. **Freeze** takes the picture to
+  the photo screen; torch and zoom are there too. It translates with the
+  offline engine unless you pick another one for live translation (an
+  online engine asks once, since it gets everything the camera reads).
+  Frames stay in memory and are never saved or sent. Mozhi now asks for
+  the camera permission when you open it.
+- **PDF documents** (Android). PDF files are read page by page on the
+  phone, translated with the document's engine and saved as a translated
+  PDF: each page keeps its look, and the translation is real text that
+  can be selected, searched and read aloud. **Save the text** keeps the
+  translation alone. Files up to 25 MB and 200 pages; password-protected
+  files are refused. PDFs can be shared to Mozhi from other apps.
+- **Live captions** (Android 10 and later). **Caption other apps** on the
+  Transcribe screen shows translated captions of what other apps play
+  (videos, podcasts, calls in apps that allow it) in a small floating bar,
+  recognised with the offline voice models and translated on the phone by
+  default. Android asks for consent each time; the sound stays in memory,
+  and the transcript is kept only if you save it.
+- **Tap a word.** A tap on a word in a translation opens a small
+  dictionary card from the offline dictionaries (also for languages
+  written without spaces), with Listen, Copy, Open in Dictionary and Add
+  to phrasebook; **Look up with …** asks an online dictionary engine only
+  when you tap it. Selected words have **Look up** in the selection menu.
+- **Follow along.** The word being read aloud is highlighted while Listen
+  plays, in the translation and in the phrasebook, with voices that report
+  their progress (the phone's voices, and the browser's).
+- **The web app works offline.** Once opened, a self-hosted Mozhi web app
+  keeps its own files in the browser and opens and translates with
+  offline languages with no network at all; a new version shows **Update
+  ready: Reload**. It can be turned off in Settings › General.
+- **Import from files** for offline languages and dictionaries in the web
+  app, and for dictionaries on Android.
+- **Conversation picks the speaker** from the language spoken (with the
+  offline voice models), and a turn ends at a real pause (0.8 seconds by
+  default, adjustable) instead of after 3 seconds.
+
+### Changed
+
+- **Take photo asks for the camera permission** the first time, because
+  Mozhi now uses the camera itself (for the live camera).
+- **Photo and document results say when personal data stayed on the
+  phone**, like translations of typed text.
+
+### Fixed
+
+- **Listen with the phone's voice on very long texts.** Texts over about
+  4,000 characters are read in parts instead of failing.
+- **Play variant:** screenshots and frozen live camera pictures are read
+  by ML Kit too (it needs a file, so a temporary one is written and
+  deleted right after).
+- **Hostile engine replies** with thousands of brackets, or streamed
+  replies with long runs of spaces, no longer slow the app down.
+- **Translated CSV cells** that start with a full-width `＝`, `＋`, `－` or
+  `＠` are protected from being run as spreadsheet formulas, like the
+  ASCII ones.
+- **Documents with very many inline tags** in one paragraph keep them all.
+
 ## 0.1.0-rc.4
 
 ### Added
