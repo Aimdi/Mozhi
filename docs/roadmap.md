@@ -52,8 +52,8 @@ gaps that matter:
 Wave 1 (trust, speed and transparency), wave 2 (feel like the best app),
 wave 3 (offline everywhere), wave 4 (continuity and learning), wave 5
 (offline AI) and wave 6 (translate everything, anywhere) are built; the
-[changelog](../CHANGELOG.md) lists what changed (0.1.0-rc.3, and
-Unreleased for wave 6). Wave 3
+[changelog](../CHANGELOG.md) lists what changed (0.1.0-rc.3 and
+0.1.0-rc.4 for wave 6). Wave 3
 brought offline translation to the web app (Bergamot and CLD2 as
 WebAssembly in a worker, models in the browser's private storage), a model
 source setting with self-hosted mirrors, the translation drawn over photos,
