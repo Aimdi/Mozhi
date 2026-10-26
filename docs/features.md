@@ -1726,9 +1726,12 @@ unprotected.**).
 | Mozhi engines, AI providers, Proofread, history | ✓ | ✓ |
 | Text selection menu and share target | ✓ | |
 | `mozhi://` links | ✓ | |
-| Offline translation | ✓ | |
+| Offline translation | ✓ | ✓ (models in the browser's private storage) |
 | On-device AI | ✓ (64-bit phones with enough memory) | |
 | On-device text recognition | ✓ (Tesseract; ML Kit in the Play variant) | |
+| Office documents, e-books, localisation files and HTML | ✓ | ✓ (large files can pause the page while they are read) |
+| Translate screen, floating bubble | ✓ | |
+| App lock | ✓ (with a screen lock set) | |
 | Privacy screen, sensitive clipboard, HTTP proxy | ✓ | |
 | Dynamic color from wallpaper | ✓ (12+) | |
 
