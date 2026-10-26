@@ -7,9 +7,11 @@ import 'package:mozhi/documents/core/core.dart';
 /// About the size of each hostile input, in characters.
 const _size = 200000;
 
-/// Each input is parsed and rendered (or sniffed) within this: a parser
-/// or pattern that backtracks quadratically takes minutes instead.
-const _budget = Duration(seconds: 1);
+/// Each input is parsed and rendered (or sniffed) within this. The linear
+/// code takes well under a second on a desktop and a few times longer on a
+/// shared CI runner; a parser or pattern that backtracks quadratically
+/// takes minutes instead.
+const _budget = Duration(seconds: 5);
 
 String _many(String text) => text * (_size ~/ text.length);
 

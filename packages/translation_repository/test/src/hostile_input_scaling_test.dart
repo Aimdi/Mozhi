@@ -14,11 +14,12 @@ import 'repository/test_helpers.dart';
 /// translate screen takes).
 const _size = 200000;
 
-/// Each entry point handles each input within this. A regular expression
-/// that backtracks quadratically takes minutes on such inputs, one that
-/// backtracks cubically (the old `ProtectedPatterns.htmlTag` on `<a` and
-/// spaces) days.
-const _budget = Duration(seconds: 1);
+/// Each entry point handles each input within this. The linear code takes
+/// well under a second on a desktop and a few times longer on a shared CI
+/// runner; a regular expression that backtracks quadratically takes
+/// minutes on such inputs, one that backtracks cubically (the old
+/// `ProtectedPatterns.htmlTag` on `<a` and spaces) days.
+const _budget = Duration(seconds: 5);
 
 /// How long the inputs of one test may take before it fails as stuck: a
 /// running regular expression cannot be interrupted, so the work runs in
