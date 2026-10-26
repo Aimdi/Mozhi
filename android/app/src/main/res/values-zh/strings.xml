@@ -22,4 +22,21 @@
     <string name="widget_type_description">输入要翻译的文本</string>
     <string name="widget_camera_label">相机</string>
     <string name="widget_camera_description">相机翻译</string>
+    <string name="tile_translate_screen_label">翻译屏幕</string>
+    <string name="tile_translate_screen_description">使用 Mozhi 翻译屏幕上的内容</string>
+    <string name="shortcut_translate_screen_short">屏幕</string>
+    <string name="shortcut_translate_screen_long">翻译屏幕</string>
+    <string name="notification_channel_screen_capture">屏幕翻译</string>
+    <string name="notification_channel_screen_capture_description">在 Mozhi 截取要翻译的屏幕时短暂显示</string>
+    <string name="notification_screen_capture_title">正在读取屏幕</string>
+    <string name="notification_channel_bubble">翻译气泡</string>
+    <string name="notification_channel_bubble_description">翻译气泡开启时显示</string>
+    <string name="notification_bubble_title">翻译气泡已开启</string>
+    <string name="notification_bubble_text">点按气泡翻译屏幕，长按翻译剪贴板。</string>
+    <string name="notification_bubble_stop">停止</string>
+    <string name="bubble_description">翻译屏幕</string>
+    <string name="bubble_long_press_action">翻译剪贴板</string>
+    <string name="bubble_remove_action">移除气泡</string>
+    <string name="bubble_remove_target">移除</string>
+    <string name="bubble_clipboard_empty">剪贴板为空</string>
 </resources>

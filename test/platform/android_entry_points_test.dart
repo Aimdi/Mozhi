@@ -10,6 +10,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mozhi/app/router.dart';
 import 'package:mozhi/app/shared_files.dart';
 import 'package:mozhi/app/translate_link.dart';
+import 'package:mozhi/app_lock/data/app_lock_windows.dart';
+import 'package:mozhi/documents/documents.dart'
+    show DocumentFormat, DocumentTranslateCubitDefaults;
 import 'package:mozhi/quick_translate/quick_translate_host.dart';
 
 const _main = 'android/app/src/main';
@@ -70,6 +73,21 @@ Object _constant(String file, String name) {
       .split('*')
       .map((factor) => int.parse(factor.trim().replaceAll('L', '')))
       .reduce((a, b) => a * b);
+}
+
+/// [kotlin] without its comments.
+String _code(String kotlin) => kotlin
+    .replaceAll(RegExp(r'/\*.*?\*/', dotAll: true), '')
+    .replaceAll(RegExp(r'//[^\n]*'), '');
+
+/// The body of the Kotlin function [name] of [file] (without comments),
+/// from its `fun` to the next `fun` or the end of the class.
+String _function(String file, String name) {
+  final code = _code(_read('$_kotlin/$file'));
+  final start = code.indexOf(RegExp('fun $name\\b'));
+  expect(start, isNonNegative, reason: '$name in $file');
+  final next = code.indexOf(RegExp(r'\bfun '), start + 4);
+  return code.substring(start, next < 0 ? code.length : next);
 }
 
 void main() {
@@ -156,7 +174,7 @@ void main() {
   });
 
   group('the share sheet', () {
-    test('takes text, images and text documents', () {
+    test('takes text, images, text documents, office files and e-books', () {
       final share = _component(manifest, 'activity', '.ShareReceiverActivity');
       expect(share.attributes['exported'], 'true');
       expect(share.attributes['theme'], '@style/TransparentTheme');
@@ -168,6 +186,8 @@ void main() {
           'image/*',
           'application/x-subrip',
           'application/json',
+          for (final format in DocumentFormat.values)
+            if (format.isBinary) format.mimeType,
         ]),
       );
     });
@@ -183,7 +203,11 @@ void main() {
       expect(_constant(file, 'MAX_IMAGE_BYTES'), SharedFiles.maxBytes);
       expect(
         _constant(file, 'MAX_DOCUMENT_BYTES') as int,
-        lessThanOrEqualTo(SharedFiles.maxBytes),
+        allOf(
+          lessThanOrEqualTo(SharedFiles.maxBytes),
+          // Office documents and e-books as large as the screen takes.
+          greaterThanOrEqualTo(DocumentTranslateCubitDefaults.maxPackageBytes),
+        ),
       );
       final source = _read('$_kotlin/$file');
       // Never a file:// path or one of Mozhi's own providers.
@@ -204,6 +228,132 @@ void main() {
       expect(
         _read('$_kotlin/ShareReceiverActivity.kt'),
         contains('"image" else "documents"'),
+      );
+    });
+  });
+
+  group('the app lock', () {
+    test('every window tells Dart which one it is, whatever the intent', () {
+      // The Dart entrypoint argument, from the activity's class.
+      expect(
+        _constant('MainActivity.kt', 'WINDOW_ARGUMENT'),
+        AppLockWindow.entrypointArgumentPrefix,
+      );
+      for (final (constant, window) in [
+        ('WINDOW_MAIN', AppLockWindow.main),
+        ('WINDOW_QUICK_TRANSLATE', AppLockWindow.quickTranslate),
+        ('WINDOW_SCREEN_TRANSLATE', AppLockWindow.screenTranslate),
+      ]) {
+        expect(_constant('MainActivity.kt', constant), window.name);
+      }
+      expect(
+        _function('MainActivity.kt', 'getDartEntrypointArgs'),
+        contains('listOf(WINDOW_ARGUMENT + lockWindow)'),
+      );
+      expect(
+        _code(_read('$_kotlin/MainActivity.kt')),
+        contains('get() = WINDOW_MAIN'),
+      );
+      for (final (file, constant) in [
+        ('QuickTranslateActivity.kt', 'WINDOW_QUICK_TRANSLATE'),
+        ('ScreenTranslateActivity.kt', 'WINDOW_SCREEN_TRANSLATE'),
+      ]) {
+        final code = _code(_read('$_kotlin/$file'));
+        expect(
+          code,
+          matches(
+            RegExp(
+              r'override val lockWindow: String\s+'
+              'get\\(\\) = MainActivity\\.$constant',
+            ),
+          ),
+          reason: file,
+        );
+        // Their route is their own, never the intent's.
+        expect(
+          code,
+          contains('override fun getInitialRoute(): String = ROUTE'),
+        );
+      }
+      // ... and Dart reads it at start.
+      for (final flavor in ['development', 'staging', 'production']) {
+        final main = _read('lib/main_$flavor.dart');
+        expect(main, contains('Future<void> main(List<String> args)'));
+        expect(main, contains('AppLockWindow.declare(args);'));
+      }
+    });
+
+    test('the main window never starts at the route of another one', () {
+      final route = _function('MainActivity.kt', 'getInitialRoute');
+      // The `route` extra and deep links, then the data Flutter would take.
+      expect(route, contains('super.getInitialRoute()'));
+      expect(route, contains('isWindowRoute(route)'));
+      expect(route, contains('isWindowRoute(data)'));
+      final check = _function('MainActivity.kt', 'isWindowRoute');
+      expect(check, contains(r"replace('\\', '/')"));
+      expect(check, contains('.pathSegments'));
+      expect(check, contains('ignoreCase = true'));
+      final names = _code(_read('$_kotlin/MainActivity.kt'));
+      expect(names, contains("QuickTranslateActivity.ROUTE.trimStart('/')"));
+      expect(names, contains("ScreenTranslateActivity.ROUTE.trimStart('/')"));
+      expect(
+        _constant('QuickTranslateActivity.kt', 'ROUTE'),
+        AppRoutes.quickTranslate,
+      );
+    });
+
+    test('only pickers, the camera and saving a file are own trips', () {
+      final plugin = _code(_read('$_kotlin/AppLockPlugin.kt'));
+      final actions = RegExp(
+        r'OWN_TRIP_ACTIONS = setOf\((.*?)\)',
+        dotAll: true,
+      ).firstMatch(plugin)![1]!;
+      expect(
+        RegExp(r'[\w.]+|"[^"]+"').allMatches(actions).map((m) => m[0]).toList(),
+        unorderedEquals([
+          'Intent.ACTION_OPEN_DOCUMENT',
+          'Intent.ACTION_CREATE_DOCUMENT',
+          'Intent.ACTION_OPEN_DOCUMENT_TREE',
+          'Intent.ACTION_GET_CONTENT',
+          'Intent.ACTION_PICK',
+          'MediaStore.ACTION_IMAGE_CAPTURE',
+          // The photo picker (MediaStore.ACTION_PICK_IMAGES) and the
+          // fallbacks of androidx's PickVisualMedia.
+          '"android.provider.action.PICK_IMAGES"',
+          '"androidx.activity.result.contract.action.PICK_IMAGES"',
+          '"com.google.android.gms.provider.action.PICK_IMAGES"',
+        ]),
+      );
+      // A chooser counts by what it offers: sharing (ACTION_SEND in
+      // share_plus's chooser) is an ordinary absence.
+      final classify = _function('AppLockPlugin.kt', 'isOwnTripIntent');
+      expect(classify, contains('Intent.ACTION_CHOOSER'));
+      expect(
+        _function('AppLockPlugin.kt', 'chooserTarget'),
+        contains('Intent.EXTRA_INTENT'),
+      );
+      expect(plugin, isNot(contains('ACTION_SEND')));
+      expect(
+        _function('MainActivity.kt', 'startActivityForResult'),
+        contains(
+          'noteActivityStartedForResult('
+          'ownTrip = isOwnTrip(intent, requestCode))',
+        ),
+      );
+      // Translate screen's consent dialog (an intent without an action).
+      expect(
+        _function('ScreenTranslateActivity.kt', 'isOwnTrip'),
+        contains('requestCode == REQUEST_CONSENT ||'),
+      );
+    });
+
+    test('a clipboard request carries no clipboard', () {
+      // Dart reads it once unlocked (SharedTextHandler).
+      final code = _code(_read('$_kotlin/MainActivity.kt'));
+      expect(code, isNot(contains('primaryClip')));
+      expect(
+        _function('MainActivity.kt', 'clipboardPayload'),
+        contains('mapOf(KEY_ACTION to ACTION_VALUE_TRANSLATE_CLIPBOARD)'),
       );
     });
   });

@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 import 'package:mozhi/dictionary/data/dictionary_pack_storage.dart';
+import 'package:mozhi/platform/free_space.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 export 'dictionary_pack_storage.dart';
@@ -71,6 +72,9 @@ final class DictionaryPackUnsupportedException extends DictionaryPackException {
 ///   (default: the catalogue's) in turn when a server fails, never after a
 ///   checksum mismatch. Concurrent installs of one pack share a download.
 /// * `isMeteredConnection` tells whether a `wifiOnly` install must stop.
+/// * An install first checks that the pack fits (`freeSpace`, default
+///   [FreeSpace.instance]: the pack's size plus a margin, see
+///   [ensureFreeSpace]), else it throws a [NotEnoughSpaceException].
 /// * Packs open lazily ([DictionaryPackReader]: a few blocks in memory
 ///   each) on their first look-up and stay open; installing or deleting a
 ///   pack closes it. [changes] fires after both.
@@ -85,6 +89,7 @@ class DictionaryPacks implements OfflineDictionary {
     List<Uri> Function(DictionaryPackInfo pack)? downloadUrls,
     this.requestTimeout = const Duration(seconds: 60),
     this.cachedBlocks = 8,
+    this._freeSpace,
   }) : _client = httpClient ?? http.Client(),
        _ownsClient = httpClient == null,
        _isMetered = isMeteredConnection ?? _never,
@@ -104,6 +109,7 @@ class DictionaryPacks implements OfflineDictionary {
   final bool _ownsClient;
   final Future<bool> Function() _isMetered;
   final List<Uri> Function(DictionaryPackInfo pack) _downloadUrls;
+  final FreeSpace? _freeSpace;
   final StreamController<void> _changes = StreamController.broadcast();
   final Map<String, Future<void>> _installing = {};
   final Map<String, Future<DictionaryPackReader>> _readers = {};
@@ -201,6 +207,7 @@ class DictionaryPacks implements OfflineDictionary {
     void Function(double fraction)? onProgress,
   }) async {
     if (!isSupported) throw DictionaryPackUnsupportedException(pack.id);
+    await ensureFreeSpace(pack.size, freeSpace: _freeSpace);
     try {
       await _store(pack, bytes, onProgress: onProgress);
     } finally {
@@ -339,6 +346,7 @@ class DictionaryPacks implements OfflineDictionary {
     if (wifiOnly && await _isMetered()) {
       throw DictionaryPackMeteredException(pack.id);
     }
+    await ensureFreeSpace(pack.size, freeSpace: _freeSpace);
     final urls = _downloadUrls(pack);
     for (final (index, url) in urls.indexed) {
       try {

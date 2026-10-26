@@ -22,4 +22,21 @@
     <string name="widget_type_description">翻訳するテキストを入力</string>
     <string name="widget_camera_label">カメラ</string>
     <string name="widget_camera_description">カメラで翻訳</string>
+    <string name="tile_translate_screen_label">画面を翻訳</string>
+    <string name="tile_translate_screen_description">画面の内容を Mozhi で翻訳</string>
+    <string name="shortcut_translate_screen_short">画面</string>
+    <string name="shortcut_translate_screen_long">画面を翻訳</string>
+    <string name="notification_channel_screen_capture">画面の翻訳</string>
+    <string name="notification_channel_screen_capture_description">Mozhi が翻訳用のスクリーンショットを撮る間だけ表示されます</string>
+    <string name="notification_screen_capture_title">画面を読み取り中</string>
+    <string name="notification_channel_bubble">翻訳バブル</string>
+    <string name="notification_channel_bubble_description">翻訳バブルがオンの間表示されます</string>
+    <string name="notification_bubble_title">翻訳バブルはオンです</string>
+    <string name="notification_bubble_text">バブルをタップすると画面を翻訳、長押しするとクリップボードを翻訳します。</string>
+    <string name="notification_bubble_stop">停止</string>
+    <string name="bubble_description">画面を翻訳</string>
+    <string name="bubble_long_press_action">クリップボードを翻訳</string>
+    <string name="bubble_remove_action">バブルを削除</string>
+    <string name="bubble_remove_target">削除</string>
+    <string name="bubble_clipboard_empty">クリップボードは空です</string>
 </resources>

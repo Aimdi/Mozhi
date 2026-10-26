@@ -22,4 +22,21 @@
     <string name="widget_type_description">Ввести текст для перекладу</string>
     <string name="widget_camera_label">Камера</string>
     <string name="widget_camera_description">Переклад з камери</string>
+    <string name="tile_translate_screen_label">Перекласти екран</string>
+    <string name="tile_translate_screen_description">Перекласти те, що на екрані, за допомогою Mozhi</string>
+    <string name="shortcut_translate_screen_short">Екран</string>
+    <string name="shortcut_translate_screen_long">Перекласти екран</string>
+    <string name="notification_channel_screen_capture">Переклад екрана</string>
+    <string name="notification_channel_screen_capture_description">Показується на мить, поки Mozhi робить знімок екрана для перекладу</string>
+    <string name="notification_screen_capture_title">Читання екрана</string>
+    <string name="notification_channel_bubble">Бульбашка перекладу</string>
+    <string name="notification_channel_bubble_description">Показується, поки бульбашку перекладу ввімкнено</string>
+    <string name="notification_bubble_title">Бульбашку перекладу ввімкнено</string>
+    <string name="notification_bubble_text">Торкніться бульбашки, щоб перекласти екран, утримуйте — щоб перекласти буфер обміну.</string>
+    <string name="notification_bubble_stop">Зупинити</string>
+    <string name="bubble_description">Перекласти екран</string>
+    <string name="bubble_long_press_action">Перекласти буфер обміну</string>
+    <string name="bubble_remove_action">Прибрати бульбашку</string>
+    <string name="bubble_remove_target">Прибрати</string>
+    <string name="bubble_clipboard_empty">Буфер обміну порожній</string>
 </resources>

@@ -39,6 +39,7 @@
 - ["Translate with Mozhi" is missing from the selection menu](#translate-with-mozhi-is-missing-from-the-selection-menu)
 - [Android refuses to install the update](#android-refuses-to-install-the-update)
 - [How do I move my history to a new device?](#how-do-i-move-my-history-to-a-new-device)
+- [Why does the translate bubble need "Display over other apps"?](#why-does-the-translate-bubble-need-display-over-other-apps)
 - [Where do I report bugs or ask for features?](#where-do-i-report-bugs-or-ask-for-features)
 
 ---
@@ -324,6 +325,22 @@ transfer. The export is plain, unencrypted JSON, so delete the file once it
 is imported. Provider API keys are not exported; enter them again. If
 **Delete history automatically** is on on the new device, entries older than
 that setting are skipped.
+
+### Why does the translate bubble need "Display over other apps"?
+
+The bubble is a small window of Mozhi's that floats above the app you are
+using, and Android lets an app draw over others only with that permission.
+Mozhi asks for it only when you turn the bubble on (**Settings > General >
+Translate bubble**): Android opens its own settings page, where you turn
+on **Allow display over other apps** for Mozhi and come back. The
+permission doesn't let Mozhi see the screen: each translation of the
+screen still needs Android's screen-capture consent, every time, and the
+screenshot stays on the phone ([Privacy](privacy.md#screen-keyboard-and-clipboard)).
+If you'd rather not grant it, use the **Translate screen** Quick Settings
+tile instead; it needs no permission. To remove the bubble, drag it onto
+the ✕ at the bottom, tap **Stop** in its notification or turn the setting
+off. On Android 13 and later Mozhi also asks for notifications, for that
+notification; without them the bubble still works.
 
 ### Where do I report bugs or ask for features?
 

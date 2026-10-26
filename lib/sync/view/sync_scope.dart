@@ -7,6 +7,7 @@ import 'package:mozhi/phrasebook/data/phrasebook_repository.dart';
 import 'package:mozhi/presets/cubit/glossary_cubit.dart';
 import 'package:mozhi/presets/cubit/presets_cubit.dart';
 import 'package:mozhi/quick_translate/quick_translate_host.dart';
+import 'package:mozhi/screen_translate/screen_translate_host.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/sync/data/sync_service.dart';
 
@@ -28,10 +29,15 @@ class SyncScope extends StatefulWidget {
   });
 
   /// [child] under a [SyncScope] for [service]; just [child] without a
-  /// service, and in the quick translate window (a second copy of the app
-  /// that lives for one translation: the main window syncs).
+  /// service, and in the quick translate and screen-translate windows
+  /// (second copies of the app that live for one translation: the main
+  /// window syncs).
   static Widget wrap({required SyncService? service, required Widget child}) {
-    if (service == null || QuickTranslateHost.instance.isActive) return child;
+    if (service == null ||
+        QuickTranslateHost.instance.isActive ||
+        ScreenTranslateHost.instance.isActive) {
+      return child;
+    }
     return SyncScope(service: service, child: child);
   }
 

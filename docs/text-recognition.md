@@ -129,8 +129,11 @@ https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/87416418657359cb62
 GitHub is owned by Microsoft: as the host it sees your IP address, the time
 and which files (so which languages) you download. Nothing else is sent: no
 text, no picture, no identifiers or cookies. Every file is checked against
-the size and SHA-256 checksum bundled with the app before it is used; an
-interrupted download resumes where it stopped. The data is kept in the
+the size and SHA-256 checksum bundled with the app before it is used (in
+the background, so the app stays smooth); an interrupted download resumes
+where it stopped. Before a download or an import, Mozhi checks that the
+phone has room for the file plus a margin (5 %, at least 50 MB), and says
+how much is needed when it hasn't. The data is kept in the
 app's private storage (`<app files>/tesseract/tessdata`), is not backed up,
 and is removed with the app or by deleting the language.
 

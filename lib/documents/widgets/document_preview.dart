@@ -53,6 +53,7 @@ class _DocumentPreviewTabsState extends State<DocumentPreviewTabs>
               Tab(text: l10n.documentsTabTranslation),
             ],
           ),
+          if (state.isBinary) _OfficeHints(state: state),
           ListenableBuilder(
             listenable: _tabs,
             builder: (context, _) => Padding(
@@ -108,6 +109,55 @@ class _PreviewText extends StatelessWidget {
   }
 }
 
+/// Says that an office document's preview is its text only.
+/// Notes about an office document or e-book: the preview shows its text
+/// only, and the translated file keeps its macros (when it has some).
+class _OfficeHints extends StatelessWidget {
+  const new({required this.state});
+
+  final DocumentTranslateState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _Hint(
+          key: const Key('documents_preview_text_only'),
+          text: l10n.documentsPreviewTextOnly,
+        ),
+        if (state.keepsMacros)
+          _Hint(
+            key: const Key('documents_keeps_macros'),
+            text: l10n.documentsKeepsMacros,
+          ),
+      ],
+    );
+  }
+}
+
+/// A short note about the document.
+class _Hint extends StatelessWidget {
+  const new({required this.text, super.key});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 12, 4, 0),
+      child: Text(
+        text,
+        style: theme.textTheme.bodySmall?.copyWith(
+          color: AppPalette.of(context).secondaryText,
+        ),
+      ),
+    );
+  }
+}
+
 class _Placeholder extends StatelessWidget {
   const new({required this.text});
 
@@ -139,14 +189,14 @@ class DocumentSideBySide extends StatelessWidget {
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final state = context.watch<DocumentTranslateCubit>().state;
-    final document = state.document;
-    if (document == null || document.isEmpty) {
+    final segments = state.segments;
+    if (!state.hasDocument || segments.isEmpty) {
       return Center(
         // Before a document is chosen, the controls show how to pick one.
         child: _Placeholder(
-          text: document == null
-              ? l10n.documentsPreviewEmpty
-              : l10n.documentsErrorNothing,
+          text: state.hasDocument
+              ? l10n.documentsErrorNothing
+              : l10n.documentsPreviewEmpty,
         ),
       );
     }
@@ -175,11 +225,16 @@ class DocumentSideBySide extends StatelessWidget {
             ),
           ),
           const Hairline(),
+          if (state.isBinary)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: _OfficeHints(state: state),
+            ),
           Expanded(
             child: ListView.separated(
               key: const Key('documents_side_by_side'),
               padding: const EdgeInsets.symmetric(vertical: 8),
-              itemCount: document.segments.length,
+              itemCount: segments.length,
               separatorBuilder: (_, _) => const Padding(
                 padding: EdgeInsets.symmetric(vertical: 8),
                 child: Hairline(indent: 16),
@@ -198,7 +253,7 @@ class DocumentSideBySide extends StatelessWidget {
                     spacing: 16,
                     children: [
                       Expanded(
-                        child: SelectableText(document.segmentSource(index)),
+                        child: SelectableText(state.segmentSource(index)),
                       ),
                       Expanded(
                         child: translation == null
@@ -209,7 +264,7 @@ class DocumentSideBySide extends StatelessWidget {
                                 ),
                               )
                             : SelectableText(
-                                document.segmentOutput(index, translation),
+                                state.segmentOutput(index, translation),
                               ),
                       ),
                     ],

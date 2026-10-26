@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:llama_engine/llama_engine.dart';
+import 'package:llama_engine/src/file_hashing.dart';
 import 'package:path/path.dart' as p;
 
 import '../helpers/fake_llama_models.dart';
@@ -955,6 +956,205 @@ void main() {
       expect(outcome.error, isA<FileSystemException>());
     });
   });
+
+  group('free space', () {
+    late List<String> asked;
+    late int? free;
+
+    LlamaModelManager spaced({Exception? error}) => LlamaModelManager(
+      root: root,
+      httpClient: server.client,
+      freeSpace: (path) async {
+        asked.add(path);
+        if (error != null) throw error;
+        return free;
+      },
+    );
+
+    setUp(() {
+      asked = [];
+      free = null;
+    });
+
+    test('the margin is 5 %, at least 50 MiB', () {
+      expect(LlamaModelManager.requiredSpace(0), 50 << 20);
+      expect(LlamaModelManager.requiredSpace(1000), 1000 + (50 << 20));
+      const gigabytes = 3 << 30;
+      expect(
+        LlamaModelManager.requiredSpace(gigabytes),
+        gigabytes + gigabytes ~/ 20,
+      );
+    });
+
+    test('refuses a download without room, before any request', () async {
+      free = hyBytes.length + 10;
+      final spacious = spaced();
+      await expectLater(
+        spacious.install(hy),
+        throwsA(
+          isA<LlamaInsufficientSpaceException>()
+              .having((e) => e.model, 'model', hy.id)
+              .having(
+                (e) => e.requiredBytes,
+                'requiredBytes',
+                LlamaModelManager.requiredSpace(hyBytes.length),
+              )
+              .having((e) => e.availableBytes, 'availableBytes', free)
+              .having(
+                (e) => e.toString(),
+                'toString',
+                startsWith('LlamaInsufficientSpaceException(hy-mt2'),
+              ),
+        ),
+      );
+      expect(server.requests, isEmpty);
+      expect(asked, [p.join(root.path, 'models')]);
+      expect(await spacious.isInstalled(hy), isFalse);
+    });
+
+    test('downloads with room, or when the free space is unknown', () async {
+      free = LlamaModelManager.requiredSpace(hyBytes.length);
+      expect((await spaced().install(hy)).id, hy.id);
+
+      free = null;
+      expect((await spaced().install(qwen)).id, qwen.id);
+
+      final failing = spaced(error: const FormatException('no answer'));
+      await failing.delete(hy.id);
+      expect((await failing.install(hy)).id, hy.id);
+    });
+
+    test('checkSpace asks before anything else', () async {
+      free = 10;
+      await expectLater(
+        spaced().checkSpace(hy),
+        throwsA(isA<LlamaInsufficientSpaceException>()),
+      );
+      free = null;
+      await spaced().checkSpace(hy);
+      // Without a freeSpace: passes.
+      await manager.checkSpace(hy);
+      expect(server.requests, isEmpty);
+    });
+
+    test('a resumed download needs room for the rest only', () async {
+      server.failAfter = 3000;
+      await expectLater(
+        manager.install(hy),
+        throwsA(isA<LlamaDownloadException>()),
+      );
+      server.failAfter = null;
+      final rest = hyBytes.length - 3000;
+      free = LlamaModelManager.requiredSpace(rest);
+      expect((await spaced().install(hy)).id, hy.id);
+    });
+
+    test('an import refuses a copy without room', () async {
+      free = 1;
+      final file = File(p.join(root.path, hy.name))..writeAsBytesSync(hyBytes);
+      final result = await spaced().importFiles([file], catalog: catalog);
+      final outcome = result.models.single;
+      expect(outcome.status, LlamaImportStatus.failed);
+      expect(outcome.error, isA<LlamaInsufficientSpaceException>());
+      expect(file.existsSync(), isTrue);
+    });
+
+    test('an import that moves the file needs no room', () async {
+      free = 1;
+      final file = File(p.join(root.path, hy.name))..writeAsBytesSync(hyBytes);
+      final result = await spaced().importFiles(
+        [file],
+        catalog: catalog,
+        move: true,
+      );
+      expect(result.installed, [hy]);
+      expect(asked, isEmpty);
+    });
+  });
+
+  group('importSources', () {
+    test('copies a picked document into staging and installs it', () async {
+      final source = _Source('Hy-MT2-1.8B-Q4_K_M.gguf', hyBytes);
+      final result = await manager.importSources([source], catalog: catalog);
+      expect(result.installed, [hy]);
+      expect(source.copies, 1);
+      expect(source.maxBytes, hy.size);
+      expect(
+        p.isWithin(p.join(root.path, 'models', '.staging'), source.target!),
+        isTrue,
+      );
+      final installed = await manager.installedModel(hy.id);
+      expect(File(installed!.path).readAsBytesSync(), hyBytes);
+    });
+
+    test('matches a renamed source by size, or by name alone', () async {
+      final renamed = _Source('model (1).gguf', qwenBytes);
+      final unknown = _Source('Hy-MT2-1.8B-Q4_K_M.gguf', hyBytes, known: false);
+      final result = await manager.importSources([
+        renamed,
+        unknown,
+      ], catalog: catalog);
+      expect(result.installed, [hy, qwen]);
+    });
+
+    test('reports damaged, short and unknown sources', () async {
+      final damaged = Uint8List.fromList(hyBytes)..[0] ^= 0xff;
+      final result = await manager.importSources([
+        _Source('Hy-MT2-1.8B-Q4_K_M.gguf', damaged),
+        _Source('Qwen3-1.7B-Q4_K_M.gguf', qwenBytes.sublist(1), known: false),
+        _Source('notes.txt', [1, 2, 3]),
+      ], catalog: catalog);
+      expect(result.installed, isEmpty);
+      expect(
+        [for (final outcome in result.models) outcome.status],
+        [
+          LlamaImportStatus.checksumMismatch,
+          LlamaImportStatus.checksumMismatch,
+        ],
+      );
+      expect(result.models.first.damaged.single.path, hy.name);
+      expect(result.unmatched.single.path, 'notes.txt');
+    });
+
+    test('a source that cannot be read fails', () async {
+      final result = await manager.importSources([
+        _Source(hy.name, hyBytes, error: const FileSystemException('denied')),
+      ], catalog: catalog);
+      expect(result.models.single.status, LlamaImportStatus.failed);
+      expect(result.models.single.error, isA<FileSystemException>());
+    });
+
+    test('checks the free space before copying', () async {
+      final spaced = LlamaModelManager(
+        root: root,
+        httpClient: server.client,
+        freeSpace: (_) async => 10,
+      );
+      final source = _Source(hy.name, hyBytes);
+      final result = await spaced.importSources([source], catalog: catalog);
+      expect(
+        result.models.single.error,
+        isA<LlamaInsufficientSpaceException>(),
+      );
+      expect(source.copies, 0);
+    });
+  });
+
+  group('hashing', () {
+    test('works inline as in the background', () async {
+      final inline = LlamaModelManager(
+        root: root,
+        httpClient: server.client,
+        hashing: const FileHashing.inline(),
+      );
+      expect((await inline.install(hy)).id, hy.id);
+      server.corrupt = true;
+      await expectLater(
+        inline.install(qwen),
+        throwsA(isA<LlamaChecksumException>()),
+      );
+    });
+  });
 }
 
 /// Refuses every request to `mirror.example` as an unreachable host
@@ -970,5 +1170,36 @@ class _MirrorDownClient extends http.BaseClient {
       return Future.error(const SocketException('Connection refused'));
     }
     return _inner.send(request);
+  }
+}
+
+/// A picked document for [LlamaModelManager.importSources].
+class _Source implements LlamaImportSource {
+  new(this.name, this.bytes, {this.known = true, this.error});
+
+  @override
+  final String name;
+
+  final List<int> bytes;
+  final bool known;
+  final Exception? error;
+  int copies = 0;
+  int? maxBytes;
+  String? target;
+
+  @override
+  int? get length => known ? bytes.length : null;
+
+  @override
+  Future<int> copyTo(File destination, {required int maxBytes}) async {
+    if (error case final error?) throw error;
+    copies++;
+    this.maxBytes = maxBytes;
+    target = destination.path;
+    final written = bytes.length > maxBytes + 1
+        ? bytes.sublist(0, maxBytes + 1)
+        : bytes;
+    await destination.writeAsBytes(written, flush: true);
+    return written.length;
   }
 }

@@ -68,21 +68,35 @@ class DeviceConditionsSnapshot {
       'DeviceConditionsSnapshot(${thermal.name}, powerSave: $powerSave)';
 }
 
-/// The phone's heat and battery saver, asked from `MainActivity.kt` over
-/// the [privacyChannel] (`thermalStatus`, `isPowerSaveMode`).
+/// Name of the Android event channel of `DeviceConditionsPlugin.kt`:
+/// `{thermal: Int, powerSave: Boolean}` when Dart starts listening and on
+/// every change (a thermal status listener on Android 10 and later, a
+/// battery saver broadcast receiver; both registered only while Dart
+/// listens).
+const deviceConditionsChannelName = 'io.github.aimdi.mozhi/device_conditions';
+
+/// The phone's heat and battery saver, pushed by `DeviceConditionsPlugin.kt`
+/// on the [deviceConditionsChannelName] event channel and, as a fallback,
+/// asked from `MainActivity.kt` over the [privacyChannel]
+/// (`thermalStatus`, `isPowerSaveMode`).
 ///
 /// [latest] answers at once (for decisions made while the user types) with
-/// what was last learnt and asks again in the background once that is
-/// older than [maxAge]; [changes] reports every change. Off Android
-/// (`isAndroid`, default [runsOnAndroid]: tests on a desktop host) nothing
-/// is asked and there is never any strain. Never throws: what the system
-/// cannot tell counts as no strain.
+/// what was last learnt. The first use starts listening to the pushed
+/// changes ([changes] reports every change); while they arrive nothing is
+/// polled. Without them (no platform side, the stream failed or ended)
+/// [latest] asks again in the background once its answer is older than
+/// [maxAge]. Off Android (`isAndroid`, default [runsOnAndroid]: tests on a
+/// desktop host) nothing is asked and there is never any strain. Never
+/// throws: what the system cannot tell counts as no strain.
 class DeviceConditions {
+  /// `events` replaces the platform's pushed changes (tests: a fake event
+  /// stream of `{thermal, powerSave}` maps).
   new({
     MethodChannel? channel,
     bool? isAndroid,
     this.maxAge = const Duration(seconds: 20),
     DateTime Function()? clock,
+    this._events,
   }) : _channel = channel ?? privacyChannel(),
        _isAndroid = isAndroid ?? runsOnAndroid,
        _clock = clock ?? DateTime.now;
@@ -93,6 +107,11 @@ class DeviceConditions {
   final MethodChannel _channel;
   final bool _isAndroid;
   final DateTime Function() _clock;
+  final Stream<Object?>? _events;
+  StreamSubscription<Object?>? _pushes;
+
+  /// Whether pushed changes arrive (then nothing is polled).
+  bool _pushed = false;
 
   /// How long [latest] is trusted before it is asked again.
   final Duration maxAge;
@@ -106,21 +125,74 @@ class DeviceConditions {
   /// first answer). Asks again in the background ([refresh]) when that is
   /// older than [maxAge] or was never asked.
   DeviceConditionsSnapshot get latest {
+    _listen();
     final askedAt = _askedAt;
     if (_isAndroid &&
+        !_pushed &&
         (askedAt == null || _clock().difference(askedAt) >= maxAge)) {
       unawaited(refresh());
     }
     return _latest;
   }
 
-  /// Every change of [latest].
-  Stream<DeviceConditionsSnapshot> get changes => _changes.stream;
+  /// Every change of [latest] (pushed by Android, or polled).
+  Stream<DeviceConditionsSnapshot> get changes {
+    _listen();
+    return _changes.stream;
+  }
+
+  /// Whether pushed changes arrive, so [latest] needs no polling.
+  @visibleForTesting
+  bool get isPushed => _pushed;
 
   /// Asks Android now (one question at a time) and returns the answer.
   Future<DeviceConditionsSnapshot> refresh() {
     if (!_isAndroid) return Future.value(_latest);
+    _listen();
     return _asking ??= _ask().whenComplete(() => _asking = null);
+  }
+
+  /// Stops listening to the pushed changes and closes [changes].
+  Future<void> dispose() async {
+    await _pushes?.cancel();
+    _pushes = null;
+    _pushed = false;
+    await _changes.close();
+  }
+
+  /// Starts listening to the pushed changes, once (Android only).
+  void _listen() {
+    if (!_isAndroid || _pushes != null || _changes.isClosed) return;
+    final events =
+        _events ??
+        const EventChannel(deviceConditionsChannelName)
+            .receiveBroadcastStream();
+    _pushes = events.listen(
+      _onPush,
+      // Polling takes over.
+      onError: (Object _) => _pushed = false,
+      onDone: () => _pushed = false,
+    );
+  }
+
+  void _onPush(Object? event) {
+    if (event is! Map<Object?, Object?>) return;
+    final thermal = event['thermal'];
+    final powerSave = event['powerSave'];
+    _pushed = true;
+    _askedAt = _clock();
+    _update(
+      DeviceConditionsSnapshot(
+        thermal: ThermalStatus.fromAndroid(thermal is int ? thermal : null),
+        powerSave: powerSave is bool && powerSave,
+      ),
+    );
+  }
+
+  void _update(DeviceConditionsSnapshot next) {
+    if (next == _latest) return;
+    _latest = next;
+    if (!_changes.isClosed) _changes.add(next);
   }
 
   Future<DeviceConditionsSnapshot> _ask() async {
@@ -133,10 +205,7 @@ class DeviceConditions {
       thermal: thermal,
       powerSave: powerSave,
     );
-    if (next != _latest) {
-      _latest = next;
-      _changes.add(next);
-    }
+    _update(next);
     return next;
   }
 

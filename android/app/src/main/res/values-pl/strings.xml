@@ -22,4 +22,21 @@
     <string name="widget_type_description">Wpisz tekst do przetłumaczenia</string>
     <string name="widget_camera_label">Aparat</string>
     <string name="widget_camera_description">Tłumaczenie z aparatu</string>
+    <string name="tile_translate_screen_label">Tłumacz ekran</string>
+    <string name="tile_translate_screen_description">Przetłumacz to, co jest na ekranie, za pomocą Mozhi</string>
+    <string name="shortcut_translate_screen_short">Ekran</string>
+    <string name="shortcut_translate_screen_long">Przetłumacz ekran</string>
+    <string name="notification_channel_screen_capture">Tłumaczenie ekranu</string>
+    <string name="notification_channel_screen_capture_description">Widoczne przez chwilę, gdy Mozhi robi zrzut ekranu do przetłumaczenia</string>
+    <string name="notification_screen_capture_title">Odczytywanie ekranu</string>
+    <string name="notification_channel_bubble">Bańka tłumaczenia</string>
+    <string name="notification_channel_bubble_description">Widoczne, gdy bańka tłumaczenia jest włączona</string>
+    <string name="notification_bubble_title">Bańka tłumaczenia jest włączona</string>
+    <string name="notification_bubble_text">Kliknij bańkę, aby przetłumaczyć ekran, przytrzymaj ją, aby przetłumaczyć schowek.</string>
+    <string name="notification_bubble_stop">Zatrzymaj</string>
+    <string name="bubble_description">Tłumacz ekran</string>
+    <string name="bubble_long_press_action">Przetłumacz schowek</string>
+    <string name="bubble_remove_action">Usuń bańkę</string>
+    <string name="bubble_remove_target">Usuń</string>
+    <string name="bubble_clipboard_empty">Schowek jest pusty</string>
 </resources>

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The translate bubble: an indigo circle with a light ring; the ripple
+     shows the press (TranslateBubbleService sets the pressed state). -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android"
+    android:color="@color/bubble_ripple">
+    <item android:id="@android:id/mask">
+        <shape android:shape="oval">
+            <solid android:color="@android:color/white" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="@color/bubble_background" />
+            <stroke
+                android:width="2dp"
+                android:color="@color/bubble_ring" />
+        </shape>
+    </item>
+</ripple>

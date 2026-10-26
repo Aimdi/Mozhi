@@ -5,15 +5,23 @@ import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:llama_engine/llama_engine.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:mozhi/offline/data/offline_model_file_picker.dart';
 import 'package:mozhi/on_device_ai/cubit/on_device_ai_settings_cubit.dart';
 import 'package:mozhi/on_device_ai/data/on_device_models.dart';
+import 'package:mozhi/platform/free_space.dart';
+import 'package:mozhi/platform/model_file_picker.dart';
 
 import '../helpers.dart';
 
 class _MockModels extends Mock implements OnDeviceModels;
 
-class _MockPicker extends Mock implements OfflineModelFilePicker;
+class _MockPicker extends Mock implements ModelFilePicker;
+
+/// A picked Android document (no local path).
+PickedModelFile _document(String name) => PickedModelFile(
+  name: name,
+  length: 30,
+  copy: (destination, maxBytes) async => 0,
+);
 
 void main() {
   final hy = fakeOnDeviceModel(
@@ -45,6 +53,7 @@ void main() {
 
   setUpAll(() {
     registerFallbackValue(<String>[]);
+    registerFallbackValue(<PickedModelFile>[]);
   });
 
   setUp(() {
@@ -75,6 +84,21 @@ void main() {
   );
 
   group('load', () {
+    blocTest<OnDeviceAiSettingsCubit, OnDeviceAiSettingsState>(
+      'tells which engine build runs here',
+      build: () => OnDeviceAiSettingsCubit(
+        models: models,
+        picker: picker,
+        engineBuild: () => const LlamaEngineBuild(
+          variant: LlamaCpuVariant.i8mm,
+          library: 'libmozhi_llama_i8mm.so',
+        ),
+      ),
+      act: (cubit) => cubit.load(),
+      verify: (cubit) =>
+          expect(cubit.state.engineBuild?.variant, LlamaCpuVariant.i8mm),
+    );
+
     blocTest<OnDeviceAiSettingsCubit, OnDeviceAiSettingsState>(
       'without on-device AI is ready and unsupported',
       build: () => OnDeviceAiSettingsCubit(picker: picker),
@@ -258,6 +282,24 @@ void main() {
 
     test('classifies failures', () {
       final mirror = Uri.parse('https://mirror.example/');
+      expect(
+        OnDeviceModelError.of(const OnDeviceModelTooBigException('x')).kind,
+        OnDeviceModelErrorKind.tooBig,
+      );
+      expect(
+        OnDeviceModelError.of(
+          const LlamaInsufficientSpaceException(
+            'hy',
+            'full',
+            requiredBytes: 9,
+            availableBytes: 3,
+          ),
+        ),
+        const OnDeviceModelError(
+          OnDeviceModelErrorKind.space,
+          space: SpaceShortfall(requiredBytes: 9, availableBytes: 3),
+        ),
+      );
       expect(
         OnDeviceModelError.of(const OnDeviceModelTooBigException('x')).kind,
         OnDeviceModelErrorKind.tooBig,
@@ -464,7 +506,10 @@ void main() {
         when(() => picker.pick(onCopying: any(named: 'onCopying')))
             .thenAnswer((invocation) async {
               (invocation.namedArguments[#onCopying]! as void Function())();
-              return ['/cache/hy.gguf', '/cache/qwen.gguf'];
+              return [
+                PickedModelFile.local('/cache/hy.gguf'),
+                PickedModelFile.local('/cache/qwen.gguf'),
+              ];
             });
         when(() => models.importFiles(any(), move: any(named: 'move')))
             .thenAnswer(
@@ -505,10 +550,45 @@ void main() {
     );
 
     blocTest<OnDeviceAiSettingsCubit, OnDeviceAiSettingsState>(
+      'copies picked documents straight into the models folder',
+      setUp: () {
+        when(() => picker.pick(onCopying: any(named: 'onCopying')))
+            .thenAnswer((_) async => [_document('hy.gguf')]);
+        when(() => models.importSources(any())).thenAnswer(
+          (_) async => const OnDeviceImportResult(
+            models: {'hy': LlamaImportStatus.failed},
+            errors: {
+              'hy': LlamaInsufficientSpaceException(
+                'hy',
+                'full',
+                requiredBytes: 2000,
+                availableBytes: 1000,
+              ),
+            },
+          ),
+        );
+      },
+      build: build,
+      seed: () => OnDeviceAiSettingsState(supported: true, models: listed),
+      act: (cubit) => cubit.importFromFiles(),
+      verify: (cubit) {
+        verify(() => models.importSources(any())).called(1);
+        verifyNever(() => models.importFiles(any(), move: any(named: 'move')));
+        expect(
+          cubit.state.importOutcome,
+          const OnDeviceImportOutcome(
+            models: {'hy': LlamaImportStatus.failed},
+            space: SpaceShortfall(requiredBytes: 2000, availableBytes: 1000),
+          ),
+        );
+      },
+    );
+
+    blocTest<OnDeviceAiSettingsCubit, OnDeviceAiSettingsState>(
       'a cancelled picker changes nothing',
       setUp: () =>
           when(() => picker.pick(onCopying: any(named: 'onCopying')))
-              .thenAnswer((_) async => []),
+              .thenAnswer((_) async => <PickedModelFile>[]),
       build: build,
       seed: () => OnDeviceAiSettingsState(supported: true, models: listed),
       act: (cubit) => cubit.importFromFiles(),
@@ -521,7 +601,7 @@ void main() {
           when(() => picker.pick(onCopying: any(named: 'onCopying')))
               .thenAnswer((invocation) async {
                 (invocation.namedArguments[#onCopying]! as void Function())();
-                return [];
+                return <PickedModelFile>[];
               }),
       build: build,
       seed: () => OnDeviceAiSettingsState(supported: true, models: listed),
@@ -536,7 +616,7 @@ void main() {
       'reports a failed import and a failed clean-up',
       setUp: () {
         when(() => picker.pick(onCopying: any(named: 'onCopying')))
-            .thenAnswer((_) async => ['/cache/x.gguf']);
+            .thenAnswer((_) async => [PickedModelFile.local('/cache/x.gguf')]);
         when(() => models.importFiles(any(), move: any(named: 'move')))
             .thenThrow(const FileSystemException('unreadable'));
         when(() => picker.clearCopies()).thenThrow(StateError('cache'));

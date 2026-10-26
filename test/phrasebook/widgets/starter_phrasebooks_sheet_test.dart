@@ -7,6 +7,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/phrasebook/data/phrasebook_repository.dart';
 import 'package:mozhi/phrasebook/widgets/starter_phrasebooks_sheet.dart';
+import 'package:mozhi/platform/free_space.dart';
 import 'package:mozhi/settings/view/widgets/link_launcher.dart';
 
 import '../pump.dart';
@@ -132,6 +133,17 @@ void main() {
     );
     await _tapAndDownload(tester, _button('download'));
     expect(find.text("Couldn't save it on this device."), findsOneWidget);
+    await open(
+      tester,
+      StarterPhrasebooks(
+        catalog: StarterPhrasebookCatalog([info]),
+        store: MemoryStore(),
+        httpClient: MockClient((_) async => http.Response.bytes(bytes, 200)),
+        freeSpace: FreeSpace(isWeb: true, browser: () async => 0),
+      ),
+    );
+    await _tapAndDownload(tester, _button('download'));
+    expect(find.textContaining('Not enough free space: needs'), findsOneWidget);
   });
 
   testWidgets('offers updates', (tester) async {

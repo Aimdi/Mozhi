@@ -328,6 +328,12 @@ class SettingsCubit extends Cubit<AppSettings> {
   void setSecureScreen({required bool enabled}) =>
       _apply(state.copyWith(secureScreen: enabled));
 
+  /// The app lock's timeout (`AppSettings.appLock`). Turning it on is up
+  /// to the caller to confirm first (one successful unlock, see
+  /// `AppLockController.confirm`), so nobody locks themselves out.
+  void setAppLock(AppLockTimeout timeout) =>
+      _apply(state.copyWith(appLock: timeout));
+
   /// "Hide personal data from online engines"
   /// (`AppSettings.maskPersonalData`).
   void setMaskPersonalData({required bool enabled}) =>

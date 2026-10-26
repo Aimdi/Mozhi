@@ -3,11 +3,11 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
-import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
 import 'package:tesseract_ocr/src/catalog.dart';
+import 'package:tesseract_ocr/src/file_hashing.dart';
 
 /// A download or install of language data failed.
 sealed class TessdataInstallException implements Exception {
@@ -45,6 +45,28 @@ final class TessdataDownloadException extends TessdataInstallException {
 
   @override
   String get _name => 'TessdataDownloadException';
+}
+
+/// There is not enough free storage for the language data
+/// ([requiredBytes]: what is left to download or copy plus a margin, see
+/// [TessdataManager.requiredSpace]); nothing was downloaded or copied.
+final class TessdataInsufficientSpaceException
+    extends TessdataInstallException {
+  const new(
+    super.language,
+    super.message, {
+    required this.requiredBytes,
+    required this.availableBytes,
+  });
+
+  /// Free bytes the download or import needs.
+  final int requiredBytes;
+
+  /// Free bytes there are.
+  final int availableBytes;
+
+  @override
+  String get _name => 'TessdataInsufficientSpaceException';
 }
 
 /// Progress of [TessdataManager.install].
@@ -191,16 +213,43 @@ final class TessdataImportResult {
 /// [mirror] of them ([tessdataDownloadUrls]), which needs no trust: the
 /// same checks apply. [importFiles] installs files copied to the device by
 /// hand instead, through the same checks, without any network request.
+///
+/// Before a download or an import writes anything, the free space is
+/// checked (with `freeSpace`): what is left to write plus a margin
+/// ([requiredSpace]); too little fails with a
+/// [TessdataInsufficientSpaceException]. Hashing runs off the UI isolate
+/// ([hashing]).
 class TessdataManager {
+  /// `freeSpace` answers the free bytes of the file system of a path (null
+  /// when unknown, e.g. the app's `FreeSpace`); without it no download or
+  /// import checks for room first. [hashing] decides where files are
+  /// hashed (background isolates by default).
   new({
     required this.root,
     http.Client? httpClient,
     this.requestTimeout = const Duration(seconds: 60),
+    this._freeSpace,
+    this.hashing = const FileHashing.isolate(),
   }) : _client = httpClient ?? http.Client(),
        _ownsClient = httpClient == null;
 
   /// App-private directory (e.g. `<support>/tesseract`).
   final Directory root;
+
+  /// Where data files are hashed: off the UI isolate unless
+  /// [FileHashing.inline].
+  final FileHashing hashing;
+
+  final Future<int?> Function(String path)? _freeSpace;
+
+  /// The smallest margin of free space a download or import keeps (on top
+  /// of the bytes it writes): 50 MiB.
+  static const int spaceMarginBytes = 50 << 20;
+
+  /// The free space writing [bytes] needs: the bytes plus a margin of 5 %,
+  /// at least [spaceMarginBytes], so the phone is not left full.
+  static int requiredSpace(int bytes) =>
+      bytes + max(spaceMarginBytes, bytes ~/ 20);
 
   /// Maximum wait for response headers and between chunks of a download.
   final Duration requestTimeout;
@@ -397,6 +446,12 @@ class TessdataManager {
     final existing = await installedLanguage(language.code);
     if (existing != null && existing.sha256 == language.sha256) return existing;
     await _downloadsDirectory.create(recursive: true);
+    final partial = File(_partPath(language.code));
+    final downloaded = partial.existsSync() ? await _lengthOf(partial) : 0;
+    await _checkSpace(
+      language,
+      language.size - downloaded.clamp(0, language.size),
+    );
     final part = await _download(
       language,
       (received) {
@@ -474,11 +529,10 @@ class TessdataManager {
       existing = 0;
     }
 
-    final digestSink = _DigestSink();
-    final hasher = sha256.startChunkedConversion(digestSink);
     var received = 0;
     // The mirror the bytes come from (null: the catalog's URL).
     Uri? source;
+    final FileDigest digest;
 
     if (existing < language.size) {
       final (response, from) = await _request(
@@ -489,64 +543,77 @@ class TessdataManager {
       );
       source = from;
       final resumed = existing > 0 && response.statusCode == 206;
-      if (resumed) {
-        // Hash what is already on disk, then append.
-        await for (final chunk in part.openRead()) {
-          hasher.add(chunk);
-          received += chunk.length;
-        }
-      }
-      report(received);
-      final sink = part.openWrite(
-        mode: resumed ? FileMode.writeOnlyAppend : FileMode.writeOnly,
-      );
+      final StreamHasher hasher;
       try {
-        await for (final chunk in response.stream.timeout(requestTimeout)) {
-          received += chunk.length;
-          if (received > language.size) {
-            throw TessdataChecksumException(
-              language.code,
-              '${language.fileName}${_from(source)}: more than '
-              '${language.size} bytes',
-              mirror: source,
-            );
-          }
-          hasher.add(chunk);
-          sink.add(chunk);
-          report(received);
-        }
-      } on TessdataInstallException {
-        await sink.close();
-        await _deleteQuietly(part);
-        rethrow;
+        hasher = await hashing.stream();
+        // An isolate that cannot start: the download fails like an
+        // interrupted one.
+        // coverage:ignore-start
       } on Object catch (error) {
-        // Interrupted: keep the part for resuming.
-        await sink.close();
+        unawaited(response.stream.listen(null).cancel());
         throw TessdataDownloadException(
           language.code,
           '${language.fileName}${_from(source)}: $error',
           mirror: source,
         );
       }
-      await sink.flush();
-      await sink.close();
-    } else {
-      await for (final chunk in part.openRead()) {
-        hasher.add(chunk);
-        received += chunk.length;
+      // coverage:ignore-end
+      try {
+        if (resumed) {
+          // Hash what is already on disk (in the background), then append.
+          received = await hasher.addFile(part.path);
+        }
+        report(received);
+        final sink = part.openWrite(
+          mode: resumed ? FileMode.writeOnlyAppend : FileMode.writeOnly,
+        );
+        try {
+          await for (final chunk in response.stream.timeout(requestTimeout)) {
+            received += chunk.length;
+            if (received > language.size) {
+              throw TessdataChecksumException(
+                language.code,
+                '${language.fileName}${_from(source)}: more than '
+                '${language.size} bytes',
+                mirror: source,
+              );
+            }
+            sink.add(chunk);
+            await hasher.add(chunk);
+            report(received);
+          }
+        } on TessdataInstallException {
+          await sink.close();
+          await _deleteQuietly(part);
+          rethrow;
+        } on Object catch (error) {
+          // Interrupted: keep the part for resuming.
+          await sink.close();
+          throw TessdataDownloadException(
+            language.code,
+            '${language.fileName}${_from(source)}: $error',
+            mirror: source,
+          );
+        }
+        await sink.flush();
+        await sink.close();
+        digest = await hasher.close();
+      } finally {
+        hasher.abort();
       }
+    } else {
+      digest = await hashing.hashFile(part.path);
+      received = digest.size;
       report(received);
     }
-    hasher.close();
 
-    final digest = digestSink.value.toString();
-    if (received != language.size || digest != language.sha256) {
+    if (digest.size != language.size || digest.sha256 != language.sha256) {
       await _deleteQuietly(part);
       throw TessdataChecksumException(
         language.code,
-        '${language.fileName}${_from(source)}: got $received bytes with '
-        'SHA-256 $digest, expected ${language.size} bytes with SHA-256 '
-        '${language.sha256}',
+        '${language.fileName}${_from(source)}: got ${digest.size} bytes with '
+        'SHA-256 ${digest.sha256}, expected ${language.size} bytes with '
+        'SHA-256 ${language.sha256}',
         mirror: source,
       );
     }
@@ -607,6 +674,30 @@ class TessdataManager {
   static String _from(Uri? mirror) =>
       mirror == null ? '' : ' from the mirror $mirror';
 
+  /// Throws a [TessdataInsufficientSpaceException] when the file system of
+  /// [root] has less free space than writing [bytes] for [language] needs
+  /// ([requiredSpace]). Nothing to write, or an unknown free space,
+  /// passes.
+  Future<void> _checkSpace(TessdataLanguage language, int bytes) async {
+    final freeSpace = _freeSpace;
+    if (freeSpace == null || bytes <= 0) return;
+    int? available;
+    try {
+      available = await freeSpace(root.path);
+    } on Object {
+      // Not known: the write itself fails on a full disk.
+    }
+    final needed = requiredSpace(bytes);
+    if (available == null || available >= needed) return;
+    throw TessdataInsufficientSpaceException(
+      language.code,
+      '${language.fileName}: needs $needed bytes of free space, '
+      '$available free',
+      requiredBytes: needed,
+      availableBytes: available,
+    );
+  }
+
   /// Installs [language] from the verified imported [input].
   Future<TessdataImportOutcome> _importLanguage(
     TessdataLanguage language,
@@ -659,9 +750,11 @@ class TessdataManager {
     }
   }
 
-  /// Copies [input] into staging while hashing it again, so the installed
-  /// bytes are the verified ones even if [input] changes meanwhile.
+  /// Copies [input] into staging while hashing it again (in the
+  /// background), so the installed bytes are the verified ones even if
+  /// [input] changes meanwhile. Checks the free space first.
   Future<File> _copyVerified(TessdataLanguage language, File input) async {
+    await _checkSpace(language, language.size);
     await _stagingDirectory.create(recursive: true);
     final output = File(
       p.join(
@@ -669,29 +762,27 @@ class TessdataManager {
         '${language.code}-${_randomSuffix()}$_extension',
       ),
     );
-    final digestSink = _DigestSink();
-    final hasher = sha256.startChunkedConversion(digestSink);
-    var size = 0;
-    final sink = output.openWrite();
+    final FileDigest digest;
     try {
-      await for (final chunk in input.openRead()) {
-        size += chunk.length;
-        if (size > language.size) break;
-        hasher.add(chunk);
-        sink.add(chunk);
-      }
-      await sink.flush();
-    } finally {
-      await sink.close();
+      digest = await hashing.copyFile(
+        input.path,
+        output.path,
+        maxBytes: language.size,
+      );
+      // A file that vanished or a full disk: no partial copy is left.
+      // coverage:ignore-start
+    } on Object {
+      await _deleteQuietly(output);
+      rethrow;
     }
-    hasher.close();
-    final digest = digestSink.value.toString();
-    if (size != language.size || digest != language.sha256) {
+    // coverage:ignore-end
+    if (digest.size != language.size || digest.sha256 != language.sha256) {
       await _deleteQuietly(output);
       throw TessdataChecksumException(
         language.code,
-        '${p.basename(input.path)}: $size bytes with SHA-256 $digest, '
-        'expected ${language.size} bytes with SHA-256 ${language.sha256}',
+        '${p.basename(input.path)}: ${digest.size} bytes with SHA-256 '
+        '${digest.sha256}, expected ${language.size} bytes with SHA-256 '
+        '${language.sha256}',
       );
     }
     return output;
@@ -757,23 +848,20 @@ class TessdataManager {
       p.join(_downloadsDirectory.path, '$code$_extension.part');
 
   /// Whether [input] has [language]'s size and SHA-256.
-  static Future<bool> _matches(File input, TessdataLanguage language) async {
+  Future<bool> _matches(File input, TessdataLanguage language) async {
     // Only a file of the right size is worth hashing.
     if (await _lengthOf(input) != language.size) return false;
     return await _sha256Of(input) == language.sha256;
   }
 
-  /// SHA-256 of [file]'s contents; null when it cannot be read.
-  static Future<String?> _sha256Of(File file) async {
-    final digestSink = _DigestSink();
-    final hasher = sha256.startChunkedConversion(digestSink);
+  /// SHA-256 of [file]'s contents (hashed in the background); null when
+  /// it cannot be read.
+  Future<String?> _sha256Of(File file) async {
     try {
-      await file.openRead().forEach(hasher.add);
+      return (await hashing.hashFile(file.path)).sha256;
     } on FileSystemException {
       return null;
     }
-    hasher.close();
-    return digestSink.value.toString();
   }
 
   /// The length of [file]; -1 when it cannot be read.
@@ -811,14 +899,4 @@ class TessdataManager {
       // Best effort: leftovers are removed by the next cleanUp().
     }
   }
-}
-
-class _DigestSink implements Sink<Digest> {
-  late Digest value;
-
-  @override
-  void add(Digest data) => value = data;
-
-  @override
-  void close() {}
 }

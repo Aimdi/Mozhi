@@ -160,6 +160,23 @@ build dies with SIGILL, as does the i8mm one on a Cortex-A76.
 `MOZHI_WHISPER_CPU_VARIANTS` (`<name>=<march>` list; default: these two on
 arm64, none elsewhere) builds others, e.g. `native=native` on a desktop.
 
+A phone that lists a feature it does not have would crash with SIGILL
+before Dart could react, so the app gives the engines a
+`CpuVariantGuard` (`createWhisperEngine(variantGuardDirectory: …)`, also
+for the voice activity isolate): each isolate writes a marker
+(`whisper_cpu_variant.open-<role>.marker`) while it probes a faster build
+and another (`compute-<role>`) until its first transcription or detection
+succeeded, removing them afterwards (the build is then recorded as
+verified for its version in `whisper_cpu_variants.json`). A marker of
+another process found when an engine starts means that process died
+there: a crash of the build, counted once per dead process; after two
+crashes in a row (no successful first computation between them) the build
+is skipped from then on and the baseline runs (one crash may be an
+unrelated kill, such as the low-memory killer's, while an illegal
+instruction repeats on every try, so this costs one extra crash at most). An
+explicit `libraryPath` or `$WHISPER_LIBRARY_PATH` is never guarded.
+`whisperEngineBuild()` names the build for the settings.
+
 | Path | What |
 | --- | --- |
 | `native/CMakeLists.txt` | The shared library (and on arm64 its CPU variants) from the pinned sources; nothing is downloaded |

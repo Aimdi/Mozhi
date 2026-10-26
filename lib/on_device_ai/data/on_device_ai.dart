@@ -6,6 +6,7 @@ import 'package:llm_api/llm_api.dart';
 import 'package:mozhi/on_device_ai/data/on_device_llm_client.dart';
 import 'package:mozhi/on_device_ai/data/on_device_models.dart';
 import 'package:mozhi/on_device_ai/data/on_device_runtime.dart';
+import 'package:mozhi/platform/device_conditions.dart';
 import 'package:mozhi/platform/native_memory.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -23,6 +24,10 @@ sealed class OnDeviceAiStatus {
 
   /// Whether a model is writing a reply.
   bool get isGenerating => this is OnDeviceAiGenerating;
+
+  /// Whether a long job waits between its parts for the phone to cool
+  /// down or battery saver to end ([OnDeviceAiPaused]).
+  bool get isPaused => this is OnDeviceAiPaused;
 }
 
 /// Nothing runs (a model may still be loaded, until it is unloaded).
@@ -75,6 +80,32 @@ final class OnDeviceAiGenerating extends OnDeviceAiStatus {
   String toString() => 'OnDeviceAiGenerating($modelId)';
 }
 
+/// A long job (a document, a web page or a long text, part by part) waits
+/// before its next part for model [modelId] while the phone is hot or
+/// battery saver is on ([strain]); [OnDeviceAi.continueAnyway] lets it
+/// go on, cancelling the request stops it.
+final class OnDeviceAiPaused extends OnDeviceAiStatus {
+  const new(this.modelId, this.strain);
+
+  @override
+  final String modelId;
+
+  /// Why it waits.
+  final DeviceStrain strain;
+
+  @override
+  bool operator ==(Object other) =>
+      other is OnDeviceAiPaused &&
+      other.modelId == modelId &&
+      other.strain == strain;
+
+  @override
+  int get hashCode => Object.hash(OnDeviceAiPaused, modelId, strain);
+
+  @override
+  String toString() => 'OnDeviceAiPaused($modelId, ${strain.name})';
+}
+
 /// Model [modelId] could not be loaded or failed while writing ([error]:
 /// what the request failed with, an `LlmApiException`).
 final class OnDeviceAiError extends OnDeviceAiStatus {
@@ -110,22 +141,29 @@ final class OnDeviceAiError extends OnDeviceAiStatus {
 /// nothing they get leaves the device.
 ///
 /// One model is in memory at a time and one request runs at a time (they
-/// queue). A model loads with the first request that needs it ([status]
+/// queue). The parts of a long job wait while the phone is hot or battery
+/// saver is on ([OnDeviceAiPaused], see [OnDeviceRuntime]). A model loads
+/// with the first request that needs it ([status]
 /// is [OnDeviceAiLoading] meanwhile, then [OnDeviceAiGenerating]) and is
 /// unloaded `idleUnloadAfter` after the last request, when the app goes to
 /// the background and on memory pressure (`memoryBudget`); a running
 /// request finishes first.
 class OnDeviceAi {
+  /// [engineBuild] tells which build of the engine library runs on this
+  /// processor ([LlamaEngineBuild], for support; null: not known).
   new({
     required this.models,
     required LlamaEngine engine,
     NativeMemoryBudget? memoryBudget,
     Duration idleUnloadAfter = defaultIdleUnloadAfter,
+    this._engineBuild,
+    DeviceConditions? deviceConditions,
   }) : runtime = OnDeviceRuntime(
          engine: engine,
          catalog: models.catalog,
          pathOf: models.pathOf,
          idleUnloadAfter: idleUnloadAfter,
+         deviceConditions: deviceConditions,
        ) {
     _providers = _selectedProviders();
     _changes = models.changes.listen((_) => _onModelsChanged());
@@ -147,6 +185,18 @@ class OnDeviceAi {
 
   /// The engine, its queue and its status.
   final OnDeviceRuntime runtime;
+
+  final LlamaEngineBuild Function()? _engineBuild;
+
+  /// Which build of the engine library runs on this processor (shown on
+  /// the On-device AI page for support); null when not known.
+  LlamaEngineBuild? get engineBuild {
+    try {
+      return _engineBuild?.call();
+    } on Object {
+      return null;
+    }
+  }
 
   late List<AiProviderConfig> _providers;
   late final StreamSubscription<void> _changes;
@@ -184,6 +234,11 @@ class OnDeviceAi {
     }
     return OnDeviceLlmClient(endpoint, runtime: runtime);
   }
+
+  /// Lets a long job that waits while the phone is hot or battery saver is
+  /// on ([OnDeviceAiPaused]) go on with its next parts, until it ends
+  /// (`OnDeviceRuntime.continueAnyway`).
+  void continueAnyway() => runtime.continueAnyway();
 
   /// Frees the loaded model's memory now, or after the running request.
   Future<void> unload() async {

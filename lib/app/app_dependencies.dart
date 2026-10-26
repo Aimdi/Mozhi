@@ -1,4 +1,5 @@
 import 'package:mozhi/app/fallback_key_value_store.dart';
+import 'package:mozhi/app_lock/data/app_lock.dart';
 import 'package:mozhi/backup/data/backup_registry.dart';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/core/network/network_session.dart';
@@ -39,6 +40,7 @@ class AppDependencies {
     this.syncService,
     this.phrasebookRepository,
     this.practiceRepository,
+    this.appLock,
     this._network,
   });
 
@@ -103,6 +105,10 @@ class AppDependencies {
   /// progress, encrypted). Null in tests that don't need it (its entry
   /// points are then hidden).
   final PracticeRepository? practiceRepository;
+
+  /// The app lock; null makes the `App` create the platform's
+  /// (`createAppLockPlatform`) from the settings.
+  final AppLockController? appLock;
 
   final NetworkSession? _network;
 

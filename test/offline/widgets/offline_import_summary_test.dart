@@ -4,6 +4,7 @@ import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/offline/data/offline_model_error.dart';
 import 'package:mozhi/offline/data/offline_model_import.dart';
 import 'package:mozhi/offline/offline.dart';
+import 'package:mozhi/platform/free_space.dart';
 
 import '../../helpers/helpers.dart';
 
@@ -170,6 +171,35 @@ void main() {
       expect(
         find.text('Tap a language in the list to see the files it needs.'),
         findsNothing,
+      );
+    });
+
+    testWidgets('says how much free space an install needed', (tester) async {
+      await open(
+        tester,
+        const OfflineImportOutcome(
+          entries: [
+            OfflineImportEntry(
+              source: german,
+              target: english,
+              status: OfflineImportStatus.failed,
+              error: OfflineModelError(
+                OfflineModelErrorKind.space,
+                space: SpaceShortfall(
+                  requiredBytes: 60 * 1024 * 1024,
+                  availableBytes: 5 * 1024 * 1024,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+      expect(
+        find.text(
+          'Not enough free space for ${direction(german, english)}: needs '
+          '60 MB, 5.0 MB free.',
+        ),
+        findsOneWidget,
       );
     });
 

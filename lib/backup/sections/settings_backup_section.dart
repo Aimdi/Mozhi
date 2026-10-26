@@ -27,10 +27,12 @@ import 'package:translation_repository/translation_repository.dart';
 /// else and keep its key. Instance passwords go by the instance address.
 ///
 /// [BackupRestoreMode.replace] makes the backup's settings the settings
-/// (setup stays finished when it was); a provider or instance keeps this
-/// device's key or password when the backup has none for it (on the same
-/// server). [BackupRestoreMode.merge] keeps this device's settings,
-/// privacy choices included, and only adds the AI providers and pinned
+/// (setup stays finished when it was, and the app lock, one of the
+/// [deviceOnlyFields] that are never exported, stays as it is here); a
+/// provider or instance keeps this device's key or password when the
+/// backup has none for it (on the same server).
+/// [BackupRestoreMode.merge] keeps this device's settings, privacy
+/// choices included, and only adds the AI providers and pinned
 /// languages it doesn't have, and the backup's keys of providers on the
 /// same server where this device has none (settings carry no timestamps
 /// to tell the newer copy). Merge never adds Mozhi instances: the failover
@@ -52,6 +54,13 @@ class SettingsBackupSection implements BackupSection {
   static const _version = 1;
 
   final SettingsRepository _repository;
+
+  /// The [AppSettings.toJson] fields that belong to this device and
+  /// never leave it: [export] leaves them out and a restore keeps this
+  /// device's values (whatever a file says). The app lock
+  /// ([AppSettings.appLock]) depends on this phone's screen lock, and a
+  /// copy must not lock (or unlock) another device.
+  static const deviceOnlyFields = {'appLock'};
 
   @override
   String get id => sectionId;
@@ -109,7 +118,8 @@ class SettingsBackupSection implements BackupSection {
     final settings = await _load();
     final secrets = includeSecrets ? _Secrets.of(settings).toJson() : null;
     return {
-      'settings': settings.toJson(),
+      'settings': {...settings.toJson()}
+        ..removeWhere((key, _) => deviceOnlyFields.contains(key)),
       if (secrets != null && secrets.isNotEmpty) 'secrets': secrets,
     };
   }
@@ -205,6 +215,8 @@ class SettingsBackupSection implements BackupSection {
     final keep = _Secrets.of(local);
     return backup.copyWith(
       onboardingComplete: local.onboardingComplete || backup.onboardingComplete,
+      // Device-only (deviceOnlyFields).
+      appLock: local.appLock,
       providers: List.unmodifiable([
         for (final provider in backup.providers)
           if (mine[provider.id] case final own? when sameServer(own, provider))

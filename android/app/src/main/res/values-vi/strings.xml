@@ -22,4 +22,21 @@
     <string name="widget_type_description">Nhập văn bản cần dịch</string>
     <string name="widget_camera_label">Máy ảnh</string>
     <string name="widget_camera_description">Dịch bằng máy ảnh</string>
+    <string name="tile_translate_screen_label">Dịch màn hình</string>
+    <string name="tile_translate_screen_description">Dịch nội dung trên màn hình bằng Mozhi</string>
+    <string name="shortcut_translate_screen_short">Màn hình</string>
+    <string name="shortcut_translate_screen_long">Dịch màn hình</string>
+    <string name="notification_channel_screen_capture">Dịch màn hình</string>
+    <string name="notification_channel_screen_capture_description">Hiện trong giây lát khi Mozhi chụp màn hình để dịch</string>
+    <string name="notification_screen_capture_title">Đang đọc màn hình</string>
+    <string name="notification_channel_bubble">Bong bóng dịch</string>
+    <string name="notification_channel_bubble_description">Hiện khi bong bóng dịch đang bật</string>
+    <string name="notification_bubble_title">Bong bóng dịch đang bật</string>
+    <string name="notification_bubble_text">Chạm vào bong bóng để dịch màn hình, giữ để dịch bảng nhớ tạm.</string>
+    <string name="notification_bubble_stop">Dừng</string>
+    <string name="bubble_description">Dịch màn hình</string>
+    <string name="bubble_long_press_action">Dịch bảng nhớ tạm</string>
+    <string name="bubble_remove_action">Xóa bong bóng</string>
+    <string name="bubble_remove_target">Xóa</string>
+    <string name="bubble_clipboard_empty">Bảng nhớ tạm trống</string>
 </resources>

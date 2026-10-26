@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:mozhi/dictionary/data/dictionary_packs.dart';
+import 'package:mozhi/platform/free_space.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 import 'dictionary_pack_fixtures.dart';
@@ -31,6 +32,7 @@ void main() {
     Future<bool> Function()? isMetered,
     List<Uri> Function(DictionaryPackInfo pack)? downloadUrls,
     DictionaryPackStorage? store,
+    FreeSpace? freeSpace,
   }) => DictionaryPacks(
     catalog: DictionaryPackCatalog([es, en]),
     storage: store ?? storage,
@@ -47,7 +49,31 @@ void main() {
         }),
     isMeteredConnection: isMetered,
     downloadUrls: downloadUrls,
+    freeSpace: freeSpace,
   );
+
+  group('free space', () {
+    FreeSpace answering(int bytes) =>
+        FreeSpace(isWeb: true, browser: () async => bytes);
+
+    test('a pack that does not fit is not downloaded', () async {
+      await expectLater(
+        packs(freeSpace: answering(100)).install(es),
+        throwsA(isA<NotEnoughSpaceException>()),
+      );
+      expect(requested, isEmpty);
+      await expectLater(
+        packs(freeSpace: answering(100)).installFrom(es, Stream.value(spanish)),
+        throwsA(isA<NotEnoughSpaceException>()),
+      );
+      expect(await packs().installed(), isEmpty);
+    });
+
+    test('a pack that fits is', () async {
+      await packs(freeSpace: answering(requiredFreeSpace(es.size))).install(es);
+      expect(requested, [es.url]);
+    });
+  });
 
   group('install', () {
     test('downloads, checks and installs a pack', () async {

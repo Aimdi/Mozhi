@@ -9,6 +9,7 @@ import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/on_device_ai/data/on_device_ai.dart';
 import 'package:mozhi/on_device_ai/data/on_device_models.dart';
 import 'package:mozhi/platform/current_session_client.dart';
+import 'package:mozhi/platform/free_space.dart';
 import 'package:mozhi/platform/metered_network.dart';
 import 'package:mozhi/platform/native_memory.dart';
 import 'package:path_provider/path_provider.dart';
@@ -37,6 +38,11 @@ const onDeviceAiFolder = 'llm';
 /// the app goes to the background and on memory pressure ([memoryBudget],
 /// default [NativeMemoryBudget.instance]); the next request loads it
 /// again.
+///
+/// A download or import first checks the free space ([freeSpace], default
+/// [FreeSpace.instance]); the engine turns off a faster build of its
+/// library that crashed the app (its guard lives in [supportDirectory],
+/// see `CpuVariantGuard`).
 Future<OnDeviceAi?> createOnDeviceAi({
   required KeyValueStore store,
   AssetBundle? bundle,
@@ -48,6 +54,7 @@ Future<OnDeviceAi?> createOnDeviceAi({
   LlamaEngine? engine,
   NativeMemoryBudget? memoryBudget,
   Future<DeviceMemory?> Function() deviceMemory = DeviceMemory.query,
+  FreeSpace? freeSpace,
 }) async {
   if (!(isAvailable ?? llamaPlatformSupported)) return null;
   try {
@@ -61,6 +68,7 @@ Future<OnDeviceAi?> createOnDeviceAi({
         '${support.path}${Platform.pathSeparator}$onDeviceAiFolder',
       ),
       httpClient: httpClient ?? CurrentSessionClient(),
+      freeSpace: (freeSpace ?? FreeSpace.instance).call,
     );
     unawaited(_cleanUp(manager));
     final models = OnDeviceModels(
@@ -76,9 +84,15 @@ Future<OnDeviceAi?> createOnDeviceAi({
     await models.ready;
     return OnDeviceAi(
       models: models,
-      // The native isolate engine (tests pass their own).
-      engine: engine ?? createLlamaEngine(), // coverage:ignore-line
+      // The native isolate engine (tests pass their own), guarded against
+      // a faster build that crashes this phone.
+      engine:
+          engine ??
+          // coverage:ignore-start
+          createLlamaEngine(variantGuardDirectory: support.path),
+      // coverage:ignore-end
       memoryBudget: memoryBudget ?? NativeMemoryBudget.instance,
+      engineBuild: () => llamaEngineBuild(variantGuardDirectory: support.path),
     );
   } on Object catch (error, stackTrace) {
     final cause = error is ParallelWaitError ? error.errors : error;

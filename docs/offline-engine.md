@@ -198,6 +198,17 @@ restarts it. The `http.Client` is injectable (tests use `MockClient`).
 An import from files ([below](#import-models-without-the-app-downloading-them))
 goes through the same checks, staging and rename, with no download step.
 
+Before anything is written, the manager checks the free space (its
+`freeSpace`, the app's `FreeSpace`: `StatFs` on Android): what is left to
+download plus the decompressed files (the `.gz` parts stay until the model
+is installed), plus a margin of 5 %, at least 50 MB
+(`BergamotModelManager.requiredSpace`). Too little fails with a
+`ModelInsufficientSpaceException` before any request, and the offline
+languages screen says **Not enough free space for German: needs 120 MB,
+40 MB free.** Hashing and decompressing run in background isolates
+(`FileHashing`: a download's chunks are hashed in a long-lived isolate as
+they arrive), so the app stays smooth.
+
 ## Import models without the app downloading them
 
 A download makes the phone contact `storage.googleapis.com`, which
@@ -726,6 +737,10 @@ each).
   `navigator.storage.persist()` (Window only, so from Dart) until the browser
   agrees; without it the browser may evict the packs under storage
   pressure (Chrome decides by itself, Firefox asks the user).
+* **Free space:** a download first compares what it needs (download and
+  decompressed sizes plus the margin) with what the origin's quota leaves
+  (`navigator.storage.estimate()`: `quota - usage`, when the browser has
+  it) and is refused at once when it would not fit.
 * **Mozilla's bucket and CORS** (checked 2026-10-22 with
   `curl -H 'Origin: …'`): `storage.googleapis.com/moz-fx-translations-data…`
   sends `Access-Control-Allow-Origin` only for `http://localhost[:port]`

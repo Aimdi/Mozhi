@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:mozhi/core/network/network_session.dart';
 import 'package:mozhi/offline/data/unavailable_offline_translator.dart';
 import 'package:mozhi/platform/current_session_client.dart';
+import 'package:mozhi/platform/free_space.dart';
 import 'package:mozhi/platform/metered_network.dart';
 import 'package:mozhi/platform/native_memory.dart';
 import 'package:path_provider/path_provider.dart';
@@ -34,7 +35,8 @@ Future<OfflineTranslator> createOfflineTranslator() =>
 /// [MeteredNetwork.isMetered]) for Wi-Fi-only downloads.
 ///
 /// Leftovers of interrupted installs are removed in the background
-/// ([BergamotModelManager.cleanUp]); nothing here waits for it.
+/// ([BergamotModelManager.cleanUp]); nothing here waits for it. A download
+/// first checks the free space ([freeSpace], default [FreeSpace.instance]).
 /// [isAvailable] and [engine] replace the platform's (tests).
 ///
 /// Memory: the engine keeps [DeviceMemory.bergamotModelCacheSize] models
@@ -56,6 +58,7 @@ Future<OfflineTranslator> createBergamotOfflineTranslator({
   BergamotEngine? engine,
   Future<DeviceMemory?> Function()? deviceMemory,
   NativeMemoryBudget? memoryBudget,
+  FreeSpace? freeSpace,
 }) async {
   try {
     final (catalog, support, memory) = await (
@@ -79,6 +82,8 @@ Future<OfflineTranslator> createBergamotOfflineTranslator({
                 const DeviceMemory().bergamotModelCacheSize,
           ),
       isAvailable: isAvailable,
+      // Every download first checks that it fits.
+      freeSpace: (freeSpace ?? FreeSpace.instance).call,
     );
     if (translator.isAvailable) {
       unawaited(_cleanUp(translator));

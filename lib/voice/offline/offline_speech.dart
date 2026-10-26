@@ -37,14 +37,29 @@ final class VoiceModelMeteredException implements Exception {
 /// * The larger models are only offered where they fit ([fits], the
 ///   device's [memory]); an installed one is always listed.
 class OfflineSpeech {
+  /// [engineBuild] tells which build of the engine library runs on this
+  /// processor ([WhisperEngineBuild], for support; null: not known).
   new({
     required this.whisper,
     required this._store,
     Future<bool> Function()? isMeteredConnection,
     ModelSource Function()? modelSource,
     this.memory,
+    this._engineBuild,
   }) : _isMetered = isMeteredConnection ?? _neverMetered,
        _modelSource = modelSource ?? _currentModelSource;
+
+  final WhisperEngineBuild Function()? _engineBuild;
+
+  /// Which build of the engine library runs on this processor (shown in
+  /// the voice input settings for support); null when not known.
+  WhisperEngineBuild? get engineBuild {
+    try {
+      return _engineBuild?.call();
+    } on Object {
+      return null;
+    }
+  }
 
   /// [KeyValueStore] key of the model in use ([WhisperCatalogModel.id]).
   static const modelKey = 'voice.offlineModel';
@@ -108,9 +123,11 @@ class OfflineSpeech {
   /// is not installed yet. [onProgress] receives the fraction done of both
   /// (0 to 1).
   ///
-  /// Throws [VoiceModelMeteredException] on a metered network when
-  /// [wifiOnly] (unless [overMeteredNetwork]), [ArgumentError] for an
-  /// unknown id, and the [WhisperModelInstallException]s of the download.
+  /// Throws [WhisperInsufficientSpaceException] when it does not fit in
+  /// the free space (checked first), [VoiceModelMeteredException] on a
+  /// metered network when [wifiOnly] (unless [overMeteredNetwork]),
+  /// [ArgumentError] for an unknown id, and the
+  /// [WhisperModelInstallException]s of the download.
   Future<void> download(
     String id, {
     bool overMeteredNetwork = false,
@@ -118,6 +135,9 @@ class OfflineSpeech {
   }) async {
     final model = whisper.catalog.model(id);
     if (model == null) throw ArgumentError.value(id, 'id', 'Unknown model');
+    // Before asking about mobile data: a download that cannot fit fails at
+    // once (WhisperInsufficientSpaceException).
+    await whisper.models.checkSpace(model);
     if (!overMeteredNetwork && await wifiOnly() && await _isMetered()) {
       throw const VoiceModelMeteredException();
     }
@@ -211,10 +231,22 @@ class OfflineSpeech {
   /// Installs the Whisper models (and the voice activity model) among the
   /// files at [paths] (picked by the user); never goes online. The last
   /// speech model installed becomes the one in use.
-  Future<WhisperImportResult> importFiles(List<String> paths) async {
-    final result = await whisper.importFiles([
-      for (final path in paths) File(path),
-    ]);
+  Future<WhisperImportResult> importFiles(List<String> paths) async =>
+      await _selectImported(
+        await whisper.importFiles([for (final path in paths) File(path)]),
+      );
+
+  /// Installs the Whisper models (and the voice activity model) among the
+  /// picked documents [sources], copied straight into the models folder
+  /// (no copy elsewhere first, [WhisperSpeech.importSources]); never goes
+  /// online. The last speech model installed becomes the one in use.
+  Future<WhisperImportResult> importSources(
+    List<WhisperImportSource> sources,
+  ) async => await _selectImported(await whisper.importSources(sources));
+
+  Future<WhisperImportResult> _selectImported(
+    WhisperImportResult result,
+  ) async {
     final speech = result.installed.where((model) => model != vadModel);
     if (speech.lastOrNull case final model?) await select(model.id);
     return result;

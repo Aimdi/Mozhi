@@ -7,6 +7,7 @@ import 'package:mozhi/core/widgets/consent_prompt.dart';
 import 'package:mozhi/core/widgets/tab_hero.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/on_device_ai/view/on_device_ai_paused_notice.dart';
 import 'package:mozhi/web_translate/cubit/web_translate_cubit.dart';
 import 'package:mozhi/web_translate/widgets/web_translate_messages.dart';
 import 'package:translation_repository/translation_repository.dart'
@@ -64,6 +65,9 @@ class WebTranslateStatusPanel extends StatelessWidget {
           key: const Key('web_translate_progress'),
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // On-device AI waits between the parts while the phone is
+            // hot or saving battery (shows nothing otherwise).
+            OnDeviceAiPausedNotice(onCancel: () => unawaited(cubit.cancel())),
             LinearProgressIndicator(
               value: state.totalItems == 0 ? null : state.progress,
               borderRadius: const BorderRadius.all(Radius.circular(4)),

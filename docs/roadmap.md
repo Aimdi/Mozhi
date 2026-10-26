@@ -41,17 +41,19 @@ gaps that matter:
   AI, dictionary data only from AI (closed in waves 3 and 5; on-device AI
   is Android-only so far).
 - **Reach:** no image or file share target, quick translate opens the full
-  app, no camera overlay, no continuous transcription (all but a live
-  camera overlay closed in waves 1 to 3).
+  app, no camera overlay, no continuous transcription, no office
+  documents, no way to translate other apps' screens (all but a live
+  camera overlay and PDF closed in waves 1 to 3 and 6).
 - **Continuity:** no encrypted backup or sync, favorites aren't a
   phrasebook, no learning tools (all closed in wave 4).
 
-## Done: waves 1 to 5
+## Done: waves 1 to 6
 
 Wave 1 (trust, speed and transparency), wave 2 (feel like the best app),
-wave 3 (offline everywhere), wave 4 (continuity and learning) and wave 5
-(offline AI) are built; the
-[changelog](../CHANGELOG.md) lists what changed (0.1.0-rc.3). Wave 3
+wave 3 (offline everywhere), wave 4 (continuity and learning), wave 5
+(offline AI) and wave 6 (translate everything, anywhere) are built; the
+[changelog](../CHANGELOG.md) lists what changed (0.1.0-rc.3 and
+0.1.0-rc.4 for wave 6). Wave 3
 brought offline translation to the web app (Bergamot and CLD2 as
 WebAssembly in a worker, models in the browser's private storage), a model
 source setting with self-hosted mirrors, the translation drawn over photos,
@@ -92,6 +94,23 @@ translating as you type pauses on-device AI when the phone is hot or in
 battery saver. Whisper got the same run-time CPU variants and three
 quantized voice models.
 
+Wave 6 made Mozhi translate the files people and translators work with
+and anything on the screen: office documents and e-books (DOCX, PPTX,
+XLSX, ODT, ODP, ODS, EPUB) keep their formatting and come back in the
+same format; localisation files (XLIFF, PO, Android `strings.xml`, Apple
+`.strings` and `.xcstrings`, CSV/TSV) and HTML pages round-trip with keys,
+placeholders and markup intact; on Android a Quick Settings tile, a
+shortcut and an optional bubble translate the screen from any app (one
+screenshot with consent each time, recognised on the phone, deleted right
+away); and an app lock uses the phone's biometrics or screen lock. It
+also closed wave 5's gaps: free-space checks before every download,
+hashing off the UI thread, imports without a second copy, pushed heat and
+battery saver changes, a crash guard for the faster CPU builds, and long
+on-device translations that wait while the phone is hot. A security
+review of the new code led to linear-time CSV parsing, protection against
+spreadsheet formulas in translated CSV cells, ZIP checks before anything
+is unpacked, and a tighter app lock grace period.
+
 Carried over to later waves:
 
 - **Delight:** word highlighting while Listen plays (it needs progress
@@ -125,7 +144,12 @@ Carried over to later waves:
   nullable local assigned in `catch`, captured by a closure, read stale on
   the success path) to the Dart SDK; a connection given up during the TLS
   handshake through the proxy stays open until the server closes it;
-  Documents' own placeholder tokens are still limited to four digits.
+  Documents' own placeholder tokens are still limited to four digits;
+  two spots stay quadratic on hostile engine replies of about 100,000
+  characters (the JSON search in AI replies on bracket-heavy text, and the
+  personal data shield restoring a streamed reply with a long run of
+  spaces after a placeholder); full-width formula characters (`＝`) are not
+  guarded in translated CSV cells.
 - **Backup and sync:** Unicode normalisation of passphrases (a passphrase
   typed with another keyboard's composed characters doesn't match); the
   web app's Argon2id uses lighter settings (19 MiB, 2 passes) than
@@ -159,16 +183,23 @@ Carried over to later waves:
   1.25-bit Hy-MT2 files once llama.cpp ships Tencent's STQ kernel (440 MB
   instead of 1.1 GB); GPU and NPU backends (OpenCL on Adreno, Vulkan);
   on-device AI in the web app (llama.cpp as WebAssembly, models in the
-  browser's private storage); images for the vision-capable models;
-  pushed (not polled) heat and battery saver changes; a free-space check
-  before a download; hashing and import checks off the UI thread; an
-  import that doesn't first copy the file into the cache; the loading
-  notice for the extras too; a guard that falls back to the baseline
-  library if a phone misreports its CPU features; pausing a long
-  translation that is already running (a document or web page, part by
-  part) when the phone gets hot.
+  browser's private storage); images for the vision-capable models.
 - **Voice:** measure the CPU variants and the quantized models on phones,
   and try q8_0 models.
+- **Documents:** PDF (it needs pdfium built from source for F-Droid);
+  spreadsheet comments, chart data, alt text, sheet names and slide-master
+  prompts are not translated yet; PO plural forms other than the singular
+  all get the same text and Android plurals keep the source quantities;
+  XLIFF `seg-source` segmentation is not mirrored in the targets; large
+  files can pause the web app, which has no worker for parsing.
+- **Translate screen:** try the capture timing, the bubble's snapping and
+  remove target, and the detection of apps that block screenshots on real
+  phones; the launcher shortcut is the fifth one, which Pixel launchers
+  don't show; opt-in translation of incoming notifications with the
+  offline engine only.
+- **App lock:** while the app is locked, screens opened before keep their
+  data in memory (hidden, not encrypted); Android 11+ accepts the
+  "weak" biometric class like the lock screen does.
 - **Not done on purpose:** measuring instance speed automatically during
   setup (it contacts every listed volunteer server, so it stays a button:
   "Find the fastest server"); on-device AI as an automatic fallback (it
@@ -180,16 +211,13 @@ Carried over to later waves:
 
 - **Live camera viewfinder** with freeze-frame overlay. It needs the
   `camera` package or an in-repo CameraX plugin, plus the CAMERA permission.
-- **PDF, DOCX, ODT, EPUB and PPTX documents.** ZIP and XML parsing or
-  pdfium (Apache-2.0), probably new dependencies.
-- **Tap-to-Translate bubble,** screen translate (MediaProjection or the
-  Assist API) and opt-in translation of incoming notifications with the
-  offline engine only.
+- **PDF documents** with pdfium (Apache-2.0), built from source.
+- **Live captions** of other apps' audio (AudioPlaybackCapture with
+  Whisper), next to the screen translation.
 - **Bundled neural text-to-speech for degoogled phones.** Piper and
   espeak-ng are GPL-3.0, so this needs a licence-clean voice stack. Until
   then, point users to SherpaTTS on F-Droid.
-- **Handwriting input,** an app lock, and translating other apps'
-  audio as live captions.
+- **Handwriting input** with an open model.
 
 ## What we won't do
 

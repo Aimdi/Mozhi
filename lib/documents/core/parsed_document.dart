@@ -56,6 +56,7 @@ final class SegmentNode extends DocNode {
     required this.glueAfter,
     this.lineBreak = '\n',
     this.continuation = '',
+    this.escape,
   });
 
   final int segment;
@@ -79,6 +80,12 @@ final class SegmentNode extends DocNode {
   /// Written after every line break of a translation (e.g. `> ` inside a
   /// Markdown quote, or list item indentation).
   final String continuation;
+
+  /// Applied to the translated text between placeholders before it is
+  /// written (e.g. XML escaping of `&` and `<` while the placeholders stand
+  /// for raw markup); null writes it as is. Never applied to the original
+  /// text or to placeholder content.
+  final String Function(String text)? escape;
 }
 
 /// Content that is stored encoded in the document (e.g. a JSON string
@@ -237,7 +244,9 @@ class _Renderer {
     final count = node.tokens.length;
     final used = <int>{};
     final newline = '${node.lineBreak}${node.continuation}';
-    String lines(String value) => value.replaceAll('\n', newline);
+    final escape = node.escape;
+    String lines(String value) =>
+        (escape == null ? value : escape(value)).replaceAll('\n', newline);
 
     var last = 0;
     for (final match in placeholderPattern.allMatches(text)) {

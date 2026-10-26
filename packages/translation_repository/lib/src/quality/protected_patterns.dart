@@ -6,6 +6,13 @@
 ///
 /// The sources need `RegExp(..., unicode: true)` ([email] uses Unicode
 /// property classes); [combine] compiles them so.
+///
+/// Every pattern takes linear time on hostile text (a pasted or typed text
+/// must never freeze the app): no two adjacent or nested repetitions can
+/// match the same characters, and a repetition that may fail far from
+/// where it started stops at the next place another attempt would start
+/// from (the next `<!--`, `![` or `[^`), so the regular expression engine
+/// never scans a run of characters again for each position in it.
 abstract final class ProtectedPatterns {
   /// `http(s)://…`, `ftp://…` and `www.…` URLs (trailing punctuation
   /// excluded).
@@ -33,21 +40,26 @@ abstract final class ProtectedPatterns {
       r'\p{Script=Myanmar}\p{Script=Tibetan}])[\p{L}\p{M}\p{N}])';
 
   /// HTML/XML tags and comments.
+  ///
+  /// A comment never contains `<!--` (of `<!-- a <!-- b -->` only
+  /// `<!-- b -->` is one), so that text full of unclosed `<!--` is not
+  /// scanned to its end from each of them.
   static const htmlTag =
-      r'<!--[\s\S]*?-->|</?[A-Za-z][\w:.-]*(?:\s+[^<>]*?)?\s*/?>';
+      r'<!--(?:(?!<!--)[\s\S])*?-->|</?[A-Za-z][\w:.-]*(?:\s[^<>]*)?/?>';
 
   /// `&amp;`, `&#160;`, `&#x2014;`.
   static const htmlEntity =
       '&(?:#[0-9]+|#[xX][0-9A-Fa-f]+|[A-Za-z][A-Za-z0-9]*);';
 
-  /// printf-style placeholders (`%s`, `%1$d`, `%.2f`, `%@`, `%(name)s`).
+  /// printf-style placeholders (`%s`, `%1$d`, `%.2f`, `%@`, `%(name)s`,
+  /// `%05d`). A width never starts with `0`, which is a flag.
   static const printf =
-      r'%(?:\d+\$)?(?:\([A-Za-z_]\w*\))?[-+ 0#]*\d*(?:\.\d+)?[sdifuxXeEgGcp@]';
+      r'%(?:\d+\$)?(?:\([A-Za-z_]\w*\))?[-+ 0#]*(?:[1-9]\d*)?(?:\.\d+)?[sdifuxXeEgGcp@]';
 
   /// [printf] for free text: without the space flag and not followed by a
   /// letter, so that "100% done" or "50%off" are not placeholders.
   static const printfInText =
-      r'%(?:\d+\$)?(?:\([A-Za-z_]\w*\))?[-+0#]*\d*(?:\.\d+)?[sdifuxXeEgGcp@](?![A-Za-z])';
+      r'%(?:\d+\$)?(?:\([A-Za-z_]\w*\))?[-+0#]*(?:[1-9]\d*)?(?:\.\d+)?[sdifuxXeEgGcp@](?![A-Za-z])';
 
   /// Template placeholders: `{{name}}`, `${name}`, `$t(key)`,
   /// vue-i18n `@:key`.
@@ -76,16 +88,20 @@ abstract final class ProtectedPatterns {
   ]);
 
   /// Markdown inline content.
+  ///
+  /// An image description never contains `![` and a footnote label never
+  /// contains `[^`, so that a line full of `![` or `[^` is not scanned to
+  /// its end from each of them.
   static final RegExp markdown = combine([
     // Code spans (single or double backticks).
     r'``(?:[^`]|`(?!`))+``|`[^`\n]+`',
-    // Images are kept whole.
-    r'!\[[^\]\n]*\]\([^()\s]*(?:\([^()]*\))?[^()\s]*(?:\s+"[^"]*")?\)',
+    // Images are kept whole (a destination with one pair of parentheses).
+    r'!\[(?:[^\]\n!]|!(?!\[))*\]\([^()\s]*(?:\([^()]*\)[^()\s]*)?(?:\s+"[^"]*")?\)',
     // Link destinations and reference labels right after `]`.
     r'''(?<=\])\((?:[^()\s]|\([^()]*\))*(?:\s+(?:"[^"]*"|'[^']*'|\([^()]*\)))?\)''',
     r'(?<=\])\[[^\]\n]*\]',
     // Footnote references.
-    r'\[\^[^\]\n]+\]',
+    r'\[\^(?:[^\[\]\n]|\[(?!\^))+\]',
     // Autolinks.
     r'<(?:https?|ftp|mailto):[^<>\s]+>|<[^<>\s@]+@[^<>\s@]+>',
     htmlTag,

@@ -3,6 +3,7 @@ import 'dart:ffi';
 import 'dart:isolate';
 
 import 'package:ffi/ffi.dart';
+import 'package:llama_engine/src/engine/cpu_variant_guard.dart';
 import 'package:llama_engine/src/engine/ffi/bindings.dart';
 import 'package:llama_engine/src/engine/ffi/native_engine.dart';
 import 'package:llama_engine/src/engine/llama_engine.dart';
@@ -27,17 +28,30 @@ typedef LlamaNativeOpener = LlamaNative Function(List<String> libraries);
 /// global cancel). [dispose] stops the isolate; a later call starts a new
 /// one. If the isolate dies, pending requests fail with
 /// [LlamaEngineException] and the next call starts a new one.
+///
+/// With a [variantGuard], a faster build of the library that crashed the
+/// app twice in a row before is left out of [libraries] (after one crash it
+/// is tried once more), and a marker is written while a build that never
+/// ran here is opened and runs its first generation (see
+/// [CpuVariantGuard]).
 final class IsolateLlamaEngine implements LlamaEngine {
   /// [libraries] are tried in order inside the isolate (see
   /// [LlamaBindings.candidates]); by default [libraryPath], else
   /// `$LLAMA_LIBRARY_PATH`, else the baseline library. [opener] replaces
   /// the native engine (tests).
-  new({List<String>? libraries, String? libraryPath, LlamaNativeOpener? opener})
-    : libraries = libraries ?? LlamaBindings.candidates(path: libraryPath),
-      _opener = opener ?? NativeLlamaEngine.openFirst;
+  new({
+    List<String>? libraries,
+    String? libraryPath,
+    LlamaNativeOpener? opener,
+    this.variantGuard,
+  }) : libraries = libraries ?? LlamaBindings.candidates(path: libraryPath),
+       _opener = opener ?? NativeLlamaEngine.openFirst;
 
   /// The native libraries to try, best first.
   final List<String> libraries;
+
+  /// Turns off a faster library build that crashed the app (null: none).
+  final CpuVariantGuard? variantGuard;
 
   final LlamaNativeOpener _opener;
   Future<_Worker>? _worker;
@@ -192,7 +206,12 @@ final class IsolateLlamaEngine implements LlamaEngine {
       }
     }
 
-    started = _Worker.spawn(libraries, _opener, onExit: forget);
+    started = _Worker.spawn(
+      libraries,
+      _opener,
+      guard: variantGuard,
+      onExit: forget,
+    );
     _worker = started;
     // A failed start must not stick: the next call tries again.
     unawaited(started.then<void>((_) {}, onError: (Object _) => forget()));
@@ -280,6 +299,7 @@ final class _Worker {
     List<String> libraries,
     LlamaNativeOpener opener, {
     required void Function() onExit,
+    CpuVariantGuard? guard,
   }) async {
     final responses = ReceivePort('llama responses');
     final exits = ReceivePort('llama exit');
@@ -287,7 +307,7 @@ final class _Worker {
     try {
       isolate = await Isolate.spawn(
         _main,
-        _Start(responses.sendPort, libraries, opener),
+        _Start(responses.sendPort, libraries, opener, guard),
         debugName: 'llama',
         onExit: exits.sendPort,
         onError: exits.sendPort,
@@ -398,21 +418,39 @@ final class _Worker {
 
   /// The isolate's entry point: owns the [LlamaNative].
   static void _main(_Start start) {
+    final guard = start.guard;
+    final libraries = guard == null
+        ? start.libraries
+        : guard.candidates(start.libraries);
     final LlamaNative native;
     try {
-      native = start.opener(start.libraries);
+      // A faster build crashing while it opens leaves the marker behind.
+      if (libraries.isNotEmpty) guard?.arm(libraries.first, role: _openRole);
+      native = start.opener(libraries);
     } on LlamaEngineException catch (error) {
       start.responses.send(error.message);
       return;
     } on Object catch (error) {
       start.responses.send('Cannot load the native engine: $error');
       return;
+    } finally {
+      guard?.disarm(role: _openRole);
     }
+    // Until its first generation ran, a build that never ran here is
+    // guarded while it computes.
+    var check =
+        guard != null &&
+        guard.needsCheck(native.library, version: native.engine);
     final requests = RawReceivePort();
     void handle(Object? message) {
       switch (message) {
         case final _Generate generate:
-          _generate(native, generate);
+          _generate(
+            native,
+            generate,
+            guard: check ? guard : null,
+            onChecked: () => check = false,
+          );
         case _Request(:final id, :final op):
           try {
             final result = switch (op) {
@@ -448,12 +486,38 @@ final class _Worker {
   /// native loop returns it, then the statistics (done) or the error. The
   /// last message is sent after the native generation ended, so the caller
   /// may free the cancel flag when it arrives.
-  static void _generate(LlamaNative native, _Generate op) {
+  ///
+  /// With [guard], the library's first generation: a marker is written
+  /// before it starts and removed (the library verified, [onChecked]) once
+  /// the prompt was processed and the first piece computed; an error
+  /// removes it too (the library did not crash), without verifying it.
+  static void _generate(
+    LlamaNative native,
+    _Generate op, {
+    CpuVariantGuard? guard,
+    void Function()? onChecked,
+  }) {
     final flag = Pointer<Int32>.fromAddress(op.cancelFlag);
     bool cancelled() => op.cancelFlag != 0 && flag.value != 0;
     if (cancelled()) {
       op.output.send(const LlamaCancelledException());
       return;
+    }
+    var armed = false;
+    void disarm({bool verified = false}) {
+      if (!armed) return;
+      armed = false;
+      guard?.disarm(
+        role: _computeRole,
+        library: native.library,
+        verifiedVersion: verified ? native.engine : null,
+      );
+      if (verified) onChecked?.call();
+    }
+
+    if (guard != null) {
+      guard.arm(native.library, role: _computeRole);
+      armed = true;
     }
     Object last;
     try {
@@ -471,6 +535,9 @@ final class _Worker {
         for (;;) {
           if (cancelled()) throw const LlamaCancelledException();
           final piece = native.next();
+          // The prompt was processed and a token computed: this build runs
+          // on this CPU.
+          disarm(verified: true);
           if (piece == null) break;
           op.output.send(piece);
         }
@@ -482,17 +549,24 @@ final class _Worker {
       last = error;
     } on Object catch (error) {
       last = LlamaEngineException('generate: $error');
+    } finally {
+      disarm();
     }
     op.output.send(last);
   }
+
+  /// The marker roles of [CpuVariantGuard].
+  static const _openRole = 'open';
+  static const _computeRole = 'compute';
 }
 
 final class _Start {
-  const new(this.responses, this.libraries, this.opener);
+  const new(this.responses, this.libraries, this.opener, this.guard);
 
   final SendPort responses;
   final List<String> libraries;
   final LlamaNativeOpener opener;
+  final CpuVariantGuard? guard;
 }
 
 final class _Ready {

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mozhi/platform/device_conditions.dart';
@@ -94,8 +96,12 @@ void main() {
     });
     tearDown(() => messenger.setMockMethodCallHandler(channel, null));
 
-    DeviceConditions conditions() =>
-        DeviceConditions(isAndroid: true, clock: () => now);
+    // Without pushed changes (the stream ends at once): polling.
+    DeviceConditions conditions() => DeviceConditions(
+      isAndroid: true,
+      clock: () => now,
+      events: const Stream.empty(),
+    );
 
     test('reports what Android answers', () async {
       answers = {'thermalStatus': () => 3, 'isPowerSaveMode': () => true};
@@ -171,6 +177,98 @@ void main() {
       expect(DeviceConditions.instance.latest.strain, isNull);
       await pumpEventQueue();
       expect(calls, isEmpty);
+    });
+  });
+
+  group('pushed changes', () {
+    final channel = privacyChannel();
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    late List<String> calls;
+    late StreamController<Object?> events;
+    late DateTime now;
+
+    setUp(() {
+      calls = [];
+      now = DateTime(2026, 10, 25, 9);
+      events = StreamController<Object?>();
+      messenger.setMockMethodCallHandler(channel, (call) async {
+        calls.add(call.method);
+        return call.method == 'thermalStatus' ? 0 : false;
+      });
+    });
+    tearDown(() => messenger.setMockMethodCallHandler(channel, null));
+
+    DeviceConditions conditions() => DeviceConditions(
+      isAndroid: true,
+      clock: () => now,
+      events: events.stream,
+    );
+
+    test('arrive without polling', () async {
+      final device = conditions();
+      final changes = <DeviceConditionsSnapshot>[];
+      final subscription = device.changes.listen(changes.add);
+      addTearDown(subscription.cancel);
+      expect(device.isPushed, isFalse);
+
+      events.add({'thermal': 4, 'powerSave': false});
+      await pumpEventQueue();
+      expect(device.isPushed, isTrue);
+      expect(device.latest.strain, DeviceStrain.heat);
+      expect(changes.single.thermal, ThermalStatus.critical);
+
+      // Long after: still no question while changes are pushed.
+      now = now.add(const Duration(hours: 1));
+      expect(device.latest.strain, DeviceStrain.heat);
+      await pumpEventQueue();
+      expect(calls, isEmpty);
+
+      events
+        ..add({'thermal': 1, 'powerSave': true})
+        // The same again is no change; nonsense is ignored.
+        ..add({'thermal': 1, 'powerSave': true})
+        ..add('nonsense');
+      await pumpEventQueue();
+      expect(device.latest.strain, DeviceStrain.batterySaver);
+      expect(changes, hasLength(2));
+      await device.dispose();
+      expect(device.isPushed, isFalse);
+    });
+
+    test('a failing stream falls back to polling', () async {
+      final device = conditions()..latest;
+      events.add({'thermal': -1, 'powerSave': false});
+      await pumpEventQueue();
+      expect(device.isPushed, isTrue);
+      calls.clear();
+
+      events.addError(PlatformException(code: 'gone'));
+      await pumpEventQueue();
+      expect(device.isPushed, isFalse);
+      now = now.add(const Duration(minutes: 1));
+      device.latest;
+      await pumpEventQueue();
+      expect(calls, ['thermalStatus', 'isPowerSaveMode']);
+      await device.dispose();
+    });
+
+    test('an explicit refresh still asks', () async {
+      final device = conditions();
+      events.add({'thermal': 0, 'powerSave': false});
+      await device.refresh();
+      expect(calls, ['thermalStatus', 'isPowerSaveMode']);
+      await device.dispose();
+      // Closed: nothing starts listening again; what was learnt stays.
+      expect(device.latest.thermal, ThermalStatus.none);
+      expect(device.isPushed, isFalse);
+    });
+
+    test('listens to the platform channel by default', () async {
+      // No platform side in tests: the channel's own error handling.
+      final device = DeviceConditions(isAndroid: true, clock: () => now);
+      expect(device.latest, DeviceConditionsSnapshot.unknown);
+      await device.dispose();
     });
   });
 }

@@ -92,6 +92,13 @@ void main() {
       expect(parts.first, (text: '今日は晴れです。', separator: ''));
     });
 
+    test('always cuts something off, even before a lone surrogate', () {
+      final text = '\uD800⟨${'1' * 20}';
+      final parts = splitText(text, 10);
+      expect(parts.first.text, '\uD800');
+      expect(parts.map((p) => '${p.text}${p.separator}').join(), text);
+    });
+
     test('cuts hard but never inside a placeholder or surrogate pair', () {
       final placeholder = splitText('abcdefgh⟨12⟩ijk', 10);
       expect(placeholder.first.text, 'abcdefgh');
@@ -128,6 +135,28 @@ void main() {
       expect(Chunker.encodingFor(DocumentFormat.srt), ChunkEncoding.markers);
       expect(Chunker.encodingFor(DocumentFormat.vtt), ChunkEncoding.markers);
       expect(Chunker.encodingFor(DocumentFormat.json), ChunkEncoding.markers);
+    });
+
+    test('batches web pages as paragraphs and string files with markers', () {
+      expect(
+        Chunker.encodingFor(DocumentFormat.html),
+        ChunkEncoding.paragraphs,
+      );
+      for (final format in [
+        DocumentFormat.xliff,
+        DocumentFormat.androidStrings,
+        DocumentFormat.po,
+        DocumentFormat.csv,
+        DocumentFormat.tsv,
+        DocumentFormat.appleStrings,
+        DocumentFormat.xcstrings,
+      ]) {
+        expect(
+          Chunker.encodingFor(format),
+          ChunkEncoding.markers,
+          reason: '$format',
+        );
+      }
     });
 
     test('groups segments up to the size limit', () {

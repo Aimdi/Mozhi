@@ -8,6 +8,8 @@ environment:
   flutter: ^3.47.0
 
 dependencies:
+  # Office documents and e-books are ZIP packages of XML parts.
+  archive: ^4.5.2
   audioplayers: ^6.8.1
   bergamot_translator:
     path: packages/bergamot_translator
@@ -49,6 +51,7 @@ dependencies:
   url_launcher: ^6.3.3
   whisper_speech:
     path: packages/whisper_speech
+  xml: ^7.1.0
 
 dev_dependencies:
   bloc_lint: ^0.4.2

@@ -8,6 +8,7 @@ import 'package:mozhi/core/network/network_session.dart';
 import 'package:mozhi/offline/data/unavailable_offline_translator.dart';
 import 'package:mozhi/platform/browser_network.dart';
 import 'package:mozhi/platform/current_session_client.dart';
+import 'package:mozhi/platform/free_space.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 /// The web app's on-device translator: [createWebOfflineTranslator] with
@@ -65,6 +66,8 @@ Future<OfflineTranslator> createWebOfflineTranslator({
       isAvailable: true,
       isMeteredConnection: isMeteredConnection ?? browserConnectionIsMetered,
       requestPersistence: requestPersistence ?? requestPersistentBrowserStorage,
+      // A download that the storage quota cannot hold is refused at once.
+      freeSpace: FreeSpace.instance.availableBytes,
     );
     unawaited(translator.models.cleanUp());
     return translator;

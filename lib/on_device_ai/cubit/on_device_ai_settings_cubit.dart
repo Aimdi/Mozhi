@@ -2,10 +2,11 @@ import 'dart:async';
 
 import 'package:bloc/bloc.dart';
 import 'package:llama_engine/llama_engine.dart';
-import 'package:mozhi/offline/data/offline_model_file_picker.dart';
 import 'package:mozhi/on_device_ai/cubit/on_device_ai_settings_state.dart';
 import 'package:mozhi/on_device_ai/data/on_device_models.dart';
 import 'package:mozhi/platform/android_device.dart';
+import 'package:mozhi/platform/free_space.dart';
+import 'package:mozhi/platform/model_file_picker.dart';
 
 export 'on_device_ai_settings_state.dart';
 
@@ -25,18 +26,26 @@ export 'on_device_ai_settings_state.dart';
 /// `addError`. Without [OnDeviceModels] (the web, an unsupported device)
 /// the state says it is not [OnDeviceAiSettingsState.supported].
 class OnDeviceAiSettingsCubit extends Cubit<OnDeviceAiSettingsState> {
-  /// [movePickedFiles] (default: on Android, whose file picker hands out
-  /// copies in the app's cache) moves the picked files into place instead
-  /// of copying them.
+  /// [picker] (default [ModelFilePicker]) hands out the picked files: on
+  /// Android documents read in place, copied straight into the models
+  /// folder ([OnDeviceModels.importSources]). Files with local paths (the
+  /// fallback picker's copies in the cache) are moved into place instead
+  /// of copied when [movePickedFiles] (default: on Android).
+  ///
+  /// `engineBuild` tells which build of the engine library runs on this
+  /// processor (read once on [load], for support).
   new({
     this._models,
-    this._picker = const OfflineModelFilePicker(),
+    ModelFilePicker? picker,
     bool? movePickedFiles,
-  }) : _movePickedFiles = movePickedFiles ?? runsOnAndroid,
+    this._engineBuild,
+  }) : _picker = picker ?? ModelFilePicker(),
+       _movePickedFiles = movePickedFiles ?? runsOnAndroid,
        super(const OnDeviceAiSettingsState());
 
   final OnDeviceModels? _models;
-  final OfflineModelFilePicker _picker;
+  final LlamaEngineBuild? Function()? _engineBuild;
+  final ModelFilePicker _picker;
   final bool _movePickedFiles;
   StreamSubscription<void>? _changes;
 
@@ -57,7 +66,11 @@ class OnDeviceAiSettingsCubit extends Cubit<OnDeviceAiSettingsState> {
     await _refresh();
     if (isClosed) return;
     emit(
-      state.copyWith(status: OnDeviceAiSettingsStatus.ready, supported: true),
+      state.copyWith(
+        status: OnDeviceAiSettingsStatus.ready,
+        supported: true,
+        engineBuild: () => _engineBuild?.call(),
+      ),
     );
     // Downloads started before the page opened.
     for (final MapEntry(key: id, value: fraction) in models.downloads.entries) {
@@ -118,8 +131,10 @@ class OnDeviceAiSettingsCubit extends Cubit<OnDeviceAiSettingsState> {
 
   /// Lets the user pick model files (downloaded by hand) and installs the
   /// on-device models among them, without going online. Cancelling the
-  /// picker changes nothing. On Android the picker's copies are moved into
-  /// place rather than copied again (they are a few GB).
+  /// picker changes nothing. On Android the picked documents are copied
+  /// once, straight into the models folder, after their names, sizes and
+  /// the free space were checked (they are a few GB); a model that does
+  /// not fit is reported ([OnDeviceImportOutcome.space]).
   Future<void> importFromFiles() async {
     final models = _models;
     if (models == null || state.importing) return;
@@ -130,8 +145,8 @@ class OnDeviceAiSettingsCubit extends Cubit<OnDeviceAiSettingsState> {
 
     OnDeviceImportOutcome outcome;
     try {
-      final paths = await _picker.pick(onCopying: start);
-      if (paths.isEmpty) {
+      final files = await _picker.pick(onCopying: start);
+      if (files.isEmpty) {
         if (!isClosed && state.importing) {
           emit(state.copyWith(importing: false));
         }
@@ -139,7 +154,10 @@ class OnDeviceAiSettingsCubit extends Cubit<OnDeviceAiSettingsState> {
       }
       start();
       try {
-        final result = await models.importFiles(paths, move: _movePickedFiles);
+        final paths = [for (final file in files) ?file.path];
+        final result = paths.length == files.length
+            ? await models.importFiles(paths, move: _movePickedFiles)
+            : await models.importSources(files);
         outcome = OnDeviceImportOutcome(
           models: result.models,
           unmatchedFiles: result.unmatchedFiles,
@@ -149,6 +167,10 @@ class OnDeviceAiSettingsCubit extends Cubit<OnDeviceAiSettingsState> {
                   when models.fitOf(model) == OnDeviceFit.tooBig)
                 id,
           },
+          space: result.errors.values
+              .map(SpaceShortfall.of)
+              .nonNulls
+              .firstOrNull,
         );
       } finally {
         await _clearPickedCopies();

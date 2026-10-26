@@ -7,6 +7,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/router.dart' show AppRoutes;
 import 'package:mozhi/app/view/app_shell.dart' show AppDestination;
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/screen_translate/view/screen_translate_settings.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_languages.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
@@ -23,7 +24,9 @@ abstract final class GeneralAnchors {
 }
 
 /// The General settings: app language, tab order, haptic feedback (not in
-/// browsers, which cannot vibrate) and multiline input.
+/// browsers, which cannot vibrate) and multiline input, then **Android
+/// integration** (Translate screen and its bubble,
+/// [ScreenTranslateSettingsSection]).
 class GeneralSettings extends StatelessWidget {
   const new({required this.settings, super.key});
 
@@ -37,8 +40,7 @@ class GeneralSettings extends StatelessWidget {
     final l10n = context.l10n;
     final cubit = context.read<SettingsCubit>();
     final home = AppDestination.of(settings.tabOrder.first).label(l10n);
-    return SettingsSection(
-      divider: false,
+    final general = SettingsSection(
       children: [
         SettingsAnchor(
           id: GeneralAnchors.appLanguage,
@@ -79,6 +81,10 @@ class GeneralSettings extends StatelessWidget {
           ),
         ),
       ],
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [general, const ScreenTranslateSettingsSection()],
     );
   }
 }

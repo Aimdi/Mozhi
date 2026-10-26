@@ -26,7 +26,8 @@ final class MeteredConnectionException implements Exception {
 ///
 /// * Models come from [catalog] (`assets/catalog.json`), are downloaded and
 ///   verified by [models] into the app-private [BergamotModelManager.root],
-///   ~15-40 MB per direction.
+///   ~15-40 MB per direction; with `freeSpace` a download first checks
+///   that they fit ([ModelInsufficientSpaceException]).
 /// * Every model translates to or from English. A language is downloaded
 ///   when both of its directions are; other pairs pivot through English
 ///   (e.g. es -> en -> de), which needs no English download.
@@ -53,10 +54,16 @@ class BergamotTranslator implements DetailedOfflineTranslator {
     this._isAvailable,
     this.maxChunkLength = 2000,
     this.maxBatchLength = 6000,
+    Future<int?> Function(String path)? freeSpace,
   }) : assert(maxChunkLength > 0, 'maxChunkLength must be positive'),
        assert(maxBatchLength > 0, 'maxBatchLength must be positive'),
        models =
-           models ?? BergamotModelManager(root: root, httpClient: httpClient),
+           models ??
+           BergamotModelManager(
+             root: root,
+             httpClient: httpClient,
+             freeSpace: freeSpace,
+           ),
        engine = engine ?? createBergamotEngine(),
        languageId = languageId ?? createNativeLanguageIdentifier(),
        router = ModelRouter(catalog);

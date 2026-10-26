@@ -6,12 +6,25 @@ import 'package:whisper_speech/src/engine/whisper_engine.dart';
 bool get whisperPlatformSupported => false;
 
 /// An engine that is not available on this platform.
-WhisperEngine createWhisperEngine({String? libraryPath}) =>
-    const UnsupportedWhisperEngine();
+WhisperEngine createWhisperEngine({
+  String? libraryPath,
+  String? variantGuardDirectory,
+}) => const UnsupportedWhisperEngine();
 
 /// A voice activity detector that is not available on this platform.
-WhisperVadEngine createWhisperVadEngine({String? libraryPath}) =>
-    const UnsupportedWhisperVadEngine();
+WhisperVadEngine createWhisperVadEngine({
+  String? libraryPath,
+  String? variantGuardDirectory,
+}) => const UnsupportedWhisperVadEngine();
+
+/// No native library on the web: the baseline, which nothing runs.
+WhisperEngineBuild whisperEngineBuild({
+  String? libraryPath,
+  String? variantGuardDirectory,
+}) => const WhisperEngineBuild(
+  variant: WhisperCpuVariant.baseline,
+  library: 'libmozhi_whisper.so',
+);
 
 /// The engine on platforms without `dart:ffi` (web): every call fails.
 final class UnsupportedWhisperEngine implements WhisperEngine {

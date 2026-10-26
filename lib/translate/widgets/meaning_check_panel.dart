@@ -8,6 +8,7 @@ import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/widgets/aligned_text.dart';
 import 'package:mozhi/translate/widgets/language_text.dart';
+import 'package:mozhi/translate/widgets/on_device_ai_loading.dart';
 import 'package:mozhi/translate/widgets/status_announcer.dart';
 import 'package:mozhi/translate/widgets/translate_error.dart';
 import 'package:mozhi/translate/widgets/translate_layout.dart';
@@ -267,9 +268,13 @@ class _MeaningCardState extends State<_MeaningCard> {
       case ExtraStatus.loading:
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 8),
-          child: LinearProgressIndicator(
-            key: const Key('translate_meaning_progress'),
-            semanticsLabel: l10n.translateMeaningChecking,
+          child: OnDeviceAiExtraLoading(
+            // The AI check, or a back-translation with the engine.
+            engine: state.meaningUsesAi ? state.assistEngine : state.engine,
+            child: LinearProgressIndicator(
+              key: const Key('translate_meaning_progress'),
+              semanticsLabel: l10n.translateMeaningChecking,
+            ),
           ),
         );
       case ExtraStatus.failure:

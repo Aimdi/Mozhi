@@ -3839,8 +3839,9 @@ class _Shield {
   }
 
   /// The start of a token (`TextMasker.bracketToken`, at most
-  /// `TextMasker.maxTokenDigits` digits) at the end of a delta.
-  static final _partialToken = RegExp(r'[⟨〈]\s*\d{0,6}\s*$');
+  /// `TextMasker.maxTokenDigits` digits) at the end of a delta. The spaces
+  /// after the digits only follow digits (linear time).
+  static final _partialToken = RegExp(r'[⟨〈]\s*(?:\d{1,6}\s*)?$');
 
   /// Where a token that the next delta may complete starts at the end of
   /// [text] (its length when there is none).

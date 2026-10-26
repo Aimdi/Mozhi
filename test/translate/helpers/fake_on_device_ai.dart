@@ -34,6 +34,12 @@ class FakeOnDeviceAi extends Fake implements OnDeviceAi {
   @override
   Stream<OnDeviceAiStatus> get status => statusController.stream;
 
+  /// Times [continueAnyway] was called.
+  int continued = 0;
+
+  @override
+  void continueAnyway() => continued++;
+
   /// Emits [next] as the status.
   void report(OnDeviceAiStatus next) {
     currentStatus = next;

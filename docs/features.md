@@ -873,9 +873,151 @@ result. Supported formats:
 | SubRip subtitles | `.srt` | Numbering and timestamps |
 | WebVTT subtitles | `.vtt` | Header, notes, styles, timings and cue settings |
 | JSON / ARB string tables | `.json`, `.arb` | Keys, `@` metadata and ICU placeholders/plurals; only string values are translated |
+| HTML and XHTML pages | `.html`, `.htm`, `.xhtml` | Markup, attributes, scripts, styles, code and `pre`; text, the title, `alt`/`title`/`placeholder`/`aria-label` and meta descriptions are translated |
+| XLIFF 1.2 and 2.x | `.xlf`, `.xliff` | Sources, notes, IDs and inline codes; sources are translated into targets |
+| Android string resources | `strings.xml` | Names, `translatable="false"`, `<xliff:g>`, styling tags, escapes and format arguments; strings, string arrays and plurals are translated |
+| Gettext catalogues | `.po`, `.pot` | Header, comments, references, flags, contexts and placeholders; `msgid`s are translated into `msgstr`s |
+| CSV and TSV tables | `.csv`, `.tsv`, `.tab` | Quoting, the header row, and columns of numbers, dates, URLs, e-mail addresses and IDs |
+| Apple strings | `.strings` | Keys, comments, escapes and format specifiers; values are translated |
+| Xcode string catalogues | `.xcstrings` | Every other language, comments, extraction state and variations; the target language is added |
+| Word documents | `.docx` | Paragraph and character formatting, styles, lists, tables, headers and footers, footnotes, endnotes, comments, text boxes, links, fields, images and tracked changes |
+| PowerPoint presentations | `.pptx` | Slides, speaker notes, tables, text boxes, chart titles and SmartArt with their formatting, links and slide numbers; layouts, images and animations |
+| Excel workbooks | `.xlsx` | Text cells (plain and rich text, each distinct text translated once); numbers, dates, formulas, sheet names and charts' data |
+| OpenDocument text, presentations, spreadsheets | `.odt`, `.odp`, `.ods` | Headings, paragraphs, lists, tables, spans, links, notes, frames, headers and footers; spreadsheet cells with numbers, dates or formulas |
+| EPUB e-books | `.epub` | Every chapter in reading order, the table of contents and the title; inline markup, links, images, code, scripts, styles and `pre` blocks |
 
 Documents are split into parts that are translated a couple at a time, with
 progress shown as they finish; failed parts are retried.
+
+### Office documents and e-books
+
+Word, PowerPoint, Excel, OpenDocument and EPUB files are translated in
+place: **Save file** and **Share file** give back the same kind of file
+(`report.docx` becomes `report.de.docx`) with its layout, styles, images and
+everything else as it was; only the text changes. Like the other formats,
+they are translated with the engine and privacy mode you choose.
+
+- **Formatting inside a paragraph** (bold words, a link, a footnote mark, an
+  image in the text) travels with the text as numbered placeholders
+  (`⟨1⟩`), so it stays on the right words even when the translation puts
+  them in another order. If an engine drops a placeholder, kept content
+  such as an image, a note or a field is put at the end of the paragraph
+  instead of being lost.
+- **Text that appears several times** (a footer on every slide, a value
+  repeated in a spreadsheet, a text box Word stores twice) is translated
+  once.
+- **The language** of the document is set to the target where the file
+  records one (Word's and PowerPoint's text language, which the spelling
+  checker uses; OpenDocument's styles; the e-book's language). Custom AI
+  "languages" leave it as it was.
+- **The preview** shows the text only (the saved file keeps the layout).
+  Office files can't be pasted, their format can't be changed, and there is
+  no bilingual export.
+- **Macros** (VBA projects, ActiveX controls, Excel 4 macro sheets,
+  OpenDocument Basic and scripts) are neither translated nor run: the
+  translated file keeps them as they are, and the page says so when a
+  document has some.
+- **Limits:** office files and e-books up to 25 MB (text files up to 2 MB);
+  on Android, files from 64 KB on are read in the background. Not opened:
+  password-protected or encrypted files (remove the protection first),
+  e-books with DRM (fonts that are only obfuscated are fine), old `.doc`,
+  `.xls` and `.ppt` files renamed to the new extensions, damaged files,
+  files that unpack to far too much data, and ZIP files with symbolic
+  links or overlapping entries (see
+  [Security](security.md#documents-and-e-books)).
+- **Not translated:** text in images, alternative text, spreadsheet
+  comments, sheet names, the data behind charts, slide master and layout
+  prompts, and document properties other than the e-book's title. In a
+  spreadsheet, formulas that compare cells with a text (`=IF(A1="Yes";…)`)
+  may need the translated word.
+
+### Localisation files and web pages
+
+Translators' and developers' files come back in the same format, ready to
+use: only natural-language text changes, and a file that is not translated
+(or whose translations are all left out) is written back byte for byte,
+with its line endings, byte order mark, indentation and comments.
+
+- **Placeholders stay intact.** printf conversions (`%s`, `%1$d`, `%.2f`,
+  `%lld`, `%@`, `%%`), Apple substitutions (`%#@files@`), `{name}` and
+  `{0}`, `{{mustache}}` and `${name}`, Qt's `%1`, ICU plurals and selects,
+  inline tags (`<b>`, `<a>`, `<xliff:g>`, XLIFF's `<g>`, `<x/>`, `<ph>`,
+  `<pc>`), escapes such as `\n`, URLs and e-mail addresses become
+  numbered placeholders (`⟨1⟩`) that engines must keep. Inline tags an
+  engine reorders or drops are put back so that the file stays
+  well-formed.
+- **Escaping is done for you.** Translations are written with the format's
+  own escaping: `&amp;` and `&lt;` in HTML and XML, `\'` and `\"` in Android
+  strings, `\"` in PO and `.strings`, doubled quotes in CSV. In a format
+  string (one with `%s`-style arguments) a literal `%` becomes `%%`; a
+  translated Android string that starts with `@` or `?` is escaped.
+- **Bilingual files keep their translations.** XLIFF, PO and `.xcstrings`
+  get translations only where they are missing (an empty `<target>` or
+  `msgstr`, an XLIFF 1.2 target that is `new` or `needs-translation`, an
+  XLIFF 2 segment that is `initial`, an `.xcstrings` localisation that is
+  `new`); when the file belongs to another target language (`Language:`,
+  `target-language`, `trgLang`), everything is translated again.
+- **The target language is recorded:** XLIFF's `target-language` /
+  `trgLang`, PO's `Language:` header, the new `.xcstrings` localisation and
+  `<html lang>` (with `dir="rtl"` for right-to-left languages). This happens
+  only once something is translated; custom AI "languages" are never
+  written into a file. A legacy charset declaration (`ISO-8859-1`,
+  `windows-1252`) becomes UTF-8, since translations are written as Unicode.
+- **Review states:** new XLIFF 1.2 targets are marked
+  `needs-review-translation`, XLIFF 2 segments `translated`, and new
+  `.xcstrings` string units `needs_review`, so translators can find
+  machine translations. PO entries are not marked `fuzzy` (gettext would
+  ignore them); an untranslated entry that was `fuzzy` loses the flag once
+  it is translated.
+- **Skipped:** anything marked not to translate (`translatable="false"`,
+  `translate="no"`, `class="notranslate"`, `"shouldTranslate" : false`),
+  resource references (`@string/name`), the PO header, obsolete `#~`
+  entries, and values that are not words (numbers, identifiers such as
+  `snake_case`, paths, colours).
+- **HTML:** each block (paragraph, heading, list item, cell, button,
+  option…) is one piece of text, with its inline elements as placeholders.
+  Scripts, styles, templates, `<code>`, `<pre>`, `<kbd>`, `<svg>`, comments
+  (also conditional comments) and form text areas are kept, and so are
+  attributes other than `alt`, `title`, `placeholder`, `aria-label`,
+  `aria-description`, the value of `<input>` buttons and `<meta>`
+  descriptions.
+- **Plurals:** PO entries get every `msgstr[n]` of the plural rule:
+  the header's `Plural-Forms`, or, for a template or a catalogue moved to
+  another language, the target language's rule (written into the header).
+  The form for one item gets the singular translation and all others the
+  plural one, so languages with several plural forms (Russian, Arabic…)
+  need a review. `.xcstrings` plurals follow the target language's
+  categories (a missing one is filled from `other`). Android `<plurals>`
+  keep the source quantities: add `few`/`many` items by hand where the
+  target language needs them.
+- **CSV and TSV:** fields may be quoted (RFC 4180, also with line breaks);
+  a CSV file may use `;` or tabs instead of commas. The first row is kept
+  as a header when the file has at least two rows and every cell of the
+  first row is a short, distinct label (at most 4 words or 40 characters,
+  no sentence punctuation, not a number, date, URL or e-mail address); in
+  a one-column file the label must also look like a column name (`text`,
+  `source_text`, `English`). A column is kept as it is when at least 80% of
+  its filled cells are numbers, dates, times, URLs, e-mail addresses,
+  `true`/`false`/`null` or identifiers (`snake_case`, `SKU-123`, UUIDs), or
+  when it repeats a handful of one-word codes (at least 4 filled cells, at
+  most half of them different); only cells of up to 256 characters count
+  as such values. In the other columns every cell with words is
+  translated; formulas (`=SUM(A1:A3)`) stay as they are. A translation
+  that a spreadsheet would read as a formula (one that starts with `=`,
+  `+`, `-`, `@`, a tab or a carriage return) gets a `'` in front, so that
+  it shows as text and can't run anything (see
+  [Security](security.md#localisation-files-and-web-pages)); cells whose
+  original starts that way already are left alone. To fill a language
+  column of a translation table, copy the source column into it first.
+- **Pasting:** HTML, XLIFF, Android strings, PO catalogues, Xcode string
+  catalogues, `.strings` files and cells copied from a spreadsheet (TSV)
+  are recognised when pasted; choose **CSV** yourself.
+- **Limits:** a translation identical to the original (a name, "OK") is
+  left out of bilingual files, which then use the source text anyway.
+  XLIFF targets are written as whole sentences, without the `<mrk>`
+  segmentation of a `<seg-source>`. XML files that declare entities in a
+  document type declaration, and `.strings` files in property-list format,
+  can't be opened. Legacy-charset files are always written back as UTF-8.
 
 ## Web pages
 
@@ -945,18 +1087,25 @@ every AI extra without a network, and your text never leaves the device
   check). Each shows its size (about 1 to 3 GB), licence, languages and
   whether it fits your phone (**Fits this phone**, **May be slow on this
   phone**, **Needs more memory**). Downloads only start when you tap one,
-  over Wi-Fi unless you allow mobile data, from your
-  [model source](#offline-translation), and are checked before use; or
-  **Import from a file** without any network.
+  when the phone has room for them (**Not enough free space: needs …**
+  otherwise), over Wi-Fi unless you allow mobile data, from your
+  [model source](#offline-translation), and are checked before use (in
+  the background); or **Import from a file** without any network (read
+  where it is and copied once into place). The page names the engine
+  build for this processor, for support.
 - **Using it:** the translation model is an engine under **On this
   device**; results show **On this device** with a memory chip, no
   consent is asked, and it works in **Offline only**. The first request
   after a pause loads the model: **Loading the on-device model…** with
-  **Cancel**, then the text streams in. A sentence takes a few seconds on
-  a mid-range phone, about a second or two on a flagship.
+  **Cancel**, then the text streams in; the AI extras say so too while
+  they wait for it. A sentence takes a few seconds on a mid-range phone,
+  about a second or two on a flagship.
 - **Battery and heat:** while the phone is hot or battery saver is on,
   typing doesn't start on-device AI; a line under the text says why, and
-  **Enter** or **Translate** still translate. The model is freed after 2
+  **Enter** or **Translate** still translate. A long text, document or
+  web page already under way pauses before its next part (**Paused while
+  the phone cools down**, with **Continue anyway** and **Cancel**) and
+  goes on once the phone has cooled down. The model is freed after 2
   minutes without use, in the background and when memory runs low.
 - **First run:** on a phone that can run a model and has no AI provider,
   the translate screen offers it once (**See models**, **Not now**,
@@ -1211,6 +1360,44 @@ and **Data** (details in [Privacy](privacy.md)):
   and keyboards are asked not to learn what you type.
 - **Hide content in recents & block screenshots** (Android): also blocks
   screen recording and screen sharing.
+- **App lock** (Android): Mozhi asks for your fingerprint, face or the
+  phone's screen lock (PIN, pattern or password) when it starts and when
+  you come back to it after the time you choose: **Immediately**, **After
+  1 minute**, **After 5 minutes** or **After 15 minutes**. Until you
+  unlock, it shows only **Mozhi is locked** and **Unlock** (the prompt
+  opens by itself once each time you come back; if you cancel it, tap
+  **Unlock**). Nothing of the app shows behind it, and Recents shows no
+  preview of Mozhi while the lock is on (on Android 12 and older that
+  also blocks screenshots of Mozhi, as **Hide content in recents** does).
+  - Turning it on asks you to unlock once, so you can't lock yourself out.
+    It needs a screen lock on the phone; without one the row says so, and
+    it isn't available in the web app.
+  - Opening the camera, a file or photo picker or a save dialog from
+    Mozhi (and Translate screen's capture prompt) gives you at least 5
+    minutes before it locks, so a photo or file you pick isn't lost to the
+    lock. Sharing doesn't: the app you share to is somewhere else, so
+    with **Immediately** Mozhi is locked when you come back from it.
+  - Text selected in another app (**Translate with Mozhi**, **Translate
+    offline**) and **Translate screen** ask you to unlock first when the
+    app is locked: their windows would otherwise show your languages and
+    let anyone use your AI providers. Unlocking there unlocks the app. The
+    home-screen widget only has buttons and never shows your text, so it
+    stays the same.
+  - What was running keeps running while it is locked: a document being
+    translated, a conversation, a shared conversation or Transcribe go on
+    behind the lock, and after you unlock you are back where you were.
+    Until then the screens are hidden from view, touch, screen readers and
+    the keyboard (a text field loses the focus and the keyboard closes).
+    Before the first unlock after Mozhi starts, none of its screens opens.
+  - Text shared to Mozhi, **Translate clipboard** (tile, widget, shortcut)
+    and links (`mozhi://…`, the widget's **Type** and **Camera**, shared
+    images and files) wait for the unlock: nothing is filled in,
+    translated, opened or saved before, and the clipboard is read only
+    then. The translate bubble's press and hold is the exception: Android
+    lets only the window in front read the clipboard, so it reads it right
+    away, and the quick translate sheet shows it once you unlock.
+  - It is a setting of this phone: backups, sync and Phone to phone never
+    carry it, and restoring one doesn't change it.
 - **Network > HTTP proxy** (Android): every request goes through it, for
   example Orbot's `127.0.0.1:8118` for Tor; needed for `.onion` and `.i2p`
   servers. Applies after restarting the app.
@@ -1319,6 +1506,37 @@ has a text-to-speech engine (Android and most browsers). The settings are kept o
   **Open in app** continues in the full translator.
 - **Quick Settings tile** and the **Translate clipboard** app shortcut open
   the translator with the clipboard text.
+- **Translate screen**: translate what is on the screen, in any app, like
+  a camera translator for the screen. Start it from the **Translate
+  screen** Quick Settings tile (on Android 13 and later **Settings >
+  General > Add the Quick Settings tile** adds it for you), the
+  **Translate screen** app shortcut (long-press the app icon; it comes
+  fifth, so launchers that show four leave it out) or the bubble (below).
+  Android asks every time whether Mozhi may capture the screen; Mozhi then
+  takes one screenshot, stops the capture, reads the text on the phone
+  (on-device text recognition, as for [photos](#image-translation)) and
+  draws the translation over the screenshot, full screen. Tap a paragraph
+  for its original and translation, press and hold **Original** to see
+  the screen without the translation, **Show as text** for all of it,
+  **Copy translation**, or **Open in Mozhi** to continue with the
+  recognised text in the translator. The languages at the top work as on
+  the image screen. ✕ or Back returns to the app. The screenshot never
+  leaves the phone: only the recognised text goes to your translation
+  engine, with your [privacy mode](privacy.md#privacy-modes). An app that
+  blocks screenshots (many banking apps do) comes out black, and Mozhi
+  says so. With the [app lock](#privacy-controls) on, Mozhi asks to
+  unlock before it shows anything.
+- **Translate bubble** (**Settings > General > Android integration**,
+  off by default): a small round button floating over other apps. Tap it
+  to translate the screen, press and hold it to translate the clipboard
+  in the quick translate sheet, drag it anywhere (it snaps to the nearest
+  side) and drop it on the ✕ that appears at the bottom to remove it.
+  Turning it on asks once for **Display over other apps** and, on Android
+  13 and later, for notifications: while the bubble is on, a notification
+  says so and has **Stop**. The bubble hides while a Mozhi window is on
+  the screen, and it doesn't come back after the phone restarts. With a
+  screen reader, double-tap it to translate the screen; its actions are
+  **Translate clipboard** and **Remove the bubble**.
 - **Home-screen widget**: long-press the home screen, choose **Widgets**
   and add **Mozhi**. It has three buttons:
   - **Clipboard** opens the translator with the clipboard text, like the
@@ -1336,7 +1554,8 @@ has a text-to-speech engine (Android and most browsers). The settings are kept o
   follows light and dark mode on all versions.
 - **Share** text from any app to Mozhi to translate it. Share an
   **image** (a screenshot, a photo) to read and translate it on the image
-  screen, or a subtitle, text or JSON **file** to open it in Documents.
+  screen, or a document **file** (text, subtitles, JSON, HTML, CSV, PO,
+  office documents, e-books) to open it in Documents.
   Shared content never starts an AI request by itself: with an AI engine it
   waits for **Translate**.
 - **Material You**: with **Dynamic color** on (Android 12 and later), the app
@@ -1451,8 +1670,8 @@ field, then eight categories, each on a page of its own:
 
 | Category | What it holds |
 | --- | --- |
-| **General** | App language, tab order, haptic feedback, multiline input |
-| **Privacy & data** | **Privacy** (privacy mode, incognito, screenshot blocking, hiding personal data), **History** (saving, automatic deletion, export and import, the phrasebook, recent language pairs), **Network** (approved pairs and cloud providers, HTTP proxy, network activity) and **Data** (**Clear history** and **Delete all local data**, last and in red) |
+| **General** | App language, tab order, haptic feedback, multiline input; **Android integration**: [Translate screen](#android-integration) (with **Add the Quick Settings tile** on Android 13+) and the **Translate bubble** |
+| **Privacy & data** | **Privacy** (privacy mode, incognito, screenshot blocking, [app lock](#privacy-controls), hiding personal data), **History** (saving, automatic deletion, export and import, the phrasebook, recent language pairs), **Network** (approved pairs and cloud providers, HTTP proxy, network activity) and **Data** (**Clear history** and **Delete all local data**, last and in red) |
 | **Backup & sync** | **Encrypted backup** ([**Back up now**](#backup-and-restore) with the date of the last backup, **Restore from a backup**), then sync and phone to phone |
 | **Translation engines** | Offline languages, on-device AI, Mozhi instances, translation services (DeepL API, LibreTranslate), quality modes, **Remember quality selection** and **Instant translate** |
 | **AI** (marked **Advanced**) | On-device AI, AI providers, the AI assistant for insights, presets, glossaries, usage & costs |
@@ -1507,9 +1726,12 @@ unprotected.**).
 | Mozhi engines, AI providers, Proofread, history | ✓ | ✓ |
 | Text selection menu and share target | ✓ | |
 | `mozhi://` links | ✓ | |
-| Offline translation | ✓ | |
+| Offline translation | ✓ | ✓ (models in the browser's private storage) |
 | On-device AI | ✓ (64-bit phones with enough memory) | |
 | On-device text recognition | ✓ (Tesseract; ML Kit in the Play variant) | |
+| Office documents, e-books, localisation files and HTML | ✓ | ✓ (large files can pause the page while they are read) |
+| Translate screen, floating bubble | ✓ | |
+| App lock | ✓ (with a screen lock set) | |
 | Privacy screen, sensitive clipboard, HTTP proxy | ✓ | |
 | Dynamic color from wallpaper | ✓ (12+) | |
 

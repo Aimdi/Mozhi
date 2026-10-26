@@ -7,6 +7,7 @@ import 'package:mozhi/core/widgets/consent_prompt.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/documents/cubit/document_translate_cubit.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/on_device_ai/view/on_device_ai_paused_notice.dart';
 import 'package:mozhi/translate/widgets/translate_error.dart';
 import 'package:translation_repository/translation_repository.dart'
     show ConsentRequiredException;
@@ -60,6 +61,9 @@ class DocumentProgressSection extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: 8,
         children: [
+          // On-device AI waits between the chunks while the phone is hot
+          // or saving battery (shows nothing otherwise).
+          OnDeviceAiPausedNotice(onCancel: cubit.cancel),
           LinearProgressIndicator(
             key: const Key('documents_progress'),
             value: state.progress,

@@ -51,6 +51,11 @@ import 'package:mozhi/presets/view/presets_page.dart' deferred as presets_page;
 import 'package:mozhi/proofread/view/proofread_page.dart'
     deferred as proofread_page;
 import 'package:mozhi/quick_translate/quick_translate_host.dart';
+import 'package:mozhi/screen_translate/screen_translate_host.dart';
+// Not deferred: a deferred page draws a loading screen first, which the
+// screenshot of this transparent window would catch (and the image
+// translation it uses is in the main bundle anyway).
+import 'package:mozhi/screen_translate/view/screen_translate_page.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/settings/models/settings_category.dart';
@@ -172,6 +177,10 @@ abstract final class AppRoutes {
   /// The only page of the translucent quick translate window on Android
   /// (see [QuickTranslateHost]); never shown in the main window.
   static const String quickTranslate = QuickTranslateHost.location;
+
+  /// The only page of the translucent screen-translate window on Android
+  /// (see [ScreenTranslateHost]); never shown in the main window.
+  static const String screenTranslate = ScreenTranslateHost.location;
 
   /// Scheme of the app's deep links, `mozhi://<screen>[/<path>][?<query>]`
   /// (see [deepLinkLocation]).
@@ -379,16 +388,25 @@ typedef LaunchRedirect = String? Function(String location);
 /// [QuickTranslateHost.isActive] of [QuickTranslateHost.instance]) every
 /// location shows [AppRoutes.quickTranslate], a transparent page under the
 /// quick translate sheet; the main window never shows that page.
+///
+/// In the screen-translate window ([screenTranslateHost], default
+/// [ScreenTranslateHost.instance], when it is active) every location shows
+/// [AppRoutes.screenTranslate]; other app locations (a fix such as the
+/// offline languages) open in the main window instead
+/// ([screenTranslateWindowRedirect]). The other windows never show it.
 GoRouter createAppRouter({
   TranslateLinkCallback? onTranslateLink,
   LaunchRedirect? launchRedirect,
   String initialLocation = '/',
   GlobalKey<NavigatorState>? navigatorKey,
   bool? quickTranslateWindow,
+  ScreenTranslateHost? screenTranslateHost,
 }) {
   final rootKey = navigatorKey ?? GlobalKey<NavigatorState>();
   final inQuickWindow =
       quickTranslateWindow ?? QuickTranslateHost.instance.isActive;
+  final screenHost = screenTranslateHost ?? ScreenTranslateHost.instance;
+  final inScreenWindow = !inQuickWindow && screenHost.isActive;
   var launched = false;
 
   /// A route whose page lives in a deferred [library] (a separate download
@@ -424,7 +442,9 @@ GoRouter createAppRouter({
             ? null
             : AppRoutes.quickTranslate;
       }
+      if (inScreenWindow) return screenTranslateWindowRedirect(uri, screenHost);
       if (uri.path == AppRoutes.quickTranslate) return AppRoutes.translate;
+      if (uri.path == AppRoutes.screenTranslate) return AppRoutes.translate;
       if (!launched) {
         launched = true;
         if (launchRedirect != null && isLaunchLocation(uri)) {
@@ -440,6 +460,12 @@ GoRouter createAppRouter({
         path: AppRoutes.quickTranslate,
         pageBuilder: (context, state) =>
             const NoTransitionPage(child: QuickTranslateHostView()),
+      ),
+      GoRoute(
+        path: AppRoutes.screenTranslate,
+        // Transparent until the screenshot is taken: no transition.
+        pageBuilder: (context, state) =>
+            const NoTransitionPage(child: ScreenTranslatePage()),
       ),
       fullScreenDeferred(
         AppRoutes.onboarding,

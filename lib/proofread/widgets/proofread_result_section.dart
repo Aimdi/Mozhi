@@ -14,6 +14,7 @@ import 'package:mozhi/proofread/widgets/proofread_diff_text.dart';
 import 'package:mozhi/proofread/widgets/proofread_edit_tile.dart';
 import 'package:mozhi/proofread/widgets/proofread_labels.dart';
 import 'package:mozhi/proofread/widgets/proofread_stats_panel.dart';
+import 'package:mozhi/translate/widgets/on_device_ai_loading.dart';
 import 'package:mozhi/translate/widgets/translate_layout.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:translation_repository/translation_repository.dart';
@@ -90,13 +91,21 @@ class ProofreadResultSection extends StatelessWidget {
           children: [
             if (state.status == ProofreadStatus.failure)
               _ErrorCard(error: state.error, canRetry: state.canProofread),
-            if (result == null && state.isLoading) const _LoadingCard(),
+            if (result == null && state.isLoading)
+              OnDeviceAiExtraLoading(
+                engine: state.engine,
+                child: const _LoadingCard(),
+              ),
             if (result == null &&
                 state.status == ProofreadStatus.idle &&
                 showPlaceholder)
               const _PlaceholderCard(),
             if (result != null) ...[
-              if (state.isLoading) const LinearProgressIndicator(),
+              if (state.isLoading)
+                OnDeviceAiExtraLoading(
+                  engine: state.engine,
+                  child: const LinearProgressIndicator(),
+                ),
               if (state.isStale && !state.isLoading)
                 _StaleNotice(canProofread: state.canProofread),
               if (state.isClean)

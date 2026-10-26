@@ -209,6 +209,10 @@ class _StarterTile extends StatelessWidget {
                   l10n.phrasebookStarterErrorDownload,
                 StarterPhrasebookError.checksum =>
                   l10n.phrasebookStarterErrorChecksum,
+                StarterPhrasebookError.space => switch (item.space) {
+                  final space? => space.message(l10n),
+                  null => l10n.phrasebookStarterErrorOther,
+                },
                 StarterPhrasebookError.other =>
                   l10n.phrasebookStarterErrorOther,
               },

@@ -3,6 +3,66 @@
 All notable changes to Mozhi, by release tag on GitHub (pre-releases end
 in `-rc.N`).
 
+## 0.1.0-rc.4
+
+### Added
+
+- **Office documents and e-books.** Word (DOCX), PowerPoint (PPTX), Excel
+  (XLSX), OpenDocument text, presentations and spreadsheets (ODT, ODP,
+  ODS) and EPUB books are translated in place and saved in the same
+  format: bold, links, footnotes, tables, images and layout stay as they
+  were, and the document's language is set to the target. Files up to
+  25 MB; damaged, password-protected and unsafe files (such as zip bombs)
+  are refused with a clear message. They can also be shared to Mozhi from
+  other Android apps.
+- **Localisation files and web pages.** XLIFF 1.2 and 2.x, gettext PO and
+  POT, Android `strings.xml`, Apple `.strings` and Xcode string catalogues
+  (`.xcstrings`), CSV and TSV tables and HTML pages: only the text is
+  translated; keys, comments, plural forms, format placeholders (`%s`,
+  `{name}`, `%@`), inline tags and escaping are kept, and the target
+  language is written where the format records it.
+- **Translate screen** (Android). A Quick Settings tile, a launcher
+  shortcut and an optional floating bubble translate what is on the
+  screen in any app: Android asks for consent every time, one screenshot
+  is taken, its text is recognised on the phone and the translation is
+  drawn over it. The screenshot stays in Mozhi's private cache and is
+  deleted right away. A long press on the bubble translates the
+  clipboard.
+- **App lock** (Settings › Privacy & data). Lock Mozhi with the phone's
+  fingerprint, face or screen lock, immediately or after 1, 5 or 15
+  minutes in the background. While it is locked nothing of the app is
+  visible (also not in Recents), shared text and links wait for the
+  unlock, and running work such as a document translation goes on behind
+  the lock. The setting stays on the device: it is not synced or
+  restored onto another phone.
+
+### Changed
+
+- **Downloads check the free space first.** Offline languages, text
+  recognition data, voice models, on-device AI models, dictionary packs
+  and starter phrasebooks are not started when the phone lacks room for
+  them ("Not enough free space: needs 1.2 GB, 300 MB free").
+- **On-device AI waits while the phone is hot.** A long text, a document
+  or a web page translated part by part pauses between its parts while
+  the phone is hot or battery saver is on, says so, and offers
+  **Continue anyway**. Heat and battery saver changes now arrive at once
+  instead of being polled. The AI extras show the same loading notice as
+  the main translation while the model loads.
+- **Importing an on-device AI or voice model** no longer makes a second
+  copy of the file first, so it needs half the space.
+- **Faster CPU builds fall back safely.** If a phone crashes twice in a
+  row when it first loads the faster on-device AI or voice engine build,
+  Mozhi uses the baseline build from then on (one crash gets another try,
+  since Android may have closed the app for another reason). The build in
+  use is shown on the On-device AI page and in the voice settings.
+
+### Fixed
+
+- **Text that froze the translate screen.** Some pasted or typed text
+  (for example `<a` followed by thousands of spaces, or `%000…`) made the
+  placeholder protection and the translation checks run for minutes; they
+  now take milliseconds.
+
 ## 0.1.0-rc.3
 
 ### Added

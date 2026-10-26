@@ -12,6 +12,7 @@ import 'package:mozhi/on_device_ai/cubit/on_device_ai_settings_cubit.dart';
 import 'package:mozhi/on_device_ai/data/on_device_models.dart';
 import 'package:mozhi/on_device_ai/view/model_size.dart';
 import 'package:mozhi/on_device_ai/view/on_device_ai_page.dart';
+import 'package:mozhi/platform/free_space.dart';
 import 'package:mozhi/settings/view/widgets/link_launcher.dart';
 
 import '../../helpers/helpers.dart';
@@ -505,6 +506,25 @@ void main() {
         _failed(OnDeviceModelErrorKind.storage),
         'Couldn’t save Qwen3. Free up some storage and try again.',
       ),
+      'not enough space': (
+        const OnDeviceModelOutcome(
+          model: 'qwen',
+          operation: OnDeviceModelOperation.download,
+          succeeded: false,
+          error: OnDeviceModelError(
+            OnDeviceModelErrorKind.space,
+            space: SpaceShortfall(
+              requiredBytes: 1288490189,
+              availableBytes: 300 * 1024 * 1024,
+            ),
+          ),
+        ),
+        'Not enough free space for Qwen3: needs 1.2 GB, 300 MB free.',
+      ),
+      'not enough space, unknown how much': (
+        _failed(OnDeviceModelErrorKind.space),
+        'Couldn’t save Qwen3. Free up some storage and try again.',
+      ),
       'unknown': (
         _failed(OnDeviceModelErrorKind.unknown),
         'Couldn’t download Qwen3. Try again.',
@@ -546,6 +566,16 @@ void main() {
             'for Qwen3 is damaged (checksum mismatch)\nCouldn’t import the '
             'files',
       ),
+      'not enough space': (
+        const OnDeviceImportOutcome(
+          models: {'gemma': LlamaImportStatus.failed},
+          space: SpaceShortfall(
+            requiredBytes: 3 * 1024 * 1024 * 1024,
+            availableBytes: 20 * 1024 * 1024,
+          ),
+        ),
+        'Not enough free space for Gemma 4 E2B: needs 3.0 GB, 20 MB free.',
+      ),
       'too big': (
         const OnDeviceImportOutcome(
           models: {'gemma': LlamaImportStatus.installed},
@@ -567,6 +597,25 @@ void main() {
         expect(find.text(text), findsOneWidget);
       });
     }
+
+    testWidgets('names the engine build for support', (tester) async {
+      when(() => cubit.state).thenReturn(
+        ready().copyWith(
+          engineBuild: () => const LlamaEngineBuild(
+            variant: LlamaCpuVariant.baseline,
+            library: 'libmozhi_llama.so',
+            skipped: [LlamaCpuVariant.i8mm],
+          ),
+        ),
+      );
+      await pumpView(tester);
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('on_device_ai_engine_build')),
+        200,
+      );
+      expect(find.textContaining('Engine build: baseline'), findsOneWidget);
+      expect(find.textContaining('the faster i8mm build'), findsOneWidget);
+    });
 
     testWidgets('lays out in dark mode on a phone', (tester) async {
       tester.view.physicalSize = const Size(360, 720);

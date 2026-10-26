@@ -5,10 +5,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mozhi/core/network/http_client_factory.dart';
 import 'package:mozhi/core/network/network_policy.dart';
 import 'package:mozhi/offline/data/offline_model_error.dart';
+import 'package:mozhi/platform/free_space.dart';
 import 'package:tesseract_ocr/tesseract_ocr.dart'
     show
         TessdataChecksumException,
         TessdataDownloadException,
+        TessdataInsufficientSpaceException,
         TessdataMissingException;
 import 'package:translation_repository/translation_repository.dart';
 
@@ -146,6 +148,30 @@ void main() {
         expect(OfflineModelError.of(error), expected, reason: '$error');
       }
       expect(OfflineModelError.mirrorName(null), isNull);
+    });
+
+    test('classifies too little free space', () {
+      const space = SpaceShortfall(requiredBytes: 9, availableBytes: 3);
+      for (final error in const <Object>[
+        ModelInsufficientSpaceException(
+          'de-en',
+          'x',
+          requiredBytes: 9,
+          availableBytes: 3,
+        ),
+        TessdataInsufficientSpaceException(
+          'deu',
+          'x',
+          requiredBytes: 9,
+          availableBytes: 3,
+        ),
+        NotEnoughSpaceException(requiredBytes: 9, availableBytes: 3),
+      ]) {
+        expect(
+          OfflineModelError.of(error),
+          const OfflineModelError(OfflineModelErrorKind.space, space: space),
+        );
+      }
     });
 
     test('supports value equality', () {

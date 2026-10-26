@@ -1,9 +1,9 @@
 import 'package:mozhi/documents/core/document_builder.dart';
 import 'package:mozhi/documents/core/document_format.dart';
 import 'package:mozhi/documents/core/parsed_document.dart';
+import 'package:mozhi/documents/core/parsers/locale_rules.dart'
+    show LocalisationPatterns;
 import 'package:mozhi/documents/core/source_line.dart';
-import 'package:translation_repository/translation_repository.dart'
-    show ProtectedPatterns;
 
 /// Markdown (CommonMark/GFM subset, line based).
 ///
@@ -32,7 +32,6 @@ final _prefix = RegExp(
 );
 final _listMarker = RegExp(r'^[ \t]*(?:[-+*]|\d{1,9}[.)])');
 final _headingMarker = RegExp(r'^[ \t]*#');
-final _headingClose = RegExp(r'(?:[ \t]+#+)?[ \t]*$');
 final _continuationPrefix = RegExp(r'^(?:[ \t]*>[ \t]?)*[ \t]*');
 
 final _fenceOpen = RegExp(r'^[ \t]*(?:(`{3,})[^`]*|(~{3,}).*)$');
@@ -44,9 +43,11 @@ final _rawHtmlOpen = RegExp(
   r'^[ \t]*<(pre|script|style|textarea)(?:[\s>]|$)',
   caseSensitive: false,
 );
+// `[ \t]*(?:\|[ \t]*)?` rather than `[ \t]*\|?[ \t]*`, whose two runs of
+// spaces backtrack quadratically on a long blank line.
 final _tableDelimiter = RegExp(
-  r'^[ \t]*\|?[ \t]*:?-+:?[ \t]*(?:\|[ \t]*:?-+:?[ \t]*)+\|?[ \t]*$'
-  r'|^[ \t]*\|[ \t]*:?-+:?[ \t]*\|?[ \t]*$',
+  r'^[ \t]*(?:\|[ \t]*)?:?-+:?[ \t]*(?:\|[ \t]*:?-+:?[ \t]*)+(?:\|[ \t]*)?$'
+  r'|^[ \t]*\|[ \t]*:?-+:?[ \t]*(?:\|[ \t]*)?$',
 );
 final _frontMatterOpen = RegExp(r'^---[ \t]*$');
 
@@ -177,13 +178,13 @@ class _MarkdownParser {
 
     var suffix = '';
     if (isHeading) {
-      final close = _headingClose.firstMatch(text)!;
-      suffix = text.substring(close.start);
-      text = text.substring(0, close.start);
+      final close = _headingClose(text);
+      suffix = text.substring(close);
+      text = text.substring(0, close);
     }
 
     builder.literal(prefix);
-    final pieces = protect(text, ProtectedPatterns.markdown);
+    final pieces = protect(text, LocalisationPatterns.markdown);
     String? continuation;
     var end = i + 1;
     if (!isHeading) {
@@ -197,7 +198,10 @@ class _MarkdownParser {
         pieces
           ..add(TextPiece('${lines[end - 1].ending}$prefix', '\n'))
           ..addAll(
-            protect(next.substring(prefix.length), ProtectedPatterns.markdown),
+            protect(
+              next.substring(prefix.length),
+              LocalisationPatterns.markdown,
+            ),
           );
         end++;
       }
@@ -248,14 +252,17 @@ class _MarkdownParser {
     for (final pipe in _pipes(content)) {
       builder
         ..addContent(
-          protect(content.substring(start, pipe), ProtectedPatterns.markdown),
+          protect(
+            content.substring(start, pipe),
+            LocalisationPatterns.markdown,
+          ),
         )
         ..literal('|');
       start = pipe + 1;
     }
     builder
       ..addContent(
-        protect(content.substring(start), ProtectedPatterns.markdown),
+        protect(content.substring(start), LocalisationPatterns.markdown),
       )
       ..literal(line.ending);
   }
@@ -305,4 +312,25 @@ class _MarkdownParser {
     }
     return width;
   }
+}
+
+/// Where the closing sequence of an ATX heading's [text] starts (spaces,
+/// `#`s and spaces at its end), or where its trailing spaces start: what
+/// `(?:[ \t]+#+)?[ \t]*$` finds, without that pattern's quadratic
+/// backtracking on a long run of spaces.
+int _headingClose(String text) {
+  bool blank(int i) => text[i] == ' ' || text[i] == '\t';
+  var end = text.length;
+  while (end > 0 && blank(end - 1)) {
+    end--;
+  }
+  var hashes = end;
+  while (hashes > 0 && text[hashes - 1] == '#') {
+    hashes--;
+  }
+  var spaces = hashes;
+  while (spaces > 0 && blank(spaces - 1)) {
+    spaces--;
+  }
+  return hashes < end && spaces < hashes ? spaces : end;
 }

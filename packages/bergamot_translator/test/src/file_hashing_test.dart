@@ -1,0 +1,176 @@
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:bergamot_translator/src/file_hashing.dart';
+import 'package:crypto/crypto.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:path/path.dart' as p;
+
+void main() {
+  late Directory root;
+  late Uint8List bytes;
+  late File input;
+
+  setUp(() {
+    root = Directory.systemTemp.createTempSync('bergamot_hashing_');
+    bytes = Uint8List.fromList(
+      List.generate(3 * FileHashing.chunkSize + 123, (i) => (i * 31) & 0xff),
+    );
+    input = File(p.join(root.path, 'model.bin'))..writeAsBytesSync(bytes);
+  });
+
+  tearDown(() => root.deleteSync(recursive: true));
+
+  String digestOf(List<int> data) => sha256.convert(data).toString();
+
+  group(FileDigest, () {
+    test('compares by value', () {
+      const a = FileDigest(size: 1, sha256: 'ab');
+      expect(a, const FileDigest(size: 1, sha256: 'ab'));
+      expect(a.hashCode, const FileDigest(size: 1, sha256: 'ab').hashCode);
+      expect(a, isNot(const FileDigest(size: 2, sha256: 'ab')));
+      expect(a.toString(), 'FileDigest(1, ab)');
+    });
+  });
+
+  for (final (name, hashing) in [
+    ('isolate', const FileHashing.isolate()),
+    ('inline', const FileHashing.inline()),
+  ]) {
+    group('FileHashing.$name', () {
+      test('hashes a file', () async {
+        expect(
+          await hashing.hashFile(input.path),
+          FileDigest(size: bytes.length, sha256: digestOf(bytes)),
+        );
+      });
+
+      test('stops reading after the limit', () async {
+        final digest = await hashing.hashFile(
+          input.path,
+          maxBytes: FileHashing.chunkSize,
+        );
+        expect(digest.size, greaterThan(FileHashing.chunkSize));
+        expect(digest.size, lessThan(bytes.length));
+      });
+
+      test('fails for a missing file', () async {
+        await expectLater(
+          hashing.hashFile(p.join(root.path, 'missing')),
+          throwsA(isA<FileSystemException>()),
+        );
+      });
+
+      test('copies while hashing', () async {
+        final output = p.join(root.path, 'copy.bin');
+        File(output).writeAsBytesSync([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+        final digest = await hashing.copyFile(input.path, output);
+        expect(digest, FileDigest(size: bytes.length, sha256: digestOf(bytes)));
+        expect(File(output).readAsBytesSync(), bytes);
+
+        final short = await hashing.copyFile(input.path, output, maxBytes: 10);
+        expect(short.size, greaterThan(10));
+        expect(File(output).lengthSync(), short.size);
+      });
+
+      test('decompresses while it copies', () async {
+        final gz = File(p.join(root.path, 'model.bin.gz'))
+          ..writeAsBytesSync(gzip.encode(bytes));
+        final output = p.join(root.path, 'plain.bin');
+        final copied = await hashing.copyFile(gz.path, output, gunzip: true);
+        expect(copied, FileDigest(size: bytes.length, sha256: digestOf(bytes)));
+        expect(File(output).readAsBytesSync(), bytes);
+
+        final short = await hashing.copyFile(
+          gz.path,
+          output,
+          maxBytes: 1000,
+          gunzip: true,
+        );
+        expect(short.size, greaterThan(1000));
+        expect(short.size, lessThan(bytes.length));
+      });
+
+      test('a file that is not gzip fails to decompress', () async {
+        await expectLater(
+          hashing.copyFile(
+            input.path,
+            p.join(root.path, 'plain.bin'),
+            gunzip: true,
+          ),
+          throwsA(isA<FormatException>()),
+        );
+      });
+
+      test('a copy fails when the target cannot be written', () async {
+        await expectLater(
+          hashing.copyFile(input.path, p.join(root.path, 'no', 'such', 'f')),
+          throwsA(isA<FileSystemException>()),
+        );
+      });
+
+      test('streams: a file first, then chunks', () async {
+        final head = File(p.join(root.path, 'head'))
+          ..writeAsBytesSync(bytes.sublist(0, 1000));
+        final hasher = await hashing.stream();
+        expect(await hasher.addFile(head.path), 1000);
+        await hasher.add(bytes.sublist(1000, 5000));
+        // Not typed data: converted.
+        await hasher.add(List<int>.of(bytes.sublist(5000)));
+        expect(
+          await hasher.close(),
+          FileDigest(size: bytes.length, sha256: digestOf(bytes)),
+        );
+        // Closed already.
+        hasher.abort();
+      });
+
+      test('streams: a missing file fails, the hasher goes on', () async {
+        final hasher = await hashing.stream();
+        await expectLater(
+          hasher.addFile(p.join(root.path, 'missing')),
+          throwsA(isA<FileSystemException>()),
+        );
+        await hasher.add([1, 2, 3]);
+        expect(
+          await hasher.close(),
+          FileDigest(size: 3, sha256: digestOf([1, 2, 3])),
+        );
+      });
+
+      test('streams: an aborted hasher stops', () async {
+        final hasher = await hashing.stream();
+        await hasher.add([1, 2, 3]);
+        hasher
+          ..abort()
+          ..abort();
+        if (name == 'isolate') {
+          await expectLater(hasher.add([4]), throwsStateError);
+          await expectLater(hasher.close(), throwsStateError);
+          await expectLater(hasher.addFile(input.path), throwsStateError);
+        }
+      });
+    });
+  }
+
+  test('the isolate hasher holds a fast download back', () async {
+    final hasher = await const FileHashing.isolate().stream();
+    final chunk = Uint8List(4 << 20);
+    var total = 0;
+    var waited = false;
+    for (var i = 0; i < 20; i++) {
+      final added = hasher.add(chunk);
+      total += chunk.length;
+      // Completes at once while little waits; else once it caught up.
+      var done = false;
+      added.whenComplete(() => done = true).ignore();
+      await Future<void>.value();
+      if (!done) waited = true;
+      await added;
+    }
+    final digest = await hasher.close();
+    expect(digest.size, total);
+    expect(digest.sha256, sha256.convert(Uint8List(total)).toString());
+    expect(waited, isTrue);
+  });
+}

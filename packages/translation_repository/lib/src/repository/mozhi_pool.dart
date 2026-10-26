@@ -262,17 +262,27 @@ class MozhiPool {
   /// Longest message [sanitize] keeps.
   static const maxMessageLength = 300;
 
+  /// A URL (group 2: `\b[a-z][a-z0-9+.-]*://[^\s"'<>]+`, case-insensitive)
+  /// after what precedes it in its run of scheme characters (group 1).
+  ///
+  /// A run of scheme characters is only tried from its start, and its
+  /// scheme starts at the run's first letter that starts a word, so the
+  /// run is not scanned again from each later one (`a.b.c.d`): linear
+  /// time.
   static final _url = RegExp(
-    r'''\b[a-z][a-z0-9+.-]*://[^\s"'<>]+''',
+    r'(?<![a-z0-9+.-])((?:[0-9+.-]|\B[a-z])*)'
+    r'''(\b[a-z][a-z0-9+.-]*://[^\s"'<>]+)''',
     caseSensitive: false,
   );
 
   /// See [sanitize].
   static String sanitizeMessage(String message) {
     var text = message.replaceAllMapped(_url, (match) {
-      final uri = Uri.tryParse(match[0]!);
-      if (uri == null || uri.host.isEmpty) return '<url>';
-      return '${uri.scheme}://${uri.host}${uri.hasPort ? ':${uri.port}' : ''}';
+      final before = match[1]!;
+      final uri = Uri.tryParse(match[2]!);
+      if (uri == null || uri.host.isEmpty) return '$before<url>';
+      return '$before${uri.scheme}://${uri.host}'
+          '${uri.hasPort ? ':${uri.port}' : ''}';
     });
     if (text.length > maxMessageLength) {
       text = '${text.substring(0, maxMessageLength - 1).trimRight()}…';

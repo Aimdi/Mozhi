@@ -67,6 +67,20 @@ void main() {
       expect(placeholder(3), '⟨3⟩');
     });
 
+    test('escapes translated text, never originals or placeholders', () {
+      final builder = DocumentBuilder()
+        ..addContent([
+          const TextPiece('Tom &amp; Jerry', 'Tom & Jerry'),
+          TokenPiece.text('<b/>'),
+        ], escape: (text) => text.replaceAll('&', '&amp;'));
+      final document = builder.build(DocumentFormat.html);
+      expect(texts(document), ['Tom & Jerry⟨1⟩']);
+      expect(document.render(), 'Tom &amp; Jerry<b/>');
+      expect(document.render(['Tom & Jerry⟨1⟩']), 'Tom &amp; Jerry<b/>');
+      expect(document.render(['A & B⟨1⟩ & C']), 'A &amp; B<b/> &amp; C');
+      expect(document.segmentOutput(0, 'X & ⟨1⟩'), 'X &amp;<b/>');
+    });
+
     test('tolerates CJK brackets, spaces and out-of-range placeholders', () {
       final document = parseMarkdown('Press `Ctrl` now');
       expect(texts(document), ['Press ⟨1⟩ now']);

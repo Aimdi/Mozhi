@@ -4,6 +4,7 @@ import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:mozhi/phrasebook/data/starter_phrasebooks.dart';
 import 'package:mozhi/phrasebook/models/starter_phrasebook.dart';
+import 'package:mozhi/platform/free_space.dart';
 
 /// Why a starter phrasebook could not be installed.
 enum StarterPhrasebookError {
@@ -13,13 +14,23 @@ enum StarterPhrasebookError {
   /// The file did not match its checksum, or was not a phrasebook.
   checksum,
 
+  /// The phone has too little free space
+  /// ([StarterPhrasebookItem.space] says how much it needs).
+  space,
+
   /// Anything else (storage).
   other,
 }
 
 /// A starter phrasebook of the catalogue and where it stands.
 class StarterPhrasebookItem extends Equatable {
-  const new({required this.info, this.installed, this.progress, this.error});
+  const new({
+    required this.info,
+    this.installed,
+    this.progress,
+    this.error,
+    this.space,
+  });
 
   final StarterPhrasebookInfo info;
 
@@ -32,6 +43,9 @@ class StarterPhrasebookItem extends Equatable {
   /// Why the last install failed.
   final StarterPhrasebookError? error;
 
+  /// What a [StarterPhrasebookError.space] failure needs and has.
+  final SpaceShortfall? space;
+
   bool get isInstalled => installed != null;
 
   bool get isDownloading => progress != null;
@@ -43,15 +57,17 @@ class StarterPhrasebookItem extends Equatable {
     InstalledStarterPhrasebook? Function()? installed,
     double? Function()? progress,
     StarterPhrasebookError? Function()? error,
+    SpaceShortfall? Function()? space,
   }) => StarterPhrasebookItem(
     info: info,
     installed: installed != null ? installed() : this.installed,
     progress: progress != null ? progress() : this.progress,
     error: error != null ? error() : this.error,
+    space: space != null ? space() : this.space,
   );
 
   @override
-  List<Object?> get props => [info, installed, progress, error];
+  List<Object?> get props => [info, installed, progress, error, space];
 }
 
 class StarterPhrasebooksState extends Equatable {
@@ -94,6 +110,7 @@ class StarterPhrasebooksCubit extends Cubit<StarterPhrasebooksState> {
               installed: byId[info.id],
               progress: previous[info.id]?.progress,
               error: previous[info.id]?.error,
+              space: previous[info.id]?.space,
             ),
         ],
       ),
@@ -104,9 +121,13 @@ class StarterPhrasebooksCubit extends Cubit<StarterPhrasebooksState> {
   Future<void> install(StarterPhrasebookInfo info) async {
     _update(
       info.id,
-      (item) => item.copyWith(progress: () => 0, error: () => null),
+      (item) => item.copyWith(
+        progress: () => 0,
+        error: () => null,
+        space: () => null,
+      ),
     );
-    final error = await _attempt(
+    final (error, space) = await _attempt(
       () => _packs.install(
         info,
         onProgress: (fraction) => _update(
@@ -117,7 +138,11 @@ class StarterPhrasebooksCubit extends Cubit<StarterPhrasebooksState> {
     );
     _update(
       info.id,
-      (item) => item.copyWith(progress: () => null, error: () => error),
+      (item) => item.copyWith(
+        progress: () => null,
+        error: () => error,
+        space: () => space,
+      ),
     );
     await load();
   }
@@ -128,19 +153,22 @@ class StarterPhrasebooksCubit extends Cubit<StarterPhrasebooksState> {
     await load();
   }
 
-  /// Runs [action]; returns why it failed, or null.
-  static Future<StarterPhrasebookError?> _attempt(
+  /// Runs [action]; returns why it failed (and, for too little free
+  /// space, how much it needs), or nulls.
+  static Future<(StarterPhrasebookError?, SpaceShortfall?)> _attempt(
     Future<void> Function() action,
   ) async {
     try {
       await action();
-      return null;
+      return (null, null);
     } on StarterPhrasebookChecksumException {
-      return StarterPhrasebookError.checksum;
+      return (StarterPhrasebookError.checksum, null);
     } on StarterPhrasebookDownloadException {
-      return StarterPhrasebookError.download;
+      return (StarterPhrasebookError.download, null);
+    } on NotEnoughSpaceException catch (error) {
+      return (StarterPhrasebookError.space, SpaceShortfall.of(error));
     } on Object {
-      return StarterPhrasebookError.other;
+      return (StarterPhrasebookError.other, null);
     }
   }
 
