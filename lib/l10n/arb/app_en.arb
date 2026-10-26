@@ -12921,5 +12921,487 @@
   "documentsKeepsMacros": "This document contains macros or ActiveX controls: the translated file keeps them as they are.",
   "@documentsKeepsMacros": {
     "description": "Note on the documents page for an office file with macros (VBA, ActiveX, OpenDocument Basic)."
+  },
+  "documentsFormatPdf": "PDF document",
+  "@documentsFormatPdf": {
+    "description": "documentsFormatPdf"
+  },
+  "documentsPdfPageCount": "{count, plural, =1{1 page} other{{count} pages}}",
+  "@documentsPdfPageCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "documentsPdfPageLabel": "Page {number}",
+  "@documentsPdfPageLabel": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "documentsPdfPreviewHint": "The preview shows the text read from the pages. The saved PDF keeps each page as it looks, with the translation written over the original text as real text; pages without text are kept as they are.",
+  "@documentsPdfPreviewHint": {
+    "description": "documentsPdfPreviewHint"
+  },
+  "documentsPdfReadingFirstPage": "Reading the first page…",
+  "@documentsPdfReadingFirstPage": {
+    "description": "documentsPdfReadingFirstPage"
+  },
+  "documentsPdfFirstPageEmpty": "No text was found on the first page. The other pages are read when you translate.",
+  "@documentsPdfFirstPageEmpty": {
+    "description": "documentsPdfFirstPageEmpty"
+  },
+  "documentsPdfMorePages": "{count, plural, =1{1 more page is read when you translate.} other{{count} more pages are read when you translate.}}",
+  "@documentsPdfMorePages": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "documentsPdfProgressReading": "Page {page} of {total}: reading the text…",
+  "@documentsPdfProgressReading": {
+    "placeholders": {
+      "page": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "documentsPdfProgressTranslating": "Page {page} of {total}: translating…",
+  "@documentsPdfProgressTranslating": {
+    "placeholders": {
+      "page": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "documentsPdfProgress": "{done} of {total} pages done",
+  "@documentsPdfProgress": {
+    "placeholders": {
+      "done": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "documentsPdfPending": "{count, plural, =1{1 page isn't translated yet} other{{count} pages aren't translated yet}}",
+  "@documentsPdfPending": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "documentsPdfRetryAll": "Translate missing pages",
+  "@documentsPdfRetryAll": {
+    "description": "documentsPdfRetryAll"
+  },
+  "documentsPdfRetryPage": "Retry page {number}",
+  "@documentsPdfRetryPage": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "documentsPdfFailedTitle": "Failed pages",
+  "@documentsPdfFailedTitle": {
+    "description": "documentsPdfFailedTitle"
+  },
+  "documentsPdfPartialWarning": "Untranslated pages keep their original text.",
+  "@documentsPdfPartialWarning": {
+    "description": "documentsPdfPartialWarning"
+  },
+  "documentsPdfPageReadFailed": "This page could not be read.",
+  "@documentsPdfPageReadFailed": {
+    "description": "documentsPdfPageReadFailed"
+  },
+  "documentsPdfSaveText": "Save the text",
+  "@documentsPdfSaveText": {
+    "description": "documentsPdfSaveText"
+  },
+  "documentsPdfTextFileName": "Text: {name}",
+  "@documentsPdfTextFileName": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "documentsPdfWriting": "Writing the PDF…",
+  "@documentsPdfWriting": {
+    "description": "documentsPdfWriting"
+  },
+  "documentsErrorPdfNeedsApp": "PDF files are translated in the Android app, where their pages are read on the phone.",
+  "@documentsErrorPdfNeedsApp": {
+    "description": "documentsErrorPdfNeedsApp"
+  },
+  "documentsErrorPdfNoText": "No text was found in this PDF. If it has text, choose its language as the source language: that language's text recognition data is needed to read it.",
+  "@documentsErrorPdfNoText": {
+    "description": "documentsErrorPdfNoText"
+  },
+  "documentsErrorPdfTooLarge": "This PDF is too large. PDFs of up to {pages} pages and {size} can be translated.",
+  "@documentsErrorPdfTooLarge": {
+    "placeholders": {
+      "pages": {
+        "type": "int"
+      },
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "documentsErrorPdfEncrypted": "This PDF is password-protected. Remove the password (for example, print it to a new PDF) and try again.",
+  "@documentsErrorPdfEncrypted": {
+    "description": "documentsErrorPdfEncrypted"
+  },
+  "documentsPdfLanguageUnsupported": "Text in {language} can't be read on this device. Choose the language of the PDF as the source language.",
+  "@documentsPdfLanguageUnsupported": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "documentsPdfRecognitionUnavailable": "Text recognition isn't available on this device, so PDF pages can't be read.",
+  "@documentsPdfRecognitionUnavailable": {
+    "description": "documentsPdfRecognitionUnavailable"
+  },
+  "documentsPickHintFormatsPdf": "Word, PowerPoint, Excel, OpenDocument, EPUB and PDF files up to {packageSize}; text, Markdown, subtitles, JSON, HTML, XLIFF, PO, Android and Apple strings, CSV and TSV files up to {textSize}. Formatting, code, links and timings stay untouched.",
+  "@documentsPickHintFormatsPdf": {
+    "placeholders": {
+      "packageSize": {
+        "type": "String"
+      },
+      "textSize": {
+        "type": "String"
+      }
+    }
+  },
+  "wordLookupLookUpWith": "Look up with {engine}",
+  "@wordLookupLookUpWith": {
+    "placeholders": {
+      "engine": {
+        "type": "String"
+      }
+    }
+  },
+  "wordLookupNotFound": "“{word}” isn’t in your offline dictionaries.",
+  "@wordLookupNotFound": {
+    "placeholders": {
+      "word": {
+        "type": "String"
+      }
+    }
+  },
+  "wordLookupLookingUp": "Looking up “{word}”…",
+  "@wordLookupLookingUp": {
+    "placeholders": {
+      "word": {
+        "type": "String"
+      }
+    }
+  },
+  "wordLookupListen": "Listen to “{word}”",
+  "@wordLookupListen": {
+    "placeholders": {
+      "word": {
+        "type": "String"
+      }
+    }
+  },
+  "wordLookupCopy": "Copy “{word}”",
+  "@wordLookupCopy": {
+    "placeholders": {
+      "word": {
+        "type": "String"
+      }
+    }
+  },
+  "wordLookupTranslations": "{language}: {words}",
+  "@wordLookupTranslations": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      },
+      "words": {
+        "type": "String"
+      }
+    }
+  },
+  "wordLookupMoreMeanings": "{count, plural, =1{1 more meaning in the Dictionary} other{{count} more meanings in the Dictionary}}",
+  "@wordLookupMoreMeanings": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "wordLookupNoEntry": "Nothing found for “{word}”.",
+  "@wordLookupNoEntry": {
+    "placeholders": {
+      "word": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsTapToLookUp": "Tap a word to look it up",
+  "@settingsTapToLookUp": {
+    "description": "settingsTapToLookUp"
+  },
+  "settingsTapToLookUpSubtitle": "In a translation, tap a word for a short dictionary entry, from the dictionaries on this device first",
+  "@settingsTapToLookUpSubtitle": {
+    "description": "settingsTapToLookUpSubtitle"
+  },
+  "settingsHighlightSpokenWord": "Highlight the word being read",
+  "@settingsHighlightSpokenWord": {
+    "description": "settingsHighlightSpokenWord"
+  },
+  "settingsHighlightSpokenWordSubtitle": "While Listen reads a translation or a phrase, with voices that tell where they are",
+  "@settingsHighlightSpokenWordSubtitle": {
+    "description": "settingsHighlightSpokenWordSubtitle"
+  },
+  "liveCaptionsTitle": "Live captions",
+  "@liveCaptionsTitle": {
+    "description": "liveCaptionsTitle"
+  },
+  "liveCaptionsEntry": "Caption other apps",
+  "@liveCaptionsEntry": {
+    "description": "liveCaptionsEntry"
+  },
+  "liveCaptionsEntryHint": "Translated captions of the videos, podcasts and calls your phone plays",
+  "@liveCaptionsEntryHint": {
+    "description": "liveCaptionsEntryHint"
+  },
+  "liveCaptionsAboutTitle": "Captions for what your phone plays",
+  "@liveCaptionsAboutTitle": {
+    "description": "liveCaptionsAboutTitle"
+  },
+  "liveCaptionsAbout": "Mozhi listens to the sound other apps play (videos, podcasts, calls in apps that allow it), writes it down on this phone with Whisper and translates it phrase by phrase in a caption bar over the app.",
+  "@liveCaptionsAbout": {
+    "description": "liveCaptionsAbout"
+  },
+  "liveCaptionsAboutPrivacy": "Only the sound is used, never the screen. It stays in memory: nothing is recorded, saved or sent. Only the recognised text goes to the engine below, and the captions are gone when you leave this screen unless you save them.",
+  "@liveCaptionsAboutPrivacy": {
+    "description": "liveCaptionsAboutPrivacy"
+  },
+  "liveCaptionsAboutConsent": "Android asks every time whether Mozhi may capture, and calls this “recording or casting”.",
+  "@liveCaptionsAboutConsent": {
+    "description": "liveCaptionsAboutConsent"
+  },
+  "liveCaptionsStart": "Start captions",
+  "@liveCaptionsStart": {
+    "description": "liveCaptionsStart"
+  },
+  "liveCaptionsStop": "Stop captions",
+  "@liveCaptionsStop": {
+    "description": "liveCaptionsStop"
+  },
+  "liveCaptionsStatusIdle": "Captions are off",
+  "@liveCaptionsStatusIdle": {
+    "description": "liveCaptionsStatusIdle"
+  },
+  "liveCaptionsStatusStarting": "Starting…",
+  "@liveCaptionsStatusStarting": {
+    "description": "liveCaptionsStatusStarting"
+  },
+  "liveCaptionsStatusListening": "Captioning what your phone plays",
+  "@liveCaptionsStatusListening": {
+    "description": "liveCaptionsStatusListening"
+  },
+  "liveCaptionsStatusLocked": "Paused while the phone is locked",
+  "@liveCaptionsStatusLocked": {
+    "description": "liveCaptionsStatusLocked"
+  },
+  "liveCaptionsStatusHot": "Paused while the phone is hot: captions go on when it has cooled down",
+  "@liveCaptionsStatusHot": {
+    "description": "liveCaptionsStatusHot"
+  },
+  "liveCaptionsAnnounceStarted": "Captions started",
+  "@liveCaptionsAnnounceStarted": {
+    "description": "liveCaptionsAnnounceStarted"
+  },
+  "liveCaptionsAnnounceStopped": "Captions stopped",
+  "@liveCaptionsAnnounceStopped": {
+    "description": "liveCaptionsAnnounceStopped"
+  },
+  "liveCaptionsSource": "Language of the sound",
+  "@liveCaptionsSource": {
+    "description": "liveCaptionsSource"
+  },
+  "liveCaptionsSourceValue": "Sound: {language}",
+  "@liveCaptionsSourceValue": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "liveCaptionsTarget": "Language of the captions",
+  "@liveCaptionsTarget": {
+    "description": "liveCaptionsTarget"
+  },
+  "liveCaptionsTargetValue": "Captions: {language}",
+  "@liveCaptionsTargetValue": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "liveCaptionsDetected": "Heard: {language}",
+  "@liveCaptionsDetected": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "liveCaptionsEngineTooltip": "Translate live with",
+  "@liveCaptionsEngineTooltip": {
+    "description": "liveCaptionsEngineTooltip"
+  },
+  "liveCaptionsEngineOnDevice": "Each phrase is translated on this device.",
+  "@liveCaptionsEngineOnDevice": {
+    "description": "liveCaptionsEngineOnDevice"
+  },
+  "liveCaptionsEngineSent": "Each phrase is sent to {destination} to be translated.",
+  "@liveCaptionsEngineSent": {
+    "placeholders": {
+      "destination": {
+        "type": "String"
+      }
+    }
+  },
+  "liveCaptionsShowOriginal": "Show the original on the caption bar",
+  "@liveCaptionsShowOriginal": {
+    "description": "liveCaptionsShowOriginal"
+  },
+  "liveCaptionsNoBar": "The caption bar is off (Display over other apps isn’t allowed): captions show on this screen.",
+  "@liveCaptionsNoBar": {
+    "description": "liveCaptionsNoBar"
+  },
+  "liveCaptionsBarListening": "Listening…",
+  "@liveCaptionsBarListening": {
+    "description": "liveCaptionsBarListening"
+  },
+  "liveCaptionsBarSilence": "No sound: this app may not allow capturing it",
+  "@liveCaptionsBarSilence": {
+    "description": "liveCaptionsBarSilence"
+  },
+  "liveCaptionsBarHot": "Paused: the phone is hot",
+  "@liveCaptionsBarHot": {
+    "description": "liveCaptionsBarHot"
+  },
+  "liveCaptionsSilenceHint": "No sound for 20 seconds. The app playing may not allow capturing its sound (many call and streaming apps don’t), or nothing is playing.",
+  "@liveCaptionsSilenceHint": {
+    "description": "liveCaptionsSilenceHint"
+  },
+  "liveCaptionsPending": "{count, plural, =1{Writing down 1 phrase…} other{Writing down {count} phrases…}}",
+  "@liveCaptionsPending": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "liveCaptionsOverlayTitle": "Show captions over other apps?",
+  "@liveCaptionsOverlayTitle": {
+    "description": "liveCaptionsOverlayTitle"
+  },
+  "liveCaptionsOverlayBody": "The caption bar floats over the app you watch. Android needs “Display over other apps” for it: Mozhi opens the setting, turn it on for Mozhi and come back.",
+  "@liveCaptionsOverlayBody": {
+    "description": "liveCaptionsOverlayBody"
+  },
+  "liveCaptionsOverlayAllow": "Open the setting",
+  "@liveCaptionsOverlayAllow": {
+    "description": "liveCaptionsOverlayAllow"
+  },
+  "liveCaptionsOverlaySkip": "Only on this screen",
+  "@liveCaptionsOverlaySkip": {
+    "description": "liveCaptionsOverlaySkip"
+  },
+  "liveCaptionsDeclined": "Captions didn’t start: capturing wasn’t allowed",
+  "@liveCaptionsDeclined": {
+    "description": "liveCaptionsDeclined"
+  },
+  "liveCaptionsPermissionDenied": "Captions need the microphone permission to capture the sound of other apps",
+  "@liveCaptionsPermissionDenied": {
+    "description": "liveCaptionsPermissionDenied"
+  },
+  "liveCaptionsStartFailed": "Captions couldn’t start on this phone",
+  "@liveCaptionsStartFailed": {
+    "description": "liveCaptionsStartFailed"
+  },
+  "liveCaptionsEnded": "Captions stopped: capturing ended",
+  "@liveCaptionsEnded": {
+    "description": "liveCaptionsEnded"
+  },
+  "liveCaptionsBehind": "Not translated: the captions kept up with newer phrases.",
+  "@liveCaptionsBehind": {
+    "description": "liveCaptionsBehind"
+  },
+  "liveCaptionsUnsupportedTitle": "Live captions need the Android app",
+  "@liveCaptionsUnsupportedTitle": {
+    "description": "liveCaptionsUnsupportedTitle"
+  },
+  "liveCaptionsUnsupportedBody": "Captions of the sound other apps play work in the Android app, on Android 10 and later.",
+  "@liveCaptionsUnsupportedBody": {
+    "description": "liveCaptionsUnsupportedBody"
+  },
+  "liveCaptionsNeedsModelTitle": "Live captions need the offline speech model",
+  "@liveCaptionsNeedsModelTitle": {
+    "description": "liveCaptionsNeedsModelTitle"
+  },
+  "liveCaptionsNeedsModelBody": "Captions are written on this phone by Whisper. Download a model (75 MB) in the voice input settings, or import one.",
+  "@liveCaptionsNeedsModelBody": {
+    "description": "liveCaptionsNeedsModelBody"
+  },
+  "liveCaptionsEmptyTitle": "No captions yet",
+  "@liveCaptionsEmptyTitle": {
+    "description": "liveCaptionsEmptyTitle"
+  },
+  "liveCaptionsEmptyBody": "Start captions, then play a video, a podcast or a call in another app.",
+  "@liveCaptionsEmptyBody": {
+    "description": "liveCaptionsEmptyBody"
+  },
+  "conversationVoiceOptions": "Voice options",
+  "@conversationVoiceOptions": {
+    "description": "conversationVoiceOptions"
+  },
+  "conversationDetectSpeaker": "Detect the speaker",
+  "@conversationDetectSpeaker": {
+    "description": "conversationDetectSpeaker"
+  },
+  "conversationDetectSpeakerHint": "With offline speech (Whisper), whoever’s language is heard takes the turn.",
+  "@conversationDetectSpeakerHint": {
+    "description": "conversationDetectSpeakerHint"
+  },
+  "conversationTurnPause": "Pause that ends a turn",
+  "@conversationTurnPause": {
+    "description": "conversationTurnPause"
+  },
+  "conversationTurnPauseHint": "With offline speech, a turn ends after this much silence.",
+  "@conversationTurnPauseHint": {
+    "description": "conversationTurnPauseHint"
+  },
+  "conversationTurnPauseValue": "{seconds} s",
+  "@conversationTurnPauseValue": {
+    "placeholders": {
+      "seconds": {
+        "type": "String"
+      }
+    }
   }
 }

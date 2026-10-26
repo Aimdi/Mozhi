@@ -39,4 +39,12 @@
     <string name="bubble_remove_action">Remover a bolha</string>
     <string name="bubble_remove_target">Remover</string>
     <string name="bubble_clipboard_empty">A área de transferência está vazia</string>
+    <string name="live_captions_channel">Legendas ao vivo</string>
+    <string name="live_captions_channel_description">Mostrado enquanto o Mozhi legenda o som de outros apps</string>
+    <string name="live_captions_notification_title">As legendas ao vivo estão ativadas</string>
+    <string name="live_captions_notification_text">O Mozhi legenda o som que outros apps reproduzem. Nada é gravado ou guardado.</string>
+    <string name="live_captions_stop">Parar</string>
+    <string name="live_captions_stop_description">Parar as legendas ao vivo</string>
+    <string name="live_captions_open_description">Abrir o Mozhi</string>
+    <string name="live_captions_bar_description">Legendas ao vivo</string>
 </resources>

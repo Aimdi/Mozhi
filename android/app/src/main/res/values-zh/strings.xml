@@ -39,4 +39,12 @@
     <string name="bubble_remove_action">移除气泡</string>
     <string name="bubble_remove_target">移除</string>
     <string name="bubble_clipboard_empty">剪贴板为空</string>
+    <string name="live_captions_channel">实时字幕</string>
+    <string name="live_captions_channel_description">Mozhi 为其他应用的声音生成字幕时显示</string>
+    <string name="live_captions_notification_title">实时字幕已开启</string>
+    <string name="live_captions_notification_text">Mozhi 为其他应用播放的声音生成字幕。不会录制或保存任何内容。</string>
+    <string name="live_captions_stop">停止</string>
+    <string name="live_captions_stop_description">停止实时字幕</string>
+    <string name="live_captions_open_description">打开 Mozhi</string>
+    <string name="live_captions_bar_description">实时字幕</string>
 </resources>

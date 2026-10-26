@@ -45,7 +45,8 @@ ParsedDocument parseDocument(
   DocumentFormat.odt ||
   DocumentFormat.odp ||
   DocumentFormat.ods ||
-  DocumentFormat.epub => throw ArgumentError.value(
+  DocumentFormat.epub ||
+  DocumentFormat.pdf => throw ArgumentError.value(
     format,
     'format',
     'a binary format: parse the file bytes instead',

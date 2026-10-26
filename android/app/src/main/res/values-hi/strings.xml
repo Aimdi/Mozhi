@@ -39,4 +39,12 @@
     <string name="bubble_remove_action">बबल हटाएँ</string>
     <string name="bubble_remove_target">हटाएँ</string>
     <string name="bubble_clipboard_empty">क्लिपबोर्ड खाली है</string>
+    <string name="live_captions_channel">लाइव कैप्शन</string>
+    <string name="live_captions_channel_description">जब Mozhi दूसरे ऐप्स की आवाज़ के कैप्शन बनाता है, तब दिखता है</string>
+    <string name="live_captions_notification_title">लाइव कैप्शन चालू हैं</string>
+    <string name="live_captions_notification_text">Mozhi दूसरे ऐप्स में चल रही आवाज़ के कैप्शन बनाता है। कुछ भी रिकॉर्ड या सेव नहीं होता।</string>
+    <string name="live_captions_stop">रोकें</string>
+    <string name="live_captions_stop_description">लाइव कैप्शन रोकें</string>
+    <string name="live_captions_open_description">Mozhi खोलें</string>
+    <string name="live_captions_bar_description">लाइव कैप्शन</string>
 </resources>

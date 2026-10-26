@@ -56,4 +56,16 @@
     <string name="bubble_remove_action">Remove the bubble</string>
     <string name="bubble_remove_target">Remove</string>
     <string name="bubble_clipboard_empty">The clipboard is empty</string>
+
+    <!-- Live captions of other apps' sound (LiveCaptionService): its
+         notification channel and notification, the caption bar's Stop and
+         Open buttons (read by screen readers) and the bar's own name. -->
+    <string name="live_captions_channel">Live captions</string>
+    <string name="live_captions_channel_description">Shown while Mozhi captions the sound of other apps</string>
+    <string name="live_captions_notification_title">Live captions are on</string>
+    <string name="live_captions_notification_text">Mozhi captions the sound other apps play. Nothing is recorded or saved.</string>
+    <string name="live_captions_stop">Stop</string>
+    <string name="live_captions_stop_description">Stop live captions</string>
+    <string name="live_captions_open_description">Open Mozhi</string>
+    <string name="live_captions_bar_description">Live captions</string>
 </resources>

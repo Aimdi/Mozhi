@@ -148,6 +148,28 @@ void main() {
       });
     });
 
+    test('finds the object after bracket-heavy prose', () {
+      expect(extract('See [1], [2] and [[3]]: {"a": 1}'), {'a': 1});
+      expect(extract('{sic} {{name}} [x] {"a": [1, 2]}'), {
+        'a': [1, 2],
+      });
+      expect(extract('Notes [1] {see} ["a", "b"] {"a": [1, 2'), {
+        'a': [1, 2],
+      });
+      expect(extract('{ "a": 1 }'), {'a': 1});
+      expect(extract('{\n  “a”: 1\n}'), {'a': 1});
+      expect(extract('{}'), <String, Object?>{});
+    });
+
+    test('gives up on a reply that is mostly unclosed brackets', () {
+      // Each bracket would start a search over the rest of the reply: the
+      // search stops after a few dozen (linear time).
+      expect(() => extract('${'[' * 200000}{"a": 1}'), throwsFormatException);
+      // Brackets that cannot start an object cost nothing.
+      expect(extract('${'{' * 200000}{"a": 1}'), {'a': 1});
+      expect(extract('${'[1] ' * 40000}{"a": 1}'), {'a': 1});
+    });
+
     test('non-string keys are stringified', () {
       // Only reachable through lists of maps; keys in JSON are strings, so
       // this is just the identity.

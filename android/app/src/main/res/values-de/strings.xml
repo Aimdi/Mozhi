@@ -39,4 +39,12 @@
     <string name="bubble_remove_action">Bubble entfernen</string>
     <string name="bubble_remove_target">Entfernen</string>
     <string name="bubble_clipboard_empty">Die Zwischenablage ist leer</string>
+    <string name="live_captions_channel">Live-Untertitel</string>
+    <string name="live_captions_channel_description">Sichtbar, während Mozhi den Ton anderer Apps untertitelt</string>
+    <string name="live_captions_notification_title">Live-Untertitel sind an</string>
+    <string name="live_captions_notification_text">Mozhi untertitelt den Ton, den andere Apps abspielen. Nichts wird aufgenommen oder gespeichert.</string>
+    <string name="live_captions_stop">Beenden</string>
+    <string name="live_captions_stop_description">Live-Untertitel beenden</string>
+    <string name="live_captions_open_description">Mozhi öffnen</string>
+    <string name="live_captions_bar_description">Live-Untertitel</string>
 </resources>

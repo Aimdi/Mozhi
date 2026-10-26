@@ -102,6 +102,35 @@ abstract interface class TextRecognitionConfidence {
   );
 }
 
+/// A recognizer that also reads raw pixels (Tesseract): a live camera
+/// frame's grey Y plane, a rendered PDF page. Nothing is decoded, scaled or
+/// stored on the way.
+abstract interface class TextRecognitionPixels {
+  /// Recognises [pixels] ([width] x [height], [bytesPerPixel] 1 for grey or
+  /// 4 for premultiplied RGBA, rows [bytesPerLine] bytes apart, default
+  /// `width * bytesPerPixel`) with [codes] (installed languages, main one
+  /// first), with the [TextWithConfidence.layout] in pixels of this image.
+  /// Throws [OcrDataMissingException] when one is not installed,
+  /// [ImageTranslateException] (`recognitionFailed`) on failure.
+  Future<TextWithConfidence> recognizePixels(
+    Uint8List pixels, {
+    required int width,
+    required int height,
+    required List<String> codes,
+    int bytesPerPixel = 4,
+    int? bytesPerLine,
+  });
+}
+
+/// [service] as a [TextRecognitionPixels], when it reads raw pixels (the
+/// default build's Tesseract); null otherwise.
+TextRecognitionPixels? textRecognitionPixelsOf(
+  TextRecognitionService service,
+) => switch (service) {
+  final TextRecognitionPixels pixels => pixels,
+  _ => null,
+};
+
 /// A [TextRecognitionService] that also says where the text is (the Play
 /// variant's ML Kit; Tesseract reports it through
 /// [TextRecognitionConfidence.recognizeWithConfidence]).

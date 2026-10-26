@@ -1,3 +1,4 @@
+import 'dart:collection';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -1555,17 +1556,58 @@ abstract final class ResponseParsers {
     // Scan for the first balanced object/array that decodes. An opening
     // bracket that is never closed may be output truncated by a token
     // limit: close what is open, dropping an incomplete tail.
-    for (var i = 0; i < trimmed.length; i++) {
+    //
+    // Each candidate costs a scan and decoding attempts over the rest of
+    // the reply, so a hostile reply (thousands of brackets that never
+    // close, or nested ones that never decode) would take quadratic time:
+    // the work is capped at a multiple of the reply's length
+    // ([_searchWork]), after which the search gives up (linear time). A
+    // reply with JSON in it never comes near the cap.
+    var work = _searchWork * trimmed.length + _searchWorkBase;
+    for (var i = 0; i < trimmed.length && work > 0; i++) {
       final c = trimmed[i];
       if (c != '{' && c != '[') continue;
-      final end = _balancedEnd(trimmed, i);
-      final candidate = end < 0
-          ? _decodeTruncated(trimmed.substring(i))
-          : _decode(trimmed.substring(i, end + 1));
+      if (c == '{' && !_mayStartObject(trimmed, i)) continue;
+      final (:end, :scanned) = _balancedEnd(trimmed, i);
+      work -= scanned;
+      final Object? candidate;
+      if (end < 0) {
+        final (:value, :cost) = _decodeTruncated(trimmed.substring(i));
+        candidate = value;
+        work -= cost;
+      } else {
+        // A decode, its repair and a second decode.
+        work -= 3 * (end + 1 - i);
+        candidate = _decode(trimmed.substring(i, end + 1));
+      }
       if (_acceptable(candidate) case final value?) return value;
     }
     return null;
   }
+
+  /// Characters of work [_findJson]'s candidate scan may do per character
+  /// of the reply (plus [_searchWorkBase]): a few dozen candidates that
+  /// span the whole reply.
+  static const int _searchWork = 48;
+  static const int _searchWorkBase = 1 << 16;
+
+  /// Whether the `{` at [start] may begin an object that decodes (also
+  /// after [_repair]): a key in quotes (straight or smart) or `}` follows
+  /// it, after spaces. A `{` followed by anything else (another `{`, a
+  /// word, the end) is no candidate, so a reply full of them costs
+  /// nothing.
+  static bool _mayStartObject(String s, int start) {
+    var i = start + 1;
+    while (i < s.length && _isJsonSpace(s.codeUnitAt(i))) {
+      i++;
+    }
+    if (i >= s.length) return false;
+    final next = s[i];
+    return next == '"' || next == '}' || _smartOpen.contains(next);
+  }
+
+  static bool _isJsonSpace(int unit) =>
+      unit == 0x20 || unit == 0x09 || unit == 0x0A || unit == 0x0D;
 
   /// [value] itself, or the first map of a list (see [_acceptable]).
   static Map<dynamic, dynamic> _rootObject(Object value) => value is Map
@@ -1591,8 +1633,9 @@ abstract final class ResponseParsers {
     }
   }
 
-  /// Index of the bracket closing the one at [start], or -1.
-  static int _balancedEnd(String s, int start) {
+  /// The index of the bracket closing the one at [start] (-1 when none
+  /// does), and how many characters were looked at to tell.
+  static ({int end, int scanned}) _balancedEnd(String s, int start) {
     final stack = <String>[];
     var inString = false;
     for (var i = start; i < s.length; i++) {
@@ -1613,11 +1656,13 @@ abstract final class ResponseParsers {
         case '[':
           stack.add(']');
         case '}' || ']':
-          if (stack.isEmpty || stack.removeLast() != c) return -1;
-          if (stack.isEmpty) return i;
+          if (stack.isEmpty || stack.removeLast() != c) {
+            return (end: -1, scanned: i + 1 - start);
+          }
+          if (stack.isEmpty) return (end: i, scanned: i + 1 - start);
       }
     }
-    return -1;
+    return (end: -1, scanned: s.length - start);
   }
 
   static const _smartOpen = {'“', '„', '‟', '”', '″'};
@@ -1680,7 +1725,9 @@ abstract final class ResponseParsers {
   }
 
   static bool _isWordStart(String s, int i) =>
-      i == 0 || !RegExp(r'\w').hasMatch(s[i - 1]);
+      i == 0 || !_wordCharacter.hasMatch(s[i - 1]);
+
+  static final _wordCharacter = RegExp(r'\w');
 
   static (String, String)? _pythonLiteral(String s, int i) {
     for (final (python, json) in const [
@@ -1690,7 +1737,7 @@ abstract final class ResponseParsers {
     ]) {
       if (s.startsWith(python, i)) {
         final after = i + python.length;
-        if (after >= s.length || !RegExp(r'\w').hasMatch(s[after])) {
+        if (after >= s.length || !_wordCharacter.hasMatch(s[after])) {
           return (python, json);
         }
       }
@@ -1698,11 +1745,20 @@ abstract final class ResponseParsers {
     return null;
   }
 
-  /// Closes an unterminated JSON prefix, retrying at earlier commas so a
-  /// half-written trailing element is dropped.
-  static Object? _decodeTruncated(String s) {
-    final cuts = <(int, List<String>)>[];
-    final stack = <String>[];
+  /// Closes an unterminated JSON prefix, retrying at the last
+  /// [_truncatedCuts] commas and closed brackets so a half-written
+  /// trailing element is dropped: the value (null when no attempt
+  /// decodes) and the characters of work it took. The open brackets are
+  /// a linked stack, so a cut keeps the brackets open there without
+  /// copying them (linear time also for deeply nested prefixes).
+  static ({Object? value, int cost}) _decodeTruncated(String s) {
+    final cuts = ListQueue<(int, _OpenBracket)>();
+    _OpenBracket? open;
+    void cut(int index, _OpenBracket brackets) {
+      cuts.addLast((index, brackets));
+      if (cuts.length > _truncatedCuts) cuts.removeFirst();
+    }
+
     var inString = false;
     for (var i = 0; i < s.length; i++) {
       final c = s[i];
@@ -1718,33 +1774,39 @@ abstract final class ResponseParsers {
         case '"':
           inString = true;
         case '{':
-          stack.add('}');
+          open = _OpenBracket('}', open);
         case '[':
-          stack.add(']');
+          open = _OpenBracket(']', open);
         case '}' || ']':
-          if (stack.isEmpty) return null;
-          stack.removeLast();
-          if (stack.isEmpty) return null; // Balanced: not truncated.
-          cuts.add((i + 1, List.of(stack)));
+          final below = open?.below;
+          // Unbalanced, or balanced (not truncated).
+          if (below == null) return (value: null, cost: i + 1);
+          open = below;
+          cut(i + 1, below);
         case ',':
-          cuts.add((i, List.of(stack)));
+          if (open case final brackets?) cut(i, brackets);
       }
     }
-    if (stack.isEmpty) return null;
-    String close(String prefix, List<String> open) =>
-        prefix + open.reversed.join();
+    if (open == null) return (value: null, cost: s.length);
+    var cost = s.length;
     final attempts = [
-      close(inString ? '$s"' : s, stack),
-      for (final (index, open) in cuts.reversed.take(12))
-        close(s.substring(0, index), open),
+      (inString ? '$s"' : s, open),
+      for (final (index, below) in cuts.toList().reversed)
+        (s.substring(0, index), below),
     ];
-    for (final attempt in attempts) {
+    for (final (prefix, brackets) in attempts) {
+      final attempt = brackets.close(prefix);
+      // A decode, its repair and a second decode.
+      cost += 3 * attempt.length;
       final value = _decode(attempt);
-      if (value is Map && value.isNotEmpty) return value;
-      if (value is List && value.isNotEmpty) return value;
+      if (value is Map && value.isNotEmpty) return (value: value, cost: cost);
+      if (value is List && value.isNotEmpty) return (value: value, cost: cost);
     }
-    return null;
+    return (value: null, cost: cost);
   }
+
+  /// How many earlier cut points [_decodeTruncated] tries.
+  static const _truncatedCuts = 12;
 
   // ---------------------------------------------------------------------
   // Tolerant field access.
@@ -2268,4 +2330,24 @@ final class _AlignmentText {
 
   /// Records that a pair took [range].
   void markUsed(_Range range) => _used.fillRange(range.start, range.end, 1);
+}
+
+/// A bracket still open in a JSON prefix (see
+/// `ResponseParsers._decodeTruncated`): its closing character and the
+/// brackets open below it. Immutable, so a cut point keeps the brackets
+/// open there.
+final class _OpenBracket {
+  const new(this.closer, this.below);
+
+  final String closer;
+  final _OpenBracket? below;
+
+  /// [prefix] with this bracket and the ones below it closed.
+  String close(String prefix) {
+    final buffer = StringBuffer(prefix);
+    for (_OpenBracket? open = this; open != null; open = open.below) {
+      buffer.write(open.closer);
+    }
+    return buffer.toString();
+  }
 }

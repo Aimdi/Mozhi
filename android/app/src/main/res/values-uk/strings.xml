@@ -39,4 +39,12 @@
     <string name="bubble_remove_action">Прибрати бульбашку</string>
     <string name="bubble_remove_target">Прибрати</string>
     <string name="bubble_clipboard_empty">Буфер обміну порожній</string>
+    <string name="live_captions_channel">Живі субтитри</string>
+    <string name="live_captions_channel_description">Показується, поки Mozhi створює субтитри до звуку інших застосунків</string>
+    <string name="live_captions_notification_title">Живі субтитри ввімкнено</string>
+    <string name="live_captions_notification_text">Mozhi створює субтитри до звуку, який відтворюють інші застосунки. Нічого не записується і не зберігається.</string>
+    <string name="live_captions_stop">Зупинити</string>
+    <string name="live_captions_stop_description">Зупинити живі субтитри</string>
+    <string name="live_captions_open_description">Відкрити Mozhi</string>
+    <string name="live_captions_bar_description">Живі субтитри</string>
 </resources>

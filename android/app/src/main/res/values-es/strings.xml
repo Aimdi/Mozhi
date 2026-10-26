@@ -39,4 +39,12 @@
     <string name="bubble_remove_action">Quitar la burbuja</string>
     <string name="bubble_remove_target">Quitar</string>
     <string name="bubble_clipboard_empty">El portapapeles está vacío</string>
+    <string name="live_captions_channel">Subtítulos en directo</string>
+    <string name="live_captions_channel_description">Se muestra mientras Mozhi subtitula el sonido de otras apps</string>
+    <string name="live_captions_notification_title">Los subtítulos en directo están activados</string>
+    <string name="live_captions_notification_text">Mozhi subtitula el sonido que reproducen otras apps. No se graba ni se guarda nada.</string>
+    <string name="live_captions_stop">Detener</string>
+    <string name="live_captions_stop_description">Detener los subtítulos en directo</string>
+    <string name="live_captions_open_description">Abrir Mozhi</string>
+    <string name="live_captions_bar_description">Subtítulos en directo</string>
 </resources>

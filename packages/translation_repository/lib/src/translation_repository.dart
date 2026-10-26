@@ -3825,29 +3825,83 @@ class _Shield {
       yield* deltas;
       return;
     }
-    final pending = StringBuffer();
+    // The text held back (a token's start, as parts: a long run of spaces
+    // after it may come one delta at a time) and how its end reads.
+    final held = <String>[];
+    final tail = _TokenTail();
     await for (final delta in deltas) {
-      pending.write(delta);
-      final text = pending.toString();
-      final hold = _partialTokenStart(text);
-      pending
-        ..clear()
-        ..write(text.substring(hold));
-      if (hold > 0) yield tokens.restore(text.substring(0, hold)).text;
+      // Only the new text is read, never the held text again (linear
+      // time).
+      final hold = tail.read(delta);
+      if (hold == null) {
+        held.add(delta);
+        continue;
+      }
+      final ready = [...held, delta.substring(0, hold)].join();
+      held.clear();
+      if (hold < delta.length) held.add(delta.substring(hold));
+      if (ready.isNotEmpty) yield tokens.restore(ready).text;
     }
-    if (pending.isNotEmpty) yield tokens.restore(pending.toString()).text;
+    final rest = held.join();
+    if (rest.isNotEmpty) yield tokens.restore(rest).text;
+  }
+}
+
+/// The end of a streamed reply as [_Shield.restoreDeltas] reads it: whether
+/// it ends with the start of a token (`TextMasker.bracketToken`: `⟨` or
+/// `〈`, spaces, at most `TextMasker.maxTokenDigits` digits, spaces) that
+/// a later delta may complete. Only the last opening bracket can start
+/// one (the brackets, digits and spaces of a token's start contain no
+/// other bracket), so each delta is read once, character by character.
+class _TokenTail {
+  /// Where the text after the last opening bracket is: not a token's
+  /// start, spaces after the bracket, digits, or spaces after the digits.
+  _TailState _state = _TailState.none;
+  int _digits = 0;
+
+  /// Reads [delta] (the next part of the text): the index in it where a
+  /// token's start begins that must be held back with what follows
+  /// ([delta]'s length when nothing is held), or null when the held text
+  /// before [delta] still starts one, which then goes on to its end.
+  int? read(String delta) {
+    int? start;
+    for (var i = 0; i < delta.length; i++) {
+      final unit = delta.codeUnitAt(i);
+      if (unit == 0x27E8 || unit == 0x3008) {
+        start = i;
+        _state = _TailState.afterBracket;
+        _digits = 0;
+        continue;
+      }
+      _state = switch (_state) {
+        _TailState.none => _TailState.none,
+        _TailState.afterBracket when _isSpace(unit) => _TailState.afterBracket,
+        _TailState.afterBracket || _TailState.digits when _isDigit(unit) =>
+          ++_digits <= TextMasker.maxTokenDigits
+              ? _TailState.digits
+              : _TailState.none,
+        _TailState.digits ||
+        _TailState.afterDigits when _isSpace(unit) => _TailState.afterDigits,
+        _ => _TailState.none,
+      };
+    }
+    if (_state == _TailState.none) return delta.length;
+    return start;
   }
 
-  /// The start of a token (`TextMasker.bracketToken`, at most
-  /// `TextMasker.maxTokenDigits` digits) at the end of a delta. The spaces
-  /// after the digits only follow digits (linear time).
-  static final _partialToken = RegExp(r'[⟨〈]\s*(?:\d{1,6}\s*)?$');
+  static bool _isDigit(int unit) => unit >= 0x30 && unit <= 0x39;
 
-  /// Where a token that the next delta may complete starts at the end of
-  /// [text] (its length when there is none).
-  static int _partialTokenStart(String text) =>
-      _partialToken.firstMatch(text)?.start ?? text.length;
+  /// Whether [unit] is `\s` of a Dart regular expression (Unicode
+  /// spaces and line terminators).
+  static bool _isSpace(int unit) => switch (unit) {
+    0x09 || 0x0A || 0x0B || 0x0C || 0x0D || 0x20 || 0xA0 || 0x1680 => true,
+    >= 0x2000 && <= 0x200A => true,
+    0x2028 || 0x2029 || 0x202F || 0x205F || 0x3000 || 0xFEFF => true,
+    _ => false,
+  };
 }
+
+enum _TailState { none, afterBracket, digits, afterDigits }
 
 /// Sends one (masked) part of a non-AI translation: [masked] when it has
 /// tokens, [original] the part before masking.

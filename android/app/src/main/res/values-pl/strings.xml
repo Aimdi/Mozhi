@@ -39,4 +39,12 @@
     <string name="bubble_remove_action">Usuń bańkę</string>
     <string name="bubble_remove_target">Usuń</string>
     <string name="bubble_clipboard_empty">Schowek jest pusty</string>
+    <string name="live_captions_channel">Napisy na żywo</string>
+    <string name="live_captions_channel_description">Widoczne, gdy Mozhi tworzy napisy do dźwięku innych aplikacji</string>
+    <string name="live_captions_notification_title">Napisy na żywo są włączone</string>
+    <string name="live_captions_notification_text">Mozhi tworzy napisy do dźwięku odtwarzanego przez inne aplikacje. Nic nie jest nagrywane ani zapisywane.</string>
+    <string name="live_captions_stop">Zatrzymaj</string>
+    <string name="live_captions_stop_description">Zatrzymaj napisy na żywo</string>
+    <string name="live_captions_open_description">Otwórz Mozhi</string>
+    <string name="live_captions_bar_description">Napisy na żywo</string>
 </resources>

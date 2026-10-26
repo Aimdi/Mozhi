@@ -76,7 +76,12 @@ enum DocumentFormat {
   ods(['ods'], 'application/vnd.oasis.opendocument.spreadsheet', 'ods'),
 
   /// EPUB e-books.
-  epub(['epub'], 'application/epub+zip', 'epub');
+  epub(['epub'], 'application/epub+zip', 'epub'),
+
+  /// PDF documents (Android): every page is read on the device (rendered
+  /// and recognised) and written back with the translation as real text
+  /// (`lib/documents/pdf/`).
+  pdf(['pdf'], 'application/pdf', 'pdf');
 
   new(this.extensions, this.mimeType, this.defaultExtension);
 
@@ -92,13 +97,31 @@ enum DocumentFormat {
   bool get usesTargetLanguage =>
       this == xliff || this == po || this == xcstrings || this == html;
 
-  /// Whether files of this format are ZIP packages (office documents and
-  /// e-books) rather than text: they are read and written as bytes, never
-  /// pasted.
+  /// Whether files of this format are not text (ZIP packages: office
+  /// documents and e-books; and PDFs): they are read and written as bytes,
+  /// never pasted.
   bool get isBinary => switch (this) {
-    docx || pptx || xlsx || odt || odp || ods || epub => true,
+    docx || pptx || xlsx || odt || odp || ods || epub || pdf => true,
     _ => false,
   };
+
+  /// Whether [bytes] (the start of a file) are a PDF: `%PDF-` within the
+  /// first 1024 bytes, where readers accept the header. A PDF is read as
+  /// one whatever its name says.
+  static bool isPdfBytes(List<int> bytes) {
+    final end = bytes.length < 1024 ? bytes.length : 1024;
+    outer:
+    for (var i = 0; i + _pdfMagic.length <= end; i++) {
+      for (var k = 0; k < _pdfMagic.length; k++) {
+        if (bytes[i + k] != _pdfMagic[k]) continue outer;
+      }
+      return true;
+    }
+    return false;
+  }
+
+  /// `%PDF-`.
+  static const _pdfMagic = [0x25, 0x50, 0x44, 0x46, 0x2D];
 
   /// Whether a bilingual export (original line + translation) makes sense.
   bool get supportsBilingual => isSubtitle;

@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 import 'package:mozhi/documents/core/core.dart';
 import 'package:mozhi/documents/core/office/office.dart';
+import 'package:mozhi/documents/pdf/pdf_document.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 /// Where the document comes from.
@@ -56,6 +57,12 @@ enum DocumentError {
 
   /// The document holds no translatable text.
   nothingToTranslate,
+
+  /// A PDF in the web app: PDFs are read in the Android app.
+  pdfNeedsApp,
+
+  /// No text was found on any page of the PDF.
+  pdfNoText,
 }
 
 /// One-off messages for the UI (shown as snack bars).
@@ -80,6 +87,7 @@ class DocumentTranslateState extends Equatable {
     this.format,
     this.document,
     this.packagedDocument,
+    this.pdf,
     this.plan,
     this.error,
     this.engines = const [],
@@ -119,6 +127,11 @@ class DocumentTranslateState extends Equatable {
 
   /// A parsed office document or e-book (instead of [document]).
   final PackagedDocument? packagedDocument;
+
+  /// An opened PDF (instead of [document]): read and translated page by
+  /// page, so [results] and [failures] are by page index and the
+  /// [chunkCount] is its page count.
+  final PdfSource? pdf;
   final ChunkPlan? plan;
   final DocumentError? error;
 
@@ -153,7 +166,11 @@ class DocumentTranslateState extends Equatable {
   /// Incremented with every [notice] so repeated notices are delivered.
   final int noticeId;
 
-  bool get hasDocument => document != null || packagedDocument != null;
+  bool get hasDocument =>
+      document != null || packagedDocument != null || pdf != null;
+
+  /// Whether the input is a PDF ([pdf]).
+  bool get isPdf => pdf != null;
 
   /// Whether the input is an office document or e-book (read and written
   /// as bytes).
@@ -170,7 +187,7 @@ class DocumentTranslateState extends Equatable {
   List<Segment> get segments =>
       document?.segments ?? packagedDocument?.segments ?? const [];
   int get segmentCount => segments.length;
-  int get chunkCount => plan?.chunks.length ?? 0;
+  int get chunkCount => pdf?.pageCount ?? plan?.chunks.length ?? 0;
   int get characterCount =>
       document?.characterCount ?? packagedDocument?.characterCount ?? 0;
   int get doneChunks => results.length;
@@ -180,14 +197,21 @@ class DocumentTranslateState extends Equatable {
 
   double get progress => chunkCount == 0 ? 0 : doneChunks / chunkCount;
   bool get isTranslating => status == DocumentStatus.translating;
-  bool get hasTranslation => results.isNotEmpty;
+  bool get hasTranslation => switch (pdf) {
+    // Pages without text count as done, but give nothing to save.
+    null => results.isNotEmpty,
+    _ => results.values.any((page) => page.isNotEmpty),
+  };
   bool get isComplete => chunkCount > 0 && pendingChunks == 0;
   bool get supportsBilingual => format?.supportsBilingual ?? false;
   bool get canSwap => !source.isAuto && !target.isCustom;
 
   bool get canTranslate =>
       hasDocument &&
-      segments.isNotEmpty &&
+      // A PDF's text is read page by page as it is translated.
+      (segments.isNotEmpty || pdf != null) &&
+      !(pdf?.previewing ?? false) &&
+      !(pdf?.writing ?? false) &&
       engine != null &&
       !languagesLoading &&
       !isTranslating &&
@@ -209,6 +233,18 @@ class DocumentTranslateState extends Equatable {
     target.code,
   );
 
+  /// Suggested name of a PDF's translated text ("Save the text"):
+  /// `report.pdf` -> `report.de.txt`.
+  String get pdfTextFileName {
+    final name = fileName;
+    final dot = name?.lastIndexOf('.') ?? -1;
+    return translatedFileName(
+      name == null ? null : '${dot > 0 ? name.substring(0, dot) : name}.txt',
+      DocumentFormat.plainText,
+      target.code,
+    );
+  }
+
   /// Rough duration of a translation run.
   Duration get estimate {
     if (chunkCount == 0) return Duration.zero;
@@ -228,6 +264,7 @@ class DocumentTranslateState extends Equatable {
     DocumentFormat? Function()? format,
     ParsedDocument? Function()? document,
     PackagedDocument? Function()? packagedDocument,
+    PdfSource? Function()? pdf,
     ChunkPlan? Function()? plan,
     DocumentError? Function()? error,
     List<TranslationEngine>? engines,
@@ -258,6 +295,7 @@ class DocumentTranslateState extends Equatable {
       packagedDocument: packagedDocument != null
           ? packagedDocument()
           : this.packagedDocument,
+      pdf: pdf != null ? pdf() : this.pdf,
       plan: plan != null ? plan() : this.plan,
       error: error != null ? error() : this.error,
       engines: engines ?? this.engines,
@@ -289,6 +327,7 @@ class DocumentTranslateState extends Equatable {
     format,
     document,
     packagedDocument,
+    pdf,
     plan,
     error,
     engines,

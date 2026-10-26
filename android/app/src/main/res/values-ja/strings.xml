@@ -39,4 +39,12 @@
     <string name="bubble_remove_action">バブルを削除</string>
     <string name="bubble_remove_target">削除</string>
     <string name="bubble_clipboard_empty">クリップボードは空です</string>
+    <string name="live_captions_channel">ライブ字幕</string>
+    <string name="live_captions_channel_description">Mozhi が他のアプリの音声に字幕を付けている間に表示されます</string>
+    <string name="live_captions_notification_title">ライブ字幕がオンです</string>
+    <string name="live_captions_notification_text">Mozhi は他のアプリが再生する音声に字幕を付けます。録音や保存はしません。</string>
+    <string name="live_captions_stop">停止</string>
+    <string name="live_captions_stop_description">ライブ字幕を停止</string>
+    <string name="live_captions_open_description">Mozhi を開く</string>
+    <string name="live_captions_bar_description">ライブ字幕</string>
 </resources>

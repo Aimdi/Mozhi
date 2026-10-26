@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show immutable;
 import 'package:flutter/widgets.dart' show StringCharacters;
 
 /// Longest chunk [splitTextForSpeech] produces by default, in UTF-16 code
@@ -34,21 +35,58 @@ enum _Level { word, clause, sentence }
 List<String> splitTextForSpeech(
   String text, {
   int maxLength = maxSpeechChunkLength,
+}) => [
+  for (final chunk in speechChunks(text, maxLength: maxLength)) chunk.text,
+];
+
+/// A part of a text read aloud on its own: [text] starts at [start] (a
+/// UTF-16 offset) in the text it was cut from ([speechChunks]).
+@immutable
+class SpeechChunk {
+  const new(this.start, this.text);
+
+  final int start;
+  final String text;
+
+  /// The offset after the chunk's last code unit.
+  int get end => start + text.length;
+
+  @override
+  bool operator ==(Object other) =>
+      other is SpeechChunk && other.start == start && other.text == text;
+
+  @override
+  int get hashCode => Object.hash(start, text);
+
+  @override
+  String toString() => 'SpeechChunk($start, $text)';
+}
+
+/// The chunks of [splitTextForSpeech] with their place in [text] (the
+/// text as given, before trimming), so positions in a chunk map back to
+/// [text] (a word read aloud, `SpeechService.spokenRanges`).
+List<SpeechChunk> speechChunks(
+  String text, {
+  int maxLength = maxSpeechChunkLength,
 }) {
   if (maxLength < 1) {
     throw ArgumentError.value(maxLength, 'maxLength', 'Must be positive');
   }
-  final chunks = <String>[];
-  var rest = text.trim();
+  final chunks = <SpeechChunk>[];
+  var rest = text.trimLeft();
+  var offset = text.length - rest.length;
+  rest = rest.trimRight();
   while (rest.length > maxLength) {
     final end = _chunkEnd(rest, maxLength);
-    chunks.add(rest.substring(0, end).trimRight());
-    rest = rest.substring(end).trimLeft();
+    chunks.add(SpeechChunk(offset, rest.substring(0, end).trimRight()));
+    final next = rest.substring(end).trimLeft();
+    offset += rest.length - next.length;
+    rest = next;
   }
-  if (rest.isNotEmpty) chunks.add(rest);
+  if (rest.isNotEmpty) chunks.add(SpeechChunk(offset, rest));
   final spoken = [
     for (final chunk in chunks)
-      if (_pronounceable.hasMatch(chunk)) chunk,
+      if (_pronounceable.hasMatch(chunk.text)) chunk,
   ];
   return spoken.isEmpty ? chunks : spoken;
 }

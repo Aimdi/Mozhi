@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io' show File;
+import 'dart:typed_data' show Uint8List;
 import 'dart:ui' show Color, Rect;
 
 import 'package:bergamot_translator/bergamot_translator.dart'
@@ -31,7 +32,8 @@ class TesseractTextRecognitionService
     implements
         TextRecognitionService,
         TextRecognitionLanguageData,
-        TextRecognitionConfidence {
+        TextRecognitionConfidence,
+        TextRecognitionPixels {
   new({
     required this._open,
     required this.isSupported,
@@ -107,14 +109,34 @@ class TesseractTextRecognitionService
     PickedImage image,
     List<String> codes,
   ) async {
-    final ocr = await _engine();
+    await _engine();
     final decoded = await _decoder.decode(image.bytes);
+    return await recognizePixels(
+      decoded.pixels,
+      width: decoded.width,
+      height: decoded.height,
+      codes: codes,
+    );
+  }
+
+  @override
+  Future<TextWithConfidence> recognizePixels(
+    Uint8List pixels, {
+    required int width,
+    required int height,
+    required List<String> codes,
+    int bytesPerPixel = 4,
+    int? bytesPerLine,
+  }) async {
+    final ocr = await _engine();
     try {
       final result = await ocr.recognize(
-        decoded.pixels,
-        decoded.width,
-        decoded.height,
+        pixels,
+        width,
+        height,
         languages: codes,
+        bytesPerPixel: bytesPerPixel,
+        bytesPerLine: bytesPerLine,
         layout: true,
       );
       return TextWithConfidence(

@@ -39,4 +39,12 @@
     <string name="bubble_remove_action">버블 삭제</string>
     <string name="bubble_remove_target">삭제</string>
     <string name="bubble_clipboard_empty">클립보드가 비어 있습니다</string>
+    <string name="live_captions_channel">실시간 자막</string>
+    <string name="live_captions_channel_description">Mozhi가 다른 앱의 소리에 자막을 다는 동안 표시됩니다</string>
+    <string name="live_captions_notification_title">실시간 자막이 켜져 있습니다</string>
+    <string name="live_captions_notification_text">Mozhi가 다른 앱에서 재생되는 소리에 자막을 답니다. 아무것도 녹음하거나 저장하지 않습니다.</string>
+    <string name="live_captions_stop">중지</string>
+    <string name="live_captions_stop_description">실시간 자막 중지</string>
+    <string name="live_captions_open_description">Mozhi 열기</string>
+    <string name="live_captions_bar_description">실시간 자막</string>
 </resources>

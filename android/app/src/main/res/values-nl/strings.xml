@@ -39,4 +39,12 @@
     <string name="bubble_remove_action">Bubbel verwijderen</string>
     <string name="bubble_remove_target">Verwijderen</string>
     <string name="bubble_clipboard_empty">Het klembord is leeg</string>
+    <string name="live_captions_channel">Live ondertiteling</string>
+    <string name="live_captions_channel_description">Zichtbaar terwijl Mozhi het geluid van andere apps ondertitelt</string>
+    <string name="live_captions_notification_title">Live ondertiteling staat aan</string>
+    <string name="live_captions_notification_text">Mozhi ondertitelt het geluid dat andere apps afspelen. Er wordt niets opgenomen of bewaard.</string>
+    <string name="live_captions_stop">Stoppen</string>
+    <string name="live_captions_stop_description">Live ondertiteling stoppen</string>
+    <string name="live_captions_open_description">Mozhi openen</string>
+    <string name="live_captions_bar_description">Live ondertiteling</string>
 </resources>

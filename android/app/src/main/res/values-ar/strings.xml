@@ -39,4 +39,12 @@
     <string name="bubble_remove_action">إزالة الفقاعة</string>
     <string name="bubble_remove_target">إزالة</string>
     <string name="bubble_clipboard_empty">الحافظة فارغة</string>
+    <string name="live_captions_channel">الترجمة المباشرة</string>
+    <string name="live_captions_channel_description">تظهر أثناء ترجمة Mozhi لصوت التطبيقات الأخرى</string>
+    <string name="live_captions_notification_title">الترجمة المباشرة قيد التشغيل</string>
+    <string name="live_captions_notification_text">يكتب Mozhi ترجمة للصوت الذي تشغّله التطبيقات الأخرى. لا يُسجَّل أو يُحفَظ أي شيء.</string>
+    <string name="live_captions_stop">إيقاف</string>
+    <string name="live_captions_stop_description">إيقاف الترجمة المباشرة</string>
+    <string name="live_captions_open_description">فتح Mozhi</string>
+    <string name="live_captions_bar_description">الترجمة المباشرة</string>
 </resources>

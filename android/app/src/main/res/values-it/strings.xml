@@ -39,4 +39,12 @@
     <string name="bubble_remove_action">Rimuovi la bolla</string>
     <string name="bubble_remove_target">Rimuovi</string>
     <string name="bubble_clipboard_empty">Gli appunti sono vuoti</string>
+    <string name="live_captions_channel">Sottotitoli dal vivo</string>
+    <string name="live_captions_channel_description">Visibile mentre Mozhi sottotitola l\'audio delle altre app</string>
+    <string name="live_captions_notification_title">I sottotitoli dal vivo sono attivi</string>
+    <string name="live_captions_notification_text">Mozhi sottotitola l\'audio riprodotto dalle altre app. Niente viene registrato o salvato.</string>
+    <string name="live_captions_stop">Interrompi</string>
+    <string name="live_captions_stop_description">Interrompi i sottotitoli dal vivo</string>
+    <string name="live_captions_open_description">Apri Mozhi</string>
+    <string name="live_captions_bar_description">Sottotitoli dal vivo</string>
 </resources>

@@ -5,6 +5,7 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:mozhi/speech/browser_voices.dart' as browser;
 import 'package:mozhi/speech/speech_language.dart';
 import 'package:mozhi/speech/speech_settings.dart';
+import 'package:mozhi/speech/spoken_range.dart';
 
 export 'device_voice.dart';
 
@@ -111,7 +112,14 @@ abstract interface class DeviceTts {
 ///   utterance; those are swallowed, and [speak] waits (up to
 ///   [settleTimeout]) for them first, because the web plugin drops `speak`
 ///   calls until the cancelled utterance has ended.
-class FlutterTtsDeviceTts implements DeviceTts {
+/// * Progress ([onProgress]): the plugin's progress handler reports the
+///   word being read as offsets into the utterance's text (Android 8.0+
+///   `onRangeStart`; the web's `boundary` events, whose word the plugin
+///   runs on to the next ASCII space or punctuation; Android before 8.0
+///   reports the whole text once). Reports for another text than the
+///   latest [speak]'s, or while nothing is being spoken, are dropped;
+///   the rest are cleaned with [cleanSpokenRange].
+class FlutterTtsDeviceTts implements DeviceTts, DeviceTtsProgress {
   new({
     FlutterTts Function()? createTts,
     TargetPlatform? platform,
@@ -142,6 +150,10 @@ class FlutterTtsDeviceTts implements DeviceTts {
   /// The default voice of [_language], when known (see [activeVoice]).
   DeviceVoice? _defaultVoice;
   final StreamController<void> _completions = StreamController.broadcast();
+  final StreamController<SpokenRange> _progress = StreamController.broadcast();
+
+  /// The text of the latest [speak], whose progress is reported.
+  String? _utterance;
 
   /// Tags known to be available, mapped to the tag to pass to the engine.
   /// Negative answers are not cached: the user may install a voice.
@@ -204,6 +216,9 @@ class FlutterTtsDeviceTts implements DeviceTts {
   @override
   Stream<void> get onComplete => _completions.stream;
 
+  @override
+  Stream<SpokenRange> get onProgress => _progress.stream;
+
   FlutterTts get _engine {
     if (_tts case final tts?) return tts;
     if (!isSupported) {
@@ -212,7 +227,15 @@ class FlutterTtsDeviceTts implements DeviceTts {
     return _tts = _createTts()
       ..setCompletionHandler(_onEnded)
       ..setCancelHandler(_onEnded)
-      ..setErrorHandler((_) => _onEnded());
+      ..setErrorHandler((_) => _onEnded())
+      ..setProgressHandler(_onProgress);
+  }
+
+  /// A progress report of the engine: [start] to [end] of [text].
+  void _onProgress(String text, int start, int end, String word) {
+    if (!_speaking || _stopped > 0 || text != _utterance) return;
+    final range = cleanSpokenRange(text, start, end);
+    if (range != null && !_progress.isClosed) _progress.add(range);
   }
 
   @override
@@ -426,6 +449,7 @@ class FlutterTtsDeviceTts implements DeviceTts {
     await _settle();
     if (_isIOS) await _useSpeakerSession(tts);
     _speaking = true;
+    _utterance = text;
     try {
       if (await tts.speak(text) == 0) {
         throw const DeviceTtsException('The speech engine rejected the text.');
@@ -495,6 +519,7 @@ class FlutterTtsDeviceTts implements DeviceTts {
     final speaking = _speaking;
     _speaking = false;
     await _completions.close();
+    await _progress.close();
     if (speaking) await _tts?.stop();
   }
 }
