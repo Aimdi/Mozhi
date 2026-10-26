@@ -86,6 +86,9 @@ void main() {
     );
     await tester.pump();
     expect(bridge.activations, 1);
+    // The update never took over: it reloads anyway.
+    await tester.pump(shell.reloadTimeout);
+    expect(bridge.reloads, 1);
   });
 
   testWidgets('says when the browser cannot keep the app', (tester) async {

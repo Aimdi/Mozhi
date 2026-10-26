@@ -143,10 +143,21 @@ class AppShell {
   /// The status now.
   AppShellStatus get current => _status;
 
-  /// The status now, then each change.
-  Stream<AppShellStatus> get status async* {
-    yield _status;
-    yield* _changes.stream;
+  /// The status now, then each change (none is missed between the two).
+  Stream<AppShellStatus> get status {
+    late final StreamController<AppShellStatus> controller;
+    StreamSubscription<AppShellStatus>? changes;
+    controller = StreamController<AppShellStatus>(
+      onListen: () {
+        controller.add(_status);
+        changes = _changes.stream.listen(
+          controller.add,
+          onDone: controller.close,
+        );
+      },
+      onCancel: () => changes?.cancel(),
+    );
+    return controller.stream;
   }
 
   /// Keeps the app in the browser ([enabled]) or removes it (unregisters
@@ -163,7 +174,8 @@ class AppShell {
         _events ??= _bridge.events.listen(_onEvent);
         _apply(await _bridge.register());
       } else {
-        await _events?.cancel();
+        // Not awaited: nothing depends on it.
+        unawaited(_events?.cancel());
         _events = null;
         _keptLoaded = false;
         _set(AppShellStatus.unsupported);

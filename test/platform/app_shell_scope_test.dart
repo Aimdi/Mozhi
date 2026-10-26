@@ -74,13 +74,15 @@ void main() {
     await pump(tester);
     await tester.pump();
     bridge.change(const AppShellWorkers(active: true, waiting: true));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pumpAndSettle();
     expect(find.text('Update ready'), findsOneWidget);
 
     await tester.tap(find.text('Reload'));
     await tester.pump();
     expect(bridge.activations, 1);
+    bridge.emit(AppShellEvent.controllerChanged);
+    await tester.pump();
+    expect(bridge.reloads, 1);
 
     // Not again in this session.
     bridge.change(const AppShellWorkers(active: true));
@@ -95,8 +97,7 @@ void main() {
     setUpShell();
     bridge.next = const AppShellWorkers(active: true, waiting: true);
     await pump(tester);
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pumpAndSettle();
     expect(find.text('Update ready'), findsOneWidget);
     await tester.pump(AppShellScope.noticeDuration);
     await tester.pumpAndSettle();

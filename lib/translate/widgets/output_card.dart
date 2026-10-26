@@ -1850,6 +1850,18 @@ class _PlainOutputTextState extends State<_PlainOutputText> {
 
   void _onTextTap() => _words.onTap(context);
 
+  /// Tells the tap tracker; once a selection is cleared, the spoken range
+  /// held for it catches up.
+  void _onSelectionChanged(
+    TextSelection selection,
+    SelectionChangedCause? cause,
+  ) {
+    _words.onSelectionChanged(selection, cause);
+    if (!_words.hasSelection && _shownSpoken != widget.spoken) {
+      setState(() {});
+    }
+  }
+
   /// The spoken range to draw: [_PlainOutputText.spoken], or the one drawn
   /// last while text is selected.
   TextRange? _spoken() {
@@ -1898,7 +1910,7 @@ class _PlainOutputTextState extends State<_PlainOutputText> {
         textDirection: widget.textDirection,
         contextMenuBuilder: widget.contextMenuBuilder,
         focusNode: _words.focusNode,
-        onSelectionChanged: _words.onSelectionChanged,
+        onSelectionChanged: _onSelectionChanged,
         onTap: onTap,
       );
     }
@@ -1949,7 +1961,7 @@ class _PlainOutputTextState extends State<_PlainOutputText> {
       textDirection: widget.textDirection,
       contextMenuBuilder: widget.contextMenuBuilder,
       focusNode: _words.focusNode,
-      onSelectionChanged: _words.onSelectionChanged,
+      onSelectionChanged: _onSelectionChanged,
       onTap: onTap,
     );
   }

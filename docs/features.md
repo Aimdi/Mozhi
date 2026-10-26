@@ -19,6 +19,7 @@ else works with a Mozhi instance alone.
 - [Dictionary](#dictionary)
 - [Proofread](#proofread)
 - [Image translation](#image-translation)
+- [Live camera](#live-camera)
 - [Voice](#voice)
 - [Shared conversation](#shared-conversation)
 - [Transcribe](#transcribe)
@@ -743,7 +744,8 @@ order:
 
 The method you choose is remembered for next time. A photo you took just as
 Android closed the app to free memory for the camera opens on the image
-screen when you come back.
+screen when you come back. To translate as you point the camera, without
+taking a photo first, use the [live camera](#live-camera).
 
 Before a photo is uploaded (AI vision, Mozhi) it is re-encoded without its
 metadata and scaled down to at most 1600 px on its longest side and about
@@ -753,6 +755,62 @@ front of the instance turns the upload down as too large, a smaller copy
 (about 900 KB) is sent once more. Language codes are mapped to Google's own
 (`zh-CN`, `zh-TW`, `iw`, ...), and a language Google does not offer is
 reported before anything is uploaded.
+
+## Live camera
+
+Point the camera at text and see it translated over the camera picture as
+you go, like a camera translator, on the phone (Android). **Live camera**
+is on the image screen (and in its toolbar while a photo is shown):
+
+- **The camera permission** is asked the first time you open it, by
+  Android's own dialog. When you refused it for good (**Don't ask again**),
+  **Open settings** takes you to Mozhi's page in Android's settings, and
+  coming back checks again.
+- **On-device reading.** The back camera's picture is read by the same
+  on-device text recognition as photos (Tesseract, see
+  [Text recognition](text-recognition.md)), in the language at the top
+  left; **Detect language** reads with the languages you installed (up to
+  three, your recent ones first). Missing language data is offered for
+  download or import, as on the image screen, and **Choose the language of
+  the text** is always at hand.
+- **Steady translations.** Each paragraph is followed from one frame to the
+  next, so its box holds still while the camera moves a little, and it is
+  translated once: only new or changed text is translated again (a reading
+  that differs by a letter or two is taken for the same text), and text
+  seen before is translated from memory. New paragraphs of a frame go to
+  the engine in one request. The translations are drawn like the photo
+  overlay: each paragraph's area is filled with the colour around it and the
+  translation fitted in, right to left for Arabic or Hebrew; text still
+  being read shows as a thin outline.
+- **Translate live with** (the chip under the languages) chooses the engine
+  of the live features (also [Live captions](#live-captions)): the offline
+  engine by default, an on-device AI model, or any other engine you set up.
+  An engine that sends text off the phone asks once first, saying it will
+  get the text of everything live translation reads, as it comes in; your
+  privacy mode and consent prompts still apply on top.
+- **Gentle on the phone.** One frame is read at a time (the next is taken
+  once the last one is done, at most about three a second), less often
+  while the phone is hot or saving battery. The camera stops while Mozhi is
+  in the background, while the app lock is locked and while the phone is
+  critically hot, and goes on by itself afterwards.
+- **Flashlight, zoom, Freeze.** The flashlight button lights the text up;
+  the zoom button steps through 1×, 2×, 4× and back (as far as the camera
+  goes), or pinch the picture. **Freeze** takes a photo and opens it on the
+  image screen, translated with on-device text recognition, with the full
+  photo overlay: zoom, tap a paragraph for both texts, share or save the
+  image. **Close** goes back to the image screen.
+- **Accessible.** Every button has a label and a 48 dp target. Screen
+  readers find each translation where it is drawn, with the original as
+  hint. The status line under the picture is a live region that speaks only
+  when the status changes (paused, slower, the engine), never for every
+  frame.
+- **Private.** The camera picture never leaves the phone and is never
+  stored: frames are read in memory and dropped. Only the recognised text
+  goes to the live engine. A link (`mozhi://image/live`) opens the image
+  screen, never the camera. See [Privacy](privacy.md#screen-keyboard-and-clipboard).
+
+Live camera needs the Android app (it uses Android's own Camera2 interface,
+no Google code); the web app doesn't offer it.
 
 ## Voice
 
@@ -1878,6 +1936,7 @@ unprotected.**).
 | Offline translation | ✓ | ✓ (models in the browser's private storage) |
 | On-device AI | ✓ (64-bit phones with enough memory) | |
 | On-device text recognition | ✓ (Tesseract; ML Kit in the Play variant) | |
+| Live camera (translation over the camera picture) | ✓ (a camera; Camera2) | |
 | Office documents, e-books, localisation files and HTML | ✓ | ✓ (large files can pause the page while they are read) |
 | PDF documents (pages read on the device, translated PDF and text) | ✓ | — (listed as needing the Android app) |
 | Translate screen, floating bubble | ✓ | |

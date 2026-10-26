@@ -870,11 +870,11 @@ class LiveCameraCubit extends Cubit<LiveCameraState> {
     await _quietly(() => _camera.setZoom(zoom));
   }
 
-  /// Takes a still for the photo page and closes the camera; null (and
-  /// [LiveCameraState.freezeFailures] counts it) when that failed, and the
-  /// camera reads on.
-  Future<PickedImage?> freeze() async {
-    if (!state.isLive) return null;
+  /// Takes a still for the photo page ([LiveCameraState.still], status
+  /// [LiveCameraStatus.frozen]) and closes the camera. When that failed,
+  /// [LiveCameraState.freezeFailures] counts it and the camera reads on.
+  Future<void> freeze() async {
+    if (!state.isLive) return;
     emit(state.copyWith(status: LiveCameraStatus.freezing));
     PickedImage? still;
     try {
@@ -882,7 +882,7 @@ class LiveCameraCubit extends Cubit<LiveCameraState> {
     } on Object {
       still = null;
     }
-    if (isClosed || state.status != LiveCameraStatus.freezing) return null;
+    if (isClosed || state.status != LiveCameraStatus.freezing) return;
     if (still == null) {
       emit(
         state.copyWith(
@@ -891,7 +891,7 @@ class LiveCameraCubit extends Cubit<LiveCameraState> {
         ),
       );
       _ensureLoop();
-      return null;
+      return;
     }
     _stopCamera();
     emit(
@@ -902,7 +902,6 @@ class LiveCameraCubit extends Cubit<LiveCameraState> {
         torchOn: false,
       ),
     );
-    return still;
   }
 
   static Future<void> _quietly(Future<void> Function() call) async {

@@ -440,6 +440,15 @@ void main() {
         kept.textEditingValue.selection,
         const TextSelection(baseOffset: 0, extentOffset: 7),
       );
+      // Once the selection is gone, the highlight catches up.
+      kept.userUpdateTextEditingValue(
+        kept.textEditingValue.copyWith(
+          selection: const TextSelection.collapsed(offset: 3),
+        ),
+        SelectionChangedCause.tap,
+      );
+      await tester.pump();
+      expect(_spoken(tester), ['monde']);
     });
 
     testWidgets('shows over the unsure sentences of the on-device engine', (

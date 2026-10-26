@@ -977,18 +977,19 @@ void main() {
       camera.picture = still;
       final cubit = await running();
 
-      final frozen = await cubit.freeze();
+      await cubit.freeze();
 
-      expect(frozen, same(still));
       expect(cubit.state.status, LiveCameraStatus.frozen);
       expect(cubit.state.still, same(still));
       expect(camera.stops, 1);
-      expect(await cubit.freeze(), isNull);
+      await cubit.freeze();
+      expect(camera.pictures, 1);
     });
 
     test('a failed freeze reads on', () async {
       final cubit = await running();
-      expect(await cubit.freeze(), isNull);
+      await cubit.freeze();
+      expect(cubit.state.still, isNull);
       expect(cubit.state.freezeFailures, 1);
       expect(cubit.state.status, LiveCameraStatus.running);
       await show([paragraph('Hello world')]);
@@ -1002,7 +1003,8 @@ void main() {
       expect(cubit.state.status, LiveCameraStatus.freezing);
       cubit.setForeground(visible: false);
       camera.pictureGate!.complete(null);
-      expect(await frozen, isNull);
+      await frozen;
+      expect(cubit.state.still, isNull);
       expect(cubit.state.status, LiveCameraStatus.paused);
     });
 
