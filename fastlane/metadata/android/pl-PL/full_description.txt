@@ -1,0 +1,39 @@
+Mozhi Translate to prywatny tłumacz bez konta, bez reklam i bez śledzenia. Tłumacz na telefonie, przez serwery Mozhi (otwartoźródłowy frontend dla Google, DeepL i innych) lub z wybranym przez Ciebie modelem AI, w chmurze albo na Twoim własnym komputerze.
+
+DOMYŚLNIE PRYWATNIE
+• Najpierw offline: tłumaczenie na telefonie, gdy para języków jest zainstalowana; w przeciwnym razie Mozhi pyta, zanim Twój tekst trafi do sieci. Możesz też wybrać „Tylko offline” lub „Online”
+• Twój tekst trafia tylko do wybranych przez Ciebie usług, a przy każdym tłumaczeniu widać, kto je otrzymał
+• Adresy e-mail, numery telefonów, numery IBAN, numery kart i adresy IP zostają na telefonie, gdy tekst trafia do sieci
+• Szyfrowana historia, wyłączona z kopii zapasowej Androida w chmurze; tryb incognito, blokada aplikacji i lista wszystkich żądań sieciowych
+• Bez analityki, bez telemetrii, bez raportów o awariach, bez kodu Google
+
+OFFLINE NA TELEFONIE
+• Około 55 języków z silnikiem Bergamot od Mozilli i modelami Firefox Translations
+• Rozpoznawanie mowy z Whisper, rozpoznawanie tekstu z Tesseract i modele AI na urządzeniu
+• Pobierane tylko wtedy, gdy je dotkniesz, i sprawdzane przed użyciem, albo importowane z plików. Ich wydawcy (Mozilla w Google Cloud, Hugging Face, GitHub) widzą Twój adres IP, chyba że korzystasz z serwera lustrzanego
+
+ONLINE, GDY CHCESZ
+• Wbudowane publiczne serwery Mozhi lub Twoje własne, z automatycznym przełączaniem awaryjnym. Publiczne serwery prowadzą inne osoby: one i ich silnik mogą czytać to, co im wysyłasz
+• OpenAI, Anthropic, Gemini, OpenRouter, Mistral lub dowolny serwer zgodny z OpenAI z Twoim własnym kluczem; modele lokalne z Ollama, LM Studio lub llama.cpp; DeepL API i LibreTranslate
+• Porównaj silniki obok siebie; silnik „Szybki” i silnik „Najlepszy” oddalone o jedno dotknięcie
+
+DODATKI AI
+• Ton, poziom trudności (CEFR A1 do C2), płeć, kontekst, glosariusze i szablony; własne cele, np. „Język piratów”
+• Dopracuj (Bardziej formalnie, Krócej, Prościej i inne), alternatywy, niuanse i wyjaśnienia
+• Sprawdź znaczenie: tłumaczenie zwrotne, które wskazuje różnice w znaczeniu
+• Korekta i słownik
+
+APARAT, DOKUMENTY I GŁOS
+• Aparat na żywo i zdjęcia: tekst jest odczytywany na telefonie, a tłumaczenie nakładane na niego
+• Dokumenty zachowują formatowanie i układ: PDF, Word, PowerPoint, Excel, OpenDocument, EPUB, napisy i pliki lokalizacyjne
+• Rozmowa twarzą w twarz lub udostępniona na telefony gości w tej samej sieci Wi-Fi
+• Transkrypcja wykładów i napisy do dźwięku z innych aplikacji (Android 10 i nowsze), rozpoznawane na telefonie
+
+NA CO DZIEŃ
+• Natychmiastowe tłumaczenie podczas pisania, wykrywanie języka, dotknij słowa, aby je wyszukać
+• „Przetłumacz w Mozhi” i „Przetłumacz offline” w menu zaznaczania każdej aplikacji; tłumaczenie ekranu, udostępnianie do Mozhi, kafelki szybkich ustawień i widżet
+• Ulubione, rozmówki i ćwiczenia z fiszkami
+• Szyfrowane kopie zapasowe, synchronizacja przez Twój własny serwer WebDAV, przesyłanie z telefonu na telefon
+• Material You, ciemne motywy, układy dla tabletów i etykiety dla czytników ekranu
+
+Mozhi Translate to wolne i otwarte oprogramowanie (MIT), niezależny i nieoficjalny klient: frontend Mozhi (codeberg.org/aryak/mozhi) to osobny projekt, a aplikacja nie jest powiązana z Google, DeepL ani żadnym dostawcą AI.

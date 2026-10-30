@@ -575,6 +575,26 @@ void main() {
       await cubit.close();
     });
 
+    test('a transcript longer than History keeps is saved in parts', () async {
+      final cubit = await listening();
+      final long = 'w' * 9000;
+      transcriber
+        ..heard(long, start: 0, end: 1)
+        ..heard(long, start: 1, end: 2)
+        ..heard(long, start: 2, end: 3);
+      await settle();
+      await cubit.saveToHistory();
+      final saved = verify(() => history.add(captureAny())).captured
+          .cast<HistoryEntry>();
+      expect(saved, hasLength(2));
+      final [second, first] = saved;
+      expect(first.text, '(1/2) $long\n\n$long');
+      expect(second.text, '(2/2) $long');
+      expect(second.id, '${first.id}.2');
+      expect(cubit.state.historyOutcome, TranscribeHistoryOutcome.saved);
+      await cubit.close();
+    });
+
     test('a translated transcript names its engine and language', () async {
       final cubit = await withTranscript();
       cubit

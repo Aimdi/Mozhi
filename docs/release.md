@@ -106,7 +106,8 @@ GitHub's generated notes plus a fixed description of the files.
    - Bump `version: <name>+<code>` in `pubspec.yaml`. Keep the code below
      1000, because split APKs add 1000, 2000 and 4000 to it.
    - Write `fastlane/metadata/android/en-US/changelogs/<code>.txt` (at
-     most 500 characters) and the translated ones.
+     most 500 characters) and the translated ones, one for every app
+     language (CI fails without them).
    - Copy them to `<code+1000>`, `<code+2000>` and `<code+4000>`
      ([store README, step 3](store/README.md#release-checklist)).
    - Validate: `python3 fastlane/validate_metadata.py --strict`.

@@ -369,6 +369,83 @@ void main() {
       }
     });
 
+    group('passphrase normalisation', () {
+      // "Việt" composed (NFC), and as typed with combining marks.
+      const composed = 'Vi\u1EC7t nam ph\u1EDD';
+      const decomposed = 'Vie\u0323\u0302t nam pho\u031B\u0300';
+
+      test('either way of typing a letter opens the backup', () async {
+        final sealed = await _codec.encrypt(_snapshot, decomposed);
+        expect(await _codec.decrypt(sealed, composed), _snapshot);
+        expect(await _codec.decrypt(sealed, decomposed), _snapshot);
+        final other = await _codec.encrypt(_snapshot, composed);
+        expect(await _codec.decrypt(other, decomposed), _snapshot);
+      });
+
+      test('keys are derived from the NFC passphrase', () async {
+        final salt = BackupCodec.newSalt();
+        final nfc = await _codec.deriveKey(composed, salt: salt);
+        expect(await _codec.deriveKey(decomposed, salt: salt), nfc);
+        expect(
+          await _codec.deriveKey(decomposed, salt: salt, asTyped: true),
+          isNot(nfc),
+        );
+        expect(
+          await _codec.deriveKey(composed, salt: salt, asTyped: true),
+          nfc,
+        );
+      });
+
+      Future<Uint8List> legacy(String passphrase) async {
+        // How backups were encrypted before: the passphrase as typed.
+        final key = await _codec.deriveKey(
+          passphrase,
+          salt: BackupCodec.newSalt(),
+          asTyped: true,
+        );
+        return await _codec.encryptWithKey(_snapshot, key);
+      }
+
+      test('a backup made with the passphrase as typed still opens', () async {
+        final old = await legacy(decomposed);
+        expect(await _codec.decrypt(old, decomposed), _snapshot);
+        await expectLater(
+          _codec.decrypt(old, 'Vie\u0323\u0302t nam pho'),
+          throwsA(isA<BackupPassphraseException>()),
+        );
+      });
+
+      test('unlockKeyFor finds the key that opens the file', () async {
+        final old = await legacy(decomposed);
+        final typed = await _codec.unlockKeyFor(old, decomposed);
+        expect(await _codec.decryptWithKey(old, typed), _snapshot);
+        expect(
+          typed,
+          await _codec.deriveKeyFor(old, decomposed, asTyped: true),
+        );
+
+        final current = await _codec.encrypt(_snapshot, composed);
+        final nfc = await _codec.unlockKeyFor(current, decomposed);
+        expect(nfc, await _codec.deriveKeyFor(current, composed));
+        expect(await _codec.unlockKeyFor(current, composed), nfc);
+
+        // Neither opens it: the NFC key, which fails like a wrong one.
+        final wrong = await _codec.unlockKeyFor(old, 'Vie\u0323\u0302t');
+        expect(wrong, await _codec.deriveKeyFor(old, 'Vi\u1EC7t'));
+        await expectLater(
+          _codec.decryptWithKey(old, wrong),
+          throwsA(isA<BackupPassphraseException>()),
+        );
+      });
+
+      test('unlockKeyFor refuses what is not a backup', () async {
+        await expectLater(
+          _codec.unlockKeyFor(Uint8List(3), decomposed),
+          _formatError(),
+        );
+      });
+    });
+
     group('keys', () {
       test('derive once and reuse (sync)', () async {
         final key = await _codec.deriveKey(

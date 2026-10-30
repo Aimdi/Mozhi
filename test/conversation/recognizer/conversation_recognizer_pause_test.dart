@@ -31,7 +31,7 @@ void main() {
         any(),
         owner: any(named: 'owner'),
         detectLanguage: any(named: 'detectLanguage'),
-        offlinePause: any(named: 'offlinePause'),
+        pause: any(named: 'pause'),
       ),
     ).thenAnswer((_) async => true);
   });
@@ -41,32 +41,29 @@ void main() {
     await results.close();
   });
 
-  test(
-    'passes the pause that ends an utterance on as the offline pause',
-    () async {
-      final recognizer = SpeechInputConversationRecognizer(service);
-      const pause = Duration(milliseconds: 800);
-      recognizer
-          .listen(_english, detectLanguage: true, pause: pause)
-          .listen((_) {});
-      await Future<void>.delayed(Duration.zero);
-      verify(
-        () => service.listen(
-          'en',
-          owner: any(named: 'owner'),
-          detectLanguage: true,
-          offlinePause: pause,
-        ),
-      ).called(1);
-      await recognizer.dispose();
-    },
-  );
+  test('passes the pause that ends an utterance on to the service', () async {
+    final recognizer = SpeechInputConversationRecognizer(service);
+    const pause = Duration(milliseconds: 800);
+    recognizer
+        .listen(_english, detectLanguage: true, pause: pause)
+        .listen((_) {});
+    await Future<void>.delayed(Duration.zero);
+    verify(
+      () => service.listen(
+        'en',
+        owner: any(named: 'owner'),
+        detectLanguage: true,
+        pause: pause,
+      ),
+    ).called(1);
+    await recognizer.dispose();
+  });
 
   test('passes none without one', () async {
     final recognizer = SpeechInputConversationRecognizer(service);
     recognizer.listen(_english).listen((_) {});
     await Future<void>.delayed(Duration.zero);
-    // No offline pause: the service's own.
+    // No pause: the recogniser's own.
     verify(() => service.listen('en', owner: any(named: 'owner'))).called(1);
     await recognizer.dispose();
   });

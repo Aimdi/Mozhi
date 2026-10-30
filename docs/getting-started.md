@@ -98,10 +98,15 @@ again** starts it over):
    asking each time (each cloud AI provider still asks once). See
    [Privacy](privacy.md) for the details.
 3. **Pick your languages**: the languages you translate from (or Detect
-   language) and into. On Android, Mozhi then offers to download them for
-   offline use, with the size of each download; on mobile data it asks
-   first, and **Download over Wi-Fi only** keeps downloads to Wi-Fi. Languages
-   the offline engine doesn't support yet are named, because they need an
+   language) and into. While it is **Detect language**, Mozhi suggests one
+   of your phone's other languages (**French is one of your phone's
+   languages.** with **Translate from French**). Mozhi then offers to
+   download the pair for offline use, with the size of each download: a
+   checkbox per language, checked for you on Android when the phone has
+   room. The checked languages download when you tap **Next** (never
+   before; **Skip** downloads nothing); on mobile data it asks first, and
+   **Download over Wi-Fi only** keeps downloads to Wi-Fi. Languages the
+   offline engine doesn't support yet are named, because they need an
    online service.
 4. **Online translation** (optional): for languages that aren't on the
    device. Mozhi uses one of the built-in public instances, run by
@@ -139,7 +144,13 @@ After that you land on the **Translate** tab:
    languages sit above two panes instead, and the options and the go button
    under your text.
 2. The **engine button** chooses who translates: one of the engines your
-   Mozhi instance offers (Google, DeepL, ...) or one of your AI models. Once
+   Mozhi instance offers (Google, DeepL, ...) or one of your AI models.
+   Right after the setup, in **Offline first**, it says **On device +
+   Google**: what the device can translate stays on it, and for a language
+   that isn't downloaded Mozhi asks before sending your text to Google
+   (**Once** or **Always for** that pair), next to **Download French
+   (49.6 MB)**, which downloads it right there and then translates on the
+   device. Once
    you have chosen a Fast and a Best engine under **Settings > Translation
    engines > Quality modes**, a **Fast** / **Best** toggle next to it
    switches between them, and one of the two is always selected.

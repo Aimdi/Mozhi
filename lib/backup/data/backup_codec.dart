@@ -7,6 +7,7 @@ import 'package:cryptography/dart.dart';
 import 'package:equatable/equatable.dart';
 import 'package:flutter/foundation.dart';
 import 'package:mozhi/backup/data/gzip/backup_gzip.dart';
+import 'package:mozhi/backup/data/passphrase_nfc.dart';
 import 'package:mozhi/backup/models/backup_snapshot.dart';
 
 /// The passphrase is wrong, or the backup was damaged or changed: its
@@ -254,9 +255,13 @@ class BackupHeader extends Equatable {
 /// so changing the header (or the parameters in it) fails like a wrong
 /// passphrase.
 ///
-/// The key is Argon2id ([BackupKdf]) of the passphrase's UTF-8 bytes
-/// (exactly as typed) and a random 16-byte salt per file. Nothing is
-/// stored: neither the passphrase nor the key leave the call.
+/// The key is Argon2id ([BackupKdf]) of the passphrase's UTF-8 bytes in
+/// Unicode NFC ([passphraseNfc]: "é" typed as one character or as "e" and
+/// a combining accent is the same passphrase) and a random 16-byte salt
+/// per file. Backups and sync files made before that (0.1.0-rc.5 and
+/// earlier) used the passphrase exactly as typed: [decrypt] and
+/// [unlockKeyFor] try that too when the two differ. Nothing is stored:
+/// neither the passphrase nor the key leave the call.
 ///
 /// The slow parts (Argon2id, gzip, AES) run in a background isolate on
 /// Android ([useIsolate]); in the web app, where there are no isolates,
@@ -326,20 +331,39 @@ class BackupCodec {
   /// Throws [BackupPassphraseException] (wrong passphrase or damaged
   /// data: GCM fails) or [BackupFormatException] (not a Mozhi backup, or a
   /// newer format).
+  ///
+  /// When [passphrase] is not in NFC and its NFC key does not open the
+  /// backup, the key of [passphrase] exactly as typed is tried as well
+  /// (backups made before passphrases were normalised).
   Future<BackupSnapshot> decrypt(Uint8List bytes, String passphrase) async {
     final key = await deriveKeyFor(bytes, passphrase);
-    return await decryptWithKey(bytes, key);
+    try {
+      return await decryptWithKey(bytes, key);
+    } on BackupPassphraseException {
+      if (passphraseNfc(passphrase) == passphrase) rethrow;
+      final typed = await deriveKeyFor(bytes, passphrase, asTyped: true);
+      return await decryptWithKey(bytes, typed);
+    }
   }
 
   /// For sync: derive once (Argon2id, slow) and reuse. Uses [kdf] unless
   /// [parameters] are given.
+  ///
+  /// The key is derived from [passphrase] in NFC ([passphraseNfc]), or,
+  /// with [asTyped], exactly as typed (how keys were derived before
+  /// passphrases were normalised).
   Future<BackupKey> deriveKey(
     String passphrase, {
     required Uint8List salt,
     BackupKdf? parameters,
+    bool asTyped = false,
   }) async {
     final used = parameters ?? kdf;
-    final message = (utf8.encode(passphrase), salt, used);
+    final message = (
+      utf8.encode(asTyped ? passphrase : passphraseNfc(passphrase)),
+      salt,
+      used,
+    );
     final key = useIsolate
         ? await compute(_derive, message)
         : await _derive(message);
@@ -347,11 +371,48 @@ class BackupCodec {
   }
 
   /// The key of [passphrase] for the backup [bytes]: derived with the salt
-  /// and parameters of its header. Throws [BackupFormatException] when
+  /// and parameters of its header (from the passphrase in NFC unless
+  /// [asTyped], see [deriveKey]). Throws [BackupFormatException] when
   /// [bytes] is not a backup.
-  Future<BackupKey> deriveKeyFor(Uint8List bytes, String passphrase) {
+  Future<BackupKey> deriveKeyFor(
+    Uint8List bytes,
+    String passphrase, {
+    bool asTyped = false,
+  }) {
     final header = readHeader(bytes);
-    return deriveKey(passphrase, salt: header.salt, parameters: header.kdf);
+    return deriveKey(
+      passphrase,
+      salt: header.salt,
+      parameters: header.kdf,
+      asTyped: asTyped,
+    );
+  }
+
+  /// The key that opens the backup (or sync file) [bytes] with
+  /// [passphrase], for sync to keep: [deriveKeyFor] the passphrase in NFC
+  /// and, when that differs from what was typed and does not open [bytes],
+  /// the one of the passphrase exactly as typed if that does (a file made
+  /// before passphrases were normalised). Otherwise the NFC key, which
+  /// then fails to open [bytes] like any wrong passphrase.
+  ///
+  /// Throws [BackupFormatException] when [bytes] is not a backup, or (only
+  /// checked when the two keys differ) when it opens but holds something
+  /// else or a newer format.
+  Future<BackupKey> unlockKeyFor(Uint8List bytes, String passphrase) async {
+    final key = await deriveKeyFor(bytes, passphrase);
+    if (passphraseNfc(passphrase) == passphrase) return key;
+    try {
+      await decryptWithKey(bytes, key);
+      return key;
+    } on BackupPassphraseException {
+      final typed = await deriveKeyFor(bytes, passphrase, asTyped: true);
+      try {
+        await decryptWithKey(bytes, typed);
+        return typed;
+      } on BackupPassphraseException {
+        return key;
+      }
+    }
   }
 
   /// Whether [bytes] (a backup) was encrypted with a key derived like

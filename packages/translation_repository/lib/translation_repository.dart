@@ -31,5 +31,6 @@ export 'src/quality/personal_data.dart';
 export 'src/quality/protected_patterns.dart';
 export 'src/quality/text_masker.dart';
 export 'src/quality/translation_qa.dart';
+export 'src/repository/instance_health.dart';
 export 'src/repository/repository_exceptions.dart';
 export 'src/translation_repository.dart';

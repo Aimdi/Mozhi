@@ -191,6 +191,34 @@ else works with a Mozhi instance alone.
   the next instance of your list the preferred one and translates again).
   When the network fails, the error also offers **Translate on this
   device** if the language pair is installed, or its download.
+- **Downloads right where you are:** a **Download French (49.6 MB)**
+  button on the translate screen (next to an error, a network failure or
+  a prompt that asks before sending) downloads that language there and
+  then, with the same checks as **Offline languages** (free space,
+  checksums, **Download over Wi-Fi only**: on mobile data it asks first),
+  shows its progress, and then translates your text on the device.
+  **Manage languages** opens the offline languages instead. A download
+  that started can't be stopped; if it is interrupted, it resumes next
+  time.
+- **First run, nothing downloaded:** in **Offline first**, while you
+  haven't chosen an engine, the engine button says **On device + Google**:
+  text whose language is downloaded is translated on the device; for
+  anything else Mozhi asks before sending it to Google on your Mozhi
+  server (**Once** or **Always for** the pair), next to the download of
+  the language it recognised. A one-line hint under the first such prompt
+  says what each does (**Download** keeps your text on the phone, **Once**
+  sends only this text). Choosing **Offline (on-device)** in the engine
+  list keeps every text on the device.
+- **When the volunteer servers fail:** a Mozhi server where a translation
+  failed is asked last for 12 hours (also after a restart), so the next
+  translation starts at one that worked; nothing is sent just to check a
+  server. When every server of your list failed for the engine, the error
+  says so in plain words (**Volunteer servers unavailable**) and offers,
+  in this order: **Translate on this device** (or the download of the
+  language pair), **Try another engine** (opens the engine picker; the
+  engine never changes on its own, since another engine sends your text
+  somewhere else) and **Choose another server** (the Mozhi instance
+  settings), then **Retry**. **Details** lists the servers tried.
 - **More languages at once:** **Also translate into…** in **Tools** adds up
   to four more target languages; see
   [Extra target languages](#extra-target-languages).
@@ -848,8 +876,10 @@ no Google code); the web app doesn't offer it.
   language Whisper hears translates next; off, the person whose turn it is
   speaks and Whisper listens in their language only. Both are in the
   menu's **Voice options**, with the pause (0.5 to 2 s; longer lets people
-  think mid-sentence). With the system recogniser the turns work as before
-  (it ends them itself). The menu's **Transcribe a talk** opens [Transcribe](#transcribe).
+  think mid-sentence). With the system recogniser the pause applies too:
+  once someone has started speaking, the turn ends when no new words have
+  come for that long (before the first words it waits its usual 3
+  seconds); speaker detection needs Whisper. The menu's **Transcribe a talk** opens [Transcribe](#transcribe).
   On Android, the menu's **Share on this network** lets everyone else
   follow on their own phone, in their own language
   ([Shared conversation](#shared-conversation)).
@@ -953,8 +983,11 @@ paragraph per phrase with its time (`1:05`), as a rolling transcript.
 - **Copy**, **Share**, **Save as text (.txt)** and **Save as subtitles
   (.srt)** (times from the transcript, the translation as a second line);
   **Save to History** saves the transcript as one entry, only when you ask
-  (as a favourite while history is paused). Nothing is saved otherwise:
-  the transcript is gone when you leave the screen.
+  (as a favourite while history is paused). History keeps up to 20,000
+  characters per entry, so a longer transcript is saved as numbered parts
+  ("(1/3) …", "(2/3) …", split between phrases) instead of being cut;
+  saving again updates them. Nothing is saved otherwise: the transcript is
+  gone when you leave the screen.
 - **Caption other apps** (the closed-caption button, Android 10 and
   later) opens [Live captions](#live-captions): the same on-device
   transcription for the sound other apps play.
@@ -999,8 +1032,9 @@ in an app that allows it. Open **Transcribe > Caption other apps**
 - **In Mozhi** the captions are a transcript (time, original,
   translation; side by side from 840 dp), with Copy, Share, **Save as
   text (.txt)**, **Save as subtitles (.srt)** and **Save to History** in
-  the menu, only when you ask. Nothing is kept otherwise: the transcript
-  goes when you leave the screen.
+  the menu, only when you ask (in numbered parts beyond 20,000 characters,
+  as in Transcribe). Nothing is kept otherwise: the transcript goes when
+  you leave the screen.
 - **When nothing is heard** for 20 seconds, the screen and the bar say
   that the app playing may not allow capturing its sound (or nothing
   plays). Captions pause while the phone is locked (the recording stops:
@@ -1771,7 +1805,8 @@ has a text-to-speech engine (Android and most browsers). The settings are kept o
   Turning it on asks once for **Display over other apps** and, on Android
   13 and later, for notifications: while the bubble is on, a notification
   says so and has **Stop**. The bubble hides while a Mozhi window is on
-  the screen, and it doesn't come back after the phone restarts. With a
+  the screen (so it first appears when you leave Mozhi after turning it
+  on), and it doesn't come back after the phone restarts. With a
   screen reader, double-tap it to translate the screen; its actions are
   **Translate clipboard** and **Remove the bubble**.
 - **Home-screen widget**: long-press the home screen, choose **Widgets**
@@ -1977,3 +2012,28 @@ unprotected.**).
 
 On the web, the browser enforces some extra rules for self-hosted servers;
 see the [FAQ](faq.md#does-the-web-app-work-with-my-self-hosted-servers).
+
+### Browsers
+
+The web app works in current versions of Chrome, Edge, Firefox and Safari
+(and the browsers built on their engines); every change is tested in
+Chromium, Firefox and WebKit, Safari's engine. Where a browser lacks
+something a feature needs, that feature says so and the rest of the app
+works as usual:
+
+| Feature | Chrome, Edge | Firefox | Safari |
+| --- | --- | --- | --- |
+| Online engines, AI providers, Proofread, History, Documents | ✓ | ✓ | ✓ |
+| Offline translation | 102 or later | 125 or later | 16.4 or later |
+| Opens with no network (after a first visit) | ✓ | ✓ | ✓ |
+| Voice input (the browser's speech recognition, sent to its maker) | ✓ | — | ✓ |
+| Read aloud (the system's voices) | ✓ | ✓ | ✓ |
+| Dictionary packs | ✓ | ✓ | 26 or later |
+| Encrypted backups | ✓ | ✓ (before 113 not compressed) | ✓ (before 16.4 not compressed) |
+
+Private windows may not give a site storage of its own (Firefox's give
+none): offline languages, dictionary packs and the offline copy of the app
+then say they are unavailable. Firefox asks once whether the site may keep
+its data; offline languages download whatever the answer, or while the
+question is still open. The word being read is highlighted where the voice
+reports it ([Follow along](#text-to-speech)).

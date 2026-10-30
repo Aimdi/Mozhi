@@ -4,12 +4,14 @@
 // are a phrasebook grouped by language pair.
 const { expect } = require('@playwright/test');
 const {
+  clearClipboard,
   collectPageErrors,
   copiedTranslation,
   escapeRegExp,
   fillField,
   openApp,
   openHistory,
+  readClipboard,
   recordAiRequests,
   seedSettings,
   sourceInput,
@@ -114,12 +116,12 @@ test('a translation appears in History and can be liked', async ({
   for (const name of [/^Share/, /^Delete/]) {
     await expect(item.getByRole('button', { name })).toBeVisible();
   }
-  await page.evaluate(() => navigator.clipboard.writeText(''));
+  await clearClipboard(page);
   await item.getByRole('button', { name: /^Copy( Copy)?$/ }).click();
   await expect(
     item.getByRole('button', { name: /^Copied to clipboard/ }),
   ).toBeVisible();
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+  expect(await readClipboard(page)).toBe(
     `[AI→French (Français)] ${FIRST}`,
   );
 

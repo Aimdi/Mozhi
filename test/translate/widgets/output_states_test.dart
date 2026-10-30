@@ -201,7 +201,7 @@ void main() {
       expect(find.byKey(const Key('translate_consent_prompt')), findsOneWidget);
       // The fake engine knows no sizes.
       expect(find.text('Download French'), findsOneWidget);
-      await tester.tap(find.byKey(const Key('translate_offline_download')));
+      await tester.tap(find.text('Manage languages'));
       verify(() => harness.router.push<void>('/settings/offline')).called(1);
     });
 

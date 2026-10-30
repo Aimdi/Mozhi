@@ -1,0 +1,5 @@
+Rilis pertama.
+• Terjemahkan offline di ponsel (sekitar 55 bahasa), melalui instans Mozhi, atau dengan model AI Anda
+• Ekstra AI: nada, tingkat bacaan, glosarium, penyempurnaan, periksa makna, koreksi
+• Kamera langsung, foto, PDF dan dokumen kantor, percakapan, transkripsi, teks langsung
+• Privat secara bawaan: Utamakan offline, riwayat terenkripsi, tanpa pelacakan

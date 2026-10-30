@@ -12,7 +12,10 @@ import 'package:mozhi/settings/view/widgets/add_instance_dialog.dart';
 import 'package:mozhi/settings/view/widgets/link_launcher.dart';
 import 'package:mozhi/settings/view/widgets/settings_section.dart';
 import 'package:mozhi_api/mozhi_api.dart' show MozhiPublicInstance;
-import 'package:translation_repository/translation_repository.dart';
+// The page shows this session's checks (core/network), not the
+// repository's record of failed servers.
+import 'package:translation_repository/translation_repository.dart'
+    hide InstanceHealth;
 
 import 'helpers.dart';
 

@@ -120,6 +120,43 @@ void main() {
       expect((await manager.install(ende.catalog)).pair, 'en-de');
     });
 
+    test('a prompt left unanswered does not hold the download', () async {
+      // Firefox asks the user; the promise waits for their answer.
+      final answer = Completer<bool>();
+      manager = OpfsModelManager(
+        channel: worker,
+        httpClient: server.client,
+        requestPersistence: () {
+          persistRequests++;
+          return answer.future;
+        },
+      );
+      expect((await manager.install(ende.catalog)).pair, 'en-de');
+      // One question at a time.
+      expect((await manager.install(deen.catalog)).pair, 'de-en');
+      expect(persistRequests, 1);
+
+      answer.complete(true);
+      await pumpEventQueue();
+      await manager.install(enzh.catalog);
+      expect(persistRequests, 1);
+    });
+
+    test('a request that throws at once is asked again later', () async {
+      manager = OpfsModelManager(
+        channel: worker,
+        httpClient: server.client,
+        requestPersistence: () {
+          persistRequests++;
+          throw StateError('no storage manager');
+        },
+      );
+      expect((await manager.install(ende.catalog)).pair, 'en-de');
+      await pumpEventQueue();
+      await manager.install(deen.catalog);
+      expect(persistRequests, 2);
+    });
+
     test('returns the installed model without downloading again', () async {
       await manager.install(ende.catalog);
       server.requests.clear();

@@ -78,6 +78,10 @@ class OnboardingState extends Equatable {
     this.ownInstanceMessage,
     this.ownInstanceLatency,
     this.onDevice = true,
+    this.deviceLanguages = const [],
+    this.preselectDownloads = false,
+    this.freeBytes,
+    this.downloadChoices = const {},
   });
 
   final OnboardingStep step;
@@ -96,6 +100,23 @@ class OnboardingState extends Equatable {
           OnboardingStep.languages,
           OnboardingStep.service,
         ];
+
+  // Languages
+
+  /// The phone's languages (BCP 47 tags, most preferred first): the
+  /// languages step suggests a source language from them.
+  final List<String> deviceLanguages;
+
+  /// Whether the languages step checks the downloads of the picked pair
+  /// for the user (on Android, when [freeBytes] says the phone has room).
+  final bool preselectDownloads;
+
+  /// The free storage for downloads, when known.
+  final int? freeBytes;
+
+  /// The user's own answers for the offline downloads of the languages
+  /// step, by language code (true: download it when they tap Next).
+  final Map<String, bool> downloadChoices;
 
   // Translation service
 
@@ -163,6 +184,8 @@ class OnboardingState extends Equatable {
     String? Function()? ownInstanceMessage,
     Duration? Function()? ownInstanceLatency,
     bool? onDevice,
+    int? Function()? freeBytes,
+    Map<String, bool>? downloadChoices,
   }) {
     return OnboardingState(
       step: step ?? this.step,
@@ -181,6 +204,10 @@ class OnboardingState extends Equatable {
           ? ownInstanceLatency()
           : this.ownInstanceLatency,
       onDevice: onDevice ?? this.onDevice,
+      deviceLanguages: deviceLanguages,
+      preselectDownloads: preselectDownloads,
+      freeBytes: freeBytes != null ? freeBytes() : this.freeBytes,
+      downloadChoices: downloadChoices ?? this.downloadChoices,
     );
   }
 
@@ -196,5 +223,9 @@ class OnboardingState extends Equatable {
     ownInstanceMessage,
     ownInstanceLatency,
     onDevice,
+    deviceLanguages,
+    preselectDownloads,
+    freeBytes,
+    downloadChoices,
   ];
 }

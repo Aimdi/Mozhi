@@ -10,6 +10,7 @@ import 'package:mozhi/transcribe/cubit/transcribe_state.dart';
 import 'package:mozhi/transcribe/data/screen_awake.dart';
 import 'package:mozhi/transcribe/data/transcriber.dart';
 import 'package:mozhi/transcribe/data/transcript_export.dart';
+import 'package:mozhi/transcribe/data/transcript_history.dart';
 import 'package:mozhi/transcribe/models/transcript_entry.dart';
 import 'package:mozhi/usage/data/usage_tracker.dart';
 import 'package:mozhi/voice/cubit/voice_settings_state.dart'
@@ -52,8 +53,9 @@ class TranscribeNoEngineException implements Exception {
 ///   time, in order.
 /// * The screen stays on while listening ([ScreenAwake]); a voice input
 ///   session elsewhere is cancelled first, so the microphone is free.
-/// * [saveToHistory] saves the transcript as one history entry, only when
-///   asked (as a favourite while history is paused).
+/// * [saveToHistory] saves the transcript as one history entry (numbered
+///   parts beyond History's 20,000 characters, [TranscriptHistory]), only
+///   when asked (as a favourite while history is paused).
 class TranscribeCubit extends Cubit<TranscribeState> {
   new({
     required this._repository,
@@ -115,6 +117,9 @@ class TranscribeCubit extends Cubit<TranscribeState> {
   /// The history entry this transcript is saved as (saving again updates
   /// it).
   String? _historyId;
+
+  /// How many parts the last save had ([TranscriptHistory.save]).
+  int _historyParts = 0;
 
   /// Finds out what can transcribe here.
   Future<void> load() async {
@@ -554,9 +559,10 @@ class TranscribeCubit extends Cubit<TranscribeState> {
     );
   }
 
-  /// Saves the transcript (and its translations) as one history entry;
-  /// saving again updates that entry. While history is paused it is saved
-  /// as a favourite (this is an explicit save).
+  /// Saves the transcript (and its translations) as one history entry, in
+  /// numbered parts when it is longer than History keeps
+  /// ([TranscriptHistory]); saving again updates them. While history is
+  /// paused it is saved as a favourite (this is an explicit save).
   Future<void> saveToHistory() async {
     final history = _history;
     if (history == null || !state.hasTranscript) return;
@@ -593,7 +599,12 @@ class TranscribeCubit extends Cubit<TranscribeState> {
     HistoryEntry entry,
   ) async {
     try {
-      await history.add(entry);
+      _historyParts = await TranscriptHistory.save(
+        history,
+        entry,
+        state.entries,
+        savedParts: _historyParts,
+      );
       return entry.isFavorite
           ? TranscribeHistoryOutcome.savedAsFavorite
           : TranscribeHistoryOutcome.saved;
@@ -625,6 +636,7 @@ class TranscribeCubit extends Cubit<TranscribeState> {
     _cancelTranslations();
     _offset = Duration.zero;
     _historyId = null;
+    _historyParts = 0;
     emit(
       state.copyWith(
         entries: const [],

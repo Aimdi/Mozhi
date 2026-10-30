@@ -1,5 +1,7 @@
 import 'package:mozhi_api/mozhi_api.dart';
 import 'package:translation_repository/src/models/data_destination.dart';
+import 'package:translation_repository/src/models/mozhi_instance.dart';
+import 'package:translation_repository/src/models/translation_engine.dart';
 
 /// The engine needs an explicit source language, and none could be
 /// detected for the text.
@@ -99,4 +101,68 @@ final class InstanceDoesNotTranslateException extends MozhiApiException {
     'engine does not exist|not supported or implemented',
     caseSensitive: false,
   );
+}
+
+/// Every Mozhi server the request was allowed to go to failed for
+/// [engine], each in a way another server might not have repeated (it was
+/// down, overloaded, or its engine failed upstream; see
+/// `MozhiPool.canFailOver`).
+///
+/// Thrown (as a stream error of `TranslationRepository.translate`) for
+/// translations with a Mozhi engine. A [MozhiApiException], so code that
+/// handles those keeps working: its [message], [statusCode] and [uri] are
+/// those of the last failure ([cause] when that was a
+/// [MozhiApiException], sanitised like every Mozhi error). The app should
+/// offer a way on that needs no Mozhi server: the device's own engine,
+/// another engine (never switched to on its own: another engine sends the
+/// text somewhere else), or another server.
+final class AllInstancesFailedException extends MozhiApiException {
+  const new(
+    super.message, {
+    required this.engine,
+    required this.instances,
+    this.cause,
+    super.statusCode,
+    super.uri,
+  });
+
+  /// Wraps the last failure [cause] of a request that failed on every
+  /// server of [instances] (in the order they were tried).
+  factory from(
+    Object cause, {
+    required TranslationEngine engine,
+    required List<MozhiInstance> instances,
+  }) => switch (cause) {
+    MozhiApiException(:final message, :final statusCode, :final uri) =>
+      AllInstancesFailedException(
+        message,
+        engine: engine,
+        instances: List.unmodifiable(instances),
+        cause: cause,
+        statusCode: statusCode,
+        uri: uri,
+      ),
+    _ => AllInstancesFailedException(
+      '$cause',
+      engine: engine,
+      instances: List.unmodifiable(instances),
+      cause: cause,
+    ),
+  };
+
+  /// The engine the servers were asked to translate with.
+  final TranslationEngine engine;
+
+  /// The servers that were tried, in order (none was skipped by the
+  /// privacy settings: those are not tried at all).
+  final List<MozhiInstance> instances;
+
+  /// The last server's failure.
+  final Object? cause;
+
+  @override
+  String toString() =>
+      'AllInstancesFailedException(${engine.id}, '
+      '${instances.length} server${instances.length == 1 ? '' : 's'}): '
+      '${cause ?? message}';
 }

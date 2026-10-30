@@ -16,6 +16,7 @@ import '../helpers.dart';
 const _french = Language(code: 'fr', name: 'French', nativeName: 'Français');
 const _german = Language(code: 'de', name: 'German', nativeName: 'Deutsch');
 const _japanese = Language(code: 'ja', name: 'Japanese');
+const _english = Language(code: 'en', name: 'English');
 
 /// An engine that is still loading its languages.
 class _SlowDetails implements OfflineModelDetails {
@@ -82,6 +83,119 @@ void main() {
       );
       expect(offlineCodeFor(traditional, languages), 'zh');
       expect(offlineCodeFor(traditional, languages, isTarget: true), isNull);
+    });
+  });
+
+  group('suggestedSourceLanguage', () {
+    test('is the first phone language that is not the target', () {
+      expect(
+        suggestedSourceLanguage([
+          'en-US',
+          'fr-FR',
+          'de',
+        ], target: _english)?.code,
+        'fr',
+      );
+      expect(suggestedSourceLanguage(['de-AT'], target: _french)?.code, 'de');
+    });
+
+    test('is null without another known language', () {
+      expect(suggestedSourceLanguage(const [], target: _english), isNull);
+      expect(
+        suggestedSourceLanguage(['en-GB', '', 'qq-ZZ'], target: _english),
+        isNull,
+      );
+    });
+  });
+
+  group('onboardingOfflinePair', () {
+    const languages = [
+      OfflineLanguage(code: 'en', name: 'English'),
+      OfflineLanguage(code: 'fr', name: 'French'),
+    ];
+
+    test('uses the suggestion only while detecting', () {
+      final detecting = onboardingOfflinePair(
+        source: Language.auto,
+        target: _english,
+        languages: languages,
+        suggested: _french,
+      );
+      expect(detecting.codes, ['fr', 'en']);
+      expect(detecting.unsupported, isEmpty);
+      final picked = onboardingOfflinePair(
+        source: _japanese,
+        target: _english,
+        languages: languages,
+        suggested: _french,
+      );
+      expect(picked.codes, ['en']);
+      expect(picked.unsupported, [_japanese]);
+    });
+
+    test('leaves out a suggestion the engine does not have', () {
+      final pair = onboardingOfflinePair(
+        source: Language.auto,
+        target: _french,
+        languages: languages,
+        suggested: _japanese,
+      );
+      expect(pair.codes, ['fr']);
+      expect(pair.unsupported, isEmpty);
+    });
+  });
+
+  group('onboardingCheckedDownloads', () {
+    const offline = OfflineModelsState(
+      status: OfflineModelsStatus.ready,
+      downloaded: {'en', 'de'},
+      downloadSizes: {'fr': 100 << 20, 'es': 100 << 20},
+    );
+
+    test('checks what fits on Android unless the user said otherwise', () {
+      const roomy = OnboardingState(
+        preselectDownloads: true,
+        freeBytes: 1 << 30,
+      );
+      expect(onboardingCheckedDownloads(roomy, offline, ['fr', 'es', 'de']), {
+        'fr',
+        'es',
+      });
+      expect(
+        onboardingCheckedDownloads(
+          roomy.copyWith(downloadChoices: {'es': false}),
+          offline,
+          ['fr', 'es'],
+        ),
+        {'fr'},
+      );
+    });
+
+    test('checks nothing by itself without room or off Android', () {
+      const tight = OnboardingState(
+        preselectDownloads: true,
+        freeBytes: 200 << 20,
+      );
+      expect(onboardingCheckedDownloads(tight, offline, ['fr', 'es']), isEmpty);
+      expect(
+        onboardingCheckedDownloads(
+          const OnboardingState(preselectDownloads: true),
+          offline,
+          ['fr'],
+        ),
+        isEmpty,
+      );
+      expect(
+        onboardingCheckedDownloads(
+          const OnboardingState(
+            freeBytes: 1 << 30,
+            downloadChoices: {'es': true},
+          ),
+          offline,
+          ['fr', 'es'],
+        ),
+        {'es'},
+      );
     });
   });
 
@@ -247,18 +361,80 @@ void main() {
       expect(find.byKey(const ValueKey('onboarding_offline_fr')), findsOne);
     });
 
-    testWidgets('downloads, deletes and remembers Wi-Fi only', (tester) async {
-      final (_, models) = await pump(
+    /// The step over a real [OnboardingCubit] showing it; tap Next with
+    /// `cubit.next()`.
+    Future<(OnboardingCubit, OfflineModelsCubit)> pumpFlow(
+      WidgetTester tester, {
+      AppSettings settings = testSettings,
+      List<String> deviceLanguages = const ['en-US'],
+      bool preselect = false,
+      int? freeBytes,
+    }) async {
+      tester.setScreenSize(const Size(420, 1600));
+      final settingsCubit = createSettings(settings);
+      addTearDown(settingsCubit.close);
+      final onboarding = OnboardingCubit(
+        repository: MockTranslationRepository(),
+        settings: settingsCubit,
+        onDevice: true,
+        deviceLanguages: () => deviceLanguages,
+        preselectDownloads: preselect,
+        freeSpace: () async => freeBytes,
+      )..goTo(OnboardingStep.languages);
+      addTearDown(onboarding.close);
+      await onboarding.loadFreeSpace();
+      final models = await createOfflineModels(translator);
+      addTearDown(models.close);
+      await tester.pumpOnboarding(
+        const LanguagesStep(),
+        onboarding: onboarding,
+        offline: models,
+        settings: settingsCubit,
+      );
+      await tester.pumpAndSettle();
+      return (onboarding, models);
+    }
+
+    Finder checkbox(String code) =>
+        find.byKey(ValueKey('onboarding_offline_check_$code'));
+
+    bool isChecked(WidgetTester tester, String code) =>
+        tester.widget<Checkbox>(checkbox(code)).value ?? false;
+
+    testWidgets('downloads checked languages on Next, deletes and remembers '
+        'Wi-Fi only', (tester) async {
+      final (onboarding, models) = await pumpFlow(
         tester,
         settings: const AppSettings(instances: testInstances, target: _french),
       );
       final french = find.byKey(const ValueKey('onboarding_offline_fr'));
-      await tester.tap(
+      // A checkbox, not a download at once.
+      expect(
         find.descendant(of: french, matching: find.text('Download')),
+        findsNothing,
       );
+      expect(isChecked(tester, 'fr'), isFalse);
+      expect(
+        find.text('Checked languages download when you tap Next.'),
+        findsOneWidget,
+      );
+      expect(
+        find.byTooltip('Download French when you tap Next'),
+        findsOneWidget,
+      );
+      await tester.tap(checkbox('fr'));
+      await tester.pumpAndSettle();
+      expect(isChecked(tester, 'fr'), isTrue);
+      expect(translator.downloads, isEmpty);
+
+      onboarding.next();
       await tester.pumpAndSettle();
       expect(translator.downloads, [('fr', true)]);
       expect(find.text('French is ready for offline use'), findsOneWidget);
+      expect(
+        find.text('Checked languages download when you tap Next.'),
+        findsNothing,
+      );
 
       await tester.tap(find.text('Download over Wi-Fi only'));
       await tester.pumpAndSettle();
@@ -284,17 +460,139 @@ void main() {
       expect(translator.downloaded, isNot(contains('fr')));
     });
 
+    testWidgets('Back and unchecked languages download nothing', (
+      tester,
+    ) async {
+      final (onboarding, _) = await pumpFlow(
+        tester,
+        settings: const AppSettings(instances: testInstances, target: _french),
+        preselect: true,
+        freeBytes: 1 << 40,
+      );
+      expect(isChecked(tester, 'fr'), isTrue);
+      onboarding.back();
+      await tester.pumpAndSettle();
+      expect(translator.downloads, isEmpty);
+
+      onboarding.next();
+      await tester.pumpAndSettle();
+      await tester.tap(checkbox('fr'));
+      await tester.pumpAndSettle();
+      expect(isChecked(tester, 'fr'), isFalse);
+      onboarding.next();
+      await tester.pumpAndSettle();
+      expect(translator.downloads, isEmpty);
+    });
+
+    testWidgets('suggests a source from the phone and checks the pair on '
+        'Android with room', (tester) async {
+      final (onboarding, _) = await pumpFlow(
+        tester,
+        deviceLanguages: const ['en-US', 'fr-FR'],
+        preselect: true,
+        freeBytes: 1 << 40,
+      );
+      expect(find.text('Detect language'), findsOneWidget);
+      expect(
+        find.text('French is one of your phone’s languages.'),
+        findsOneWidget,
+      );
+      // Its download, with the size, checked: English is built in.
+      final french = find.byKey(const ValueKey('onboarding_offline_fr'));
+      expect(
+        find.descendant(
+          of: french,
+          matching: find.text('Français · 40.0 MB download'),
+        ),
+        findsOneWidget,
+      );
+      expect(isChecked(tester, 'fr'), isTrue);
+      expect(translator.downloads, isEmpty);
+
+      await tester.tap(find.text('Translate from French'));
+      await tester.pumpAndSettle();
+      expect(find.text('Detect language'), findsNothing);
+      expect(
+        find.byKey(const Key('onboarding_source_suggestion')),
+        findsNothing,
+      );
+      expect(isChecked(tester, 'fr'), isTrue);
+
+      onboarding.next();
+      await tester.pumpAndSettle();
+      expect(translator.downloads, [('fr', true)]);
+    });
+
+    testWidgets('the suggestion is downloaded while detecting too', (
+      tester,
+    ) async {
+      final (onboarding, _) = await pumpFlow(
+        tester,
+        deviceLanguages: const ['fr-FR'],
+        preselect: true,
+        freeBytes: 1 << 40,
+      );
+      onboarding.next();
+      await tester.pumpAndSettle();
+      expect(translator.downloads, [('fr', true)]);
+    });
+
+    testWidgets('nothing is checked without room or off Android', (
+      tester,
+    ) async {
+      final (_, _) = await pumpFlow(
+        tester,
+        deviceLanguages: const ['fr-FR'],
+        preselect: true,
+        freeBytes: 10 << 20,
+      );
+      expect(isChecked(tester, 'fr'), isFalse);
+    });
+
+    testWidgets('no suggestion from a phone in the target language only', (
+      tester,
+    ) async {
+      await pumpFlow(tester, deviceLanguages: const ['en-GB']);
+      expect(
+        find.byKey(const Key('onboarding_source_suggestion')),
+        findsNothing,
+      );
+      // English is built in: nothing to check.
+      expect(
+        find.text('Checked languages download when you tap Next.'),
+        findsNothing,
+      );
+    });
+
+    testWidgets('a suggestion the device can’t translate has no download', (
+      tester,
+    ) async {
+      await pumpFlow(tester, deviceLanguages: const ['ja-JP']);
+      expect(
+        find.text('Japanese is one of your phone’s languages.'),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('onboarding_offline_ja')), findsNothing);
+      expect(
+        find.textContaining('can’t be translated on this device'),
+        findsNothing,
+      );
+    });
+
     testWidgets('shows the progress of a running download', (tester) async {
       translator.gate = Completer<void>();
-      await pump(
+      final (onboarding, _) = await pumpFlow(
         tester,
         settings: const AppSettings(instances: testInstances, target: _french),
       );
-      final french = find.byKey(const ValueKey('onboarding_offline_fr'));
-      await tester.tap(
-        find.descendant(of: french, matching: find.text('Download')),
-      );
+      await tester.tap(checkbox('fr'));
+      await tester.pumpAndSettle();
+      onboarding.next();
       await tester.pump();
+      onboarding.back();
+      await tester.pump();
+      await tester.pump();
+      final french = find.byKey(const ValueKey('onboarding_offline_fr'));
       expect(
         find.descendant(
           of: french,
@@ -302,20 +600,20 @@ void main() {
         ),
         findsOneWidget,
       );
+      expect(checkbox('fr'), findsNothing);
       translator.gate!.complete();
       await tester.pumpAndSettle();
     });
 
     testWidgets('asks before downloading over mobile data', (tester) async {
       translator.failWith = const MeteredConnectionException();
-      await pump(
+      final (onboarding, _) = await pumpFlow(
         tester,
         settings: const AppSettings(instances: testInstances, target: _french),
       );
-      final french = find.byKey(const ValueKey('onboarding_offline_fr'));
-      await tester.tap(
-        find.descendant(of: french, matching: find.text('Download')),
-      );
+      await tester.tap(checkbox('fr'));
+      await tester.pumpAndSettle();
+      onboarding.next();
       await tester.pumpAndSettle();
       expect(find.text('Download over mobile data?'), findsOneWidget);
       await tester.tap(find.text('Download anyway'));
@@ -328,19 +626,27 @@ void main() {
       tester,
     ) async {
       translator.failWith = const MeteredConnectionException();
-      await pump(
+      final (onboarding, _) = await pumpFlow(
         tester,
         settings: const AppSettings(instances: testInstances, target: _french),
       );
-      final french = find.byKey(const ValueKey('onboarding_offline_fr'));
-      await tester.tap(
-        find.descendant(of: french, matching: find.text('Download')),
-      );
+      await tester.tap(checkbox('fr'));
+      await tester.pumpAndSettle();
+      onboarding.next();
       await tester.pumpAndSettle();
       await tester.tap(find.text('Cancel'));
       await tester.pumpAndSettle();
       expect(translator.downloads, [('fr', true)]);
       expect(translator.downloaded, isNot(contains('fr')));
+    });
+
+    testWidgets('the checkbox tells the cubit', (tester) async {
+      final (cubit, _) = await pump(
+        tester,
+        settings: const AppSettings(instances: testInstances, target: _french),
+      );
+      await tester.tap(checkbox('fr'));
+      verify(() => cubit.chooseDownload('fr', download: true)).called(1);
     });
 
     testWidgets('shows a loading indicator while the engine loads', (

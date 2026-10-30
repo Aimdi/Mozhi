@@ -110,6 +110,9 @@ enum VoiceInputEngine {
 /// it then listens in the recogniser's default language. Initialising may
 /// wait for the permission prompt, so it only gives up after
 /// [initializeTimeout] (reported as [SpeechInputFailure.unknown]).
+///
+/// `timer` creates the timer of [listen]'s `pause` (default [Timer.new]);
+/// tests pass fake ones.
 class SpeechInputService {
   new({
     required this._store,
@@ -120,7 +123,9 @@ class SpeechInputService {
     bool? onDeviceSupported,
     this.queryTimeout = defaultQueryTimeout,
     this.initializeTimeout = defaultInitializeTimeout,
-  }) : _system = _Recognizer(adapter ?? SpeechToTextAdapter()),
+    Timer Function(Duration duration, void Function() callback)? timer,
+  }) : _timer = timer ?? Timer.new,
+       _system = _Recognizer(adapter ?? SpeechToTextAdapter()),
        _offline = offlineAdapter == null
            ? null
            : _Recognizer(offlineAdapter, offline: offlineAdapter),
@@ -154,6 +159,7 @@ class SpeechInputService {
   final Duration initializeTimeout;
 
   final KeyValueStore _store;
+  final Timer Function(Duration duration, void Function() callback) _timer;
   final _Recognizer _system;
   final _Recognizer? _offline;
   final PrivacyMode Function()? _privacyMode;
@@ -189,6 +195,12 @@ class SpeechInputService {
   /// (an offline engine transcribing).
   int? _finishingSession;
   Object? _owner;
+
+  /// The silence after words that ends the system recogniser's session
+  /// ([listen]'s `pause`); null for its own end of speech.
+  Duration? _speechPause;
+  Timer? _speechPauseTimer;
+  String _lastPartial = '';
   double? _minLevel;
   double? _maxLevel;
 
@@ -524,16 +536,19 @@ class SpeechInputService {
   /// says whether it does. Other recognisers listen in [languageCode] as
   /// usual.
   ///
-  /// [offlinePause] replaces the 3 s of silence after which an offline
-  /// recogniser (Whisper, which tells speech from silence itself) stops,
-  /// e.g. for the turns of a conversation; the system recogniser keeps its
-  /// own.
+  /// [pause] is the silence after speech that ends the session, e.g. for
+  /// the turns of a conversation. An offline recogniser (Whisper, which
+  /// tells speech from silence itself) stops after it instead of its 3 s.
+  /// The system recogniser's session is stopped ([stop], the final result
+  /// follows) once no new words were recognised for [pause] after the
+  /// first ones; before any words, and when it ends speech sooner itself,
+  /// it keeps its own end of speech (3 s without words).
   Future<bool> listen(
     String? languageCode, {
     bool? preferOnDevice,
     Object? owner,
     bool detectLanguage = false,
-    Duration? offlinePause,
+    Duration? pause,
   }) async {
     if (_disposed) return false;
     if (_activeSession != null || _finishingSession != null) await cancel();
@@ -563,6 +578,8 @@ class SpeechInputService {
 
     _activeSession = session;
     _owner = owner;
+    _endSpeechPause();
+    _speechPause = recognizer.offline == null ? pause : null;
     _minLevel = null;
     _maxLevel = null;
     _emit(SpeechInputListening(owner: owner, detectsLanguage: detects));
@@ -574,8 +591,8 @@ class SpeechInputService {
               recognizer.offline != null ||
               (isOnDeviceSupported &&
                   (preferOnDevice ?? _preferOnDevice.value)),
-          pauseFor: recognizer.offline != null && offlinePause != null
-              ? offlinePause
+          pauseFor: recognizer.offline != null && pause != null
+              ? pause
               : const SpeechListenRequest().pauseFor,
         ),
         onResult: (text, {required isFinal}) =>
@@ -597,6 +614,7 @@ class SpeechInputService {
     final session = _activeSession;
     if (session == null) return;
     _activeSession = null;
+    _endSpeechPause();
     if (_current.offline != null) {
       _finishingSession = session;
       _emit(SpeechInputTranscribing(owner: _owner));
@@ -618,6 +636,7 @@ class SpeechInputService {
     _activeSession = null;
     _finishingSession = null;
     _owner = null;
+    _endSpeechPause();
     if (!wasActive) return;
     _emit(const SpeechInputIdle());
     try {
@@ -633,6 +652,7 @@ class SpeechInputService {
     if (_activeSession != null || _finishingSession != null) await cancel();
     _disposed = true;
     _session++;
+    _endSpeechPause();
     _preferOnDevice.dispose();
     _engine.dispose();
     await _states.close();
@@ -661,9 +681,11 @@ class SpeechInputService {
       if (_activeSession == session || _finishingSession == session) {
         _activeSession = null;
         _finishingSession = null;
+        _endSpeechPause();
         _emit(const SpeechInputIdle());
       }
     } else if (current is SpeechInputListening) {
+      _restartSpeechPause(session, text);
       _emit(
         current.copyWith(
           partialText: text,
@@ -671,6 +693,25 @@ class SpeechInputService {
         ),
       );
     }
+  }
+
+  /// New words of the system recogniser's [session]: it stops after
+  /// [_speechPause] without more.
+  void _restartSpeechPause(int session, String text) {
+    final pause = _speechPause;
+    if (pause == null || _activeSession != session) return;
+    if (text.trim().isEmpty || text == _lastPartial) return;
+    _lastPartial = text;
+    _speechPauseTimer?.cancel();
+    _speechPauseTimer = _timer(pause, () {
+      if (_activeSession == session && !_disposed) unawaited(stop());
+    });
+  }
+
+  void _endSpeechPause() {
+    _speechPauseTimer?.cancel();
+    _speechPauseTimer = null;
+    _lastPartial = '';
   }
 
   void _onSoundLevel(int session, double raw) {

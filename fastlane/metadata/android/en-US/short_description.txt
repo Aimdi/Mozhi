@@ -1,1 +1,1 @@
-Private translator: Mozhi instances, DeepL and AI models, cloud or local
+Private translator: offline, via Mozhi servers or with your AI

@@ -535,10 +535,11 @@ class SyncService {
   }
 
   /// The key of [passphrase] for the sync file [bytes] (its salt and
-  /// parameters).
+  /// parameters): of the passphrase in NFC, or exactly as typed for a file
+  /// made before passphrases were normalised ([BackupCodec.unlockKeyFor]).
   Future<BackupKey> _keyFor(Uint8List bytes, String passphrase) async {
     try {
-      return await _codec.deriveKeyFor(bytes, passphrase);
+      return await _codec.unlockKeyFor(bytes, passphrase);
     } on BackupFormatException catch (error) {
       throw SyncException(
         error.newerVersion ? SyncFailure.newerVersion : SyncFailure.notSyncFile,

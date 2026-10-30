@@ -115,6 +115,22 @@ void main() {
       );
     });
 
+    test('copyWith keeps the languages step and resets the room', () {
+      const state = OnboardingState(
+        deviceLanguages: ['fr'],
+        preselectDownloads: true,
+        freeBytes: 7,
+        downloadChoices: {'fr': true},
+      );
+      expect(state.copyWith(), state);
+      expect(state.copyWith(freeBytes: () => null).freeBytes, isNull);
+      expect(
+        state.copyWith(downloadChoices: const {'de': false}).downloadChoices,
+        {'de': false},
+      );
+      expect(state, isNot(const OnboardingState()));
+    });
+
     test('copyWith keeps and resets values', () {
       const state = OnboardingState(
         selectedUrl: 'a',

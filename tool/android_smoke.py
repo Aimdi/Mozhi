@@ -19,15 +19,32 @@ appears, or when the sentence can't be typed into the translate box.
 Whether the sentence got translated depends on the downloads, the public
 servers and the network, so that is reported (summary.md, with the route)
 but does not fail the run.
+
+  python3 tool/android_smoke.py <apk> <out-dir> --screenshots <dir>
+
+also saves phone screenshots for the store listing in <dir> once the
+smoke test is through: the translate screen (with the translation, when
+there is one), the image screen (without the camera), documents,
+conversation and settings, each in the light and the dark theme
+(01-translate-light.png ... 05-settings-dark.png). The screen is set to
+1080 x 2160 (2:1, the tallest Google Play takes), the status bar to the
+system's demo mode (a fixed clock, full battery, no notifications), and
+the PNGs are 24-bit without alpha, ready for
+fastlane/metadata/android/<locale>/images/phoneScreenshots (see
+docs/store/README.md). Screen size, theme and status bar are put back
+afterwards. Missing screenshots are reported in summary.md and never fail
+the run.
 """
 
 from __future__ import annotations
 
 import re
+import struct
 import subprocess
 import sys
 import time
 import xml.etree.ElementTree as ET
+import zlib
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -41,6 +58,31 @@ RESULT = r".*\b(station|looking)\b.*"
 OFFERS = (
     (r"Download French.*", "offline: downloaded French"),
     (r"Once", "online: allowed once"),
+)
+# The screens of the store screenshots (--screenshots), in listing order,
+# and the deep link that opens each one (mozhi://image opens the image
+# screen, never the camera).
+STORE_SCREENS = (
+    ("translate", "mozhi://translate"),
+    ("image", "mozhi://image"),
+    ("documents", "mozhi://documents"),
+    ("conversation", "mozhi://conversation"),
+    ("settings", "mozhi://settings"),
+)
+STORE_THEMES = ("light", "dark")
+# Tips that may cover a screen; only these are tapped away (a plain
+# "Close" could be the screen's own close button).
+STORE_DISMISS = r"Got it|Dismiss|Not now"
+# 2:1, the tallest aspect ratio Google Play accepts for screenshots.
+STORE_SIZE = (1080, 2160)
+# System UI demo mode: a tidy status bar for the listing.
+DEMO_COMMANDS = (
+    ("enter",),
+    ("clock", "-e", "hhmm", "1000"),
+    ("battery", "-e", "level", "100", "-e", "plugged", "false"),
+    ("network", "-e", "wifi", "show", "-e", "level", "4"),
+    ("network", "-e", "mobile", "hide"),
+    ("notifications", "-e", "visible", "false"),
 )
 
 
@@ -157,13 +199,7 @@ class Device:
         """Saves a screenshot and the accessibility tree as step <n>."""
         self.step += 1
         stem = f"{self.step:02d}-{name}"
-        png = subprocess.run(
-            ["adb", "exec-out", "screencap", "-p"],
-            capture_output=True,
-            timeout=60,
-            check=False,
-        ).stdout
-        (self.out / f"{stem}.png").write_bytes(png)
+        (self.out / f"{stem}.png").write_bytes(self.screencap())
         self.adb("shell", "uiautomator", "dump", "/sdcard/ui.xml", check=False)
         xml = self.adb("shell", "cat", "/sdcard/ui.xml", check=False)
         (self.out / f"{stem}.xml").write_text(xml, encoding="utf-8")
@@ -191,6 +227,15 @@ class Device:
 
     def crashes(self) -> list[str]:
         return crash_lines(self.adb("logcat", "-d", check=False, timeout=60))
+
+    def screencap(self, raw: bool = False) -> bytes:
+        """The screen as a PNG, or with [raw] in screencap's raw format."""
+        return subprocess.run(
+            ["adb", "exec-out", "screencap", *([] if raw else ["-p"])],
+            capture_output=True,
+            timeout=60,
+            check=False,
+        ).stdout
 
 
 def walk_first_run(device: Device) -> None:
@@ -305,14 +350,166 @@ def translate(device: Device) -> str:
     return ""
 
 
+def raw_to_png(raw: bytes) -> bytes | None:
+    """A 24-bit PNG (no alpha, as Google Play wants) of `screencap`'s raw
+    output: width, height and format (little endian), on newer Androids a
+    colour space, then RGBA or RGBX pixels. None for anything else."""
+    if len(raw) < 12:
+        return None
+    width, height, pixel_format = struct.unpack_from("<III", raw)
+    size = width * height * 4
+    header = len(raw) - size
+    if not width or not height or header not in (12, 16) or pixel_format not in (1, 2):
+        return None
+    pixels = memoryview(raw)[header:]
+    rgb = bytearray(width * height * 3)
+    for channel in range(3):
+        rgb[channel::3] = pixels[channel::4]
+    stride = width * 3
+    rows = b"".join(
+        b"\x00" + rgb[y * stride : (y + 1) * stride] for y in range(height)
+    )
+
+    def chunk(kind: bytes, data: bytes) -> bytes:
+        body = kind + data
+        return struct.pack(">I", len(data)) + body + struct.pack(">I", zlib.crc32(body))
+
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0))
+        + chunk(b"IDAT", zlib.compress(rows, 6))
+        + chunk(b"IEND", b"")
+    )
+
+
+def keyboard_shown(dumpsys: str) -> bool:
+    """Whether `dumpsys input_method` says the keyboard is on screen."""
+    pattern = r"\b(mInputShown|mIsInputViewShown|isInputViewShown)=true\b"
+    return bool(re.search(pattern, dumpsys))
+
+
+def night_mode(output: str) -> str:
+    """The setting `cmd uimode night` reports ("Night mode: no" -> "no");
+    "no" when it can't be read."""
+    match = re.search(
+        r"Night mode:\s*(yes|no|auto|custom_schedule|custom_bedtime)", output
+    )
+    return match.group(1) if match else "no"
+
+
+def store_name(index: int, screen: str, theme: str) -> str:
+    return f"{index:02d}-{screen}-{theme}.png"
+
+
+def store_screenshot(device: Device, path: Path) -> str:
+    """Saves the screen as a 24-bit PNG at [path]; returns "" or what went
+    wrong."""
+    png = raw_to_png(device.screencap(raw=True))
+    if png is None:
+        png = device.screencap()
+        if not png.startswith(b"\x89PNG"):
+            return f"{path.name}: no screenshot"
+        device.note(f"{path.name}: raw screencap unreadable, saved with alpha")
+    path.write_bytes(png)
+    return ""
+
+
+def show_screen(device: Device, link: str) -> None:
+    """Opens [link] in Mozhi, closes tips over it and the keyboard."""
+    device.adb(
+        "shell", "am", "start", "-W", "-n", ACTIVITY,
+        "-a", "android.intent.action.VIEW", "-d", link,
+    )
+    time.sleep(3)
+    tip = find(device.dump(), STORE_DISMISS)
+    if tip is not None:
+        device.tap(tip)
+    if keyboard_shown(device.adb("shell", "dumpsys", "input_method", check=False)):
+        device.adb("shell", "input", "keyevent", "4")
+        time.sleep(1)
+
+
+def store_screenshots(device: Device, folder: Path) -> list[str]:
+    """Saves [STORE_SCREENS] in both [STORE_THEMES] into [folder]; returns
+    the screenshots that are missing. Puts the screen size, the theme and
+    the status bar back, whatever happens."""
+    folder.mkdir(parents=True, exist_ok=True)
+    missing: list[str] = []
+    theme_before = night_mode(
+        device.adb("shell", "cmd", "uimode", "night", check=False)
+    )
+    try:
+        device.adb("shell", "wm", "size", "x".join(map(str, STORE_SIZE)), check=False)
+        device.adb(
+            "shell", "settings", "put", "global", "sysui_demo_allowed", "1",
+            check=False,
+        )
+        for command, *extras in DEMO_COMMANDS:
+            device.adb(
+                "shell", "am", "broadcast", "-a", "com.android.systemui.demo",
+                "-e", "command", command, *extras, check=False,
+            )
+        for theme in STORE_THEMES:
+            device.adb(
+                "shell", "cmd", "uimode", "night", "yes" if theme == "dark" else "no",
+                check=False,
+            )
+            time.sleep(3)
+            for index, (screen, link) in enumerate(STORE_SCREENS, start=1):
+                name = store_name(index, screen, theme)
+                try:
+                    show_screen(device, link)
+                    problem = store_screenshot(device, folder / name)
+                except (RuntimeError, subprocess.TimeoutExpired) as error:
+                    problem = f"{name}: {error}"
+                if problem:
+                    missing.append(problem)
+                labels = [n.label for n in device.dump() if n.label]
+                device.note(f"[store {name}] {' | '.join(labels)[:300]}")
+    finally:
+        device.adb("shell", "cmd", "uimode", "night", theme_before, check=False)
+        device.adb(
+            "shell", "am", "broadcast", "-a", "com.android.systemui.demo",
+            "-e", "command", "exit", check=False,
+        )
+        device.adb("shell", "wm", "size", "reset", check=False)
+    return missing
+
+
+def parse_args(argv: list[str]) -> tuple[Path, Path, Path | None] | None:
+    """<apk> <out-dir> [--screenshots <dir>] (also --screenshots=<dir>), or
+    None when that's not what [argv] holds."""
+    rest: list[str] = []
+    shots: Path | None = None
+    args = iter(argv)
+    for arg in args:
+        if arg == "--screenshots":
+            value = next(args, None)
+            if value is None or shots is not None:
+                return None
+            shots = Path(value)
+        elif arg.startswith("--screenshots="):
+            if shots is not None or arg == "--screenshots=":
+                return None
+            shots = Path(arg.split("=", 1)[1])
+        else:
+            rest.append(arg)
+    if len(rest) != 2:
+        return None
+    return Path(rest[0]), Path(rest[1]), shots
+
+
 def main(argv: list[str]) -> int:
-    if len(argv) != 2:
+    parsed = parse_args(argv)
+    if parsed is None:
         print(__doc__)
         return 2
-    apk, out = Path(argv[0]), Path(argv[1])
+    apk, out, shots = parsed
     out.mkdir(parents=True, exist_ok=True)
     device = Device(out)
     failures: list[str] = []
+    missing_shots: list[str] = []
+    shots_taken = False
     route = ""
     try:
         device.adb("logcat", "-c", check=False)
@@ -329,11 +526,25 @@ def main(argv: list[str]) -> int:
             route = translate(device)
     except (RuntimeError, subprocess.TimeoutExpired) as error:
         failures.append(str(error))
+    if shots is not None and not failures:
+        if not route:
+            device.note("store screenshots: the translate screen has no translation")
+        try:
+            missing_shots = store_screenshots(device, shots)
+            shots_taken = True
+        except (RuntimeError, subprocess.TimeoutExpired) as error:
+            missing_shots = [f"store screenshots stopped: {error}"]
     crashes = device.crashes()
     if crashes:
         failures.append("Mozhi crashed:\n" + "\n".join(crashes))
     elif not device.alive():
         failures.append("Mozhi is no longer running")
+    total = len(STORE_SCREENS) * len(STORE_THEMES)
+    shots_line = (
+        f"{total - len(missing_shots)} of {total} in {shots}"
+        if shots_taken
+        else "not taken"
+    )
     (out / "logcat.txt").write_text(
         device.adb("logcat", "-d", check=False, timeout=60), encoding="utf-8"
     )
@@ -344,10 +555,12 @@ def main(argv: list[str]) -> int:
         f"{'no' if failures else 'yes'}",
         f"- Translated “{SENTENCE}” into English: "
         f"{f'yes ({route})' if route else 'no'}",
+        *([f"- Store screenshots: {shots_line}"] if shots is not None else []),
         "",
         "```text",
         *device.log,
         *failures,
+        *missing_shots,
         "```",
     ]
     (out / "summary.md").write_text("\n".join(summary) + "\n", encoding="utf-8")

@@ -1,0 +1,39 @@
+Mozhi Terjemahan adalah penerjemah privat tanpa akun, tanpa iklan, dan tanpa pelacakan. Terjemahkan di ponsel Anda, melalui instans Mozhi (front-end open-source untuk Google, DeepL, dan lainnya), atau dengan model AI pilihan Anda, di cloud atau di komputer Anda sendiri.
+
+PRIVAT SECARA BAWAAN
+• Utamakan offline: diterjemahkan di ponsel jika pasangan bahasanya terpasang; jika tidak, Mozhi bertanya dulu sebelum teks Anda dikirim online. Atau pilih Hanya offline atau Online
+• Teks Anda hanya dikirim ke layanan yang Anda pilih, dan setiap terjemahan menyebutkan siapa yang menerimanya
+• Alamat email, nomor telepon, IBAN, nomor kartu, dan alamat IP tetap di ponsel saat teks dikirim online
+• Riwayat terenkripsi yang tidak ikut dalam cadangan cloud Android; mode samaran, kunci aplikasi, dan daftar setiap permintaan jaringan
+• Tanpa analitik, tanpa telemetri, tanpa laporan error, tanpa kode Google
+
+OFFLINE DI PONSEL
+• Sekitar 55 bahasa dengan mesin Bergamot dari Mozilla dan model Firefox Translations
+• Pengenalan ucapan dengan Whisper, pengenalan teks dengan Tesseract, dan model AI di perangkat
+• Hanya diunduh saat Anda mengetuknya dan diperiksa sebelum digunakan, atau diimpor dari file. Penerbitnya (Mozilla di Google Cloud, Hugging Face, GitHub) dapat melihat alamat IP Anda kecuali Anda memakai mirror
+
+ONLINE SAAT ANDA MAU
+• Instans Mozhi publik sudah tersedia, atau instans Anda sendiri, dengan failover otomatis. Instans publik dijalankan oleh orang lain: mereka dan mesinnya dapat membaca apa yang Anda kirimkan
+• OpenAI, Anthropic, Gemini, OpenRouter, Mistral, atau server apa pun yang kompatibel dengan OpenAI dengan kunci Anda sendiri; model lokal dengan Ollama, LM Studio, atau llama.cpp; DeepL API dan LibreTranslate
+• Bandingkan mesin secara berdampingan; mesin Cepat dan Terbaik hanya berjarak satu ketukan
+
+EKSTRA AI
+• Nada, tingkat bacaan (CEFR A1 sampai C2), gender, konteks, glosarium, dan preset; target khusus seperti "Bahasa bajak laut"
+• Sempurnakan (Lebih formal, Lebih singkat, Lebih sederhana, dan lainnya), alternatif, wawasan, dan penjelasan
+• Periksa makna: terjemahan balik yang menandai perbedaan makna
+• Koreksi teks dan kamus
+
+KAMERA, DOKUMEN, DAN SUARA
+• Kamera langsung dan foto: teks dibaca di ponsel dan terjemahannya digambar di atasnya
+• Dokumen tetap mempertahankan format dan tata letaknya: PDF, Word, PowerPoint, Excel, OpenDocument, EPUB, subtitel, dan file lokalisasi
+• Percakapan tatap muka, atau dibagikan ke ponsel tamu di Wi-Fi yang sama
+• Transkripsi pembicaraan dan teks untuk suara dari aplikasi lain (Android 10 ke atas), dikenali di ponsel
+
+PENGGUNAAN SEHARI-HARI
+• Terjemahan instan saat mengetik, deteksi bahasa, ketuk kata untuk mencarinya
+• "Terjemahkan di Mozhi" dan "Terjemahkan offline" di menu pilihan teks aplikasi apa pun; terjemahkan layar, bagikan ke Mozhi, ubin Setelan Cepat, dan widget
+• Favorit, buku frasa, dan latihan flashcard
+• Cadangan terenkripsi, sinkronisasi lewat server WebDAV Anda sendiri, transfer antarponsel
+• Material You, tema gelap, tata letak tablet, dan label pembaca layar
+
+Mozhi Terjemahan adalah perangkat lunak gratis dan open-source (MIT), sebuah klien independen dan tidak resmi: front-end Mozhi (codeberg.org/aryak/mozhi) adalah proyek terpisah, dan aplikasi ini tidak berafiliasi dengan Google, DeepL, atau penyedia AI mana pun.

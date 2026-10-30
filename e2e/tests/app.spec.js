@@ -3,6 +3,7 @@
 // the main (including deferred, separately downloaded) routes render.
 const { expect } = require('@playwright/test');
 const {
+  blockOnDeviceEngine,
   collectPageErrors,
   escapeRegExp,
   goBack,
@@ -12,6 +13,7 @@ const {
   openSettingsCategory,
   scrollTo,
   seedSettings,
+  skipWithoutOnDeviceEngine,
   test,
   waitForSemantics,
 } = require('./helpers');
@@ -59,9 +61,7 @@ test('first run in a browser without the on-device engine: three steps, no priva
   const errors = collectPageErrors(page);
   // As in a browser that can't run the engine (or a build without it):
   // the engine's worker doesn't load, so the app has no on-device engine.
-  await page.route('**/bergamot/worker.js', (route) =>
-    route.fulfill({ status: 404, body: '' }),
-  );
+  await blockOnDeviceEngine(page);
   await openApp(page, '/translate');
   // Turn the seeded settings into a first run (the seed only applies once
   // per session, so the reload keeps this).
@@ -154,6 +154,8 @@ test('first run with the on-device engine: the privacy step and downloads', asyn
 }) => {
   const errors = collectPageErrors(page);
   await openApp(page, '/translate');
+  // A browser without what the engine needs gets the three steps above.
+  await skipWithoutOnDeviceEngine(page);
   await page.evaluate(() => {
     const settings = JSON.parse(JSON.parse(localStorage.getItem('settings.v1')));
     settings.onboardingComplete = false;

@@ -14,6 +14,7 @@ import 'package:mozhi/app/app_dependencies.dart';
 import 'package:mozhi/app/fallback_key_value_store.dart';
 import 'package:mozhi/app/third_party_licenses.dart';
 import 'package:mozhi/bootstrap.dart';
+import 'package:mozhi/core/key_value_instance_health_store.dart';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/core/network/network_session.dart';
 import 'package:mozhi/core/on_device_ml.dart';
@@ -130,6 +131,32 @@ void main() {
 
       expect(dependencies.offlineTranslator, same(offline));
       expect(dependencies.translationRepository.hasOfflineEngine, isFalse);
+    });
+
+    test('remembers failed servers in the preferences', () async {
+      final prefs = MemoryStore();
+      final first = MozhiInstance.publicInstances.first.url;
+      final dependencies = await createDependencies(
+        prefs: prefs,
+        secrets: MemoryStore(),
+      );
+      final health = dependencies.translationRepository.instanceHealth
+        ..markFailed(first);
+      await health.saved;
+      expect(
+        prefs.values[KeyValueInstanceHealthStore.storageKey],
+        contains(first),
+      );
+
+      final restarted = await createDependencies(
+        prefs: prefs,
+        secrets: MemoryStore(),
+      );
+      await restarted.translationRepository.instanceHealth.ready;
+      expect(
+        restarted.translationRepository.activeInstance,
+        MozhiInstance.publicInstances[1],
+      );
     });
 
     test('configures the repository from the saved settings', () async {

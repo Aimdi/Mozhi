@@ -110,9 +110,10 @@ abstract interface class ConversationRecognizer {
   /// returned stream reports what is heard (see [ConversationHearing]) and
   /// closes when the utterance ends. With [detectLanguage] a recogniser
   /// that can (on-device Whisper) detects the spoken language instead.
-  /// [pause] is the silence after speech that ends the utterance for a
-  /// recogniser that tells speech from silence itself (on-device Whisper;
-  /// null: its default); the system recogniser keeps its own.
+  /// [pause] is the silence after speech that ends the utterance (null:
+  /// the recogniser's default): on-device Whisper measures it with its
+  /// voice activity detection, the system recogniser stops once no new
+  /// words came for that long.
   ///
   /// Listening again cancels the previous utterance.
   Stream<ConversationHearing> listen(

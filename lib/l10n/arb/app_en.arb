@@ -13719,5 +13719,140 @@
   "onboardingServiceFindFastestTranslateHint": "Translates the word “Hello” once on every listed server to measure its speed, then tries the fastest first. None of your text is sent.",
   "@onboardingServiceFindFastestTranslateHint": {
     "description": "Subtitle of onboardingServiceFindFastestTitle: says that it sends one fixed test word to each volunteer server, and nothing the user wrote."
+  },
+  "translateEngineOnDeviceOnline": "On device + {engine}",
+  "@translateEngineOnDeviceOnline": {
+    "description": "Engine button on the translate screen in Offline first while the app picked the on-device engine: text is translated on this device when its language is downloaded, otherwise the app asks before sending it to {engine} (an online engine, e.g. Google).",
+    "placeholders": {
+      "engine": {
+        "type": "String"
+      }
+    }
+  },
+  "translateEngineOnDeviceOnlineTooltip": "Translates on this device when the language is downloaded. Otherwise asks before sending your text to {engine}.",
+  "@translateEngineOnDeviceOnlineTooltip": {
+    "description": "Tooltip and screen-reader hint of the translateEngineOnDeviceOnline engine button.",
+    "placeholders": {
+      "engine": {
+        "type": "String"
+      }
+    }
+  },
+  "translateEngineOnDeviceOnlineNote": "Asks before sending to {engine} when a language isn’t downloaded",
+  "@translateEngineOnDeviceOnlineNote": {
+    "description": "Engine sheet: note under the on-device engine while it is the app’s pick in Offline first.",
+    "placeholders": {
+      "engine": {
+        "type": "String"
+      }
+    }
+  },
+  "translateFirstUseHint": "{download} keeps your text on this phone. {once} sends only this text to {destination}.",
+  "@translateFirstUseHint": {
+    "description": "One-line hint under the first consent prompt of the translate screen when the language is not on the device. {download} is the Download button word (offlineDownloadAction), {once} the Once button (commonConsentOnce), {destination} where the text would go (e.g. Google via mozhi.example).",
+    "placeholders": {
+      "download": {
+        "type": "String"
+      },
+      "once": {
+        "type": "String"
+      },
+      "destination": {
+        "type": "String"
+      }
+    }
+  },
+  "onboardingLanguagesSuggestion": "{language} is one of your phone’s languages.",
+  "@onboardingLanguagesSuggestion": {
+    "description": "Onboarding languages step, under Translate from while it is Detect language: a source language suggested from the phone’s language settings.",
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "onboardingLanguagesSuggestionUse": "Translate from {language}",
+  "@onboardingLanguagesSuggestionUse": {
+    "description": "Button that makes the suggested language (onboardingLanguagesSuggestion) the source language.",
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "onboardingLanguagesDownloadOnNext": "Checked languages download when you tap Next.",
+  "@onboardingLanguagesDownloadOnNext": {
+    "description": "onboardingLanguagesDownloadOnNext"
+  },
+  "onboardingLanguagesDownloadCheckbox": "Download {language} when you tap Next",
+  "@onboardingLanguagesDownloadCheckbox": {
+    "description": "Tooltip and screen-reader label of the checkbox of an offline language on the onboarding languages step.",
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "translateErrorTitleAllServers": "Volunteer servers unavailable",
+  "@translateErrorTitleAllServers": {
+    "description": "Title of the error shown when every Mozhi server failed for the chosen engine."
+  },
+  "translateErrorAllServersFailed": "{count, plural, =1{The volunteer server couldn't translate with {engine} just now.} other{None of the {count} volunteer servers could translate with {engine} just now.}} These free servers are run by volunteers and are sometimes down.",
+  "@translateErrorAllServersFailed": {
+    "description": "Every Mozhi server the text could go to failed. engine is the engine name (Google, DeepL...).",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "engine": {
+        "type": "String"
+      }
+    }
+  },
+  "translateErrorTryAnotherEngine": "Try another engine",
+  "@translateErrorTryAnotherEngine": {
+    "description": "Button: opens the engine picker after every server failed."
+  },
+  "translateErrorChooseAnotherServer": "Choose another server",
+  "@translateErrorChooseAnotherServer": {
+    "description": "Button: opens the Mozhi server settings after every server failed."
+  },
+  "translateErrorServersTried": "Servers tried: {servers}.",
+  "@translateErrorServersTried": {
+    "description": "Details line listing the server host names tried.",
+    "placeholders": {
+      "servers": {
+        "type": "String"
+      }
+    }
+  },
+  "conversationTurnPauseHintAny": "A turn ends after this much silence after speech.",
+  "@conversationTurnPauseHintAny": {
+    "description": "Subtitle of the conversation setting for the pause that ends a turn (with any speech recogniser)."
+  },
+  "translateOfflineManageLanguages": "Manage languages",
+  "@translateOfflineManageLanguages": {
+    "description": "Secondary link next to an offline language download on the translate screen: opens Settings › Offline languages."
+  },
+  "translateOfflineDownloadingLanguage": "Downloading {language}… {percent}%",
+  "@translateOfflineDownloadingLanguage": {
+    "description": "Progress of an offline language download started from the translate screen.",
+    "placeholders": {
+      "language": {
+        "type": "String"
+      },
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "translateOfflineDownloadingLanguageStarted": "Downloading {language}…",
+  "@translateOfflineDownloadingLanguageStarted": {
+    "description": "An offline language download started from the translate screen, before its progress is known.",
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
   }
 }

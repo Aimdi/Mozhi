@@ -69,9 +69,9 @@ class ConversationState extends Equatable {
   /// the turn; off, whoever's turn it is speaks in their own language.
   final bool detectSpeaker;
 
-  /// How much silence ends a turn of a hands-free conversation, with a
-  /// recogniser that tells speech from silence itself (offline Whisper);
-  /// the system recogniser keeps its own.
+  /// How much silence after speech ends a turn of a hands-free
+  /// conversation (offline Whisper measures it; the system recogniser
+  /// stops after that long without new words).
   final Duration turnPause;
 
   /// Language spoken by [side].

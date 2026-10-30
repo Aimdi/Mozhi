@@ -23,6 +23,7 @@ import 'package:translation_repository/src/quality/personal_data.dart';
 import 'package:translation_repository/src/quality/text_masker.dart';
 import 'package:translation_repository/src/quality/translation_qa.dart';
 import 'package:translation_repository/src/repository/ai_translation_stream.dart';
+import 'package:translation_repository/src/repository/instance_health.dart';
 import 'package:translation_repository/src/repository/llm_pool.dart';
 import 'package:translation_repository/src/repository/mappers.dart';
 import 'package:translation_repository/src/repository/mozhi_pool.dart';
@@ -97,6 +98,10 @@ class TranslationRepository {
   /// are ignored. [clock] (default [DateTime.now]) timestamps them (and
   /// expires [allowOnce] approvals).
   ///
+  /// [instanceHealth] remembers which Mozhi servers failed recently, so
+  /// that requests start at one that worked (in memory only by default;
+  /// the app gives it a store on the device). See `MozhiPool`.
+  ///
   /// The privacy settings start strict ([PrivacyMode.offlineFirst], no
   /// approved pairs, no consented providers) until [updatePrivacy] is
   /// called.
@@ -115,6 +120,7 @@ class TranslationRepository {
     MetadataStore? metadataStore,
     Duration metadataMaxAge = defaultMetadataMaxAge,
     DateTime Function()? clock,
+    InstanceHealth? instanceHealth,
   }) : _clock = clock ?? DateTime.now,
        _metadata = metadataStore == null
            ? null
@@ -123,7 +129,10 @@ class TranslationRepository {
                maxAge: metadataMaxAge,
                clock: clock ?? DateTime.now,
              ),
-       _mozhi = MozhiPool(mozhiClientFactory ?? _defaultMozhiClient),
+       _mozhi = MozhiPool(
+         mozhiClientFactory ?? _defaultMozhiClient,
+         health: instanceHealth ?? InstanceHealth(clock: clock),
+       ),
        _llm = LlmPool(llmClientFactory ?? _defaultLlmClient),
        _mt = MtEngines(
          deepl: deeplClientFactory,
@@ -279,7 +288,12 @@ class TranslationRepository {
   /// Forgets the instance a failover switched to, so the next Mozhi request
   /// starts at the first configured instance again (e.g. after the user
   /// chose that instance explicitly).
-  void resetActiveInstance() => _mozhi.resetPreferred();
+  /// Also forgets which servers failed recently ([instanceHealth]), e.g.
+  /// for "Delete all local data".
+  void resetActiveInstance() => _mozhi.resetPreferred(forgetHealth: true);
+
+  /// Which Mozhi servers failed recently (they are tried last).
+  InstanceHealth get instanceHealth => _mozhi.health!;
 
   /// Whether the on-device engine is available (an [OfflineTranslator] was
   /// injected and is available on this platform).
@@ -973,7 +987,7 @@ class TranslationRepository {
         _mozhi.run((client, instance) async {
           final json = await fetch(client);
           return (instance.url, json, build(json, instance));
-        });
+        }, recordHealth: false);
 
     Future<void> revalidate(StoredMetadata stored) async {
       try {
@@ -1806,6 +1820,7 @@ class TranslationRepository {
       },
       failOverOnTimeout: false,
       allow: _mozhiFailoverAllowed,
+      engine: engine,
     );
     return mapMozhiTranslation(
       engine,
@@ -3561,9 +3576,33 @@ class TranslationRepository {
   /// the word (blank, or the word itself), and the [MozhiApiException]
   /// otherwise (network errors, the client's timeout, other HTTP statuses,
   /// an answer that is not Mozhi's JSON, such as a bot wall's page).
+  ///
+  /// The outcome tells [instanceHealth] about the instance: a translation
+  /// marks it working, a failure another instance might not repeat marks
+  /// it failed (not a timeout, and not one that only says the instance
+  /// doesn't offer [engine]).
   Future<Duration> pingInstance(
     MozhiInstance instance, {
     String engine = 'google',
+  }) async {
+    try {
+      final latency = await _pingInstance(instance, engine: engine);
+      instanceHealth.markWorked(instance.url);
+      return latency;
+    } on InstanceDoesNotTranslateException catch (error) {
+      if (!error.engineUnavailable) instanceHealth.markFailed(instance.url);
+      rethrow;
+    } on MozhiApiException catch (error) {
+      if (MozhiPool.canFailOver(error, failOverOnTimeout: false)) {
+        instanceHealth.markFailed(instance.url);
+      }
+      rethrow;
+    }
+  }
+
+  Future<Duration> _pingInstance(
+    MozhiInstance instance, {
+    required String engine,
   }) async {
     final Duration latency;
     final MozhiTranslation translation;

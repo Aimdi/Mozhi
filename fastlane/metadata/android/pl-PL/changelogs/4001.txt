@@ -1,0 +1,5 @@
+Pierwsze wydanie.
+• Tłumaczenie offline na telefonie (około 55 języków), przez serwery Mozhi lub z Twoim modelem AI
+• Dodatki AI: ton, poziom trudności, glosariusze, dopracowanie, sprawdzanie znaczenia, korekta
+• Aparat na żywo, zdjęcia, PDF i dokumenty biurowe, rozmowa, transkrypcja, napisy na żywo
+• Domyślnie prywatnie: Najpierw offline, szyfrowana historia, bez śledzenia
