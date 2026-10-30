@@ -290,6 +290,7 @@ test.describe('the web app with no network', () => {
 
     test('is kept in the background, then Reload swaps it in', async ({
       page,
+      browserName,
     }) => {
       const errors = collectPageErrors(page);
       const origin = `http://127.0.0.1:${UPDATE_PORT}`;
@@ -341,13 +342,18 @@ test.describe('the web app with no network', () => {
           timeout: 60_000,
         })
         .toHaveLength(1);
-      // WebKit can still report the new worker as `activating` while its
-      // activate step (dropping the old cache) finishes.
+      // The new worker's activate step only drops the old cache (done:
+      // one cache left). WebKit's page side can keep reporting it as
+      // `activating` for longer than this test waits (in one of two CI
+      // runs of the same build), so there either state is accepted; the
+      // checks below are what tells that the new version took over.
+      const activeState =
+        browserName === 'webkit' ? /^activat(ed|ing)$/ : /^activated$/;
       await expect
         .poll(async () => (await shellWorker(page)).active, {
           timeout: 60_000,
         })
-        .toBe('activated');
+        .toMatch(activeState);
       const after = await shellWorker(page);
       expect(after.caches).not.toEqual(first.caches);
       await expect(setting).toHaveAccessibleName(READY, { timeout: 60_000 });
