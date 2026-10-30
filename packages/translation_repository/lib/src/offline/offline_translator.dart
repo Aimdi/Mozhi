@@ -81,6 +81,37 @@ abstract interface class DetailedOfflineTranslator
   Future<bool> preload({required String source, required String target});
 }
 
+/// An [OfflineTranslator] whose language downloads can be stopped
+/// ([cancelDownload]).
+///
+/// A separate interface, so that every [OfflineTranslator] keeps working:
+/// callers check for it (`translator is CancellableDownloads`) and offer
+/// no Cancel otherwise.
+abstract interface class CancellableDownloads implements OfflineTranslator {
+  /// Stops every running [OfflineTranslator.downloadLanguage] of [code]:
+  /// the request is closed, nothing more is written, and those calls fail
+  /// with [OfflineDownloadCancelledException]. The language stays not
+  /// downloaded, unless its models were installed already. What was
+  /// received may be kept (never as an installed model) so that the next
+  /// download of [code] resumes it.
+  ///
+  /// Completes once those downloads have stopped; does nothing when no
+  /// download of [code] is running. Never throws.
+  Future<void> cancelDownload(String code);
+}
+
+/// A download was stopped with [CancellableDownloads.cancelDownload]
+/// before it finished. Nothing was installed by it.
+final class OfflineDownloadCancelledException implements Exception {
+  const new([this.language]);
+
+  /// The language whose download was cancelled, when known.
+  final String? language;
+
+  @override
+  String toString() => 'OfflineDownloadCancelledException(${language ?? ''})';
+}
+
 /// The request was cancelled (its `abort` completed) before it finished.
 final class OfflineTranslationCancelledException implements Exception {
   const new();

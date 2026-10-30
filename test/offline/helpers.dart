@@ -8,6 +8,10 @@ import 'package:translation_repository/translation_repository.dart';
 
 class MockOfflineTranslator extends Mock implements OfflineTranslator;
 
+/// An [OfflineTranslator] whose downloads can be cancelled.
+class MockCancellableOfflineTranslator extends Mock
+    implements CancellableDownloads;
+
 class MockOfflineModelFilePicker extends Mock implements OfflineModelFilePicker;
 
 /// A picker that returns [paths] (cancelled when empty), calling
@@ -36,8 +40,57 @@ const testOfflineLanguages = {'fr', 'de', 'en', 'ja', 'xx'};
 MockOfflineTranslator stubOfflineTranslator({
   bool available = true,
   Set<String> downloaded = const {'en', 'de'},
-}) {
-  final translator = MockOfflineTranslator();
+}) => _stub(MockOfflineTranslator(), available, downloaded);
+
+/// [stubOfflineTranslator] with [CancellableDownloads]: a download waits
+/// until `cancelDownload` of its language (which then fails it with an
+/// [OfflineDownloadCancelledException]) or until [finishDownload].
+class CancellableTranslatorStub {
+  new({bool available = true, Set<String> downloaded = const {'en', 'de'}})
+    : translator = _stub(
+        MockCancellableOfflineTranslator(),
+        available,
+        downloaded,
+      ) {
+    when(
+      () =>
+          translator.downloadLanguage(any(), wifiOnly: any(named: 'wifiOnly')),
+    ).thenAnswer((invocation) {
+      final code = invocation.positionalArguments.first as String;
+      return (_running[code] = Completer<void>()).future;
+    });
+    when(() => translator.cancelDownload(any())).thenAnswer((invocation) async {
+      final code = invocation.positionalArguments.first as String;
+      cancelled.add(code);
+      _running
+          .remove(code)
+          ?.completeError(OfflineDownloadCancelledException(code));
+    });
+  }
+
+  final MockCancellableOfflineTranslator translator;
+
+  /// Codes passed to `cancelDownload`.
+  final cancelled = <String>[];
+
+  final _running = <String, Completer<void>>{};
+
+  /// Ends the running download of [code], with [error] when given.
+  void finishDownload(String code, {Object? error}) {
+    final running = _running.remove(code)!;
+    if (error == null) {
+      running.complete();
+    } else {
+      running.completeError(error);
+    }
+  }
+}
+
+T _stub<T extends OfflineTranslator>(
+  T translator,
+  bool available,
+  Set<String> downloaded,
+) {
   when(() => translator.isAvailable).thenReturn(available);
   when(() => translator.supportedLanguages).thenReturn(testOfflineLanguages);
   when(translator.downloadedLanguages).thenAnswer((_) async => {...downloaded});

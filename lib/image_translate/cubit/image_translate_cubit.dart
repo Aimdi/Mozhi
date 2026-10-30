@@ -924,12 +924,20 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
   );
 
   /// Maps transport errors to [ImageTranslateException]s where image
-  /// translation has a better explanation; other errors pass through.
+  /// translation has a better explanation; other errors pass through, such
+  /// as an `AllInstancesFailedException` (every Mozhi server failed), which
+  /// the error view describes like the translator does.
   static Object mapError(Object error, {ImageTranslateMethodKind? method}) {
     ImageTranslateException wrap(ImageTranslateErrorKind kind) =>
         ImageTranslateException(kind, cause: error);
     return switch (error) {
       ImageTranslateException() => error,
+      // Every server failed: told like a failed text translation (the
+      // explanations below are about one server's answer). Google sending
+      // nothing back stays serviceRefused: that may be the photo.
+      AllInstancesFailedException(:final message)
+          when message != TranslationRepository.imageNoResultMessage =>
+        error,
       MozhiApiException(statusCode: 502, :final message)
           when method == ImageTranslateMethodKind.mozhiLens &&
               message == TranslationRepository.imageNoResultMessage =>

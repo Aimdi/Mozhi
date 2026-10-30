@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
@@ -116,6 +117,20 @@ class FakeModelServer {
   /// When true, `Range` requests are answered with the whole file (200).
   bool ignoreRange = false;
 
+  /// The `Content-Range` of `206` answers for a request from byte `start`
+  /// of a file of `size` bytes; null leaves it out. Default: the honest
+  /// `bytes <start>-<size - 1>/<size>`.
+  String? Function(int start, int size) contentRange = (start, size) =>
+      'bytes $start-${size - 1}/$size';
+
+  /// When set, every response streams from this controller instead (its
+  /// status: [streamStatus], with the [contentRange] for a `206`); for
+  /// tests that cut or cancel downloads at a chosen moment.
+  StreamController<List<int>>? stream;
+
+  /// The status of responses from [stream].
+  int streamStatus = 200;
+
   /// Stop a response after this many bytes (simulated disconnect).
   int? cutAfter;
 
@@ -127,15 +142,32 @@ class FakeModelServer {
       return http.StreamedResponse(Stream.value([1, 2, 3]), status);
     }
     final body = overrides[url] ?? _files[url];
+    final range = request.headers['Range'];
+    if (stream case final controller?) {
+      final start = range == null
+          ? 0
+          : int.parse(RegExp(r'bytes=(\d+)-').firstMatch(range)!.group(1)!);
+      return http.StreamedResponse(
+        controller.stream,
+        streamStatus,
+        headers: {
+          if (streamStatus == 206 && body != null)
+            'content-range': ?contentRange(start, body.length),
+        },
+      );
+    }
     if (body == null) {
       return http.StreamedResponse(const Stream.empty(), 404);
     }
-    final range = request.headers['Range'];
     var start = 0;
     var code = 200;
+    final headers = <String, String>{};
     if (range != null && !ignoreRange) {
       start = int.parse(RegExp(r'bytes=(\d+)-').firstMatch(range)!.group(1)!);
       code = 206;
+      if (contentRange(start, body.length) case final value?) {
+        headers['content-range'] = value;
+      }
     }
     var bytes = body.sublist(start);
     final cut = cutAfter;
@@ -149,6 +181,7 @@ class FakeModelServer {
           ).followedBy(Stream.error(const SocketException('Connection reset'))),
         ),
         code,
+        headers: headers,
       );
     }
     bytes = Uint8List.fromList(bytes);
@@ -159,6 +192,7 @@ class FakeModelServer {
       ]),
       code,
       contentLength: bytes.length,
+      headers: headers,
     );
   });
 }

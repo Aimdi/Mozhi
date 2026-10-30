@@ -9,8 +9,8 @@ import 'package:translation_repository/translation_repository.dart';
 /// It is never [isAvailable], so `TranslationRepository` offers no offline
 /// engine and the Offline languages screen explains why; it knows no
 /// languages, identifies nothing and refuses every model operation with an
-/// [UnsupportedError].
-class UnavailableOfflineTranslator implements OfflineTranslator {
+/// [UnsupportedError] (there is never a download to cancel).
+class UnavailableOfflineTranslator implements CancellableDownloads {
   const new({this.webRequirement});
 
   /// In the web app: what the browser lacks for the on-device engine (the
@@ -30,6 +30,9 @@ class UnavailableOfflineTranslator implements OfflineTranslator {
   @override
   Future<void> downloadLanguage(String code, {bool wifiOnly = true}) =>
       Future.error(UnsupportedError('Offline translation is not available'));
+
+  @override
+  Future<void> cancelDownload(String code) async {}
 
   @override
   Future<void> deleteLanguage(String code) =>

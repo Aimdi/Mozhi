@@ -17,10 +17,24 @@ abstract final class PdfLimits {
   /// The resolution pages are rendered at for reading, at most (a page
   /// larger than Letter gets less to stay within [maxPixels]).
   static const int readDpi = 300;
+
+  /// The resolution a page whose text comes from its text layer is
+  /// rendered at (only its colours are sampled), at most...
+  static const int textLayerDpi = 144;
+
+  /// ...and its most pixels (2 megapixels).
+  static const int maxTextLayerPixels = 2000000;
+
+  /// Most lines of a page's text layer taken.
+  static const int maxTextLines = 5000;
+
+  /// Most characters of one line of a text layer taken.
+  static const int maxTextLineLength = 2000;
 }
 
 /// The pages of one PDF on the device: Android's framework `PdfRenderer`
-/// opens and renders them and `PdfDocument` writes the translated file
+/// opens and renders them (and on Android 15 and later reads their text
+/// layers) and `PdfDocument` writes the translated file
 /// (`PdfPagesPlugin.kt`, channel `mozhi/pdf_pages`). One document is open at
 /// a time; opening another closes the first.
 abstract interface class PdfPages {
@@ -35,6 +49,14 @@ abstract interface class PdfPages {
   /// Renders page [page] (0-based) of the open PDF on white, with at most
   /// [maxPixels] pixels. Throws [PdfRenderException].
   Future<PdfPageImage> render(int page, {required int maxPixels});
+
+  /// The text layer of page [page] (0-based) of the open PDF: its lines in
+  /// the file's order, each with its box in points, exactly as the file
+  /// has them (Android 15's `PdfRenderer.Page.getTextContents`). Empty for
+  /// a page without text (a scan) or when its text cannot be read; null
+  /// when text layers are not read here (before Android 15, the web).
+  /// Never throws.
+  Future<List<PdfTextLine>?> readText(int page);
 
   /// Writes the translated PDF to [outputPath] (a file in the app's private
   /// cache): every page of [pages] is its source page as the background,
@@ -88,6 +110,26 @@ class PdfPageImage {
 
   @override
   String toString() => 'PdfPageImage(${width}x$height, $bytesPerPixel bpp)';
+}
+
+/// One line of a page's text layer ([PdfPages.readText]): its [text] and
+/// where it is ([rect], in points from the page's top left).
+@immutable
+class PdfTextLine {
+  const new({required this.text, required this.rect});
+
+  final String text;
+  final Rect rect;
+
+  @override
+  bool operator ==(Object other) =>
+      other is PdfTextLine && other.text == text && other.rect == rect;
+
+  @override
+  int get hashCode => Object.hash(text, rect);
+
+  @override
+  String toString() => 'PdfTextLine($text, $rect)';
 }
 
 /// Where a translated text sits in its box (logical: start is the left

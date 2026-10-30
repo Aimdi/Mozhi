@@ -47,4 +47,7 @@
     <string name="live_captions_stop_description">إيقاف الترجمة المباشرة</string>
     <string name="live_captions_open_description">فتح Mozhi</string>
     <string name="live_captions_bar_description">الترجمة المباشرة</string>
+    <string name="tile_live_captions_label">الترجمة المباشرة</string>
+    <string name="tile_live_captions_description">تشغيل الترجمة المباشرة في Mozhi أو إيقافها</string>
+    <string name="live_captions_locked">Mozhi مقفل</string>
 </resources>

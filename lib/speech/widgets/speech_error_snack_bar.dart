@@ -13,10 +13,15 @@ import 'package:translation_repository/translation_repository.dart';
 /// and offers "Listen online" ([speechListenOnlineLabel]; short, so it fits
 /// next to the message on a phone): [onListenOnline] then gets the consent,
 /// to pass as `allowOnline` when calling the service again.
+///
+/// When the Mozhi servers failed or did not answer ([speechServersFailed])
+/// and [onRetry] is given, the snack bar says so in plain words and offers
+/// Retry, which reads the text again.
 void showSpeechErrorSnackBar(
   BuildContext context,
   Object error, {
   void Function(ConsentRequiredException consent)? onListenOnline,
+  VoidCallback? onRetry,
 }) {
   final l10n = context.l10n;
   final consent = switch (error) {
@@ -25,6 +30,7 @@ void showSpeechErrorSnackBar(
       onlineConsent,
     _ => null,
   };
+  final retry = consent == null && speechServersFailed(error) ? onRetry : null;
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
       content: Text(
@@ -42,13 +48,21 @@ void showSpeechErrorSnackBar(
             : speechErrorMessage(l10n, error),
       ),
       // Long enough to read the notice and decide.
-      duration: Duration(seconds: consent == null ? 4 : 10),
-      action: consent == null
-          ? null
-          : SnackBarAction(
+      duration: Duration(
+        seconds: consent != null
+            ? 10
+            : retry != null
+            ? 6
+            : 4,
+      ),
+      action: consent != null
+          ? SnackBarAction(
               label: l10n.speechListenOnline,
               onPressed: () => onListenOnline!(consent),
-            ),
+            )
+          : retry != null
+          ? SnackBarAction(label: l10n.commonRetry, onPressed: retry)
+          : null,
     ),
   );
 }

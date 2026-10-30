@@ -207,46 +207,60 @@ Carried over to later waves:
   browser's private storage); images for the vision-capable models.
 - **Voice:** measure the CPU variants and the quantized models on phones,
   and try q8_0 models.
-- **Documents:** spreadsheet comments, chart data, alt text, sheet names and slide-master
-  prompts are not translated yet; PO plural forms other than the singular
-  all get the same text and Android plurals keep the source quantities;
-  XLIFF `seg-source` segmentation is not mirrored in the targets; large
-  files can pause the web app, which has no worker for parsing.
+- **Documents:** plural forms beyond the singular (Russian `few` and
+  `many`, Arabic `two`…) get the same plural text in PO and Android files,
+  since the source has only two (review them); a sheet named anywhere
+  formulas can't be rewritten (pivot sources, `INDIRECT` text, form
+  controls, macros) keeps its name, `docProps/app.xml` keeps the old names
+  and other files linking to a renamed sheet need updating; threaded
+  comments that mention people, placeholder prompts on slide masters and
+  layouts, and chart data (a copy of the cells) stay as they are; in the
+  web app a large text file, or one large part of an office file, is still
+  parsed in one go on the UI thread (office files and e-books yield
+  between parts).
 - **Translate screen:** try the capture timing, the bubble's snapping and
   remove target, and the detection of apps that block screenshots on real
-  phones; the launcher shortcut is the fifth one, which Pixel launchers
-  don't show; opt-in translation of incoming notifications with the
-  offline engine only.
-- **App lock:** while the app is locked, screens opened before keep their
-  data in memory (hidden, not encrypted); Android 11+ accepts the
-  "weak" biometric class like the lock screen does; the live caption bar
-  keeps showing captions while the app is locked (the transcript stays
-  behind the lock).
+  phones; check the launcher shortcuts' order on Pixel and Samsung
+  launchers (Translate screen is fourth, after Translate clipboard, Camera
+  and Conversation; Proofread, sixth, is left out on Android 7 to 9);
+  opt-in translation of incoming notifications with the offline engine
+  only.
+- **App lock:** try on real phones that Android 11+ asks for a strong
+  fingerprint or face (a weak face unlock falls back to the PIN) and the
+  caption bar's locked line; the translate screen and a conversation stay
+  in memory while locked (hidden), the history does not.
 - **Live camera:** try it on real phones: the preview's orientation in
   portrait and both landscapes, the preview under Impeller/Vulkan, zoom
   before and after Android 11, the torch, and the camera permission after
   "Don't ask again"; text along tilted lines.
 - **PDF:** try the rendering colours, how translated text fits its box,
   selecting and searching the result and the memory of a 200-page file
-  on real phones; PDFs with a text layer are still read with text
-  recognition (Android 15's text extraction could read them directly and
-  keep them sharp); the page backgrounds drop to about 40 dpi on 200-page
-  files; text recognition does not pause when the phone is hot; PDF in the
-  web app.
+  on real phones; check the text layer on Android 15 phones (the line
+  boxes the framework's selection gives, multi-column and right-to-left
+  files, fonts without a character map falling back to text recognition);
+  before Android 15 PDFs with a text layer are still read with text
+  recognition (`PdfRendererPreV`, from an SDK extension, might read them
+  on some Android 12 to 14 phones); the page backgrounds drop to about 40 dpi on 200-page
+  files; while text recognition waits for a hot phone to cool down, the
+  progress line shows the pages done, not the pause; PDF in the web app.
 - **Live captions:** check on real phones that capture keeps going in the
   background on Android 14 and later with only the media projection
   service type, the caption bar's Open button on Android 15, the consent
-  and permission order at the first start and the bar at 200% text; a
-  Quick Settings tile for captions.
-- **Tap a word:** words in the input can't be tapped yet; the highlight
+  and permission order at the first start, the bar at 200% text, and
+  the Quick Settings tile (its state, a tap on a locked phone, a cold
+  start from it).
+- **Tap a word:** words in the input are looked up with "Look up" in the
+  field's selection menu, not with a tap (a tap places the cursor); in the
+  web app the field shows its own menu instead of the browser's while it
+  has the focus (no browser spelling suggestions there); the highlight
   while Listen plays depends on the voice reporting its progress
   (browsers' word boundaries for Chinese, Japanese and Thai are rough).
-- **First run and servers:** download cancel (the offline engine's
-  downloads can't be aborted yet); image translation, read-aloud and
-  detection don't show the plain "volunteer servers failed" view yet; the
-  first-run language suggestion needs a phone language other than the
-  target; check the Firefox and WebKit runs of the web tests (first run
-  in CI with wave 8).
+- **First run and servers:** text recognition and dictionary pack
+  downloads can't be cancelled yet (language downloads can), and the
+  language picker's download has no Cancel; a retry in Conversation asks
+  again for a one-time approval; quick translate and the voice preview
+  have no Retry; the first-run language suggestion needs a phone
+  language other than the target.
 - **Not done on purpose:** measuring instance speed automatically during
   setup (it contacts every listed volunteer server, so it stays a button:
   "Find the fastest server"); on-device AI as an automatic fallback (it

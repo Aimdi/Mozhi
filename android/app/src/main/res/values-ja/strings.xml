@@ -47,4 +47,7 @@
     <string name="live_captions_stop_description">ライブ字幕を停止</string>
     <string name="live_captions_open_description">Mozhi を開く</string>
     <string name="live_captions_bar_description">ライブ字幕</string>
+    <string name="tile_live_captions_label">ライブ字幕</string>
+    <string name="tile_live_captions_description">Mozhi のライブ字幕を開始または停止</string>
+    <string name="live_captions_locked">Mozhi はロックされています</string>
 </resources>

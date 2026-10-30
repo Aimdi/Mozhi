@@ -310,6 +310,10 @@ const Map<String, String> _pluralForms = {
   'mk': 'nplurals=2; plural=(n%10==1 && n%100!=11) ? 0 : 1;',
 };
 
+/// The `Plural-Forms` written for languages [gettextPluralForms] does not
+/// know: two forms, singular and plural.
+const String defaultGettextPluralForms = _notOne;
+
 /// The gettext `Plural-Forms` header value for [tag] (Brazilian and
 /// European Portuguese differ), or null for a language this table does
 /// not know.
@@ -332,6 +336,17 @@ class PluralForms {
   int formFor(int n) {
     final form = _form(n);
     return form < 0 || form >= count ? count - 1 : form;
+  }
+
+  /// Whether [form] is used for `n = 1` and no other number (checked up
+  /// to 1000): English "one", but not Russian "one" (1, 21, 31, ...) or
+  /// French (0 and 1).
+  bool isOnlyOne(int form) {
+    if (formFor(1) != form) return false;
+    for (var n = 0; n <= 1000; n++) {
+      if (n != 1 && formFor(n) == form) return false;
+    }
+    return true;
   }
 
   /// Parses `nplurals=N; plural=EXPRESSION;`; null when it is malformed

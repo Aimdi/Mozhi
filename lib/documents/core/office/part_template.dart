@@ -21,6 +21,17 @@ final class RawXml extends PartNode {
   final String xml;
 }
 
+/// XML that depends on translations without being a paragraph: an element
+/// whose attributes are translated (alternative text, a sheet name) or a
+/// formula that refers to a renamed sheet. Renders [original] when
+/// [compute] gives null.
+final class ComputedXml extends PartNode {
+  const new(this.original, this.compute);
+
+  final String original;
+  final String? Function(PartRenderer renderer) compute;
+}
+
 /// Nodes inside a paragraph that is not translated: their language marks
 /// keep the original language.
 final class UntranslatedScope extends PartNode {
@@ -728,6 +739,17 @@ final class PartRenderer {
         translation != segments[index].text;
   }
 
+  /// The translation of segment [index] for an attribute value (no
+  /// placeholders, no surrounding whitespace), or null when it keeps the
+  /// original.
+  String? attributeTranslationOf(int index) {
+    final translation = translationOf(index)
+        ?.replaceAll(placeholderPattern, '')
+        .replaceAll('\r\n', '\n')
+        .trim();
+    return translation == null || translation.isEmpty ? null : translation;
+  }
+
   /// Renders a whole part.
   String renderPart(List<PartNode> nodes) {
     final out = StringBuffer();
@@ -750,6 +772,8 @@ final class PartRenderer {
         case LanguageMark(:final source):
           final tag = language;
           out.write(translated && tag != null ? node.rewrite(tag) : source);
+        case ComputedXml(:final original, :final compute):
+          out.write(compute(this) ?? original);
         case ParagraphSlot():
           _writeSlot(out, node);
       }
@@ -896,6 +920,14 @@ final class PartRenderer {
 // Walking a part
 // -------------------------------------------------------------------------
 
+/// Elements a [PartBuilder] hands over before its own rules: references
+/// to content of other parts (formulas naming sheets that are renamed).
+abstract interface class ElementSites {
+  /// The template of [element] in [builder]'s part, or null when it is
+  /// not a site (or refers to nothing that changes).
+  List<PartNode>? site(PartBuilder builder, SourceElement element);
+}
+
 /// Builds the template of one XML part: walks the elements, turning
 /// paragraphs into slots and language marks into [LanguageMark]s; every
 /// other subtree stays raw source text.
@@ -904,6 +936,10 @@ abstract class PartBuilder {
 
   final SourceDocument document;
   final SegmentTable table;
+
+  /// Elements handled before this builder's own rules (set by the package
+  /// reader).
+  ElementSites? sites;
 
   String get source => document.source;
 
@@ -918,6 +954,10 @@ abstract class PartBuilder {
 
   /// The slot (or kept template) of paragraph [element].
   List<PartNode>? paragraph(SourceElement element) => plain(element);
+
+  /// Whether the alternative text of the drawing object [element] (its
+  /// `descr` and `title`, see [altText]) is translated.
+  bool translatesAltText(SourceElement element) => false;
 
   /// The template of the whole part.
   List<PartNode> build() {
@@ -936,10 +976,53 @@ abstract class PartBuilder {
 
   /// The template of [element], or null when it is kept as it is.
   List<PartNode>? node(SourceElement element) {
+    if (sites?.site(this, element) case final nodes?) return nodes;
     if (skip(element)) return null;
     if (isParagraph(element)) return paragraph(element);
+    if (altText(element) case final nodes?) return nodes;
     return plain(element);
   }
+
+  static const _altTextAttributes = {'descr', 'title'};
+
+  /// The template of a drawing object's non-visual properties
+  /// (`wp:docPr` in Word, `p:cNvPr`, `pic:cNvPr`, `xdr:cNvPr`, ...) whose
+  /// alternative text (`descr`) or title is translated in place; null
+  /// when [element] is none or has no such text.
+  List<PartNode>? altText(SourceElement element) {
+    if (element.namespace == null ||
+        (element.localName != 'docPr' && element.localName != 'cNvPr') ||
+        !translatesAltText(element)) {
+      return null;
+    }
+    final segments = <String, int>{};
+    for (final attribute in element.attributes) {
+      if (attribute.namespace != null ||
+          !_altTextAttributes.contains(attribute.localName)) {
+        continue;
+      }
+      final text = attribute.value.replaceAll('\r\n', '\n').trim();
+      if (!containsLetter(text)) continue;
+      segments[attribute.qualifiedName] = table.add(text);
+    }
+    if (segments.isEmpty) return null;
+    final startTag = source.substring(element.start, element.startTagEnd);
+    return [
+      ComputedXml(startTag, (renderer) {
+        final values = {
+          for (final MapEntry(:key, :value) in segments.entries)
+            key: ?renderer.attributeTranslationOf(value),
+        };
+        return values.isEmpty ? null : spliceAttributes(startTag, values);
+      }),
+      ?_rest(element),
+    ];
+  }
+
+  /// [element] after its start tag (null when it is self-closing).
+  RawXml? _rest(SourceElement element) => element.isSelfClosing
+      ? null
+      : RawXml(source.substring(element.startTagEnd, element.end));
 
   /// The template of [element] as a plain container (also for a paragraph
   /// that is not translated), or null when it is kept as it is.
@@ -1019,4 +1102,51 @@ abstract class PartBuilder {
     final kept = plain(element);
     return kept == null ? null : [UntranslatedScope(kept)];
   }
+}
+
+// -------------------------------------------------------------------------
+// Attributes
+// -------------------------------------------------------------------------
+
+final _tagName = RegExp(r'<[^\s/>]+');
+final _attribute = RegExp(
+  '(\\s+)([^\\s=/>]+)(\\s*=\\s*)(?:"([^"]*)"|\'([^\']*)\')',
+);
+
+/// [startTag] (the raw XML of a start tag) with the attributes named in
+/// [values] (qualified names) set to the given values; everything else is
+/// kept as written. Attributes that are not there are not added.
+String spliceAttributes(String startTag, Map<String, String> values) {
+  final name = _tagName.matchAsPrefix(startTag);
+  if (name == null) return startTag;
+  final out = StringBuffer(name.group(0)!);
+  var position = name.end;
+  while (true) {
+    final match = _attribute.matchAsPrefix(startTag, position);
+    if (match == null) break;
+    final value = values[match.group(2)];
+    if (value == null) {
+      out.write(match.group(0));
+    } else {
+      final single = match.group(4) == null;
+      final quote = single ? "'" : '"';
+      out
+        ..write(match.group(1))
+        ..write(match.group(2))
+        ..write(match.group(3))
+        ..write(quote)
+        ..write(
+          escapeXmlAttribute(
+            value,
+            single
+                ? XmlAttributeType.SINGLE_QUOTE
+                : XmlAttributeType.DOUBLE_QUOTE,
+          ),
+        )
+        ..write(quote);
+    }
+    position = match.end;
+  }
+  out.write(startTag.substring(position));
+  return out.toString();
 }

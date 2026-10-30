@@ -255,6 +255,28 @@ void main() {
         ).called(1);
       });
 
+      test('every server failing is the cause it cannot read', () async {
+        final allFailed = AllInstancesFailedException(
+          'boom',
+          engine: TranslationEngine.mozhi('google', 'Google'),
+          instances: const [_instance],
+          statusCode: 502,
+        );
+        when(
+          () => repository.textToSpeech(
+            text: any(named: 'text'),
+            languageCode: any(named: 'languageCode'),
+          ),
+        ).thenThrow(allFailed);
+
+        await expectLater(
+          service.toggle(id: 'target', text: 'Bonjour', languageCode: 'fr'),
+          throwsA(unavailable('fr', cause: same(allFailed))),
+        );
+        expect(service.current, isNull);
+        expect(output.played, isEmpty);
+      });
+
       test('becomes idle when the clip completes', () async {
         await service.toggle(id: 'target', text: 'Bonjour', languageCode: 'fr');
 

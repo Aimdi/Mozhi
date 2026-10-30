@@ -9,7 +9,8 @@ import 'package:mozhi/documents/core/office/xml_source.dart';
 /// merged; runs with other formatting, hyperlinks, tracked insertions and
 /// content controls keep their formatting through placeholders; tabs,
 /// footnote references, drawings (whose text boxes are translated as
-/// paragraphs of their own), fields' instructions, deleted text, bookmarks
+/// paragraphs of their own, and whose alternative text and titles are
+/// translated in place), fields' instructions, deleted text, bookmarks
 /// and comment ranges are kept as they are. Spelling marks are dropped
 /// from translated paragraphs.
 final class WordPartBuilder extends PartBuilder {
@@ -54,6 +55,11 @@ final class WordPartBuilder extends PartBuilder {
   @override
   bool isParagraph(SourceElement element) =>
       translate && element.isA(Ns.word, 'p');
+
+  /// The alternative text and title of pictures, shapes and charts
+  /// (`wp:docPr`, and `pic:cNvPr` inside the graphic).
+  @override
+  bool translatesAltText(SourceElement element) => translate;
 
   @override
   LanguageMarkKind? languageMark(SourceElement element) =>

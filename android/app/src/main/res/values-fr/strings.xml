@@ -47,4 +47,7 @@
     <string name="live_captions_stop_description">Arrêter les sous-titres en direct</string>
     <string name="live_captions_open_description">Ouvrir Mozhi</string>
     <string name="live_captions_bar_description">Sous-titres en direct</string>
+    <string name="tile_live_captions_label">Sous-titres en direct</string>
+    <string name="tile_live_captions_description">Démarrer ou arrêter les sous-titres en direct de Mozhi</string>
+    <string name="live_captions_locked">Mozhi est verrouillé</string>
 </resources>

@@ -12,6 +12,8 @@ import 'package:mozhi/app/router.dart';
 import 'package:mozhi/app/view/app_shell.dart';
 import 'package:mozhi/conversation/view/conversation_page.dart';
 import 'package:mozhi/dictionary/view/dictionary_page.dart';
+import 'package:mozhi/image_translate/models/picked_image.dart'
+    show ImagePickSource;
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/platform/shared_text_service.dart';
 import 'package:mozhi/proofread/view/proofread_page.dart';
@@ -103,15 +105,46 @@ List<String> _shortcutLinks() => [
 
 void main() {
   group('launcher shortcuts', () {
-    test('are at most five, the tabs among the four launchers show', () {
-      // Android 7 to 9 publish at most five per activity; most launchers
-      // show the first four, so Translate screen comes last.
-      final shortcuts = _shortcuts('main');
-      expect(shortcuts, hasLength(lessThanOrEqualTo(5)));
+    test('the four launchers show are the quickest ways in', () {
+      // Most launchers (Pixel, Launcher3) show the first four: the
+      // clipboard, the camera, a conversation and the screen. The tabs
+      // come after them (Android 7 to 9 publish five: Proofread, sixth,
+      // only from Android 10).
       expect(
-        shortcuts.take(4).map((s) => s.shortcut['shortcutId']),
-        isNot(contains('translate_screen')),
+        [for (final s in _shortcuts('main')) s.shortcut['shortcutId']],
+        [
+          'translate_clipboard',
+          'camera',
+          'conversation',
+          'translate_screen',
+          'dictionary',
+          'proofread',
+        ],
       );
+    });
+
+    test('Camera opens the camera translation like the widget', () {
+      final camera = _shortcuts('main')
+          .singleWhere((s) => s.shortcut['shortcutId'] == 'camera');
+      final widget = RegExp('const val CAMERA_LINK = "([^"]*)"').firstMatch(
+        _read(
+          '$_app/src/main/kotlin/io/github/aimdi/mozhi/MozhiWidgetProvider.kt',
+        ),
+      );
+      expect(camera.intent['data'], widget![1]);
+      final link = Uri.parse(camera.intent['data']!);
+      expect(
+        appRedirect(link, null),
+        AppRoutes.imageTranslate(source: ImagePickSource.camera),
+      );
+      expect(camera.shortcut['icon'], '@drawable/ic_shortcut_camera');
+      for (final icon in [
+        'drawable/ic_shortcut_camera.xml',
+        'drawable/ic_shortcut_camera_foreground.xml',
+        'drawable-anydpi-v26/ic_shortcut_camera.xml',
+      ]) {
+        expect(File('$_app/src/main/res/$icon').existsSync(), isTrue);
+      }
     });
 
     test('are the same in every flavour but for the package', () {
@@ -180,7 +213,8 @@ void main() {
       );
     });
 
-    test('open every tab but Translate (the clipboard one opens it)', () {
+    test('open every tab but Translate (the clipboard one opens it), and '
+        'the camera', () {
       final namespace = _gradleSetting('namespace');
       final locations = <String>[];
       for (final shortcut in _shortcuts('main')) {
@@ -200,9 +234,10 @@ void main() {
         locations.add(location);
       }
       expect(locations, [
+        AppRoutes.imageTranslate(source: ImagePickSource.camera),
+        AppRoutes.conversation,
         AppRoutes.dictionary,
         AppRoutes.proofread,
-        AppRoutes.conversation,
       ]);
     });
 
@@ -219,7 +254,11 @@ void main() {
         AppRoutes.proofread: ProofreadPage,
         AppRoutes.conversation: ConversationPage,
       };
-      for (final link in _shortcutLinks()) {
+      // The camera link opens the system camera on arrival (checked
+      // above): only the tabs are opened here.
+      for (final link in _shortcutLinks().where(
+        (link) => pages.containsKey(deepLinkLocation(Uri.parse(link))),
+      )) {
         testWidgets('$link opens its tab', (tester) async {
           final env = TestEnvironment();
           final router = createAppRouter();

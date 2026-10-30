@@ -159,6 +159,115 @@ void main() {
     });
   });
 
+  group('PdfPageReader.textLayerPixels', () {
+    test('144 dpi, within 2 megapixels', () {
+      // A5 at 144 dpi: 840 x 1190 pixels.
+      expect(
+        PdfPageReader.textLayerPixels(const Size(420, 595)),
+        closeTo(840 * 1190, 3000),
+      );
+      expect(PdfPageReader.textLayerPixels(const Size(612, 792)), 1224 * 1584);
+      // A3 would be 2.1 megapixels.
+      expect(
+        PdfPageReader.textLayerPixels(const Size(842, 1191)),
+        PdfLimits.maxTextLayerPixels,
+      );
+    });
+  });
+
+  group('PdfPageReader text layer', () {
+    const letter = Size(612, 792);
+    const text = [
+      PdfTextLine(
+        text: 'The text layer of the file',
+        rect: Rect.fromLTRB(100, 100, 300, 112),
+      ),
+      PdfTextLine(
+        text: 'goes on here.',
+        rect: Rect.fromLTRB(100, 114, 200, 126),
+      ),
+    ];
+
+    test('is read instead of recognising the page', () async {
+      // Letter rendered 612 x 792: 1 pixel per point.
+      pages
+        ..textLayers[0] = text
+        ..renderPage = (page, maxPixels) => whiteImage(
+          612,
+          792,
+          fill: {
+            const Rect.fromLTRB(100, 100, 300, 126): const Color(0xFF202020),
+          },
+        );
+      final page = await reader().read(0, letter, ['eng']);
+      expect(recognizer.reads, isEmpty);
+      // Rendered small, only for the colours.
+      expect(pages.renders.single, (page: 0, maxPixels: 1224 * 1584));
+      expect(page.fromTextLayer, isTrue);
+      expect(page.codes, ['eng']);
+      // The same text whatever the recognition data.
+      expect(page.readWith(['deu']), isTrue);
+      final paragraph = page.paragraphs.single;
+      expect(paragraph.text, 'The text layer of the file goes on here.');
+      expect(paragraph.rect, const Rect.fromLTRB(98, 98, 302, 128));
+      expect(paragraph.fontSize, 13);
+      expect(paragraph.align, PdfTextAlign.start);
+      expect(paragraph.foreground, const Color(0xFF202020));
+      expect(paragraph.background, const Color(0xFFFFFFFF));
+    });
+
+    test('a page with too little text is recognised', () async {
+      pages.textLayers[0] = const [
+        PdfTextLine(text: '12', rect: Rect.fromLTRB(300, 760, 312, 772)),
+      ];
+      recognizer.layoutFor = (width, height, codes) => layoutOf(width, height, [
+        paragraph('Scanned text', const Rect.fromLTRB(10, 10, 90, 30)),
+      ]);
+      final read = reader();
+      expect(await read.hasTextLayer(0), isFalse);
+      expect(await read.readTextLayer(0, letter), isNull);
+      final page = await read.read(0, letter, ['eng']);
+      expect(page.fromTextLayer, isFalse);
+      expect(page.paragraphs.single.text, 'Scanned text');
+      expect(recognizer.reads, hasLength(1));
+      // The text layer was asked for once.
+      expect(pages.textReads, [0]);
+    });
+
+    test('before Android 15 every page is recognised', () async {
+      final read = reader();
+      expect(await read.hasTextLayer(0), isFalse);
+      await read.read(0, letter, ['eng']);
+      expect(recognizer.reads, hasLength(1));
+    });
+
+    test('forget asks for the text layers again', () async {
+      pages.textLayers[0] = text;
+      final read = reader();
+      expect(await read.hasTextLayer(0), isTrue);
+      expect(await read.hasTextLayer(0), isTrue);
+      expect(pages.textReads, [0]);
+      read.forget();
+      expect(await read.hasTextLayer(0), isTrue);
+      expect(pages.textReads, [0, 0]);
+    });
+
+    test('without a recognizer only text layers are read', () async {
+      pages.textLayers[0] = text;
+      final read = PdfPageReader(pages: pages, recognizer: null);
+      expect(read.canRecognize, isFalse);
+      expect((await read.read(0, letter, const [])).fromTextLayer, isTrue);
+      await expectLater(
+        read.read(1, letter, ['eng']),
+        throwsA(
+          const ImageTranslateException(
+            ImageTranslateErrorKind.recognitionFailed,
+          ),
+        ),
+      );
+    });
+  });
+
   group('PdfPageReader.alignOf', () {
     test('turns alignment as seen into start and end', () {
       PdfTextAlign align(

@@ -140,6 +140,7 @@ void main() {
       );
       final document = parse(bytes);
       expect(textsOf(document), [
+        'Sheet1',
         'Name',
         '⟨1⟩Total⟨2⟩ amount',
         'Line 1\nLine 2 _x0041_',
@@ -188,7 +189,7 @@ void main() {
       final plain = xlsx([
         '<si><t>Name</t></si>',
       ], sheetData: '<row><c r="A1" t="s"><v>0</v></c>');
-      expect(textsOf(parse(plain)), ['Name']);
+      expect(textsOf(parse(plain)), ['Sheet1', 'Name']);
 
       // Too large to read: the worksheet is left as it is.
       final large = xlsx(
@@ -203,7 +204,7 @@ void main() {
         limits: const PackageLimits(maxPartBytes: 1000),
       );
       expect(textsOf(document), ['Name']);
-      expect(textsOf(parse(large)), ['Name', 'Inline']);
+      expect(textsOf(parse(large)), ['Sheet1', 'Name', 'Inline']);
     });
   });
 }

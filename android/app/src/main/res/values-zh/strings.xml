@@ -47,4 +47,7 @@
     <string name="live_captions_stop_description">停止实时字幕</string>
     <string name="live_captions_open_description">打开 Mozhi</string>
     <string name="live_captions_bar_description">实时字幕</string>
+    <string name="tile_live_captions_label">实时字幕</string>
+    <string name="tile_live_captions_description">开始或停止 Mozhi 实时字幕</string>
+    <string name="live_captions_locked">Mozhi 已锁定</string>
 </resources>

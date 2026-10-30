@@ -2,12 +2,14 @@ import 'dart:async';
 import 'dart:typed_data';
 import 'dart:ui';
 
+import 'package:flutter/services.dart' show MethodChannel;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mozhi/documents/core/core.dart';
 import 'package:mozhi/documents/pdf/pdf.dart';
 import 'package:mozhi/image_translate/data/text_recognition_plan.dart';
 import 'package:mozhi/image_translate/data/text_recognition_service.dart';
 import 'package:mozhi/image_translate/models/models.dart';
+import 'package:mozhi/platform/device_conditions.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 import '../helpers/fakes.dart';
@@ -65,6 +67,8 @@ void main() {
   PdfTranslator build({
     TextRecognitionService? withRecognizer,
     int maxFailedPagesInARow = 3,
+    DeviceConditions? conditions,
+    Duration coolingCheck = const Duration(seconds: 30),
   }) => PdfTranslator(
     pages: pages,
     recognizer: withRecognizer ?? recognizer,
@@ -75,6 +79,8 @@ void main() {
     ),
     scratch: scratch,
     maxFailedPagesInARow: maxFailedPagesInARow,
+    conditions: conditions,
+    coolingCheck: coolingCheck,
   );
 
   Stream<PdfProgress> translate(
@@ -487,6 +493,294 @@ void main() {
         const PdfProgress(total: 1),
         isNot(const PdfProgress(total: 1, isComplete: true)),
       );
+    });
+  });
+
+  group('PdfTranslator text layers (Android 15+)', () {
+    /// A text layer with [text] in one line.
+    List<PdfTextLine> layer(String text) => [
+      PdfTextLine(text: text, rect: const Rect.fromLTRB(72, 72, 400, 84)),
+    ];
+
+    const fromTheFile = 'Exactly the text of the file';
+
+    test(
+      'pages with a text layer are not recognised, the others are',
+      () async {
+        pages
+          ..textLayers[0] = layer(fromTheFile)
+          // Too little text: recognised.
+          ..textLayers[2] = layer('2');
+        final events = await translate(build()).toList();
+        final last = events.last;
+        expect(last.failures, isEmpty);
+        expect(last.results, {
+          0: [fromTheFile.toUpperCase()],
+          1: <String>[],
+          2: ['LAST PAGE'],
+        });
+        expect(last.pages[0]!.fromTextLayer, isTrue);
+        expect(last.pages[2]!.fromTextLayer, isFalse);
+        // Only pages 1 and 2 went through text recognition.
+        expect(recognizer.reads.map((read) => read.width), [
+          FakePdfPages.widthOf(1),
+          FakePdfPages.widthOf(2),
+        ]);
+        expect(pages.renders.map((render) => render.maxPixels), [
+          // Letter at 144 dpi, for the colours only.
+          1224 * 1584,
+          PdfLimits.maxPixels,
+          PdfLimits.maxPixels,
+        ]);
+        expect(
+          [for (final request in requests) request.text],
+          [fromTheFile, 'Last page'],
+        );
+        expect(
+          [for (final e in events) (e.page, e.stage)],
+          containsAllInOrder([
+            (0, PdfStage.reading),
+            (0, PdfStage.translating),
+            (1, PdfStage.reading),
+          ]),
+        );
+      },
+    );
+
+    test('a page from its text layer is reused with any data', () async {
+      pages.textLayers[0] = layer(fromTheFile);
+      final translator = build();
+      final first = await translator.read(0, pages.pageSizes[0], const []);
+      final last = (await translate(
+        translator,
+        codes: const ['eng', 'deu'],
+        known: {0: first},
+        only: const [0],
+      ).toList()).last;
+      expect(last.pages[0], same(first));
+      expect(last.results[0], [fromTheFile.toUpperCase()]);
+    });
+
+    test('plan needs no data when the first pages have a text layer', () async {
+      pages.textLayers[1] = layer(fromTheFile);
+      final translator = build();
+      // Not open: nothing to probe.
+      expect(
+        await translator.plan(german),
+        const TextRecognitionNeedsData(OcrDataMissingException(germanOcr)),
+      );
+      await translator.open(pdfBytes);
+      expect(await translator.plan(german), const TextRecognitionReady([]));
+      expect(await translator.plan(french), const TextRecognitionReady([]));
+      // Probed once per PDF.
+      expect(pages.textReads, [0, 1]);
+      // Installed data is used for the pages without one.
+      expect(
+        await translator.plan(english),
+        const TextRecognitionReady(['eng']),
+      );
+      expect(translator.canRead, isTrue);
+
+      // Reopened: probed again.
+      pages.textLayers
+        ..clear()
+        ..[0] = const [];
+      await translator.open(pdfBytes);
+      expect(
+        await translator.plan(german),
+        const TextRecognitionNeedsData(OcrDataMissingException(germanOcr)),
+      );
+      expect(pages.textReads, [0, 1, 0, 1, 2]);
+    });
+
+    test('only the first pages are probed', () async {
+      pages
+        ..pageSizes = List.filled(5, const Size(612, 792))
+        ..textLayers[4] = layer(fromTheFile);
+      final translator = build();
+      await translator.open(pdfBytes);
+      expect(await translator.plan(french), const TextRecognitionUnsupported());
+      expect(pages.textReads, [0, 1, 2]);
+      await translator.close();
+      expect(await translator.plan(french), const TextRecognitionUnsupported());
+    });
+
+    test('without data a page without a text layer asks for it', () async {
+      pages.textLayers[0] = layer(fromTheFile);
+      final translator = build();
+      await translator.open(pdfBytes);
+      expect(await translator.plan(german), const TextRecognitionReady([]));
+      expect(
+        (await translator.read(0, pages.pageSizes[0], const [])).fromTextLayer,
+        isTrue,
+      );
+      await expectLater(
+        translator.read(1, pages.pageSizes[1], const []),
+        throwsA(const OcrDataMissingException(germanOcr)),
+      );
+      // A language no data reads: the page cannot be read.
+      expect(await translator.plan(french), const TextRecognitionReady([]));
+      await expectLater(
+        translator.read(1, pages.pageSizes[1], const []),
+        throwsA(
+          const ImageTranslateException(
+            ImageTranslateErrorKind.recognitionFailed,
+          ),
+        ),
+      );
+      expect(recognizer.reads, isEmpty);
+    });
+
+    test('a run without data stops at the first page without one', () async {
+      pages
+        ..textLayers[0] = layer(fromTheFile)
+        ..textLayers[2] = layer('The last page has its text too');
+      final translator = build();
+      await translator.open(pdfBytes);
+      expect(await translator.plan(german), const TextRecognitionReady([]));
+      final last = (await translate(translator, codes: const []).toList()).last;
+      expect(last.results, {
+        0: [fromTheFile.toUpperCase()],
+      });
+      expect(last.failures, {1: const OcrDataMissingException(germanOcr)});
+      expect(recognizer.reads, isEmpty);
+      expect(last.isComplete, isTrue);
+    });
+
+    test(
+      'a page the language has no data for fails, the run goes on',
+      () async {
+        pages
+          ..textLayers[0] = layer(fromTheFile)
+          ..textLayers[2] = layer('The last page has its text too');
+        final translator = build();
+        await translator.open(pdfBytes);
+        expect(await translator.plan(french), const TextRecognitionReady([]));
+        final last = (await translate(
+          translator,
+          codes: const [],
+        ).toList()).last;
+        expect(last.results.keys, [0, 2]);
+        expect(last.failures[1], isA<ImageTranslateException>());
+      },
+    );
+
+    test('a text layer is read without raw-pixel recognition', () async {
+      pages.textLayers[0] = layer(fromTheFile);
+      final translator = build(withRecognizer: _PhotoOnlyRecognizer());
+      await translator.open(pdfBytes);
+      expect(translator.canRead, isFalse);
+      // No language data: unsupported, but the text layer reads it.
+      expect(await translator.plan(english), const TextRecognitionReady([]));
+      expect(translator.canRead, isTrue);
+      expect(
+        (await translator.read(0, pages.pageSizes[0], ['eng'])).fromTextLayer,
+        isTrue,
+      );
+    });
+  });
+
+  group('PdfTranslator while the phone is hot', () {
+    TestWidgetsFlutterBinding.ensureInitialized();
+
+    late StreamController<Object?> pushes;
+    late DeviceConditions conditions;
+
+    setUp(() async {
+      pushes = StreamController<Object?>();
+      // Listening (changes) before anything is asked: pushes only.
+      conditions = DeviceConditions(
+        channel: const MethodChannel('test/device_conditions'),
+        isAndroid: true,
+        events: pushes.stream,
+      )..changes.listen((_) {});
+      pushes.add({'thermal': 3, 'powerSave': false});
+      await pumpEventQueue();
+      expect(conditions.latest.thermal, ThermalStatus.severe);
+    });
+
+    tearDown(() async {
+      await conditions.dispose();
+      await pushes.close();
+    });
+
+    test('text recognition waits until it cooled down', () async {
+      final events = <PdfProgress>[];
+      final run = translate(
+        build(conditions: conditions),
+        only: const [0],
+      ).listen(events.add);
+      addTearDown(run.cancel);
+      await pumpEventQueue();
+      expect(events.last.page, 0);
+      expect(events.last.stage, PdfStage.cooling);
+      expect(recognizer.reads, isEmpty);
+      // Still hot: still waiting.
+      pushes.add({'thermal': 4, 'powerSave': false});
+      await pumpEventQueue();
+      expect(events.last.stage, PdfStage.cooling);
+
+      pushes.add({'thermal': 1, 'powerSave': false});
+      await run.asFuture<void>();
+      expect(
+        [for (final e in events) (e.page, e.stage)],
+        containsAllInOrder([
+          (0, PdfStage.reading),
+          (0, PdfStage.cooling),
+          (0, PdfStage.reading),
+          (0, PdfStage.translating),
+        ]),
+      );
+      expect(recognizer.reads, hasLength(1));
+      expect(events.last.results[0], ['HELLO', 'WORLD']);
+    });
+
+    test('looks again every coolingCheck', () async {
+      final events = <PdfProgress>[];
+      final run = translate(
+        build(
+          conditions: conditions,
+          coolingCheck: const Duration(milliseconds: 1),
+        ),
+        only: const [0],
+      ).listen(events.add);
+      addTearDown(run.cancel);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(events.last.stage, PdfStage.cooling);
+      // A change that does not wake the run; the next look sees it.
+      pushes.add({'thermal': 2, 'powerSave': true});
+      await run.asFuture<void>();
+      expect(events.last.isComplete, isTrue);
+    });
+
+    test('reading a text layer never waits', () async {
+      pages.textLayers[0] = [
+        const PdfTextLine(
+          text: 'The text layer of this page',
+          rect: Rect.fromLTRB(72, 72, 400, 84),
+        ),
+      ];
+      final events = await translate(
+        build(conditions: conditions),
+        only: const [0],
+      ).toList();
+      expect(events.map((e) => e.stage), isNot(contains(PdfStage.cooling)));
+      expect(events.last.results[0], ['THE TEXT LAYER OF THIS PAGE']);
+    });
+
+    test('cancelling stops the wait', () async {
+      final events = <PdfProgress>[];
+      final run = translate(
+        build(conditions: conditions),
+        only: const [0],
+      ).listen(events.add);
+      await pumpEventQueue();
+      expect(events.last.stage, PdfStage.cooling);
+      await run.cancel();
+      pushes.add({'thermal': 0, 'powerSave': false});
+      await pumpEventQueue();
+      expect(events.last.stage, PdfStage.cooling);
+      expect(recognizer.reads, isEmpty);
     });
   });
 

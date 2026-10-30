@@ -100,6 +100,12 @@ TranslateErrorInfo describeTranslateError(
     OfflineLanguageUnsupportedException() => TranslateErrorInfo(
       l10n.translateErrorOfflineUnsupported,
     ),
+    // The detection needed the servers, and none of them answered.
+    SourceLanguageRequiredException(cause: AllInstancesFailedException()) =>
+      TranslateErrorInfo(
+        l10n.translateErrorDetectionServersFailed,
+        chooseSourceLanguage: true,
+      ),
     SourceLanguageRequiredException() => TranslateErrorInfo(
       l10n.translateErrorSourceLanguageRequired,
       chooseSourceLanguage: true,
@@ -157,8 +163,14 @@ TranslateErrorInfo describeTranslateError(
 }
 
 /// [sanitizeErrorDetails] of [error], after the servers tried (their host
-/// names only) for an [AllInstancesFailedException].
+/// names only) for an [AllInstancesFailedException] (also one that kept the
+/// source language from being detected).
 String? _detailsOf(AppLocalizations l10n, Object? error) {
+  if (error case SourceLanguageRequiredException(
+    :final AllInstancesFailedException cause,
+  )) {
+    return _detailsOf(l10n, cause);
+  }
   final details = sanitizeErrorDetails(error);
   if (error is! AllInstancesFailedException) return details;
   final hosts = {
@@ -179,7 +191,11 @@ String? _titleOf(
   Object? error,
   TranslateErrorInfo info,
 ) {
-  if (error is AllInstancesFailedException) {
+  if (error
+      case AllInstancesFailedException() ||
+          SourceLanguageRequiredException(
+            cause: AllInstancesFailedException(),
+          )) {
     return l10n.translateErrorTitleAllServers;
   }
   if (info.chooseSourceLanguage) return l10n.translateErrorTitleLanguage;
@@ -438,8 +454,11 @@ String? nextInstanceUrl(String? current, List<MozhiInstance> instances) {
 ///   translates again. Their consent covers every instance of the list.
 ///
 /// When every Mozhi server failed for the chosen engine
-/// ([AllInstancesFailedException]), the message says the volunteer servers
-/// failed, and the Translate screen's own error offers, in this order:
+/// ([AllInstancesFailedException]; [describeTranslateError] is shared with
+/// the other features that ask the servers, such as image translation),
+/// the message says the volunteer servers failed (also when they failed to
+/// detect the source language: then it asks for the language), and the
+/// Translate screen's own error offers, in this order:
 /// "Translate on this device" (or the download of the pair, see
 /// [OfflinePairOffer]), "Try another engine" (the engine picker,
 /// [showEngineSheet]: the engine is never switched on its own, another

@@ -34,6 +34,12 @@ import 'package:translation_repository/translation_repository.dart';
 /// * A shortcut to the instances or AI providers that fix it.
 /// * An expandable "Details" section with the sanitized technical message.
 ///
+/// When every Mozhi server failed ([AllInstancesFailedException]) it reads
+/// like the translator's error ([describeTranslateError]): "Volunteer
+/// servers unavailable" above the plain message (no HTTP status), then
+/// "Use on-device text recognition" (when offered), Retry and "Choose
+/// another server" (the instance settings).
+///
 /// [method] is the method that failed, for its wording.
 class ImageTranslateErrorView extends StatelessWidget {
   const new({
@@ -84,6 +90,8 @@ class ImageTranslateErrorView extends StatelessWidget {
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final info = describeImageTranslateError(l10n, error, method: method);
+    final allFailed = error is AllInstancesFailedException;
+    final title = allFailed ? info.title : null;
     final chooseSource = info.chooseSourceLanguage
         ? onChooseSourceLanguage
         : null;
@@ -97,7 +105,9 @@ class ImageTranslateErrorView extends StatelessWidget {
       ),
       // Settings pages sit above the translator: back returns here.
       TranslateErrorFix.instances => (
-        l10n.translateManageInstances,
+        allFailed
+            ? l10n.translateErrorChooseAnotherServer
+            : l10n.translateManageInstances,
         ImageTranslateLinks.instances,
         true,
       ),
@@ -137,10 +147,25 @@ class ImageTranslateErrorView extends StatelessWidget {
                 Expanded(
                   child: Semantics(
                     liveRegion: true,
-                    child: Text(
-                      info.message,
-                      key: const Key('image_translate_error_message'),
-                      style: theme.textTheme.bodyLarge,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      spacing: 2,
+                      children: [
+                        if (title != null)
+                          Text(
+                            title,
+                            key: const Key('image_translate_error_title'),
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              color: theme.colorScheme.error,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        Text(
+                          info.message,
+                          key: const Key('image_translate_error_message'),
+                          style: theme.textTheme.bodyLarge,
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -183,13 +208,22 @@ class ImageTranslateErrorView extends StatelessWidget {
                         label: Text(l10n.commonRetry),
                       ),
                   if (fixRoute != null && fixLabel != null)
-                    TextButton(
-                      key: const Key('image_translate_error_fix'),
-                      onPressed: () => push
-                          ? unawaited(context.push<Object?>(fixRoute))
-                          : context.go(fixRoute),
-                      child: Text(fixLabel),
-                    ),
+                    if (allFailed)
+                      TextButton.icon(
+                        key: const Key('image_translate_error_fix'),
+                        onPressed: () =>
+                            unawaited(context.push<Object?>(fixRoute)),
+                        icon: const Icon(Icons.dns_outlined),
+                        label: Text(fixLabel),
+                      )
+                    else
+                      TextButton(
+                        key: const Key('image_translate_error_fix'),
+                        onPressed: () => push
+                            ? unawaited(context.push<Object?>(fixRoute))
+                            : context.go(fixRoute),
+                        child: Text(fixLabel),
+                      ),
                 ],
               ),
             ],

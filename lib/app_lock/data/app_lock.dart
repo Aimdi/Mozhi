@@ -198,6 +198,9 @@ class AppLockController implements AppLock {
       _cancelTimer();
       _awaySince = null;
       _setStatus(AppLockStatus.unlocked);
+      // The platform side stops treating the app as locked (the caption
+      // bar, `LiveCaptionService.kt`).
+      unawaited(_quietly(() => _platform.setUnlocked(unlocked: true)));
     } else if (!wasOn && _status == AppLockStatus.unlocked) {
       unawaited(_quietly(() => _platform.setUnlocked(unlocked: true)));
     }
@@ -225,6 +228,20 @@ class AppLockController implements AppLock {
   Future<bool> confirm() {
     if (_disposed) return Future.value(false);
     return _showPrompt(confirming: true);
+  }
+
+  /// Checks now whether the app was away for too long, as the background
+  /// timer does when it fires, and locks it when so. The timer may fire
+  /// late after the phone slept (it does not count deep sleep); what shows
+  /// outside the app while it is in the background (the caption bar) asks
+  /// when the phone is unlocked. Does nothing unless the app is in the
+  /// background and unlocked; completes once the platform answered.
+  Future<void> checkAway() async {
+    if (_disposed || _awaySince == null || _status != AppLockStatus.unlocked) {
+      return;
+    }
+    _cancelTimer();
+    await _backgroundCheck();
   }
 
   /// Completes once the app is unlocked (at once when it is).

@@ -32,6 +32,11 @@ typedef OfflineLanguageDescriber = OfflineLanguage Function(String code);
 /// switches to [OfflineModelsStatus.failure], operations report an
 /// [OfflineModelOutcome] with an [OfflineModelError]; errors other than a
 /// metered network also go to `addError`.
+///
+/// With a translator that has [CancellableDownloads],
+/// [OfflineModelsState.canCancel] is true and [cancelDownload] stops a
+/// running download or update quietly: no outcome (so no message), and the
+/// language stays as it was (what was received is kept for resuming).
 class OfflineModelsCubit extends Cubit<OfflineModelsState> {
   new({
     required this._translator,
@@ -95,6 +100,7 @@ class OfflineModelsCubit extends Cubit<OfflineModelsState> {
           storage: () => storage,
           canImport: available && importer != null,
           manualDownloads: manual,
+          canCancel: available && _translator is CancellableDownloads,
         ),
       );
     } on Object catch (error, stackTrace) {
@@ -126,6 +132,22 @@ class OfflineModelsCubit extends Cubit<OfflineModelsState> {
             ),
       (downloaded) => {...downloaded, code},
     );
+  }
+
+  /// Stops the running download or update of [code] (see
+  /// [OfflineModelsState.canCancelDownload]); it ends without an
+  /// [OfflineModelsState.outcome]. Does nothing otherwise.
+  Future<void> cancelDownload(String code) async {
+    final translator = _translator;
+    if (translator is! CancellableDownloads || !state.canCancelDownload(code)) {
+      return;
+    }
+    emit(state.copyWith(cancelling: {...state.cancelling, code}));
+    try {
+      await translator.cancelDownload(code);
+    } on Object catch (error, stackTrace) {
+      addError(error, stackTrace);
+    }
   }
 
   Future<void> delete(String code) => _run(
@@ -212,8 +234,11 @@ class OfflineModelsCubit extends Cubit<OfflineModelsState> {
         outcome: () => null,
       ),
     );
-    final failure = await _attempt(action);
-    final succeeded = failure == null;
+    final (:failure, :cancelled) = await _attempt(action);
+    final succeeded = failure == null && !cancelled;
+    // Cancelled by the user (whatever the download said as it stopped):
+    // nothing to report.
+    final quiet = !succeeded && (cancelled || state.cancelling.contains(code));
     // With details the engine knows best what is downloaded now; reading
     // the storage again also refreshes sizes and updates after a failure
     // (e.g. a discarded download).
@@ -229,33 +254,41 @@ class OfflineModelsCubit extends Cubit<OfflineModelsState> {
         storage: () => storage,
         pending: {...state.pending}..remove(code),
         progress: {...state.progress}..remove(code),
-        outcome: () => OfflineModelOutcome(
-          language: _languageOf(code),
-          operation: operation,
-          succeeded: succeeded,
-          error: failure,
-        ),
+        cancelling: {...state.cancelling}..remove(code),
+        outcome: () => quiet
+            ? null
+            : OfflineModelOutcome(
+                language: _languageOf(code),
+                operation: operation,
+                succeeded: succeeded,
+                error: failure,
+              ),
       ),
     );
   }
 
-  /// Runs [action]: null when it succeeds, else why it failed (reported
+  /// Runs [action]: no failure when it succeeds or was cancelled
+  /// ([OfflineDownloadCancelledException]), else why it failed (reported
   /// through [addError] unless it only needs the metered-network consent).
   ///
   /// A separate method on purpose: with the result kept in a local declared
   /// before a try/catch in `_run`, dart2js (Dart 3.13) reused that local's
   /// JavaScript variable for another value on the success path, so every
   /// successful download in the web app was reported as failed.
-  Future<OfflineModelError?> _attempt(Future<void> Function() action) async {
+  Future<({OfflineModelError? failure, bool cancelled})> _attempt(
+    Future<void> Function() action,
+  ) async {
     try {
       await action();
-      return null;
+      return (failure: null, cancelled: false);
+    } on OfflineDownloadCancelledException {
+      return (failure: null, cancelled: true);
     } on Object catch (error, stackTrace) {
       final failure = OfflineModelError.of(error);
       if (failure.kind != OfflineModelErrorKind.metered) {
         addError(error, stackTrace);
       }
-      return failure;
+      return (failure: failure, cancelled: false);
     }
   }
 

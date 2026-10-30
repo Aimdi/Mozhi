@@ -355,6 +355,18 @@ object LiveCaptions {
     var awaitingService = false
         private set
 
+    /** Whether captions run (the Quick Settings tile shows it). Main thread. */
+    val isRunning: Boolean
+        get() = service?.isCapturing == true
+
+    /**
+     * The app lock engaged or was lifted ([AppLockSession.setUnlocked]): the
+     * caption bar says "Mozhi is locked" instead of captions. Main thread.
+     */
+    fun onAppLockChanged(locked: Boolean) {
+        service?.onAppLockChanged(locked)
+    }
+
     /** A new session for [owner]; returns its id. Main thread. */
     fun begin(owner: Listener): Int {
         listener = owner

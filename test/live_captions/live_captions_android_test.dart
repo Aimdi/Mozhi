@@ -170,7 +170,7 @@ void main() {
     });
 
     test('are translated in every language', () {
-      expect(names, hasLength(8));
+      expect(names, hasLength(9));
       final folders = Directory('$_main/res')
           .listSync()
           .whereType<Directory>()

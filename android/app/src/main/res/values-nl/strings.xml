@@ -47,4 +47,7 @@
     <string name="live_captions_stop_description">Live ondertiteling stoppen</string>
     <string name="live_captions_open_description">Mozhi openen</string>
     <string name="live_captions_bar_description">Live ondertiteling</string>
+    <string name="tile_live_captions_label">Live ondertiteling</string>
+    <string name="tile_live_captions_description">Live ondertiteling van Mozhi starten of stoppen</string>
+    <string name="live_captions_locked">Mozhi is vergrendeld</string>
 </resources>

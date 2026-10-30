@@ -47,4 +47,7 @@
     <string name="live_captions_stop_description">Dừng phụ đề trực tiếp</string>
     <string name="live_captions_open_description">Mở Mozhi</string>
     <string name="live_captions_bar_description">Phụ đề trực tiếp</string>
+    <string name="tile_live_captions_label">Phụ đề trực tiếp</string>
+    <string name="tile_live_captions_description">Bật hoặc tắt phụ đề trực tiếp của Mozhi</string>
+    <string name="live_captions_locked">Mozhi đang bị khóa</string>
 </resources>

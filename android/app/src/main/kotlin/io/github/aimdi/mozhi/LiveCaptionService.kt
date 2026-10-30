@@ -69,7 +69,11 @@ import kotlin.math.roundToInt
  *    It hides while a Mozhi window is on screen ([LiveCaptions.appInFront],
  *    the window that started the captions included: the transcript is
  *    there, and Translate screen's screenshot must not show it) and while
- *    the phone is locked.
+ *    the phone is locked. While Mozhi's app lock is engaged
+ *    ([AppLockSession.locked], on a phone with a secure lock screen) it
+ *    shows only "Mozhi is locked" and ignores Dart's captions (Dart sends
+ *    none then either); when the phone locks its text is cleared, and Dart
+ *    shows it again once the phone is unlocked (and the app lock checked).
  *
  * While the phone is locked (screen off, or the lock screen up) nothing is
  * recorded: the [AudioRecord] is stopped, the projection kept, and it
@@ -102,6 +106,10 @@ class LiveCaptionService : Service() {
 
     /** Read by the reader thread. */
     @Volatile private var running = false
+
+    /** Whether the captions run (started and not ended). Main thread. */
+    val isCapturing: Boolean
+        get() = running && !ended
 
     /**
      * The phone is locked: the recording is stopped ([AudioCapture.pause]),
@@ -207,7 +215,9 @@ class LiveCaptionService : Service() {
         running = true
         watchLock()
         val shown = Settings.canDrawOverlays(this) && showBar()
+        if (isAppLocked()) bar?.setText(getString(R.string.live_captions_locked), "")
         LiveCaptions.started(session, shown)
+        LiveCaptionsTileService.requestUpdate(this)
         val id = session
         reader = Thread({ read(capture, id) }, READER_THREAD).also { it.start() }
     }
@@ -279,7 +289,11 @@ class LiveCaptionService : Service() {
         if (event != null) LiveCaptions.event(session, event)
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
+        LiveCaptionsTileService.requestUpdate(this)
     }
+
+    /** The Quick Settings tile's tap while the captions run: as the bar's Stop. */
+    fun stopFromTile() = end(LiveCaptions.EVENT_STOP_TAPPED)
 
     /**
      * Stops the captions for Dart ([LiveCaptionsPlugin]'s `stop`); before
@@ -339,6 +353,10 @@ class LiveCaptionService : Service() {
         if (locked == value || ended) return
         locked = value
         if (value) capture?.pause() else capture?.resume()
+        // Nothing of an old caption on the bar once the phone is unlocked:
+        // Dart shows what is current then (the app lock may have engaged
+        // while the phone slept).
+        if (value) bar?.setText(if (isAppLocked()) getString(R.string.live_captions_locked) else "", "")
         LiveCaptions.event(
             session,
             if (value) LiveCaptions.EVENT_LOCKED else LiveCaptions.EVENT_UNLOCKED,
@@ -441,10 +459,26 @@ class LiveCaptionService : Service() {
     // Caption bar
     // ---------------------------------------------------------------------
 
-    /** Shows Dart's caption ([LiveCaptionsPlugin]'s `show`). */
+    /** Shows Dart's caption ([LiveCaptionsPlugin]'s `show`), unless the app is locked. */
     fun show(translation: String, original: String) {
+        if (isAppLocked()) return
         bar?.setText(translation, original)
     }
+
+    /** See [LiveCaptions.onAppLockChanged]. Main thread. */
+    fun onAppLockChanged(locked: Boolean) {
+        if (locked && isAppLocked()) bar?.setText(getString(R.string.live_captions_locked), "")
+        // Unlocked: Dart shows the current caption.
+    }
+
+    /**
+     * Whether Mozhi's app lock is engaged: Dart locked it, and the phone
+     * still has a secure lock screen (without one the lock does not work,
+     * and Dart never unlocks it).
+     */
+    private fun isAppLocked(): Boolean =
+        AppLockSession.locked &&
+            getSystemService(KeyguardManager::class.java)?.isDeviceSecure == true
 
     private fun showBar(): Boolean {
         if (bar != null) return true

@@ -47,4 +47,7 @@
     <string name="live_captions_stop_description">Canlı altyazıyı durdur</string>
     <string name="live_captions_open_description">Mozhi uygulamasını aç</string>
     <string name="live_captions_bar_description">Canlı altyazı</string>
+    <string name="tile_live_captions_label">Canlı altyazı</string>
+    <string name="tile_live_captions_description">Mozhi canlı altyazısını başlat veya durdur</string>
+    <string name="live_captions_locked">Mozhi kilitli</string>
 </resources>

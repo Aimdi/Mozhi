@@ -90,6 +90,9 @@ class ConversationPage extends StatelessWidget {
           recognizer: micBuilder == null ? null : recognizer(context),
         );
       },
+      // While the app is locked the turns stay, hidden behind the lock
+      // (AppLockGate: not drawn, not in the accessibility tree): leaving
+      // the app must not end a conversation, shared ones included.
       child: (networkShare ?? runsOnAndroid)
           ? BlocProvider(
               create: (context) => ConversationShareCubit.withTranslate(
@@ -212,6 +215,9 @@ class ConversationView extends StatelessWidget {
                         allowOnline: consent,
                       ),
                     ),
+              // The servers failed: the same turn once more.
+              onRetry: () =>
+                  unawaited(cubit.speak(failure.turnId, slow: failure.slow)),
             );
           },
         ),

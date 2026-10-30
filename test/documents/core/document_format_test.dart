@@ -171,11 +171,11 @@ void main() {
         DocumentFormat.po,
         DocumentFormat.xcstrings,
         DocumentFormat.html,
+        DocumentFormat.androidStrings,
       ]) {
         expect(format.usesTargetLanguage, isTrue, reason: '$format');
       }
       for (final format in [
-        DocumentFormat.androidStrings,
         DocumentFormat.csv,
         DocumentFormat.tsv,
         DocumentFormat.appleStrings,

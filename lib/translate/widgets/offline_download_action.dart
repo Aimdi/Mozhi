@@ -12,6 +12,8 @@ import 'package:mozhi/offline/data/bergamot_model_details.dart'
 import 'package:mozhi/offline/data/offline_model_details.dart';
 import 'package:mozhi/offline/view/offline_models_page.dart'
     show MeteredDownloadDialog, offlineOutcomeMessage;
+import 'package:mozhi/offline/widgets/offline_language_tile.dart'
+    show OfflineCancelDownloadButton;
 import 'package:mozhi/settings/view/widgets/delete_local_data.dart'
     show formatStoredSize;
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
@@ -68,11 +70,13 @@ void translateOnDevice(BuildContext context) {
 /// [translateOnDevice], so the pending text is translated on the device).
 /// "Manage languages" opens the offline languages page.
 ///
-/// The download only starts when the user taps the button. It goes on in
-/// the background when the card goes away (the models are then there for
-/// the next translation). There is no Cancel: the offline engine's
-/// downloads can't be stopped once started (the Offline languages page has
-/// none either); an interrupted download resumes next time.
+/// The download only starts when the user taps the button. While it runs,
+/// Cancel (when the engine can stop downloads,
+/// [OfflineModelsState.canCancel]) stops it quietly, with the remaining
+/// languages: the button comes back, without an error, and the next
+/// download resumes what was received. Otherwise it goes on in the
+/// background when the card goes away (the models are then there for the
+/// next translation); an interrupted download resumes next time.
 ///
 /// [translator] defaults to the [OfflineTranslator] provided above,
 /// [store] (where "Wi-Fi only" is remembered) to the [KeyValueStore] above,
@@ -116,6 +120,9 @@ class _OfflineDownloadActionState extends State<OfflineDownloadAction> {
   double? _progress;
   String? _error;
 
+  /// The user cancelled the running download.
+  bool _cancelled = false;
+
   @override
   void dispose() {
     unawaited(_changes?.cancel());
@@ -152,7 +159,10 @@ class _OfflineDownloadActionState extends State<OfflineDownloadAction> {
   Future<void> _download() async {
     final models = _cubit();
     if (models == null || _current != null) return;
-    setState(() => _error = null);
+    setState(() {
+      _error = null;
+      _cancelled = false;
+    });
     if (models.state.status != OfflineModelsStatus.ready) await models.load();
     for (final download in widget.downloads) {
       if (!mounted) return;
@@ -178,6 +188,7 @@ class _OfflineDownloadActionState extends State<OfflineDownloadAction> {
     OfflineDownload download,
   ) async {
     await models.download(download.code);
+    if (_cancelled) return false;
     var outcome = models.state.outcome;
     if (outcome != null && outcome.needsMeteredConsent && mounted) {
       final anyway = await showDialog<bool>(
@@ -189,6 +200,7 @@ class _OfflineDownloadActionState extends State<OfflineDownloadAction> {
       );
       if (!(anyway ?? false)) return false;
       await models.download(download.code, overMeteredNetwork: true);
+      if (_cancelled) return false;
       outcome = models.state.outcome;
     }
     if (outcome == null || outcome.succeeded) return true;
@@ -196,6 +208,15 @@ class _OfflineDownloadActionState extends State<OfflineDownloadAction> {
       setState(() => _error = offlineOutcomeMessage(context.l10n, outcome!));
     }
     return false;
+  }
+
+  /// Stops the running download (and the languages after it), quietly.
+  Future<void> _cancel() async {
+    final models = _models;
+    final current = _current;
+    if (models == null || current == null || _cancelled) return;
+    setState(() => _cancelled = true);
+    await models.cancelDownload(current.code);
   }
 
   Future<void> _manage() async {
@@ -235,7 +256,9 @@ class _OfflineDownloadActionState extends State<OfflineDownloadAction> {
               child: Semantics(
                 liveRegion: true,
                 child: Text(
-                  percent == null
+                  _cancelled
+                      ? l10n.offlineCancelling
+                      : percent == null
                       ? l10n.translateOfflineDownloadingLanguageStarted(
                           current.name,
                         )
@@ -249,6 +272,12 @@ class _OfflineDownloadActionState extends State<OfflineDownloadAction> {
                 ),
               ),
             ),
+            if (_models?.state.canCancel ?? false)
+              OfflineCancelDownloadButton(
+                key: const Key('translate_offline_cancel'),
+                language: current.name,
+                onPressed: _cancelled ? null : () => unawaited(_cancel()),
+              ),
           ],
         ),
       );

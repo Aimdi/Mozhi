@@ -26,12 +26,23 @@ import 'package:translation_repository/translation_repository.dart'
 /// URLs and e-mail addresses are protected; in format strings
 /// (`c-format`, `python-format`, ...) a literal `%` is doubled.
 ///
-/// Plurals: `msgstr[0..n-1]` are written, with `n` from the `Plural-Forms`
-/// header; the form that `n = 1` selects gets the singular translation and
-/// all others the plural one (languages with several plural forms get the
-/// same text in each: review them). When the header has no usable
-/// `Plural-Forms` (a template) or the language changes, the target
-/// language's rule is written for the languages Mozhi knows.
+/// Plurals: `msgstr[0..n-1]` are written, with `n` and the rule from the
+/// target language's `Plural-Forms`. The form that `n = 1` selects gets
+/// the translation of `msgid` (the singular) and all others that of
+/// `msgid_plural`; languages with one form (Japanese, Chinese, Korean,
+/// Vietnamese, Thai, Indonesian, ...) get a single `msgstr[0]` from
+/// `msgid_plural`. Where that form also counts other numbers (Russian
+/// "one" is 1, 21, 31, ...) and `msgid` lacks a placeholder `msgid_plural`
+/// has (`"One file"` / `"%d files"`), it gets the plural text too.
+/// Languages with several plural forms (few, many) get the same plural
+/// text in each, as the source has only two: review them.
+///
+/// The target language's rule (a built-in table of the `Plural-Forms`
+/// msginit writes; two forms for languages it does not know) is written
+/// when the header has no usable `Plural-Forms` (a template), when the
+/// language changes, and when the catalogue names no language and none of
+/// its plural entries is translated yet. Otherwise the header's rule and
+/// its existing translations are kept.
 ///
 /// Once something is translated the header gets `Language`, a UTF-8
 /// charset and (see above) `Plural-Forms`; a catalogue without a header
@@ -131,12 +142,18 @@ class _PoParser {
         existing.trim().isNotEmpty &&
         !sameLanguage(existing, target!);
 
-    final headerForms = PluralForms.parse(headers['Plural-Forms']);
+    final headerValue = headers['Plural-Forms'];
+    final headerForms = PluralForms.parse(headerValue);
     String? newPluralForms;
     var forms = headerForms;
-    if (target != null && (headerForms == null || retranslate)) {
-      final known = gettextPluralForms(target);
-      if (known != null) {
+    if (target != null) {
+      final known = gettextPluralForms(target) ?? defaultGettextPluralForms;
+      final unnamed = existing == null || existing.trim().isEmpty;
+      if (headerForms == null ||
+          retranslate ||
+          (unnamed &&
+              _normalized(headerValue) != _normalized(known) &&
+              !entries.any(_translatedPlural))) {
         newPluralForms = known;
         forms = PluralForms.parse(known);
       }
@@ -165,6 +182,13 @@ class _PoParser {
     builder.add(all);
     return builder.build(DocumentFormat.po);
   }
+
+  static String? _normalized(String? value) =>
+      value?.replaceAll(RegExp(r'\s+'), '').replaceAll(RegExp(r';$'), '');
+
+  static bool _translatedPlural(_Entry entry) =>
+      entry.field('msgid_plural') != null &&
+      entry.msgstrs.any((field) => field.value.isNotEmpty);
 
   // -------------------------------------------------------------------------
   // Reading
@@ -413,13 +437,27 @@ class _PoParser {
     } else {
       final count = forms?.count ?? msgstrs.length;
       final one = forms?.formFor(1) ?? 0;
+      // "One file" / "%d files": a form that also counts 21 needs the
+      // number.
+      final singularForm =
+          forms == null ||
+              forms.isOnlyOne(one) ||
+              _tokens(
+                plural.value.toString(),
+                pattern,
+              ).difference(_tokens(singularSource, pattern)).isEmpty
+          ? one
+          : -1;
       encode = (value) {
         final parts = value.split('\u0000');
         final singular = parts.first;
         final other = parts.length > 1 ? parts[1] : parts.first;
         final forms = [
           for (var k = 0; k < count; k++)
-            field('msgstr[$k]', count > 1 && k == one ? singular : other),
+            field(
+              'msgstr[$k]',
+              count > 1 && k == singularForm ? singular : other,
+            ),
         ];
         return '${forms.join(_lineBreak)}$ending';
       };
@@ -459,6 +497,11 @@ class _PoParser {
       TextNode(joinLines(lines, last, entry.end)),
     ];
   }
+
+  /// The protected spans (placeholders) of [text].
+  static Set<String> _tokens(String text, RegExp pattern) => {
+    for (final match in pattern.allMatches(text)) match.group(0)!,
+  };
 
   /// `keyword "value"`, or `keyword ""` with one line per `\n` when
   /// [multiLine] or the value has inner line breaks. No trailing break.
