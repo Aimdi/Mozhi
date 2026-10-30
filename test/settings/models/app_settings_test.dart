@@ -857,11 +857,19 @@ void main() {
           expect(settings.instances.last.isCustom, isTrue);
         });
 
-        test('a list of retired servers only becomes empty', () {
+        test('a list of retired servers only gets the current defaults', () {
           final settings = AppSettings.fromJson(const {
             'instances': [
               {'url': 'https://translate.nerdvpn.de', 'isCustom': false},
             ],
+          });
+
+          expect(settings.instances, MozhiInstance.publicInstances);
+        });
+
+        test('an empty list stays empty', () {
+          final settings = AppSettings.fromJson(const {
+            'instances': <Object>[],
           });
 
           expect(settings.instances, isEmpty);
