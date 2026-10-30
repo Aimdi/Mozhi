@@ -200,7 +200,17 @@ test.describe('the web app with no network', () => {
         served.push(response.fromServiceWorker());
       }
     });
-    await context.setOffline(true);
+    // Firefox's offline mode refuses even the navigations a service
+    // worker answers (its "Offline mode" page), so there every request
+    // that reaches the network fails instead: a reload the shell does not
+    // answer fails just the same.
+    if (browserName === 'firefox') {
+      await context.route('**/*', (route) =>
+        route.abort('internetdisconnected'),
+      );
+    } else {
+      await context.setOffline(true);
+    }
     await page.reload();
     await waitForSemantics(page);
     await openApp(page, '/translate');
@@ -215,6 +225,7 @@ test.describe('the web app with no network', () => {
       expect(served.every(Boolean)).toBe(true);
     }
     await context.setOffline(false);
+    await context.unrouteAll({ behavior: 'ignoreErrors' });
     expect(errors).toEqual([]);
   });
 
@@ -330,8 +341,14 @@ test.describe('the web app with no network', () => {
           timeout: 60_000,
         })
         .toHaveLength(1);
+      // WebKit can still report the new worker as `activating` while its
+      // activate step (dropping the old cache) finishes.
+      await expect
+        .poll(async () => (await shellWorker(page)).active, {
+          timeout: 60_000,
+        })
+        .toBe('activated');
       const after = await shellWorker(page);
-      expect(after.active).toBe('activated');
       expect(after.caches).not.toEqual(first.caches);
       await expect(setting).toHaveAccessibleName(READY, { timeout: 60_000 });
       expect(errors).toEqual([]);

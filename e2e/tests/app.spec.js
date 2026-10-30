@@ -181,11 +181,13 @@ test('first run with the on-device engine: the privacy step and downloads', asyn
   await expect(
     page.getByRole('heading', { name: 'Pick your languages' }),
   ).toBeVisible();
-  // The target language can be downloaded for offline use (nothing is
-  // downloaded unless asked).
-  await expect(
-    page.getByRole('banner', { name: /^Download French/ }),
-  ).toBeVisible();
+  // The target language can be downloaded for offline use, with the
+  // step's Next; nothing is downloaded unless it is checked.
+  const download = page.getByRole('checkbox', {
+    name: /^Download French when you tap Next/,
+  });
+  await expect(download).toBeVisible();
+  await expect(download).not.toBeChecked();
   await expect(page.getByText(/can’t translate on its own/)).toHaveCount(0);
 
   await next.click();
