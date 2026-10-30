@@ -227,42 +227,61 @@ def translated(nodes: list[Node]) -> bool:
     )
 
 
-def focus_box(device: Device) -> Node | None:
-    """Taps the translate box until it has the focus."""
-    for _ in range(3):
+def close_dialogs(device: Device) -> None:
+    """Closes a dialog over the screen (keyboard shortcuts, tips)."""
+    nodes = device.dump()
+    close = find(nodes, "Close|Dismiss|Got it|OK")
+    if close is not None and input_box(nodes) is None:
+        device.tap(close)
+
+
+def box_text(device: Device) -> str:
+    box = input_box(device.dump())
+    return box.text if box else ""
+
+
+def enter_sentence(device: Device) -> str:
+    """Gets [SENTENCE] into the translate box: typed after a tap on the box
+    (twice at most), else shared to Mozhi as another app would. Returns how
+    it got there; raises when neither worked."""
+    for attempt in range(2):
+        close_dialogs(device)
         nodes = device.dump()
-        # A dialog over the screen (keyboard shortcuts, tips) closes first.
-        close = find(nodes, "Close|Dismiss|Got it|OK")
-        if close is not None and input_box(nodes) is None:
-            device.tap(close)
-            continue
         box = input_box(nodes)
         if box is None:
-            return None
-        if box.focused:
-            return box
+            device.note("no text field on screen")
+            break
+        device.note(
+            f"text field {box.bounds} focused={box.focused} "
+            f"text=“{box.text}”"
+        )
         device.tap(box)
-    return next(
-        (n for n in device.dump() if n.cls.endswith("EditText") and n.focused),
-        None,
+        time.sleep(1)
+        device.adb("shell", "input", "text", SENTENCE.replace(" ", "%s"))
+        time.sleep(2)
+        if SENTENCE.split()[0] in box_text(device):
+            return "typed"
+        device.note(f"typing attempt {attempt + 1} did not reach the box")
+        close_dialogs(device)
+    device.adb(
+        "shell", "am", "start", "-a", "android.intent.action.SEND",
+        "-t", "text/plain",
+        "--es", "android.intent.extra.TEXT", f"'{SENTENCE}'",
+        "-p", PACKAGE,
     )
+    time.sleep(5)
+    if SENTENCE.split()[0] in box_text(device):
+        return "shared"
+    raise RuntimeError("the sentence did not reach the translate box")
 
 
 def translate(device: Device) -> str:
-    """Types [SENTENCE] into the translate box and follows the app's offers
+    """Puts [SENTENCE] into the translate box and follows the app's offers
     ([OFFERS]) for up to 4 minutes. Returns how it got translated, or ""
     when no translation appeared."""
-    if focus_box(device) is None:
-        device.capture("no-input")
-        raise RuntimeError("the translate box could not be focused")
-    device.adb("shell", "input", "text", SENTENCE.replace(" ", "%s"))
-    time.sleep(2)
-    nodes = device.capture("typed")
-    box = input_box(nodes)
-    typed = box.text if box else ""
-    device.note(f"translate box: “{typed}”")
-    if SENTENCE.split()[0] not in typed:
-        raise RuntimeError("the sentence did not reach the translate box")
+    entered = enter_sentence(device)
+    device.capture("entered")
+    device.note(f"translate box ({entered}): “{box_text(device)}”")
     route = "as typed"
     taken: set[str] = set()
     deadline = time.monotonic() + 240
