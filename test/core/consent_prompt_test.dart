@@ -402,6 +402,20 @@ void main() {
       verify(() => router.push<void>(AppRoutes.offline)).called(1);
     });
 
+    testWidgets('none while detecting the source of English', (tester) async {
+      const detecting = ConsentRequiredException(
+        kind: ConsentKind.pair,
+        destination: _public,
+        engineId: 'mozhi:google',
+        source: 'auto',
+        target: 'en',
+      );
+      expect(
+        await offerIn(tester, detecting, offline: _FakeOfflineTranslator()),
+        isNull,
+      );
+    });
+
     testWidgets('English only downloads English', (tester) async {
       const english = ConsentRequiredException(
         kind: ConsentKind.pair,

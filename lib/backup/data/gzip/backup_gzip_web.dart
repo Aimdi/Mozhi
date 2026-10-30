@@ -1,8 +1,13 @@
 // coverage:ignore-file
 // The browser's CompressionStream / DecompressionStream; covered by the
-// web e2e test (e2e/tests/backup.spec.js), not by the VM tests.
+// web e2e test (e2e/tests/backup.spec.js), not by the VM tests. Browsers
+// without them (Firefox before 113, Safari before 16.4) use the pure Dart
+// gzip of backup_gzip_dart.dart (tested in the VM).
 import 'dart:js_interop';
+import 'dart:js_interop_unsafe';
 import 'dart:typed_data';
+
+import 'package:mozhi/backup/data/gzip/backup_gzip_dart.dart';
 
 @JS('CompressionStream')
 extension type _CompressionStream._(JSObject _) implements JSObject {
@@ -46,8 +51,14 @@ extension type _ReadResult._(JSObject _) implements JSObject {
   external JSUint8Array? get value;
 }
 
-/// [bytes] compressed with gzip.
+/// Whether the browser has the global constructor [name].
+bool _has(String name) =>
+    globalContext.getProperty<JSAny?>(name.toJS).isA<JSFunction>();
+
+/// [bytes] compressed with gzip (stored, not compressed, where the browser
+/// has no `CompressionStream`).
 Future<Uint8List> gzipEncode(Uint8List bytes) async {
+  if (!_has('CompressionStream')) return await dartGzipEncode(bytes);
   final stream = _Blob([bytes.toJS].toJS)
       .stream()
       .pipeThrough(_CompressionStream('gzip'.toJS));
@@ -59,6 +70,9 @@ Future<Uint8List> gzipEncode(Uint8List bytes) async {
 /// not gzip, or decompress to more than [maxLength] bytes (the
 /// decompression stops there).
 Future<Uint8List> gzipDecode(Uint8List bytes, {required int maxLength}) async {
+  if (!_has('DecompressionStream')) {
+    return await dartGzipDecode(bytes, maxLength: maxLength);
+  }
   final reader = _Blob([bytes.toJS].toJS)
       .stream()
       .pipeThrough(_DecompressionStream('gzip'.toJS))

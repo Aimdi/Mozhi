@@ -734,10 +734,15 @@ each).
   and the size and SHA-256 of the decompressed file, before anything is
   installed. A mismatch deletes the download (`ModelChecksumException`,
   naming the mirror).
-* **Persistence:** before each download the app asks
+* **Persistence:** with each download the app asks
   `navigator.storage.persist()` (Window only, so from Dart) until the browser
   agrees; without it the browser may evict the packs under storage
-  pressure (Chrome decides by itself, Firefox asks the user).
+  pressure (Chrome decides by itself, Firefox asks the user). The download
+  does not wait for the answer (Firefox's prompt may stay open), and a
+  question still open is not asked again.
+* **Older browsers:** `FileSystemSyncAccessHandle` methods that return
+  promises (Safari 16, Chrome before 108) work like the current synchronous
+  ones: the worker awaits every call (`e2e/unit/` tests both kinds).
 * **Free space:** a download first compares what it needs (download and
   decompressed sizes plus the margin) with what the origin's quota leaves
   (`navigator.storage.estimate()`: `quota - usage`, when the browser has

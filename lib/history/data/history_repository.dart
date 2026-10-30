@@ -156,7 +156,7 @@ class HistoryRepository {
     HistoryCipher? cipher,
     this.maxEntries = 1000,
     this.maxStoredLength = 1000000,
-    this.maxTextLength = 20000,
+    this.maxTextLength = defaultMaxTextLength,
     this.refinementWindow = const Duration(seconds: 30),
     this.maxTombstones = 10000,
     this.tombstoneMaxAge = const Duration(days: 180),
@@ -169,6 +169,10 @@ class HistoryRepository {
   /// Key of the encrypted history in [store] (plaintext JSON when written
   /// by an older version).
   static const storageKey = 'history.v1';
+
+  /// The default [maxTextLength] (the app's): longer transcripts are saved
+  /// in parts (`TranscriptHistory`).
+  static const defaultMaxTextLength = 20000;
 
   /// Key in [store] that unreadable history is moved to by
   /// [discardUnreadable].

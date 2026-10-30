@@ -73,7 +73,10 @@ pick ones you trust, or self-host them ([guide](self-hosting-mozhi.md)).
 - **No backup or transfer:** nothing the app stores goes to cloud backup or
   to a new phone (see [Privacy](privacy.md#on-your-device)).
 - **Encrypted backups** (`.mozhibackup`, [Backup](backup.md)): the key is
-  Argon2id of the passphrase (64 MiB, 3 passes, 1 lane on Android; 19 MiB,
+  Argon2id of the passphrase in Unicode NFC (composed accents; files from
+  before 0.1.0-rc.6, keyed with the passphrase as typed, are opened by
+  trying that too when it differs: one more Argon2id, no weaker key)
+  (64 MiB, 3 passes, 1 lane on Android; 19 MiB,
   2 passes in the web app, where it runs as JavaScript) with a random
   16-byte salt per file; the data is gzip'd JSON under AES-256-GCM with a
   random 96-bit nonce, and the whole readable header (magic, format,
@@ -249,6 +252,20 @@ pick ones you trust, or self-host them ([guide](self-hosting-mozhi.md)).
   resend your text to another instance after a timeout, when the first one
   may already have received it. A connection that can't be set up in time
   (also through the proxy) carried nothing yet, so it fails over.
+- **Server health** (`InstanceHealth`,
+  `packages/translation_repository/lib/src/repository/instance_health.dart`):
+  a Mozhi server where a request failed in a way that is failed over (see
+  `MozhiPool.canFailOver`) is asked last for 12 hours. It only changes the
+  order within your own list, so text never reaches a server that the
+  failover could not have sent it to. Timeouts don't count (counting them
+  would send a retry of the same text to a second operator), and neither
+  do input errors, cancelled requests or the engine and language lists.
+  Nothing is sent to test a server. The record is the address (no user
+  info, query or fragment) and a time, at most 64 entries, in the app
+  preferences under `mozhi.instanceHealth.v1`; it is read with a size cap
+  and parsed defensively, never synced or backed up, and cleared by
+  **Delete all local data**. A corrupt or hostile entry can at worst
+  change which server of your list is asked first.
 
 ## Shared conversation
 

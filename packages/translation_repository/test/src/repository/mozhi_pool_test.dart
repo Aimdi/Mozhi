@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:mocktail/mocktail.dart';
+import 'package:mozhi_api/mozhi_api.dart';
 import 'package:test/test.dart';
 import 'package:translation_repository/src/repository/mozhi_pool.dart';
 import 'package:translation_repository/translation_repository.dart';
@@ -601,6 +602,233 @@ void main() {
       pool.dispose();
       verify(() => clients[instanceA.url]!.close()).called(1);
       verify(() => clients[instanceB.url]!.close()).called(1);
+    });
+
+    group('with an InstanceHealth', () {
+      late DateTime now;
+      late InstanceHealth health;
+      late MozhiPool healthy;
+
+      setUp(() {
+        now = DateTime.utc(2026, 10, 30);
+        health = InstanceHealth(clock: () => now);
+        healthy = MozhiPool(
+          (uri) => clients.putIfAbsent(uri.toString(), newClient),
+          health: health,
+        );
+      });
+
+      Future<List<MozhiInstance>> visit(
+        Set<MozhiInstance> failing, {
+        bool recordHealth = true,
+        bool failOverOnTimeout = true,
+        Exception Function()? error,
+      }) async {
+        final visited = <MozhiInstance>[];
+        try {
+          await healthy.run(
+            (client, instance) async {
+              visited.add(instance);
+              if (failing.contains(instance)) throw (error ?? serverError)();
+            },
+            recordHealth: recordHealth,
+            failOverOnTimeout: failOverOnTimeout,
+          );
+        } on Object {
+          // The visits are the result.
+        }
+        return visited;
+      }
+
+      test('exposes it', () => expect(healthy.health, same(health)));
+
+      test('starts at a server that is not cooling down', () async {
+        healthy.update([instanceA, instanceB, instanceC]);
+        expect(await visit({instanceA}), [instanceA, instanceB]);
+        expect(health.isCoolingDown(instanceA.url), isTrue);
+
+        // Another session: no failover preference, the health remains.
+        healthy.resetPreferred();
+        expect(healthy.active, instanceB);
+        expect(healthy.startOrder, [instanceB, instanceC, instanceA]);
+        expect(await visit({}), [instanceB]);
+      });
+
+      test('the preferred server that just answered goes first', () async {
+        healthy.update([instanceA, instanceB, instanceC]);
+        await visit({instanceA, instanceB});
+        expect(healthy.active, instanceC);
+        expect(healthy.startOrder, [instanceC, instanceA, instanceB]);
+      });
+
+      test('still tries cooling servers last', () async {
+        healthy.update([instanceA, instanceB]);
+        expect(await visit({instanceA, instanceB}), [instanceA, instanceB]);
+        expect(await visit({instanceA, instanceB}), [instanceA, instanceB]);
+      });
+
+      test('an answer ends the cool-down', () async {
+        healthy.update([instanceA, instanceB]);
+        await visit({instanceA});
+        healthy.resetPreferred();
+        expect(await visit({instanceB}), [instanceB, instanceA]);
+        expect(health.isCoolingDown(instanceA.url), isFalse);
+        expect(health.isCoolingDown(instanceB.url), isTrue);
+      });
+
+      test('the cool-down ends on its own', () async {
+        healthy.update([instanceA, instanceB]);
+        await visit({instanceA});
+        healthy.resetPreferred();
+        now = now.add(health.coolDown);
+        expect(healthy.active, instanceA);
+      });
+
+      test('input errors, cancellations and timeouts without failover do '
+          'not count', () async {
+        healthy.update([instanceA, instanceB]);
+        await visit(
+          {instanceA},
+          error: () => const MozhiApiException(
+            'Target language code invalid',
+            statusCode: 500,
+          ),
+        );
+        await visit({instanceA}, error: MozhiRequestCancelledException.new);
+        await visit({instanceA}, error: badRequest);
+        await visit(
+          {instanceA},
+          failOverOnTimeout: false,
+          error: () => const MozhiApiException('No response within 30000 ms'),
+        );
+        await visit(
+          {instanceA},
+          failOverOnTimeout: false,
+          error: () => TimeoutException('slow'),
+        );
+        expect(health.isCoolingDown(instanceA.url), isFalse);
+      });
+
+      test('timeouts that fail over count', () async {
+        healthy.update([instanceA, instanceB]);
+        await visit({instanceA}, error: () => TimeoutException('slow'));
+        expect(health.isCoolingDown(instanceA.url), isTrue);
+      });
+
+      test('recordHealth: false neither marks nor clears', () async {
+        healthy.update([instanceA, instanceB]);
+        expect(await visit({instanceA}, recordHealth: false), [
+          instanceA,
+          instanceB,
+        ]);
+        expect(health.isCoolingDown(instanceA.url), isFalse);
+
+        healthy.resetPreferred();
+        await visit({instanceA});
+        healthy.resetPreferred();
+        // B's engine list fails and A's loads: neither counts.
+        expect(await visit({instanceB}, recordHealth: false), [
+          instanceB,
+          instanceA,
+        ]);
+        expect(health.isCoolingDown(instanceA.url), isTrue);
+        expect(health.isCoolingDown(instanceB.url), isFalse);
+      });
+
+      test('putting a cooling server first forgets its failure', () async {
+        healthy.update([instanceA, instanceB, instanceC]);
+        await visit({instanceA, instanceB});
+        healthy.update([instanceB, instanceA, instanceC]);
+        expect(health.isCoolingDown(instanceB.url), isFalse);
+        expect(health.isCoolingDown(instanceA.url), isTrue);
+        expect(healthy.active, instanceB);
+      });
+
+      test('the first configuration forgets nothing', () async {
+        health.markFailed(instanceA.url);
+        healthy.update([instanceA, instanceB]);
+        expect(healthy.active, instanceB);
+        healthy
+          ..update([])
+          ..update([instanceA, instanceB]);
+        expect(health.isCoolingDown(instanceA.url), isTrue);
+      });
+
+      test(
+        'resetPreferred(forgetHealth: true) forgets every failure',
+        () async {
+          healthy.update([instanceA, instanceB]);
+          await visit({instanceA});
+          healthy.resetPreferred(forgetHealth: true);
+          expect(healthy.active, instanceA);
+          expect(health.isCoolingDown(instanceA.url), isFalse);
+        },
+      );
+
+      test(
+        'with an engine, wraps the last failure of every allowed server',
+        () async {
+          healthy.update([instanceA, instanceB, instanceC]);
+          await expectLater(
+            healthy.run<void>(
+              (client, instance) async => throw serverError(
+                'Get "https://translate.google.com/?q=secret": EOF',
+              ),
+              engine: googleEngine,
+              allow: (instance) => instance != instanceB,
+            ),
+            throwsA(
+              isA<AllInstancesFailedException>()
+                  .having((e) => e.engine, 'engine', googleEngine)
+                  .having((e) => e.instances, 'instances', [
+                    instanceA,
+                    instanceC,
+                  ])
+                  .having((e) => e.statusCode, 'statusCode', 502)
+                  .having(
+                    (e) => e.message,
+                    'message',
+                    'Get "https://translate.google.com": EOF',
+                  )
+                  .having((e) => e.cause, 'cause', isA<MozhiApiException>()),
+            ),
+          );
+        },
+      );
+
+      test('with an engine, wraps a timeout that was failed over', () async {
+        healthy.update([instanceA]);
+        await expectLater(
+          healthy.run<void>(
+            (client, instance) async => throw TimeoutException('slow'),
+            engine: googleEngine,
+          ),
+          throwsA(
+            isA<AllInstancesFailedException>()
+                .having((e) => e.statusCode, 'statusCode', isNull)
+                .having((e) => e.cause, 'cause', isA<TimeoutException>())
+                .having(
+                  (e) => '$e',
+                  'toString',
+                  startsWith(
+                    'AllInstancesFailedException(mozhi:google, 1 '
+                    'server): TimeoutException',
+                  ),
+                ),
+          ),
+        );
+      });
+
+      test('with an engine, input errors are not wrapped', () async {
+        healthy.update([instanceA, instanceB]);
+        await expectLater(
+          healthy.run<void>(
+            (client, instance) async => throw badRequest(),
+            engine: googleEngine,
+          ),
+          throwsA(isNot(isA<AllInstancesFailedException>())),
+        );
+      });
     });
   });
 }

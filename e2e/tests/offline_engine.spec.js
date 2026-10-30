@@ -19,6 +19,7 @@ const {
   fillField,
   openApp,
   seedSettings,
+  skipWithoutOnDeviceEngine,
   test,
   typeSource,
 } = require('./helpers');
@@ -116,6 +117,7 @@ test.describe('on-device translation in the browser', () => {
 
     // The offline languages page offers the packs, with sizes.
     await openApp(page, '/settings/offline');
+    await skipWithoutOnDeviceEngine(page);
     await fillField(
       page.getByRole('searchbox', { name: 'Search languages' }),
       'German',
@@ -163,6 +165,7 @@ test.describe('on-device translation in the browser', () => {
     const errors = collectPageErrors(page);
     await serveModels(context);
     await openApp(page, '/settings/offline');
+    await skipWithoutOnDeviceEngine(page);
     await fillField(
       page.getByRole('searchbox', { name: 'Search languages' }),
       'German',

@@ -45,7 +45,7 @@ the screens, and checks it before every request.
 | Mode | What happens |
 | --- | --- |
 | **Offline only** | Only on-device translation. Nothing you type leaves the device; requests that would need the network are refused, and no engine or language list is loaded from a server. |
-| **Offline first** (default) | On-device translation when the language pair is installed. Otherwise the app asks before text leaves the device, for that language pair and destination. Engine and language lists of Mozhi instances are not refreshed by themselves: the app does not contact a server until you let it (for example by opening the engine list). |
+| **Offline first** (default) | On-device translation when the language pair is installed. Otherwise the app asks before text leaves the device, for that language pair and destination: while you haven't chosen an engine (the engine button says **On device + Google**), text the device can't translate is offered to Google on your Mozhi server, and nothing is sent until you answer **Once** or **Always for** the pair (an approved pair goes there without asking again). Choosing **Offline (on-device)** as the engine keeps every text on the device. Engine and language lists of Mozhi instances are not refreshed by themselves: the app does not contact a server until you let it (for example by opening the engine list). |
 | **Online** | Your translation services are used without asking, in the order you set. Cloud providers still ask once each. |
 
 In every mode, text goes to a **cloud provider** (an AI provider such as
@@ -70,10 +70,15 @@ the destination and what it can see, and offers:
 
 For a Mozhi request the prompt also says when the text may go on to the
 other servers in your list if the first one doesn't answer (failover, in
-your order). The app never moves text to another back end by itself: an
-offline or Mozhi translation is never retried with an AI provider, a
-helper request (language detection, the AI model for extras, Reverso
-after Google for speech) is checked as its own destination, and when the
+your order). A server where a translation failed recently (it was down,
+overloaded, or its engine failed upstream) is asked last for 12 hours,
+also after a restart, so the next request starts at one that worked; your
+consent covers every server of the list either way, and the app never
+sends anything just to check a server (see the table below). A server you
+move to the top of the list is asked first again. The app never moves text
+to another back end by itself: an offline or Mozhi translation is never
+retried with an AI provider, a helper request (language detection, the AI
+model for extras, Reverso after Google for speech) is checked as its own destination, and when the
 engine you selected is gone, only the on-device engine may take its place;
 otherwise you pick one.
 
@@ -204,7 +209,10 @@ in the web app the browser's own loading of the app's files.
 The on-device models (offline languages, voice input, text recognition)
 are downloaded only when you ask, from the source in **Settings >
 Translation engines > Model source** (also on the **Offline languages**
-page):
+page). "When you ask" includes the setup's languages step: on Android it
+checks the download of your language pair for you when the phone has room
+(it reads the free storage on the device, nothing is sent), but the
+download only starts when you tap **Next**, and you can uncheck it.
 
 | Model source | Who serves the files | What that server sees |
 | --- | --- | --- |
@@ -256,7 +264,9 @@ the same as on Android (Mozilla's Firefox Translations engine and CLD2
 for **Detect language**), compiled to WebAssembly and served by the web
 app's own server (`bergamot/` next to the app); it runs in a worker inside
 the page, so your text never leaves the browser. Language packs are
-downloaded only when you tap **Download** on **Offline languages**, from the
+downloaded only when you ask (**Download** on **Offline languages** or on
+the translate screen, or **Next** on the setup's languages step with the
+language checked), from the
 [model source](#where-model-files-come-from) (by default the server the web
 app comes from: Mozilla's bucket doesn't let other websites download its
 files), checked against the SHA-256 checksums bundled with the app, and
@@ -391,6 +401,7 @@ the fastest server** during setup.
 | History and favorites | App preferences, **encrypted with AES-256-GCM**; the key is in secure storage (Android Keystore) | Translations (text, translation, languages, engine, time) and dictionary look-ups (word, languages, AI model, detail level, a one-line summary of the entry, time). Up to 1,000 entries plus favorites. **Settings > Privacy & data > Delete history automatically** removes entries older than 1, 7 or 30 days (favorites are kept). |
 | Presets, glossaries, read-aloud settings, usage counters | App preferences | Usage counters are numbers only (requests, characters, estimated tokens per provider and month, for 13 months). |
 | Cached engine and language lists | App preferences | Lists only, keyed by instance address without any password. |
+| Mozhi servers that failed recently | App preferences | The server's address (without any user name or password) and the time its last translation failed, for at most 64 servers, each forgotten after 12 hours or when a translation there works. Only the outcome of translations you asked for (and of the setup's server test, **Find the fastest server**) counts: nothing is sent to test a server. On the device only: not synced, not in backups, not in pairing. **Delete all local data** forgets it. |
 | Sync setup | App preferences (server address, user name, folder, what to sync, the last sync's time and result, the sync file's ETag and a fingerprint of the synced data); secure storage (the app password and the key derived from your passphrase) | Never the passphrase. In the web app the app password and the key last as long as the tab. **Turn off sync** and **Delete all local data** forget all of it. |
 | Offline language models | App storage (`<app files>/bergamot`); in the web app the browser's private storage for the site (the Origin Private File System, folder `bergamot`), which no other site and no page script outside the app can read | About 50 MB to download and 73 MB on disk per language. Delete them under **Settings > Translation engines > Offline languages**; in the web app clearing the site's data deletes them too. |
 | The web app's own files (web app only) | The browser's Cache Storage for the site (`mozhi-shell:<path>:<version>`) | The build's files, so that the app opens with no network ([details](#the-web-app-with-no-network)); no personal data. **Settings > General > Keep the web app for offline use** off deletes them. |
@@ -481,7 +492,8 @@ with its deletion records and its key, the date of the last backup (the
 backup files you saved are yours and stay where you put them), the
 phrasebook with its key and the starter phrasebooks, the
 settings with every key, header and password, presets and
-glossaries (with their deletion records), usage counters, speech settings, cached lists, the whole
+glossaries (with their deletion records), usage counters, speech settings, cached lists, the
+Mozhi servers that failed recently, the whole
 offline models folder (partial downloads included) and the on-device AI
 models, clears what the app holds
 in memory, and starts setup again. Uninstalling the app removes all of it too.

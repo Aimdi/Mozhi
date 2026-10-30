@@ -4,6 +4,7 @@
   "description": "Playwright end-to-end tests for the Mozhi web build (against e2e/mock_server.py).",
   "scripts": {
     "test": "playwright test",
+    "test:unit": "node --test unit/*.test.js",
     "report": "playwright show-report"
   },
   "devDependencies": {

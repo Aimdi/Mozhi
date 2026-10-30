@@ -97,7 +97,7 @@ class SpeechInputConversationRecognizer implements ConversationRecognizer {
         languageCode,
         owner: utterance,
         detectLanguage: detectLanguage,
-        offlinePause: pause,
+        pause: pause,
       );
     } on Object {
       _finish(

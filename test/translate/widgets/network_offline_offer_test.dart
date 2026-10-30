@@ -103,10 +103,13 @@ void main() {
         offline: FakeOfflineTranslator(),
       );
 
-      final download = find.byKey(const Key('translate_offline_download'));
+      expect(
+        find.byKey(const Key('translate_offline_download')),
+        findsOneWidget,
+      );
       expect(find.text('Download French'), findsOneWidget);
 
-      await tester.tap(download);
+      await tester.tap(find.text('Manage languages'));
       verify(() => harness.router.push<void>(AppRoutes.offline)).called(1);
     });
 

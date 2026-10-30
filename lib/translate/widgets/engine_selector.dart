@@ -11,6 +11,7 @@ import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/offline/offline.dart' show OfflineEngineBadge;
 import 'package:mozhi/on_device_ai/data/on_device_models.dart';
+import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/widgets/quality_toggle.dart';
 import 'package:mozhi/translate/widgets/translate_layout.dart'
@@ -19,7 +20,10 @@ import 'package:translation_repository/translation_repository.dart';
 
 /// App bar button showing the engine translating; opens [EngineSheet].
 ///
-/// It names the engine only (a model id stays in the sheet). Once Fast
+/// It names the engine only (a model id stays in the sheet). While Offline
+/// first sends what the device can't translate to an online engine after
+/// asking (`TranslateCubit.onlineFallbackOf`, the on-device engine the app
+/// picked by itself) it says so: "On device + Google". Once Fast
 /// and Best are set up (`TranslateState.hasQualityModes`) the Fast | Best
 /// toggle is the engine control and this button shows the engine of the
 /// active mode as quieter, secondary text.
@@ -35,13 +39,19 @@ class EngineSelectorButton extends StatelessWidget {
       buildWhen: (previous, current) =>
           previous.engine != current.engine ||
           previous.engines != current.engines ||
-          previous.hasQualityModes != current.hasQualityModes,
+          previous.hasQualityModes != current.hasQualityModes ||
+          previous.qualityMode != current.qualityMode,
       builder: (context, state) {
         final engine = state.engine;
-        final name = engine?.name ?? l10n.translateEngineSheetTitle;
+        final online = onlineFallbackIn(context, state);
+        final name = online != null
+            ? l10n.translateEngineOnDeviceOnline(online.name)
+            : engine?.name ?? l10n.translateEngineSheetTitle;
         final secondary = state.hasQualityModes;
         return Tooltip(
-          message: l10n.translateEngineSelectorTooltip,
+          message: online != null
+              ? l10n.translateEngineOnDeviceOnlineTooltip(online.name)
+              : l10n.translateEngineSelectorTooltip,
           child: TextButton(
             key: const Key('translate_engine_selector'),
             // An outlined pill (the control outline, 3:1): clearly tappable,
@@ -98,6 +108,31 @@ class EngineSelectorButton extends StatelessWidget {
       },
     );
   }
+}
+
+/// [TranslateCubit.onlineFallbackOf] for [state] with the settings of the
+/// [SettingsCubit] above [context] (watched); null without one.
+TranslationEngine? onlineFallbackIn(
+  BuildContext context,
+  TranslateState state,
+) {
+  try {
+    context.read<SettingsCubit>();
+  } on ProviderNotFoundException {
+    return null;
+  }
+  // Rebuilt when what it depends on changes.
+  context.select<SettingsCubit, (PrivacyMode, String?, MozhiInstance?)>(
+    (cubit) => (
+      cubit.state.privacyMode,
+      cubit.state.engineId,
+      cubit.state.instances.firstOrNull,
+    ),
+  );
+  return TranslateCubit.onlineFallbackOf(
+    state,
+    context.read<SettingsCubit>().state,
+  );
 }
 
 /// The engine picker as a modal bottom sheet. In offline-first mode,
@@ -180,7 +215,9 @@ String? translateEngineDescriptor(
 /// settings ("Add on-device AI…", where a model fits and none is
 /// installed), the provider, instance and quality mode settings follow;
 /// the quality modes entry explains how to get the Fast / Best toggle while
-/// it is not set up.
+/// it is not set up. While Offline first sends what the device can't
+/// translate to an online engine after asking ([onlineFallbackIn]), the
+/// on-device engine's row says so.
 class EngineSheet extends StatefulWidget {
   const new({super.key});
 
@@ -209,6 +246,8 @@ class _EngineSheetState extends State<EngineSheet> {
     final modes = state.hasQualityModes;
     final mode = state.qualityMode;
     final showList = !modes || _custom;
+    // Offline first's online engine for text the device can't translate.
+    final online = onlineFallbackIn(context, state);
 
     void select(TranslationEngine engine) {
       final cubit = context.read<TranslateCubit>();
@@ -241,6 +280,9 @@ class _EngineSheetState extends State<EngineSheet> {
             badge: shared == null,
             // The instance is in the header already.
             showSubtitle: !engine.isMozhi,
+            note: engine.isOffline && online != null
+                ? l10n.translateEngineOnDeviceOnlineNote(online.name)
+                : null,
             onTap: () => select(engine),
           ),
       ];
@@ -445,10 +487,14 @@ class _EngineTile extends StatelessWidget {
     required this.badge,
     required this.showSubtitle,
     required this.onTap,
+    this.note,
   });
 
   final TranslationEngine engine;
   final bool selected;
+
+  /// A line about how the app uses the engine (after its details).
+  final String? note;
 
   /// Whether the row shows where the text goes (its section does not).
   final bool badge;
@@ -464,6 +510,7 @@ class _EngineTile extends StatelessWidget {
     final details = [
       ?about,
       if (subtitle != null && subtitle.isNotEmpty) subtitle,
+      ?note,
     ];
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 24),

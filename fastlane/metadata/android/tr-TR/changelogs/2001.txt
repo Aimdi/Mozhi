@@ -1,0 +1,5 @@
+İlk sürüm.
+• Telefonda çevrimdışı (yaklaşık 55 dil), Mozhi sunucuları üzerinden veya yapay zekâ modelinizle çeviri
+• Yapay zekâ ekstraları: ton, okuma düzeyi, sözlükçeler, iyileştirme, anlam kontrolü, düzeltme
+• Canlı kamera, fotoğraflar, PDF ve ofis belgeleri, sohbet, yazıya dökme, canlı altyazı
+• Varsayılan olarak gizli: Önce çevrimdışı, şifreli geçmiş, izleme yok

@@ -32,23 +32,58 @@ async function seedSettings(page, name, overrides = {}) {
 }
 
 /**
+ * Records what the page writes to the clipboard (in `window`, next to the
+ * real write, which still happens): [readClipboard] falls back to it where
+ * the browser does not let a test read the clipboard back.
+ */
+function recordClipboardWrites() {
+  const clipboard = navigator.clipboard;
+  if (!clipboard || typeof clipboard.writeText !== 'function') return;
+  const writeText = clipboard.writeText.bind(clipboard);
+  window.__mozhiE2eClipboard = null;
+  clipboard.writeText = (text) => {
+    window.__mozhiE2eClipboard = String(text);
+    return writeText(text);
+  };
+}
+
+/**
+ * Reports Content Security Policy violations to the console in one format:
+ * Chromium and WebKit log them as "... Content Security Policy ...",
+ * Firefox as "Content-Security-Policy: ...", and some browsers not at all
+ * for every kind (the event always fires).
+ */
+function reportCspViolations() {
+  document.addEventListener('securitypolicyviolation', (event) => {
+    console.error(
+      `Content Security Policy violation: ${event.violatedDirective} ` +
+        `blocked ${event.blockedURI || 'inline'}`,
+    );
+  });
+}
+
+/** A console error about the Content Security Policy, in any browser. */
+const CSP_MESSAGE = /Content[- ]Security[- ]Policy/i;
+
+/**
  * The Playwright `test` with an automatic check that fails any test whose
  * page logged a Content Security Policy violation (web/index.html sets a
  * strict CSP; a blocked script, font or request shows up as a console
- * error mentioning it). Specs import `test` from here.
+ * error mentioning it, and as a `securitypolicyviolation` event, which
+ * [reportCspViolations] logs). Every page also records its clipboard
+ * writes ([recordClipboardWrites]). Specs import `test` from here.
  */
 const test = base.extend({
   cspViolations: [
     async ({ page }, use) => {
       const violations = [];
       page.on('console', (message) => {
-        if (
-          message.type() === 'error' &&
-          message.text().includes('Content Security Policy')
-        ) {
+        if (message.type() === 'error' && CSP_MESSAGE.test(message.text())) {
           violations.push(message.text());
         }
       });
+      await page.addInitScript(reportCspViolations);
+      await page.addInitScript(recordClipboardWrites);
       await use(violations);
       if (violations.length > 0) {
         throw new Error(
@@ -107,26 +142,63 @@ function sourceInput(page) {
 }
 
 /**
+ * Empties the clipboard (and what [recordClipboardWrites] recorded), so
+ * that the next [readClipboard] shows only what the app copies after this.
+ * A browser that allows writing only from a user gesture (WebKit) keeps
+ * its contents; the record is emptied anyway.
+ */
+async function clearClipboard(page) {
+  await page.evaluate(async () => {
+    window.__mozhiE2eClipboard = null;
+    try {
+      await navigator.clipboard.writeText('');
+    } catch (_) {
+      // Not without a user gesture here.
+    }
+    window.__mozhiE2eClipboard = null;
+  });
+}
+
+/**
+ * The text on the clipboard: read from the clipboard itself where the
+ * browser lets the test read it, else what the page last wrote to it
+ * ([recordClipboardWrites]; '' when nothing since [clearClipboard]).
+ */
+function readClipboard(page) {
+  return page.evaluate(async () => {
+    const recorded = window.__mozhiE2eClipboard;
+    try {
+      const text = await navigator.clipboard.readText();
+      // A clipboard the test could not empty still holds an older text.
+      if (recorded == null || text === recorded) return text;
+    } catch (_) {
+      // Reading is not allowed here.
+    }
+    return recorded ?? '';
+  });
+}
+
+/**
  * The text of the current translation.
  *
  * Reads it the way a user takes it: presses the result card's Copy button
- * and reads the clipboard (the context grants clipboard permissions).
- * [scope] narrows the search for the button (e.g. a history entry);
- * [button] is its name (e.g. the proofread result's "Copy corrected
- * text").
+ * and reads the clipboard ([readClipboard]; the projects in
+ * playwright.config.js allow it as each browser can). [scope] narrows the
+ * search for the button (e.g. a history entry); [button] is its name (e.g.
+ * the proofread result's "Copy corrected text").
  */
 async function copiedTranslation(
   page,
   scope = page,
   button = /^Copy( Copy)?$/,
 ) {
-  await page.evaluate(() => navigator.clipboard.writeText(''));
+  await clearClipboard(page);
   // While the pointer rests on the button its tooltip ("Copy") is merged
   // into the label; move the pointer away afterwards so the next call
   // finds the plain label again.
   await scope.getByRole('button', { name: button }).click();
   await page.mouse.move(0, 0);
-  return page.evaluate(() => navigator.clipboard.readText());
+  return readClipboard(page);
 }
 
 /** [text] with the characters a regular expression gives a meaning escaped. */
@@ -237,6 +309,90 @@ async function meanLuminance(page) {
   }, png.toString('base64'));
 }
 
+/** The on-device engine's worker (web/bergamot/worker.js). */
+const ENGINE_WORKER = 'bergamot/worker.js';
+
+/**
+ * Makes the page start as in a browser that cannot run the on-device
+ * engine (or a build without it): its worker does not load. The request
+ * fails (where the browser lets Playwright see a worker's requests), and
+ * constructing the worker throws (everywhere).
+ */
+async function blockOnDeviceEngine(page) {
+  await page.route(`**/${ENGINE_WORKER}`, (route) =>
+    route.fulfill({ status: 404, body: '' }),
+  );
+  await page.addInitScript((script) => {
+    const Original = window.Worker;
+    if (typeof Original !== 'function') return;
+    function Worker(url, options) {
+      if (String(url).endsWith(script)) {
+        throw new DOMException(`${script} is blocked by the test`, 'SecurityError');
+      }
+      return new Original(url, options);
+    }
+    Worker.prototype = Original.prototype;
+    window.Worker = Worker;
+  }, ENGINE_WORKER);
+}
+
+/**
+ * What this browser lacks of what the on-device engine needs, asked from
+ * the engine's own worker (its `probe`, which the app asks too:
+ * packages/bergamot_translator/lib/src/engine/web/web_support.dart, whose
+ * rules this repeats). Empty when the app translates on the device here.
+ * Needs a page of the app (the worker is next to it).
+ */
+async function onDeviceEngineMissing(page) {
+  const probe = await page.evaluate(
+    (script) =>
+      new Promise((resolve) => {
+        let worker;
+        try {
+          worker = new Worker(new URL(script, document.baseURI));
+        } catch (error) {
+          resolve({ error: String(error) });
+          return;
+        }
+        const done = (answer) => {
+          clearTimeout(timer);
+          worker.terminate();
+          resolve(answer);
+        };
+        const timer = setTimeout(() => done({ error: 'no answer' }), 10_000);
+        worker.onmessage = (event) =>
+          done(event.data && event.data.ok ? event.data.result : { error: 'failed' });
+        worker.onerror = (event) => done({ error: event.message || 'error' });
+        worker.postMessage({ id: 1, op: 'probe' });
+      }),
+    ENGINE_WORKER,
+  );
+  if (probe.error) return [`engine files (${probe.error})`];
+  const missing = [];
+  if (!probe.engine) missing.push('engine files');
+  if (!probe.secure || !probe.digest) missing.push('secure context');
+  if (probe.secure && (!probe.opfs || !probe.syncAccess)) {
+    missing.push('private storage (OPFS with sync access)');
+  }
+  if (!probe.simd) missing.push('WebAssembly SIMD');
+  if (!probe.decompression) missing.push('DecompressionStream');
+  if (!probe.segmenter) missing.push('Intl.Segmenter');
+  return missing;
+}
+
+/**
+ * Skips the running test when this browser cannot run the on-device
+ * engine ([onDeviceEngineMissing]); the app then works online only, which
+ * the specs without the engine cover. Call it on a page of the app.
+ */
+async function skipWithoutOnDeviceEngine(page) {
+  const missing = await onDeviceEngineMissing(page);
+  test.skip(
+    missing.length > 0,
+    `This browser cannot run the on-device engine: no ${missing.join(', ')}`,
+  );
+}
+
 /** Blocks every request to the mock server, as if it were down. */
 async function takeMockDown(page) {
   await page.route(`http://127.0.0.1:${MOCK_PORT}/**`, (route) =>
@@ -308,6 +464,8 @@ async function goBack(page) {
 
 module.exports = {
   MOCK_PORT,
+  blockOnDeviceEngine,
+  clearClipboard,
   collectPageErrors,
   accessibilityTree,
   copiedTranslation,
@@ -320,9 +478,12 @@ module.exports = {
   openHistory,
   openSettings,
   openSettingsCategory,
+  onDeviceEngineMissing,
+  readClipboard,
   recordAiRequests,
   scrollTo,
   seedSettings,
+  skipWithoutOnDeviceEngine,
   sourceInput,
   takeMockDown,
   test,

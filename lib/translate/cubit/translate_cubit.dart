@@ -111,6 +111,13 @@ typedef _Languages = ({List<Language> sources, List<Language> targets});
 ///   original text. Translated on this device."); when none is, the
 ///   suspect result is shown with its warnings. The suspect result is
 ///   shown (unfinished) while the fallback runs.
+/// * Offline first with the on-device engine the app picked by itself (no
+///   engine chosen, see [onlineFallbackOf]): text the device can't
+///   translate (its language is not downloaded) goes to the default online
+///   engine instead, through the repository's consent check, so for a pair
+///   the user has not allowed [TranslateState.consent] asks first
+///   (`ConsentRequest.fromOnDevice`, with the language to download). The
+///   result names the engine that translated.
 /// * The personal data shield (`AppSettings.maskPersonalData`) is pushed to
 ///   the repository (`TranslationRepository.maskPersonalData`) from the
 ///   first [loadEngines] on.
@@ -2014,6 +2021,11 @@ class TranslateCubit extends Cubit<TranslateState> {
           .copyWith(status: TranslateStatus.translating, error: () => null),
     );
 
+    // Offline first: the on-device engine lacked the language and the
+    // online engine was asked instead (see onlineFallbackOf).
+    var fromOnDevice = false;
+    String? onDeviceSource;
+
     void fail(Object error) {
       _translation = null;
       if (error is ConsentRequiredException) {
@@ -2027,6 +2039,8 @@ class TranslateCubit extends Cubit<TranslateState> {
               exception: error,
               id: ++_consentRequests,
               automatic: !userAsked || auto || external,
+              fromOnDevice: fromOnDevice,
+              onDeviceSource: onDeviceSource,
             ),
           ),
         );
@@ -2056,7 +2070,14 @@ class TranslateCubit extends Cubit<TranslateState> {
       stream = _withFallback(
         selected,
         request,
-        _repository.translate(selected, request),
+        _onDeviceThenOnline(
+          selected,
+          request,
+          onRouted: (source) {
+            fromOnDevice = true;
+            onDeviceSource = source;
+          },
+        ),
         onFallback: (value) => fallback = value,
       );
     } on Object catch (error) {
@@ -2158,11 +2179,16 @@ class TranslateCubit extends Cubit<TranslateState> {
     // An extra target in the detected language of the input is dropped
     // (cancelled when in flight).
     _pruneExtraTranslations();
+    // A fallback's result, or the online engine's after the on-device one
+    // lacked the language (onlineFallbackOf), names the engine that
+    // translated.
+    final own =
+        fallback == null && !(engine.isOffline && result.engineId != engine.id);
     _record(
       request,
       result,
-      engineId: fallback == null ? engine.id : result.engineId,
-      engineName: fallback == null ? engine.name : result.engineName,
+      engineId: own ? engine.id : result.engineId,
+      engineName: own ? engine.name : result.engineName,
       auto: auto,
     );
     _settings.recordPair(
@@ -2171,6 +2197,134 @@ class TranslateCubit extends Cubit<TranslateState> {
     );
     _autoRomanize();
     unawaited(loadUncertainty());
+  }
+
+  /// In Offline first, the online engine the app asks about when the
+  /// on-device engine it picked by itself can't translate the text (its
+  /// language is not downloaded, or the engine has no model for it): the
+  /// default Mozhi engine (Google) on the first instance of the user's list
+  /// (as listed in [state], or as it will be once the lists are loaded).
+  ///
+  /// Null unless all of these hold: the privacy mode is
+  /// [PrivacyMode.offlineFirst], the selected engine is the on-device one,
+  /// the user has not chosen an engine (`AppSettings.engineId` is null:
+  /// picking the on-device engine keeps the text on the device), no quality
+  /// mode is on and there is an instance.
+  ///
+  /// The online engine gets the text only through the repository's consent
+  /// check (`TranslationRepository.translate`): for a language pair the user
+  /// has not allowed, it stops before anything is sent and the screen asks
+  /// (Once, Always for the pair) next to the download of the language.
+  static TranslationEngine? onlineFallbackOf(
+    TranslateState state,
+    AppSettings settings,
+  ) {
+    final engine = state.engine;
+    if (engine == null ||
+        !engine.isOffline ||
+        settings.privacyMode != PrivacyMode.offlineFirst ||
+        settings.engineId != null ||
+        state.qualityMode != QualityMode.off ||
+        settings.instances.isEmpty) {
+      return null;
+    }
+    return _engineIn(state.engines, _defaultEngineId) ??
+        TranslationEngine(
+          id: _defaultEngineId,
+          kind: EngineKind.mozhi,
+          name: 'Google',
+          subtitle: settings.instances.first.displayName,
+          mozhiEngine: 'google',
+        );
+  }
+
+  /// Whether the on-device engine failed with [error] because it can't
+  /// translate the text on this device: a language whose models are not
+  /// downloaded, or one it has no model for (also when the platform wraps
+  /// the exception).
+  static bool _lacksOnDevice(Object error) => switch (error) {
+    OfflineModelMissingException() ||
+    OfflineLanguageUnsupportedException() => true,
+    _ =>
+      '$error'.contains('OfflineModelMissingException') ||
+          '$error'.contains('OfflineLanguageUnsupportedException'),
+  };
+
+  /// The source language the on-device engine recognised before [error]
+  /// (the missing language of [request] that is not its target), or null.
+  static String? _recognisedSource(Object error, TranslationRequest request) {
+    if (!request.source.isAuto) return request.source.code;
+    if (error is! OfflineModelMissingException) return null;
+    final target = LanguageMatcher.normalize(request.target.code)
+        .split('-')
+        .first
+        .toLowerCase();
+    for (final code in error.languages) {
+      final key = LanguageMatcher.normalize(code).split('-').first;
+      if (key.toLowerCase() != target) return code;
+    }
+    return null;
+  }
+
+  /// [selected]'s translation of [request]; in Offline first with the
+  /// on-device engine the app picked ([onlineFallbackOf]), when the device
+  /// can't translate it ([_lacksOnDevice]), the online engine's translation
+  /// instead, through the repository's consent check (a
+  /// [ConsentRequiredException] before anything is sent unless the pair is
+  /// allowed). [onRouted] gets the source language the device recognised
+  /// when that happens.
+  Stream<TranslationResult> _onDeviceThenOnline(
+    TranslationEngine selected,
+    TranslationRequest request, {
+    required void Function(String? onDeviceSource) onRouted,
+  }) {
+    final local = _repository.translate(selected, request);
+    final online = selected.id == state.engine?.id
+        ? onlineFallbackOf(state, _settings.state)
+        : null;
+    if (online == null) return local;
+    late final StreamController<TranslationResult> controller;
+    StreamSubscription<TranslationResult>? subscription;
+    void fail(Object error, [StackTrace? stackTrace]) {
+      if (controller.isClosed) return;
+      controller.addError(error, stackTrace);
+      unawaited(controller.close());
+    }
+
+    controller = StreamController<TranslationResult>(
+      onListen: () {
+        subscription = local.listen(
+          controller.add,
+          onError: (Object error, StackTrace stackTrace) {
+            // The settings may have changed meanwhile (an engine picked,
+            // another privacy mode): then it is a plain failure.
+            if (!_lacksOnDevice(error) ||
+                onlineFallbackOf(state, _settings.state)?.id != online.id) {
+              return fail(error, stackTrace);
+            }
+            onRouted(_recognisedSource(error, request));
+            final Stream<TranslationResult> remote;
+            try {
+              remote = _repository.translate(online, request);
+            } on Object catch (error, stackTrace) {
+              return fail(error, stackTrace);
+            }
+            subscription = remote.listen(
+              controller.add,
+              onError: fail,
+              onDone: () => unawaited(controller.close()),
+              cancelOnError: true,
+            );
+          },
+          onDone: () => unawaited(controller.close()),
+          cancelOnError: true,
+        );
+      },
+      onPause: () => subscription?.pause(),
+      onResume: () => subscription?.resume(),
+      onCancel: () => subscription?.cancel(),
+    );
+    return controller.stream;
   }
 
   /// [results], [selected]'s translation of [request], with the fallback of

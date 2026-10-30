@@ -453,14 +453,14 @@ async function readInto(running, path, alignment) {
   }
   try {
     const bytes = access ? null : new Uint8Array(await (await handle.getFile()).arrayBuffer());
-    const size = access ? access.getSize() : bytes.length;
+    const size = access ? await access.getSize() : bytes.length;
     const buffer = api.mozhi_bergamot_buffer_create(size, alignment);
     if (!buffer) throw failure('engine', `Out of memory for ${path}`);
     const pointer = api.mozhi_bergamot_buffer_data(buffer);
     // Read after allocating: the memory (and so the heap view) may have grown.
     const target = module.mozhi.heap().subarray(pointer, pointer + size);
     if (access) {
-      const read = access.read(target, { at: 0 });
+      const read = await access.read(target, { at: 0 });
       if (read !== size) {
         api.mozhi_bergamot_buffer_destroy(buffer);
         throw failure('storage', `Read ${read} of ${size} bytes of ${path}`);
@@ -470,7 +470,7 @@ async function readInto(running, path, alignment) {
     }
     return buffer;
   } finally {
-    if (access) access.close();
+    if (access) await access.close();
   }
 }
 
@@ -565,6 +565,12 @@ async function identify({ text, hints }) {
 /* Storage (OPFS)                                                             */
 /* -------------------------------------------------------------------------- */
 
+// A FileSystemSyncAccessHandle's methods return their results directly in
+// current browsers; older ones (Safari 16, Chrome before 108) returned
+// promises for some of them, as the first version of the specification
+// did. Every call is awaited, so both work (awaiting a plain value gives
+// the value), and a handle is closed before the file is opened again.
+
 let rootPromise = null;
 
 function root() {
@@ -625,14 +631,14 @@ async function writeFile(path, bytes) {
   if (typeof handle.createSyncAccessHandle === 'function') {
     const access = await handle.createSyncAccessHandle();
     try {
-      access.truncate(0);
+      await access.truncate(0);
       let written = 0;
       while (written < bytes.length) {
-        written += access.write(bytes.subarray(written), { at: written });
+        written += await access.write(bytes.subarray(written), { at: written });
       }
-      access.flush();
+      await access.flush();
     } finally {
-      access.close();
+      await access.close();
     }
   } else {
     const writable = await handle.createWritable();
@@ -707,9 +713,9 @@ async function downloadOpen({ path, restart }) {
     throw failure('unsupported', 'This browser cannot write files from a worker');
   }
   const access = await handle.createSyncAccessHandle();
-  if (restart) access.truncate(0);
+  if (restart) await access.truncate(0);
   downloads.set(path, access);
-  return { size: access.getSize() };
+  return { size: await access.getSize() };
 }
 
 async function downloadWrite({ path, bytes, at }) {
@@ -718,7 +724,7 @@ async function downloadWrite({ path, bytes, at }) {
   const data = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
   let written = 0;
   while (written < data.length) {
-    written += access.write(data.subarray(written), { at: at + written });
+    written += await access.write(data.subarray(written), { at: at + written });
   }
   return { size: at + written };
 }
@@ -728,9 +734,9 @@ async function downloadClose({ path }) {
   if (!access) return;
   downloads.delete(path);
   try {
-    access.flush();
+    await access.flush();
   } finally {
-    access.close();
+    await access.close();
   }
 }
 

@@ -143,6 +143,10 @@ jobs:
           # A misplaced coverage marker makes `--coverage` hang (see the
           # script): fail here instead.
           python3 tool/check_coverage_markers.py
+          # The store listings: lengths, images, and a complete listing
+          # for every app language (docs/store/README.md).
+          python3 fastlane/validate_metadata_test.py
+          python3 fastlane/validate_metadata.py --strict
 
       - name: Test app
         run: flutter test --coverage
@@ -428,7 +432,8 @@ jobs:
   # the first run with its defaults, type a sentence and wait for the
   # translation (tool/android_smoke.py). Fails when Mozhi crashes, stops or
   # never shows its screens; screenshots, the accessibility tree of each
-  # step and logcat are uploaded for review.
+  # step and logcat are uploaded for review, and so are light and dark
+  # screenshots of the main screens for the store listing.
   android-smoke:
     name: Android emulator smoke test
     needs: build-android
@@ -458,7 +463,7 @@ jobs:
           target: default
           ram-size: 4096M
           disk-size: 6000M
-          script: python3 tool/android_smoke.py dist/mozhi-x86_64.apk smoke
+          script: python3 tool/android_smoke.py dist/mozhi-x86_64.apk smoke --screenshots store-screenshots
 
       - name: Summarize
         if: ${{ !cancelled() }}
@@ -470,6 +475,14 @@ jobs:
         with:
           name: android-smoke
           path: smoke
+          if-no-files-found: warn
+
+      - name: Upload the store screenshots
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: store-screenshots
+          path: store-screenshots
           if-no-files-found: warn
 
   # The Play variant: the default app plus Google ML Kit's on-device text
@@ -739,17 +752,32 @@ jobs:
           path: build/web
           if-no-files-found: error
 
-  # Browser end-to-end tests (e2e/, Playwright + Chromium) against a web
-  # build of the development flavor served from /, with e2e/mock_server.py
-  # standing in for a Mozhi instance and an AI provider. Playwright starts
-  # both servers itself (python3 -m http.server and the mock; see
-  # e2e/playwright.config.js).
+  # Browser end-to-end tests (e2e/, Playwright) against a web build of the
+  # development flavor served from /, with e2e/mock_server.py standing in
+  # for a Mozhi instance and an AI provider. Playwright starts both servers
+  # itself (python3 -m http.server and the mock; see
+  # e2e/playwright.config.js). One job per browser engine: Chromium runs
+  # every spec (its job keeps the name "Web end-to-end tests"), Firefox and
+  # WebKit (Safari's engine) the core specs (CORE_SPECS in the config). A
+  # spec that needs what a browser lacks (the on-device engine's private
+  # storage, service workers) skips itself there with the reason.
   e2e-web:
-    name: Web end-to-end tests
+    name: ${{ matrix.browser == 'chromium' && 'Web end-to-end tests' || format('Web end-to-end tests ({0})', matrix.title) }}
     needs: [analyze-test, build-bergamot-wasm]
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: ${{ matrix.browser == 'chromium' && 30 || 45 }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - browser: chromium
+            title: Chromium
+          - browser: firefox
+            title: Firefox
+          - browser: webkit
+            title: WebKit
     env:
+      BROWSER: ${{ matrix.browser }}
       E2E_WEB_DIR: ../build/web-e2e
       # Real German models for the on-device spec (offline_engine.spec.js),
       # fetched from Mozilla and checked against the bundled catalog.
@@ -802,11 +830,18 @@ jobs:
         working-directory: e2e
         run: |
           npm ci
-          npx playwright install --with-deps chromium
+          npx playwright install --with-deps "$BROWSER"
+
+      # The worker's storage code with both kinds of OPFS handles (current
+      # browsers, and Safari 16's promise-returning ones), in Node.js.
+      - name: Test the on-device engine's worker
+        if: matrix.browser == 'chromium'
+        working-directory: e2e
+        run: npm run test:unit
 
       - name: Run end-to-end tests
         working-directory: e2e
-        run: npx playwright test
+        run: npx playwright test --project="$BROWSER"
 
       # The accessibility snapshot of each failed test, in the log itself:
       # readable without downloading the report.
@@ -825,7 +860,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: e2e-report
+          name: ${{ matrix.browser == 'chromium' && 'e2e-report' || format('e2e-report-{0}', matrix.browser) }}
           path: |
             e2e/playwright-report
             e2e/test-results

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -37,6 +38,7 @@ class _Device {
     MemoryStore? prefs,
     MemoryStore? secrets,
     this.debounce = const Duration(milliseconds: 5),
+    this.codec = testCodec,
   }) : prefs = prefs ?? MemoryStore(),
        secrets = secrets ?? MemoryStore() {
     service = _service();
@@ -46,6 +48,7 @@ class _Device {
   final MemoryStore prefs;
   final MemoryStore secrets;
   final Duration debounce;
+  final BackupCodec codec;
   final history = MemorySection('history');
   PrivacyMode mode = PrivacyMode.offlineFirst;
   bool metered = false;
@@ -55,7 +58,7 @@ class _Device {
     registry: registryOf([history]),
     prefs: prefs,
     secrets: secrets,
-    codec: testCodec,
+    codec: codec,
     httpClient: () => server.client,
     privacyMode: () => mode,
     isMetered: () async => metered,
@@ -75,6 +78,25 @@ class _Device {
       probed: probe,
     );
   }
+}
+
+/// How keys were derived before passphrases were normalised (NFC): from
+/// the passphrase exactly as typed.
+class _AsTypedCodec extends BackupCodec {
+  const new() : super(kdf: testKdf, useIsolate: false);
+
+  @override
+  Future<BackupKey> deriveKey(
+    String passphrase, {
+    required Uint8List salt,
+    BackupKdf? parameters,
+    bool asTyped = false,
+  }) => super.deriveKey(
+    passphrase,
+    salt: salt,
+    parameters: parameters,
+    asTyped: true,
+  );
 }
 
 Matcher _fails(SyncFailure failure) =>
@@ -240,6 +262,25 @@ void main() {
       expect(tablet.prefs.values, isEmpty);
       expect(tablet.history.restores, isEmpty);
       expect(server.files[_filePath], before);
+    });
+
+    test('joins a file made with a passphrase as typed, before NFC', () async {
+      // "Việt" with combining marks, as some keyboards type it.
+      const decomposed = 'Vie\u0323\u0302t horse';
+      final server = _server();
+      final old = _Device(server, codec: const _AsTypedCodec())
+        ..history.set('a', 'old', 1);
+      await old.setUp(decomposed);
+      final tablet = _Device(server)..history.set('b', 'new', 2);
+      await tablet.setUp(decomposed);
+      expect(tablet.history.values, {'a': 'old', 'b': 'new'});
+      // It keeps the key that opens the file: the old device still syncs.
+      expect(await old.service.syncNow(), isNull);
+      expect(old.history.values, tablet.history.values);
+      // New files are made with the NFC passphrase: typed either way.
+      final fresh = _server();
+      await _Device(fresh).setUp(decomposed);
+      await _Device(fresh).setUp('Vi\u1EC7t horse');
     });
 
     test('joins a file another device created in the meantime', () async {

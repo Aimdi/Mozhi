@@ -1,0 +1,5 @@
+Eerste release.
+• Offline vertalen op de telefoon (ongeveer 55 talen), via Mozhi-servers of met je AI-model
+• AI-extra's: toon, leesniveau, woordenlijsten, verfijnen, betekenis controleren, nakijken
+• Livecamera, foto's, PDF- en Office-documenten, gesprekken, transcriptie, live-ondertiteling
+• Standaard privé: Eerst offline, versleutelde geschiedenis, geen tracking

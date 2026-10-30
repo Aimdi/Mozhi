@@ -34,9 +34,11 @@ import 'package:meta/meta.dart';
 /// `models/en-de/<version>/model.ende.intgemm.alphas.bin`), which only the
 /// worker's engine ([WorkerBergamotEngine]) understands.
 ///
-/// Before each download it asks for persistent storage
-/// ([requestPersistence]: `navigator.storage.persist()`), so the browser
-/// does not evict the models under storage pressure.
+/// Each download also asks for persistent storage ([requestPersistence]:
+/// `navigator.storage.persist()`), so the browser does not evict the
+/// models under storage pressure. The download does not wait for the
+/// answer: Firefox asks the user in a prompt that may stay unanswered, and
+/// the models work either way.
 ///
 /// [importFiles] is not available (a browser has no file paths):
 /// [importSources] installs picked files from their contents instead, with
@@ -78,6 +80,9 @@ class OpfsModelManager extends BergamotModelManager {
   final Map<String, Future<InstalledModel>> _installs = {};
   List<InstalledModel>? _cache;
   var _persistent = false;
+
+  /// The persistence request still waiting for the browser's answer.
+  Future<void>? _persisting;
 
   @override
   Future<List<InstalledModel>> installed() async =>
@@ -517,7 +522,7 @@ class OpfsModelManager extends BergamotModelManager {
     final current = await installedModel(model.source, model.target);
     if (current != null && current.version == model.version) return current;
     await _checkQuota(model);
-    await _askToPersist();
+    _askToPersist();
 
     // Every file of the model comes from the source chosen at the start.
     final mirror = this.mirror;
@@ -579,14 +584,19 @@ class OpfsModelManager extends BergamotModelManager {
     return installed;
   }
 
-  Future<void> _askToPersist() async {
+  /// Asks for persistent storage unless the browser agreed already or the
+  /// question is still open (one prompt at a time); not awaited by the
+  /// download.
+  void _askToPersist() {
     final request = requestPersistence;
-    if (_persistent || request == null) return;
-    try {
-      _persistent = await request();
-    } on Object {
-      // Best effort: the models still work while the browser keeps them.
-    }
+    if (_persistent || request == null || _persisting != null) return;
+    _persisting = Future<bool>.sync(request)
+        .then<void>(
+          (granted) => _persistent = granted,
+          // Best effort: the models still work while the browser keeps them.
+          onError: (Object _) {},
+        )
+        .whenComplete(() => _persisting = null);
   }
 
   /// Downloads [file] into [part] (resuming a partial download) from the

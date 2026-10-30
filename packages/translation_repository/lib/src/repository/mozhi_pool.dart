@@ -1,8 +1,11 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:collection/collection.dart';
 import 'package:mozhi_api/mozhi_api.dart';
 import 'package:translation_repository/src/models/models.dart';
+import 'package:translation_repository/src/repository/instance_health.dart';
+import 'package:translation_repository/src/repository/repository_exceptions.dart';
 
 /// Creates a client for one Mozhi instance.
 typedef MozhiClientBuilder = MozhiApiClient Function(Uri baseUrl);
@@ -24,6 +27,12 @@ typedef MozhiAction<T> = Future<T> Function(
 /// preferred one until the configured order changes or
 /// [resetPreferred] is called.
 ///
+/// With an [InstanceHealth], servers where a request failed recently (see
+/// [canFailOver]) are tried last, here and across launches: requests start
+/// at the first server of the user's order that is not cooling down (the
+/// preferred one that just answered stays first). Nothing is sent just to
+/// check a server; only the outcome of the requests made anyway counts.
+///
 /// Requests that every instance would reject are rethrown immediately:
 /// HTTP 400/413/414/431 and Mozhi's input errors, which the real server
 /// reports as 500 (an invalid language code, an unknown engine, a missing
@@ -33,25 +42,46 @@ typedef MozhiAction<T> = Future<T> Function(
 /// message sanitised ([sanitize]): Mozhi forwards raw Go errors that
 /// contain upstream URLs whose query strings carry the user's text.
 class MozhiPool {
-  new(this._builder);
+  new(this._builder, {this._health});
 
   final MozhiClientBuilder _builder;
+  final InstanceHealth? _health;
   final Map<String, MozhiApiClient> _clients = {};
   List<MozhiInstance> _instances = const [];
   MozhiInstance? _preferred;
 
+  /// Which instances failed recently (null: no such ordering).
+  InstanceHealth? get health => _health;
+
   /// The configured instances, in failover order.
   List<MozhiInstance> get instances => _instances;
 
-  /// The instance requests start at, or null when none is configured.
-  MozhiInstance? get active => _preferred ?? _instances.firstOrNull;
+  /// The instance requests start at, or null when none is configured: the
+  /// first of [startOrder].
+  MozhiInstance? get active => startOrder.firstOrNull;
+
+  /// The order the next request tries the instances in: the configured
+  /// order starting at the preferred instance (wrapping around), with the
+  /// instances the [InstanceHealth] says are cooling down moved to the
+  /// back.
+  List<MozhiInstance> get startOrder {
+    final instances = _instances;
+    final preferredUrl = _preferred?.url;
+    final start = preferredUrl == null
+        ? 0
+        : math.max(0, instances.indexWhere((i) => i.url == preferredUrl));
+    final rotated = [...instances.skip(start), ...instances.take(start)];
+    return _health?.order(rotated) ?? rotated;
+  }
 
   /// Replaces the instance list. Closes clients of removed instances.
   ///
   /// The order is the user's preference, so any change to the URL order
   /// (reordering, adding or removing an instance) forgets the instance a
   /// failover picked: the next request starts at the first instance again.
-  /// A label-only change keeps it.
+  /// A label-only change keeps it. When the first instance changes (the
+  /// user put another one first), the [InstanceHealth] forgets that
+  /// instance's failure, so it is tried first again.
   ///
   /// Returns whether the list changed (URLs, labels or order).
   bool update(List<MozhiInstance> instances) {
@@ -64,6 +94,11 @@ class MozhiPool {
       [for (final i in _instances) i.url],
       [for (final i in instances) i.url],
     );
+    final previousFirst = _instances.firstOrNull?.url;
+    final first = instances.firstOrNull?.url;
+    if (previousFirst != null && first != null && first != previousFirst) {
+      _health?.forget(first);
+    }
     _instances = List.unmodifiable(instances);
     final urls = {for (final instance in instances) instance.url};
     _clients.removeWhere((url, client) {
@@ -79,8 +114,12 @@ class MozhiPool {
   }
 
   /// Forgets the instance a failover picked, so the next request starts at
-  /// the first configured instance again.
-  void resetPreferred() => _preferred = null;
+  /// the first configured instance again (with [forgetHealth], also every
+  /// failure the [InstanceHealth] remembers).
+  void resetPreferred({bool forgetHealth = false}) {
+    _preferred = null;
+    if (forgetHealth) _health?.forget();
+  }
 
   bool _isConfigured(MozhiInstance instance) =>
       _instances.any((i) => i.url == instance.url);
@@ -102,67 +141,77 @@ class MozhiPool {
   /// may let the text go to one instance but not to another): the request
   /// is never sent to them, also not as a failover.
   ///
+  /// Unless [recordHealth] is false, the [InstanceHealth] learns from each
+  /// attempt: a failure that is failed over (see [canFailOver]) marks the
+  /// instance failed, an answer marks it working. Input errors, cancelled
+  /// requests and, with `failOverOnTimeout: false`, timeouts never count:
+  /// the server may have the text already, and counting the timeout would
+  /// send a retry of the same text to another operator. Pass
+  /// `recordHealth: false` for requests whose outcome says nothing about
+  /// translating, such as the engine and language lists (a server lists
+  /// its engines just as well when its Google engine fails).
+  ///
   /// Throws a `MozhiApiException` when no instance is configured, and the
-  /// last failover-eligible error when every instance failed.
+  /// last failover-eligible error when every instance failed; with
+  /// [engine], that error wrapped in an [AllInstancesFailedException]
+  /// naming [engine] and the instances tried.
   Future<T> run<T>(
     MozhiAction<T> action, {
     bool failOverOnTimeout = true,
     bool Function(MozhiInstance instance)? allow,
+    bool recordHealth = true,
+    TranslationEngine? engine,
   }) async {
     final tried = <String>{};
+    final attempted = <MozhiInstance>[];
     Object? lastError;
     StackTrace? lastStackTrace;
-    MozhiInstance? previous;
     while (true) {
-      final instance = _next(previous, tried);
+      final instance = _next(tried);
       if (instance == null) break;
       tried.add(instance.url);
-      previous = instance;
       if (allow != null && !allow(instance)) continue;
+      attempted.add(instance);
       try {
         final result = await action(_clientFor(instance), instance);
         if (_isConfigured(instance)) _preferred = instance;
+        if (recordHealth) _health?.markWorked(instance.url);
         return result;
       } on MozhiApiException catch (error, stackTrace) {
         final sanitized = sanitize(error);
         if (!canFailOver(error, failOverOnTimeout: failOverOnTimeout)) {
           Error.throwWithStackTrace(sanitized, stackTrace);
         }
+        if (recordHealth) _health?.markFailed(instance.url);
         lastError = sanitized;
         lastStackTrace = stackTrace;
       } on TimeoutException catch (error, stackTrace) {
         if (!failOverOnTimeout) rethrow;
+        if (recordHealth) _health?.markFailed(instance.url);
         lastError = error;
         lastStackTrace = stackTrace;
       }
     }
     if (lastError != null) {
-      Error.throwWithStackTrace(lastError, lastStackTrace!);
+      Error.throwWithStackTrace(
+        engine == null
+            ? lastError
+            : AllInstancesFailedException.from(
+                lastError,
+                engine: engine,
+                instances: attempted,
+              ),
+        lastStackTrace!,
+      );
     }
     throw const MozhiApiException('No Mozhi instance is configured.');
   }
 
-  /// The next instance to try: the preferred one first, then the instance
-  /// after [previous] in the *current* list (so instances added during a
-  /// failover are tried too); when [previous] was removed meanwhile, the
-  /// search restarts at the active instance. Instances in [tried] are
-  /// skipped; null when none is left.
-  MozhiInstance? _next(MozhiInstance? previous, Set<String> tried) {
-    final instances = _instances;
-    if (instances.isEmpty) return null;
-    final after = previous == null
-        ? -1
-        : instances.indexWhere((i) => i.url == previous.url);
-    final activeUrl = active?.url;
-    final start = after >= 0
-        ? after + 1
-        : instances.indexWhere((i) => i.url == activeUrl);
-    for (var offset = 0; offset < instances.length; offset++) {
-      final candidate = instances[(start + offset) % instances.length];
-      if (!tried.contains(candidate.url)) return candidate;
-    }
-    return null;
-  }
+  /// The next instance to try: the first of the *current* [startOrder]
+  /// not in [tried] (so instances added during a failover are tried too,
+  /// and removed ones are not); null when none is left.
+  MozhiInstance? _next(Set<String> tried) =>
+      startOrder.firstWhereOrNull((i) => !tried.contains(i.url));
 
   /// Runs [action] with the cached client of [instance] when it is
   /// configured, else with a temporary client that is closed afterwards.

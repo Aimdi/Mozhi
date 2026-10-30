@@ -29,6 +29,7 @@ import 'package:mozhi/translate/widgets/aligned_text.dart';
 import 'package:mozhi/translate/widgets/copy_action_button.dart';
 import 'package:mozhi/translate/widgets/detection_chips.dart';
 import 'package:mozhi/translate/widgets/extras_section.dart';
+import 'package:mozhi/translate/widgets/first_use_hint.dart';
 import 'package:mozhi/translate/widgets/insight_sheet.dart';
 import 'package:mozhi/translate/widgets/instance_switcher.dart';
 import 'package:mozhi/translate/widgets/language_bar.dart'
@@ -247,9 +248,12 @@ bool outputIsStreaming(TranslateState state) =>
 /// on-device alternative when the offline engine supports the pair
 /// ([OfflinePairOffer]: "Download German (25 MB)"); when "Offline only"
 /// held it back and the device has nothing to translate with either, an
-/// [OfflineOnlyNotice] says so instead. A Mozhi instance error
-/// offers "Switch instance" ([switchInstanceAndRetry]) when several
-/// instances are configured.
+/// [OfflineOnlyNotice] says so instead. When the on-device engine tried
+/// first and lacks the language (`ConsentRequest.fromOnDevice`), the offer
+/// is for the language it recognised, and the first-use hint
+/// ([TranslateFirstUseHint]) says what Download and Once do. A Mozhi
+/// instance error offers "Switch instance" ([switchInstanceAndRetry]) when
+/// several instances are configured.
 ///
 /// A translation of text the user has since edited is dimmed (and described
 /// as out of date to screen readers) and offers no AI extras. Selecting part
@@ -787,10 +791,24 @@ class _OutputCardState extends State<OutputCard>
           ConsentInlinePrompt(
             key: const Key('translate_consent_prompt'),
             consent: consent.exception,
-            onGranted: () =>
-                unawaited(context.read<TranslateCubit>().retryAfterConsent()),
+            onGranted: () {
+              if (consent.fromOnDevice) {
+                unawaited(TranslateFirstUseHint.markSeen(context));
+              }
+              unawaited(context.read<TranslateCubit>().retryAfterConsent());
+            },
           ),
-          OfflinePairOffer(consent: consent.exception),
+          // The device tried first: offer the language it recognised (the
+          // stopped request's own pair may say "Detect language").
+          if (consent.fromOnDevice)
+            OfflinePairOffer.pair(
+              source: consent.onDeviceSource ?? consent.exception.source,
+              target: consent.exception.target ?? state.target.code,
+            )
+          else
+            OfflinePairOffer(consent: consent.exception),
+          if (consent.fromOnDevice)
+            TranslateFirstUseHint(consent: consent.exception),
         ],
       );
       return Padding(

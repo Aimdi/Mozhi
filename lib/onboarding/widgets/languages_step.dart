@@ -13,6 +13,7 @@ import 'package:mozhi/offline/widgets/offline_language_tile.dart'
 import 'package:mozhi/onboarding/cubit/onboarding_cubit.dart';
 import 'package:mozhi/onboarding/widgets/onboarding_language_picker.dart';
 import 'package:mozhi/onboarding/widgets/step_layout.dart';
+import 'package:mozhi/platform/free_space.dart' show requiredFreeSpace;
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/view/widgets/delete_local_data.dart'
     show formatStoredSize;
@@ -45,14 +46,145 @@ String? offlineCodeFor(
   return match.code;
 }
 
+/// A source language to suggest while the source is "Detect language": the
+/// first of [deviceLanguages] (the phone's languages, BCP 47 tags) that is
+/// in the catalogue and is not [target]'s language. Null when there is
+/// none.
+Language? suggestedSourceLanguage(
+  List<String> deviceLanguages, {
+  required Language target,
+}) {
+  String primary(String code) =>
+      LanguageMatcher.normalize(code).split('-').first.toLowerCase();
+  final into = primary(target.code);
+  for (final tag in deviceLanguages) {
+    if (tag.trim().isEmpty) continue;
+    final language = LanguageMatcher.match(
+      Language(code: tag, name: tag),
+      LanguageCatalog.all,
+    );
+    if (language == null || language.isAuto || language.isCustom) continue;
+    if (primary(language.code) == into) continue;
+    return language;
+  }
+  return null;
+}
+
+/// The offline rows of the languages step for [source] (while detecting:
+/// [suggested], when the engine has it) and [target] among [languages]:
+/// the engine's codes, and the picked languages it has no model for.
+({List<String> codes, List<Language> unsupported}) onboardingOfflinePair({
+  required Language source,
+  required Language target,
+  required List<OfflineLanguage> languages,
+  Language? suggested,
+}) {
+  final picks = [
+    if (!source.isAuto)
+      (source, false)
+    else if (suggested != null && offlineCodeFor(suggested, languages) != null)
+      (suggested, false),
+    (target, true),
+  ];
+  final codes = <String>[];
+  final unsupported = <Language>[];
+  for (final (language, isTarget) in picks) {
+    final code = offlineCodeFor(language, languages, isTarget: isTarget);
+    if (code == null) {
+      unsupported.add(language);
+    } else if (!codes.contains(code)) {
+      codes.add(code);
+    }
+  }
+  return (codes: codes, unsupported: unsupported);
+}
+
+/// Whether the languages step offers [code] as a checkbox (download on
+/// Next): not on the device yet, nothing running for it, not built in and
+/// not an update (which keeps its button).
+bool onboardingCanCheckDownload(OfflineModelsState offline, String code) =>
+    !offline.isDownloaded(code) &&
+    !offline.isBuiltIn(code) &&
+    !offline.isOutdated(code) &&
+    !offline.pending.containsKey(code);
+
+/// The languages of [codes] to download when the user taps Next: those
+/// they checked; those they did not answer for are checked for them when
+/// [OnboardingState.preselectDownloads] and the phone has room for all of
+/// them ([OnboardingState.freeBytes], with the margin of
+/// [requiredFreeSpace]).
+Set<String> onboardingCheckedDownloads(
+  OnboardingState onboarding,
+  OfflineModelsState offline,
+  Iterable<String> codes,
+) {
+  final open = [
+    for (final code in codes)
+      if (onboardingCanCheckDownload(offline, code)) code,
+  ];
+  final bytes = open.fold<int>(
+    0,
+    (sum, code) => sum + (offline.downloadSizeOf(code) ?? 0),
+  );
+  final free = onboarding.freeBytes;
+  final preselect =
+      onboarding.preselectDownloads &&
+      free != null &&
+      free >= requiredFreeSpace(bytes);
+  return {
+    for (final code in open)
+      if (onboarding.downloadChoices[code] ?? preselect) code,
+  };
+}
+
 /// Step 3: "Pick your languages": the default source and target languages
 /// and, where the device translates on its own, their offline downloads
 /// (with sizes, progress and the Wi-Fi only choice; a metered network asks
 /// first).
 ///
+/// While the source is "Detect language", a source language from the
+/// phone's languages is suggested ([suggestedSourceLanguage]: "Translate
+/// from French") and its download offered with the target's. The downloads
+/// of the pair are checkboxes, checked for the user on Android when the
+/// phone has room ([onboardingCheckedDownloads]); they start when the user
+/// taps Next (the flow moves on to the service step), never by themselves.
+///
 /// Expects an [OnboardingCubit] and an [OfflineModelsCubit] above it.
 class LanguagesStep extends StatelessWidget {
   const new({super.key});
+
+  /// The suggested source for [source] and [target] (only while
+  /// detecting).
+  static Language? _suggested(
+    OnboardingState onboarding, {
+    required Language source,
+    required Language target,
+  }) => source.isAuto
+      ? suggestedSourceLanguage(onboarding.deviceLanguages, target: target)
+      : null;
+
+  /// Starts the checked downloads: the user tapped Next.
+  static void _downloadChecked(BuildContext context, OnboardingState state) {
+    final settings = context.read<SettingsCubit>().state;
+    final cubit = context.read<OfflineModelsCubit>();
+    final offline = cubit.state;
+    if (offline.status != OfflineModelsStatus.ready || !offline.isAvailable) {
+      return;
+    }
+    final pair = onboardingOfflinePair(
+      source: settings.source,
+      target: settings.target,
+      languages: offline.languages,
+      suggested: _suggested(
+        state,
+        source: settings.source,
+        target: settings.target,
+      ),
+    );
+    for (final code in onboardingCheckedDownloads(state, offline, pair.codes)) {
+      unawaited(cubit.download(code));
+    }
+  }
 
   Future<void> _onOutcome(
     BuildContext context,
@@ -89,11 +221,27 @@ class LanguagesStep extends StatelessWidget {
     final target = context.select<SettingsCubit, Language>(
       (c) => c.state.target,
     );
-    return BlocListener<OfflineModelsCubit, OfflineModelsState>(
-      listenWhen: (previous, current) =>
-          current.outcome != null && previous.outcome != current.outcome,
-      listener: (context, state) =>
-          unawaited(_onOutcome(context, state.outcome!)),
+    final suggested = _suggested(
+      context.watch<OnboardingCubit>().state,
+      source: source,
+      target: target,
+    );
+    return MultiBlocListener(
+      listeners: [
+        BlocListener<OfflineModelsCubit, OfflineModelsState>(
+          listenWhen: (previous, current) =>
+              current.outcome != null && previous.outcome != current.outcome,
+          listener: (context, state) =>
+              unawaited(_onOutcome(context, state.outcome!)),
+        ),
+        // Next: from this step on to the service step.
+        BlocListener<OnboardingCubit, OnboardingState>(
+          listenWhen: (previous, current) =>
+              previous.step == OnboardingStep.languages &&
+              current.step == OnboardingStep.service,
+          listener: _downloadChecked,
+        ),
+      ],
       child: OnboardingStepLayout(
         icon: Icons.translate,
         title: l10n.onboardingLanguagesTitle,
@@ -105,6 +253,7 @@ class LanguagesStep extends StatelessWidget {
             language: source,
             source: true,
           ),
+          if (suggested != null) _SourceSuggestion(language: suggested),
           const SizedBox(height: 12),
           _LanguageField(
             key: const Key('onboarding_target_language'),
@@ -113,7 +262,66 @@ class LanguagesStep extends StatelessWidget {
             source: false,
           ),
           const SizedBox(height: 24),
-          _OfflineDownloads(source: source, target: target),
+          _OfflineDownloads(
+            source: source,
+            target: target,
+            suggested: suggested,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// "French is one of your phone's languages." with "Translate from French"
+/// (makes it the source language).
+class _SourceSuggestion extends StatelessWidget {
+  const new({required this.language});
+
+  final Language language;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final palette = AppPalette.of(context);
+    return Padding(
+      key: const Key('onboarding_source_suggestion'),
+      padding: const EdgeInsetsDirectional.only(top: 8, start: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsetsDirectional.only(top: 2, end: 12),
+                child: Icon(
+                  Icons.lightbulb_outline,
+                  size: 20,
+                  color: palette.secondaryText,
+                ),
+              ),
+              Expanded(
+                child: Text(
+                  l10n.onboardingLanguagesSuggestion(language.name),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: palette.secondaryText,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          Padding(
+            padding: const EdgeInsetsDirectional.only(start: 20),
+            child: TextButton(
+              key: const Key('onboarding_source_suggestion_use'),
+              style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
+              onPressed: () =>
+                  context.read<OnboardingCubit>().setSourceLanguage(language),
+              child: Text(l10n.onboardingLanguagesSuggestionUse(language.name)),
+            ),
+          ),
         ],
       ),
     );
@@ -198,13 +406,16 @@ class _LanguageField extends StatelessWidget {
   }
 }
 
-/// "Use them offline": the picked languages' downloads, or why there are
-/// none on this device.
+/// "Use them offline": the picked languages' downloads (checkboxes,
+/// downloaded on Next), or why there are none on this device.
 class _OfflineDownloads extends StatelessWidget {
-  const new({required this.source, required this.target});
+  const new({required this.source, required this.target, this.suggested});
 
   final Language source;
   final Language target;
+
+  /// The suggested source while detecting.
+  final Language? suggested;
 
   @override
   Widget build(BuildContext context) {
@@ -231,21 +442,17 @@ class _OfflineDownloads extends StatelessWidget {
       case OfflineModelsStatus.ready:
         break;
     }
-    final picks = [if (!source.isAuto) (source, false), (target, true)];
-    final codes = <String>[];
-    final unsupported = <Language>[];
-    for (final (language, isTarget) in picks) {
-      final code = offlineCodeFor(
-        language,
-        state.languages,
-        isTarget: isTarget,
-      );
-      if (code == null) {
-        unsupported.add(language);
-      } else if (!codes.contains(code)) {
-        codes.add(code);
-      }
-    }
+    final (:codes, :unsupported) = onboardingOfflinePair(
+      source: source,
+      target: target,
+      languages: state.languages,
+      suggested: suggested,
+    );
+    final onboarding = context.watch<OnboardingCubit>();
+    final checked = onboardingCheckedDownloads(onboarding.state, state, codes);
+    final checkable = codes.any(
+      (code) => onboardingCanCheckDownload(state, code),
+    );
     final cubit = context.read<OfflineModelsCubit>();
     final byCode = {
       for (final language in state.languages) language.code: language,
@@ -273,6 +480,11 @@ class _OfflineDownloads extends StatelessWidget {
               installedSize: state.installedSizeOf(code),
               outdated: state.isOutdated(code),
               builtIn: state.isBuiltIn(code),
+              selected: onboardingCanCheckDownload(state, code)
+                  ? checked.contains(code)
+                  : null,
+              onSelected: (download) =>
+                  onboarding.chooseDownload(code, download: download),
               onDownload: () => unawaited(cubit.download(code)),
               onDelete: () => unawaited(cubit.delete(code)),
             ),
@@ -287,6 +499,13 @@ class _OfflineDownloads extends StatelessWidget {
               icon: Icons.auto_awesome_outlined,
               color: palette.secondaryText,
               text: l10n.onboardingLanguagesOfflineAuto,
+            ),
+          if (checkable)
+            OnboardingInfoRow(
+              key: const Key('onboarding_offline_on_next'),
+              icon: Icons.download_outlined,
+              color: palette.secondaryText,
+              text: l10n.onboardingLanguagesDownloadOnNext,
             ),
           const SizedBox(height: 8),
           SwitchListTile(
@@ -307,8 +526,10 @@ class _OfflineDownloads extends StatelessWidget {
 
 /// One picked language's offline model: its avatar, name and size (or
 /// what is happening) and the action (Download, Update, Delete; nothing
-/// for built-in English). The action sits next to the name, or below it on
-/// narrow rows and with large text.
+/// for built-in English). With [selected] (the languages step) a model
+/// that is not on the device has a checkbox instead of Download
+/// ([onSelected]: download it when the user taps Next). The action sits
+/// next to the name, or below it on narrow rows and with large text.
 class OnboardingOfflineLanguageRow extends StatelessWidget {
   const new({
     required this.language,
@@ -321,8 +542,17 @@ class OnboardingOfflineLanguageRow extends StatelessWidget {
     this.installedSize,
     this.outdated = false,
     this.builtIn = false,
+    this.selected,
+    this.onSelected,
     super.key,
   });
+
+  /// Whether the download is checked (to start on Next); null: a Download
+  /// button instead.
+  final bool? selected;
+
+  /// The user checked or unchecked the download.
+  final ValueChanged<bool>? onSelected;
 
   final OfflineLanguage language;
   final bool downloaded;
@@ -396,6 +626,18 @@ class OnboardingOfflineLanguageRow extends StatelessWidget {
       );
     }
     if (builtIn) return null;
+    if (selected case final checked? when !downloaded && !outdated) {
+      final label = l10n.onboardingLanguagesDownloadCheckbox(language.name);
+      return Tooltip(
+        message: label,
+        child: Checkbox(
+          key: ValueKey('onboarding_offline_check_${language.code}'),
+          value: checked,
+          semanticLabel: label,
+          onChanged: (value) => onSelected?.call(value ?? false),
+        ),
+      );
+    }
     const minimumSize = Size(64, 48);
     if (!downloaded || outdated) {
       return Tooltip(

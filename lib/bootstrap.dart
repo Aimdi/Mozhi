@@ -10,6 +10,7 @@ import 'package:mozhi/app/app_dependencies.dart';
 import 'package:mozhi/app/fallback_key_value_store.dart';
 import 'package:mozhi/app/third_party_licenses.dart';
 import 'package:mozhi/backup/sections/app_backup_sections.dart';
+import 'package:mozhi/core/key_value_instance_health_store.dart';
 import 'package:mozhi/core/key_value_metadata_store.dart';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/core/network/network_session.dart';
@@ -203,6 +204,11 @@ Future<AppDependencies> createDependencies({
         offline: offline,
         // Engine and language lists survive restarts: instant start, offline.
         metadataStore: KeyValueMetadataStore(preferences),
+        // Servers that failed recently are asked last, also after a restart
+        // (on this device only: not in backups or sync).
+        instanceHealth: InstanceHealth(
+          store: KeyValueInstanceHealthStore(preferences),
+        ),
       )..updateConfiguration(
         instances: settings.instances,
         providers: withOnDeviceProviders(settings.providers, onDevice),

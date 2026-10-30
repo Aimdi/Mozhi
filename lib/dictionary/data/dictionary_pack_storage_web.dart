@@ -46,20 +46,49 @@ class OpfsDictionaryPackStorage implements DictionaryPackStorage {
 
   Future<_DirectoryHandle>? _directory;
 
+  /// Whether the browser refused its private storage although it has the
+  /// API (Firefox's private windows, site data blocked): from then on this
+  /// storage is not supported, nothing is installed.
+  bool _refused = false;
+
   /// Index writes run one after the other.
   Future<void> _lastIndexWrite = Future.value();
 
   @override
-  bool get isSupported => true;
+  bool get isSupported => !_refused;
 
   Future<_DirectoryHandle> get _folderHandle => _directory ??= () async {
-    final root = await _storageManager().getDirectory().toDart;
+    final _DirectoryHandle root;
+    try {
+      root = await _storageManager().getDirectory().toDart;
+    } on Object {
+      _refused = true;
+      rethrow;
+    }
+    _refused = false;
     return await root.getDirectoryHandle(_folder, _create).toDart;
   }();
 
+  Future<_DirectoryHandle> get _openFolder async {
+    final opening = _folderHandle;
+    try {
+      return await opening;
+    } on Object {
+      // Asked again next time (unless the browser refused the storage).
+      if (identical(_directory, opening)) _directory = null;
+      rethrow;
+    }
+  }
+
   @override
   Future<List<StoredDictionaryPack>> list() async {
-    final directory = await _folderHandle;
+    final _DirectoryHandle directory;
+    try {
+      directory = await _openFolder;
+    } on Object {
+      if (_refused) return const [];
+      rethrow;
+    }
     final packs = <StoredDictionaryPack>[];
     for (final pack in await _readIndex(directory)) {
       try {
@@ -78,7 +107,7 @@ class OpfsDictionaryPackStorage implements DictionaryPackStorage {
   @override
   Future<DictionaryPackSink> create(String id) async {
     _check(id);
-    final directory = await _folderHandle;
+    final directory = await _openFolder;
     final handle = await directory.getFileHandle('$id.mzd', _create).toDart;
     final stream = await handle.createWritable().toDart;
     return _OpfsSink(this, stream);
@@ -87,7 +116,7 @@ class OpfsDictionaryPackStorage implements DictionaryPackStorage {
   @override
   Future<DictionaryPackSource> open(String id) async {
     _check(id);
-    final directory = await _folderHandle;
+    final directory = await _openFolder;
     final file = await (await directory.getFileHandle('$id.mzd').toDart)
         .getFile()
         .toDart;
@@ -97,7 +126,7 @@ class OpfsDictionaryPackStorage implements DictionaryPackStorage {
   @override
   Future<void> delete(String id) async {
     _check(id);
-    final directory = await _folderHandle;
+    final directory = await _openFolder;
     await _updateIndex((packs) => packs..removeWhere((pack) => pack.id == id));
     try {
       await directory.removeEntry('$id.mzd').toDart;
@@ -120,7 +149,7 @@ class OpfsDictionaryPackStorage implements DictionaryPackStorage {
     List<StoredDictionaryPack> Function(List<StoredDictionaryPack>) change,
   ) {
     final next = _lastIndexWrite.then((_) async {
-      final directory = await _folderHandle;
+      final directory = await _openFolder;
       final packs = change(await _readIndex(directory));
       final handle = await directory.getFileHandle(_index, _create).toDart;
       final stream = await handle.createWritable().toDart;

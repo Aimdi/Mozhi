@@ -23,6 +23,12 @@ void main() {
         final settings = createSettings();
         addTearDown(settings.close);
         final offline = FakeOfflineTranslator();
+        // A phone in English and French: French is suggested as the source.
+        tester.platformDispatcher.localesTestValue = const [
+          Locale('en', 'US'),
+          Locale('fr', 'FR'),
+        ];
+        addTearDown(tester.platformDispatcher.clearLocalesTestValue);
         useGoldenDevice(tester, GoldenDevice.phone);
         await tester.pumpOnboarding(
           OnboardingPage(

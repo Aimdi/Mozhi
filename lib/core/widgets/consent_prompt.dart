@@ -240,7 +240,8 @@ typedef OfflineOffer = ({String language, VoidCallback onDownload});
 
 /// The [OfflineOffer] for [consent] when the device's offline engine
 /// (an [OfflineTranslator] provided above [context]) supports its language
-/// pair, else null.
+/// pair, else null (also while detecting the source of a translation
+/// into English: the language to download is not known yet).
 OfflineOffer? offlineOfferFor(
   BuildContext context,
   ConsentRequiredException consent,
@@ -272,6 +273,9 @@ OfflineOffer? offlineOfferFor(
     (code) => primary(code) != 'en',
     orElse: () => target,
   );
+  // "Detect language" into English: the language to download is the one
+  // of the text, which is not known yet.
+  if (languages.length == 1 && primary(download) == 'en') return null;
   final router = GoRouter.maybeOf(context);
   return (
     language: LanguageCatalog.nameOf(download),

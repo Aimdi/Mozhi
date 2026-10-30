@@ -40,7 +40,7 @@ Uint8List _pcm(int windows, double amplitude) {
 
 /// A conversation's turn with offline speech ends at a real pause: the
 /// pause the conversation asks for (`SpeechInputService.listen`'s
-/// `offlinePause`), measured by the voice activity detection.
+/// `pause`), measured by the voice activity detection.
 void main() {
   late _MockOfflineSpeech speech;
   late _FakeRecorder recorder;
