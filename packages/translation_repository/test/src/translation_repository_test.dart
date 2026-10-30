@@ -3335,36 +3335,144 @@ void main() {
   // instances & providers
 
   group('pingInstance', () {
-    test('uses the cached client of a configured instance', () async {
+    void stubPing(MockMozhiApiClient client, [String text = 'Bonjour']) =>
+        whenTranslate(client).thenAnswer(
+          (_) async => MozhiTranslation(engine: 'google', translatedText: text),
+        );
+
+    test('translates the fixed word with the cached client', () async {
       configure();
-      when(a().ping).thenAnswer((_) async => const Duration(milliseconds: 42));
+      stubPing(a());
       stubEngines(a(), {'google': 'Google'});
       await repository.getEngines();
-      expect(
-        await repository.pingInstance(instanceA),
-        const Duration(milliseconds: 42),
-      );
+      expect(await repository.pingInstance(instanceA), isA<Duration>());
+      verify(
+        () => a().translate(
+          engine: 'google',
+          from: 'en',
+          to: 'fr',
+          text: 'Hello',
+        ),
+      ).called(1);
+      verifyNever(a().ping);
+      verifyNever(a().getVersion);
       expect(mozhiBuilt, hasLength(1));
       verifyNever(a().close);
     });
 
+    test('tests the given engine', () async {
+      configure();
+      stubPing(a());
+      await repository.pingInstance(instanceA, engine: 'deepl');
+      verify(
+        () => a().translate(
+          engine: 'deepl',
+          from: TranslationRepository.pingSource,
+          to: TranslationRepository.pingTarget,
+          text: TranslationRepository.pingText,
+        ),
+      ).called(1);
+    });
+
     test('uses a temporary client for other instances', () async {
       configure(instances: [instanceA]);
-      when(c().ping).thenAnswer((_) async => const Duration(seconds: 1));
-      expect(
-        await repository.pingInstance(instanceC),
-        const Duration(seconds: 1),
+      stubPing(c());
+      expect(await repository.pingInstance(instanceC), isA<Duration>());
+      verify(c().close).called(1);
+    });
+
+    test('an HTTP 5xx error means the instance does not translate', () async {
+      whenTranslate(c()).thenThrow(
+        MozhiApiException(
+          'Post "https://translate.google.com/x?q=Hello": boom',
+          statusCode: 500,
+          uri: Uri.parse('https://c.example/api/translate'),
+        ),
+      );
+      await expectLater(
+        repository.pingInstance(instanceC),
+        throwsA(
+          isA<InstanceDoesNotTranslateException>()
+              .having((e) => e.engine, 'engine', 'google')
+              .having((e) => e.statusCode, 'statusCode', 500)
+              .having((e) => e.engineUnavailable, 'engineUnavailable', false)
+              // Sanitised like every Mozhi error.
+              .having(
+                (e) => e.message,
+                'message',
+                'Post "https://translate.google.com": boom',
+              )
+              .having(
+                (e) => e.uri,
+                'uri',
+                Uri.parse('https://c.example/api/translate'),
+              ),
+        ),
       );
       verify(c().close).called(1);
     });
 
-    test('throws on failure', () async {
-      when(c().ping).thenThrow(serverError());
+    test('says when the instance does not offer the engine', () async {
+      whenTranslate(c()).thenThrow(
+        const MozhiApiException(
+          'Engine does not exist or has been disabled',
+          statusCode: 500,
+        ),
+      );
+      await expectLater(
+        repository.pingInstance(instanceC, engine: 'libre'),
+        throwsA(
+          isA<InstanceDoesNotTranslateException>()
+              .having((e) => e.engine, 'engine', 'libre')
+              .having((e) => e.engineUnavailable, 'engineUnavailable', true),
+        ),
+      );
+    });
+
+    test('a blank or untranslated answer does not count', () async {
+      for (final text in ['', '  ', 'Hello', 'hello ']) {
+        stubPing(c(), text);
+        await expectLater(
+          repository.pingInstance(instanceC),
+          throwsA(
+            isA<InstanceDoesNotTranslateException>()
+                .having((e) => e.statusCode, 'statusCode', isNull)
+                .having((e) => e.engineUnavailable, 'engineUnavailable', false)
+                .having(
+                  (e) => e.message,
+                  'message',
+                  'google returned no translation',
+                ),
+          ),
+          reason: text,
+        );
+      }
+    });
+
+    test('rethrows other failures as they are', () async {
+      for (final error in [
+        const MozhiApiException('Connection refused'),
+        const MozhiApiException('Forbidden', statusCode: 403),
+      ]) {
+        whenTranslate(c()).thenThrow(error);
+        await expectLater(
+          repository.pingInstance(instanceC),
+          throwsA(
+            isA<MozhiApiException>()
+                .having(
+                  (e) => e is InstanceDoesNotTranslateException,
+                  'does not translate',
+                  isFalse,
+                )
+                .having((e) => e.statusCode, 'statusCode', error.statusCode),
+          ),
+        );
+      }
+      whenTranslate(c()).thenThrow(TimeoutException('slow'));
       await expectLater(
         repository.pingInstance(instanceC),
-        throwsA(isA<MozhiApiException>()),
+        throwsA(isA<TimeoutException>()),
       );
-      verify(c().close).called(1);
     });
   });
 

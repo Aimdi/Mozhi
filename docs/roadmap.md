@@ -207,7 +207,9 @@ Carried over to later waves:
   remove target, and the detection of apps that block screenshots on real
   phones; the launcher shortcut is the fifth one, which Pixel launchers
   don't show; opt-in translation of incoming notifications with the
-  offline engine only.
+  offline engine only; the bubble may show over Mozhi itself when it is
+  turned on from Mozhi (it learns which windows are on screen only after
+  it starts, as the caption bar did before wave 7's fix).
 - **App lock:** while the app is locked, screens opened before keep their
   data in memory (hidden, not encrypted); Android 11+ accepts the
   "weak" biometric class like the lock screen does; the live caption bar
