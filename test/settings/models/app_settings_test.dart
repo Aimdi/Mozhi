@@ -74,6 +74,10 @@ const _custom = AppSettings(
     customUrl: 'https://mirror.example/models/',
     fallbackToDefault: true,
   ),
+  liveEngineId: 'ai:p1',
+  tapToLookUp: false,
+  highlightSpokenWord: false,
+  offlineAppShell: false,
 );
 
 void main() {
@@ -127,6 +131,11 @@ void main() {
       expect(settings.maskPersonalData, isTrue);
       // The original publishers, outside a browser.
       expect(settings.modelSource, ModelSource.platformDefault);
+      // The live features stay on the device unless the user picks more.
+      expect(settings.liveEngineId, isNull);
+      expect(settings.tapToLookUp, isTrue);
+      expect(settings.highlightSpokenWord, isTrue);
+      expect(settings.offlineAppShell, isTrue);
     });
 
     test('supports value equality', () {
@@ -345,6 +354,10 @@ void main() {
           multilineInput: _custom.multilineInput,
           maskPersonalData: _custom.maskPersonalData,
           modelSource: _custom.modelSource,
+          liveEngineId: () => _custom.liveEngineId,
+          tapToLookUp: _custom.tapToLookUp,
+          highlightSpokenWord: _custom.highlightSpokenWord,
+          offlineAppShell: _custom.offlineAppShell,
         );
 
         expect(copy, equals(_custom));
@@ -356,8 +369,10 @@ void main() {
           assistEngineId: () => null,
           fastEngineId: () => null,
           bestEngineId: () => null,
+          liveEngineId: () => null,
         );
 
+        expect(copy.liveEngineId, isNull);
         expect(copy.engineId, isNull);
         expect(copy.assistEngineId, isNull);
         expect(copy.fastEngineId, isNull);
@@ -557,6 +572,10 @@ void main() {
           'multilineInput': 'no',
           'maskPersonalData': 'off',
           'modelSource': 'mirror',
+          'liveEngineId': 3,
+          'tapToLookUp': 'yes',
+          'highlightSpokenWord': 1,
+          'offlineAppShell': 'on',
         });
 
         expect(settings, equals(const AppSettings()));
@@ -581,6 +600,26 @@ void main() {
         expect(settings.recentPairs, isEmpty);
         expect(settings.extraTargets, isEmpty);
         expect(settings.engineId, 'ai:p1');
+      });
+
+      test('loads settings stored before the live features existed', () {
+        final json = _custom.toJson()
+          ..remove('liveEngineId')
+          ..remove('tapToLookUp')
+          ..remove('highlightSpokenWord')
+          ..remove('offlineAppShell');
+
+        final settings = AppSettings.fromJson(json);
+
+        expect(settings.liveEngineId, isNull);
+        expect(settings.tapToLookUp, isTrue);
+        expect(settings.highlightSpokenWord, isTrue);
+        expect(settings.offlineAppShell, isTrue);
+        final stored = AppSettings.fromJson(_custom.toJson());
+        expect(stored.liveEngineId, 'ai:p1');
+        expect(stored.tapToLookUp, isFalse);
+        expect(stored.highlightSpokenWord, isFalse);
+        expect(stored.offlineAppShell, isFalse);
       });
 
       test('loads settings stored before the model source existed', () {
@@ -758,6 +797,83 @@ void main() {
         final settings = AppSettings.fromJson(const {'instances': <Object>[]});
 
         expect(settings.instances, isEmpty);
+      });
+
+      group('migrates the built-in instance list', () {
+        // As written by versions up to October 2026.
+        final oldDefaults = [
+          for (final url in MozhiInstance.previousDefaultOrders.first)
+            {'url': url, 'label': url, 'isCustom': false},
+        ];
+        final newOrder = [
+          for (final instance in MozhiInstance.publicInstances) instance.url,
+        ];
+        List<String> urlsOf(AppSettings settings) => [
+          for (final instance in settings.instances) instance.url,
+        ];
+
+        test('an old default order becomes the new one', () {
+          final settings = AppSettings.fromJson({'instances': oldDefaults});
+
+          expect(urlsOf(settings), newOrder);
+          expect(settings.instances, MozhiInstance.publicInstances);
+          // And stays so after a save.
+          expect(
+            urlsOf(
+              AppSettings.fromJson(
+                jsonDecode(jsonEncode(settings)) as Map<String, dynamic>,
+              ),
+            ),
+            newOrder,
+          );
+        });
+
+        test('keeps the user own order without the retired servers', () {
+          final reordered = [...oldDefaults.reversed];
+          final settings = AppSettings.fromJson({'instances': reordered});
+
+          expect(urlsOf(settings), [
+            for (final url
+                in MozhiInstance.previousDefaultOrders.first.reversed)
+              if (!MozhiInstance.retiredUrls.contains(url)) url,
+          ]);
+        });
+
+        test('keeps custom instances', () {
+          final settings = AppSettings.fromJson({
+            'instances': [
+              _instance.toJson(),
+              ...oldDefaults,
+              const {'url': 'https://mozhi.bloat.cat'},
+            ],
+          });
+
+          expect(urlsOf(settings), [
+            _instance.url,
+            ...newOrder,
+            'https://mozhi.bloat.cat',
+          ]);
+          expect(settings.instances.first.isCustom, isTrue);
+          expect(settings.instances.last.isCustom, isTrue);
+        });
+
+        test('a list of retired servers only gets the current defaults', () {
+          final settings = AppSettings.fromJson(const {
+            'instances': [
+              {'url': 'https://translate.nerdvpn.de', 'isCustom': false},
+            ],
+          });
+
+          expect(settings.instances, MozhiInstance.publicInstances);
+        });
+
+        test('an empty list stays empty', () {
+          final settings = AppSettings.fromJson(const {
+            'instances': <Object>[],
+          });
+
+          expect(settings.instances, isEmpty);
+        });
       });
 
       test('accepts a floating point seed colour', () {

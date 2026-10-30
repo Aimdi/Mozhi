@@ -39,4 +39,12 @@
     <string name="bubble_remove_action">Hapus gelembung</string>
     <string name="bubble_remove_target">Hapus</string>
     <string name="bubble_clipboard_empty">Papan klip kosong</string>
+    <string name="live_captions_channel">Teks langsung</string>
+    <string name="live_captions_channel_description">Ditampilkan saat Mozhi membuat teks untuk suara aplikasi lain</string>
+    <string name="live_captions_notification_title">Teks langsung aktif</string>
+    <string name="live_captions_notification_text">Mozhi membuat teks untuk suara yang diputar aplikasi lain. Tidak ada yang direkam atau disimpan.</string>
+    <string name="live_captions_stop">Berhenti</string>
+    <string name="live_captions_stop_description">Hentikan teks langsung</string>
+    <string name="live_captions_open_description">Buka Mozhi</string>
+    <string name="live_captions_bar_description">Teks langsung</string>
 </resources>

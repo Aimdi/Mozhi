@@ -18,6 +18,7 @@ class ImageTranslation {
     this.recognitionConfidence,
     this.layout,
     this.translatedParagraphs = const [],
+    this.maskedPersonalData = 0,
   });
 
   /// Where the image (or its recognised text) was sent, when known.
@@ -54,6 +55,11 @@ class ImageTranslation {
   /// drawn), once the translation is complete; empty otherwise.
   final List<String> translatedParagraphs;
 
+  /// Items of personal data the personal data shield kept on the device
+  /// while the recognised text was translated
+  /// (`TranslationResult.maskedPersonalData`); 0 when none.
+  final int maskedPersonalData;
+
   bool get hasImage => translatedImage != null;
 
   /// Whether the translation can be drawn over the photo: the paragraphs'
@@ -72,6 +78,7 @@ class ImageTranslation {
     bool? isComplete,
     DataDestination? destination,
     List<String>? translatedParagraphs,
+    int? maskedPersonalData,
   }) => ImageTranslation(
     translatedImage: translatedImage,
     sourceText: sourceText ?? this.sourceText,
@@ -83,6 +90,7 @@ class ImageTranslation {
     recognitionConfidence: recognitionConfidence,
     layout: layout,
     translatedParagraphs: translatedParagraphs ?? this.translatedParagraphs,
+    maskedPersonalData: maskedPersonalData ?? this.maskedPersonalData,
   );
 
   /// The image bytes are compared by identity (they never change in
@@ -100,7 +108,8 @@ class ImageTranslation {
           other.destination == destination &&
           other.recognitionConfidence == recognitionConfidence &&
           other.layout == layout &&
-          listEquals(other.translatedParagraphs, translatedParagraphs);
+          listEquals(other.translatedParagraphs, translatedParagraphs) &&
+          other.maskedPersonalData == maskedPersonalData;
 
   @override
   int get hashCode => Object.hash(
@@ -114,6 +123,7 @@ class ImageTranslation {
     recognitionConfidence,
     layout,
     Object.hashAll(translatedParagraphs),
+    maskedPersonalData,
   );
 
   @override

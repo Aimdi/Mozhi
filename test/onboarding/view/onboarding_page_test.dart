@@ -30,7 +30,7 @@ void main() {
     settings = createSettings();
     router = MockGoRouter();
     offline = FakeOfflineTranslator();
-    when(() => repository.pingInstance(any()))
+    when(() => repository.pingInstance(any(), engine: any(named: 'engine')))
         .thenAnswer((_) async => const Duration(milliseconds: 100));
   });
 
@@ -399,8 +399,9 @@ void main() {
     });
 
     testWidgets('finds the fastest instance end to end', (tester) async {
-      when(() => repository.pingInstance(instanceC))
-          .thenAnswer((_) async => const Duration(milliseconds: 20));
+      when(
+        () => repository.pingInstance(instanceC, engine: any(named: 'engine')),
+      ).thenAnswer((_) async => const Duration(milliseconds: 20));
       await pumpPage(tester);
       await tapNext(tester);
       await tapNext(tester);
@@ -412,6 +413,39 @@ void main() {
       expect(find.text('Using Charlie'), findsOneWidget);
       expect(find.text('Fastest'), findsOneWidget);
       expect(urlsOf(settings).first, instanceC.url);
+    });
+
+    testWidgets('never picks a server that answers but does not translate', (
+      tester,
+    ) async {
+      // Alpha answers at once, but its Google engine fails (HTTP 500).
+      when(
+        () => repository.pingInstance(instanceA, engine: any(named: 'engine')),
+      ).thenAnswer(
+        (_) async => throw const InstanceDoesNotTranslateException(
+          'Post: 429',
+          engine: 'google',
+          statusCode: 500,
+        ),
+      );
+      when(
+        () => repository.pingInstance(instanceB, engine: any(named: 'engine')),
+      ).thenAnswer((_) async => const Duration(milliseconds: 300));
+      await pumpPage(tester, size: const Size(420, 2400));
+      await tapNext(tester);
+      await tapNext(tester);
+      await tapNext(tester);
+
+      await tapVisible(tester, find.text('Find the fastest server'));
+
+      expect(find.text('Using Charlie'), findsOneWidget);
+      expect(urlsOf(settings), [instanceC.url, instanceB.url, instanceA.url]);
+      verify(() => repository.pingInstance(any())).called(3);
+      await tapVisible(
+        tester,
+        find.byKey(const Key('onboarding_server_change')),
+      );
+      expect(find.text('Doesn’t translate'), findsOneWidget);
     });
 
     testWidgets('links to the AI provider settings', (tester) async {
@@ -467,8 +501,9 @@ void main() {
     testWidgets('fits small phones with large text in dark mode', (
       tester,
     ) async {
-      when(() => repository.pingInstance(instanceB))
-          .thenAnswer((_) async => throw const MozhiApiException('down'));
+      when(
+        () => repository.pingInstance(instanceB, engine: any(named: 'engine')),
+      ).thenAnswer((_) async => throw const MozhiApiException('down'));
       settings.setLanguages(target: _french);
       await pumpPage(
         tester,

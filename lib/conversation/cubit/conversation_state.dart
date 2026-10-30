@@ -17,7 +17,17 @@ class ConversationState extends Equatable {
     this.lastSpeechFailure,
     this.handsFree = false,
     this.session = ConversationSession.idle,
+    this.detectSpeaker = true,
+    this.turnPause = defaultTurnPause,
   });
+
+  /// The silence that ends a turn of a hands-free conversation with
+  /// offline speech ([turnPause] by default).
+  static const defaultTurnPause = Duration(milliseconds: 800);
+
+  /// The shortest and longest [turnPause] the user can choose.
+  static const minTurnPause = Duration(milliseconds: 500);
+  static const maxTurnPause = Duration(seconds: 2);
 
   /// Language spoken by [ConversationSide.a] (the phone's owner).
   final Language languageA;
@@ -54,6 +64,16 @@ class ConversationState extends Equatable {
   /// The hands-free conversation (see [ConversationSession]).
   final ConversationSession session;
 
+  /// "Detect the speaker": with a recogniser that detects the spoken
+  /// language (offline Whisper), the side whose language was heard takes
+  /// the turn; off, whoever's turn it is speaks in their own language.
+  final bool detectSpeaker;
+
+  /// How much silence ends a turn of a hands-free conversation, with a
+  /// recogniser that tells speech from silence itself (offline Whisper);
+  /// the system recogniser keeps its own.
+  final Duration turnPause;
+
   /// Language spoken by [side].
   Language languageOf(ConversationSide side) =>
       side == ConversationSide.a ? languageA : languageB;
@@ -78,6 +98,8 @@ class ConversationState extends Equatable {
     int? speechFailures,
     ConversationSpeechFailure? lastSpeechFailure,
     ConversationSession? session,
+    bool? detectSpeaker,
+    Duration? turnPause,
   }) => ConversationState(
     languageA: languageA ?? this.languageA,
     languageB: languageB ?? this.languageB,
@@ -91,6 +113,8 @@ class ConversationState extends Equatable {
     lastSpeechFailure: lastSpeechFailure ?? this.lastSpeechFailure,
     handsFree: handsFree,
     session: session ?? this.session,
+    detectSpeaker: detectSpeaker ?? this.detectSpeaker,
+    turnPause: turnPause ?? this.turnPause,
   );
 
   @override
@@ -105,6 +129,8 @@ class ConversationState extends Equatable {
     lastSpeechFailure,
     handsFree,
     session,
+    detectSpeaker,
+    turnPause,
   ];
 }
 

@@ -10,8 +10,17 @@ const placeholderClose = '⟩';
 String placeholder(int number) => '$placeholderOpen$number$placeholderClose';
 
 /// Matches placeholders, tolerating spaces and CJK angle brackets that some
-/// engines substitute.
-final placeholderPattern = RegExp(r'[⟨〈]\s*(\d{1,4})\s*[⟩〉]');
+/// engines substitute. Numbers have up to [maxPlaceholderDigits] digits
+/// (four until wave 7: a segment with more than 9,999 protected spans lost
+/// the ones after that), as many as the translation repository's own
+/// tokens (`TextMasker.maxTokenDigits`), so that its checks and prompts
+/// see them as tokens too.
+final placeholderPattern = RegExp(
+  '[⟨〈]\\s*(\\d{1,$maxPlaceholderDigits})\\s*[⟩〉]',
+);
+
+/// Most digits of a placeholder number ([placeholderPattern]).
+const maxPlaceholderDigits = 6;
 
 /// A piece of natural-language text to translate.
 ///

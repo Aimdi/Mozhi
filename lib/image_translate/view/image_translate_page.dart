@@ -11,6 +11,7 @@ import 'package:mozhi/image_translate/data/data.dart';
 import 'package:mozhi/image_translate/models/models.dart';
 import 'package:mozhi/image_translate/widgets/widgets.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/live_camera/live_camera_entry.dart';
 import 'package:mozhi/platform/mlkit_bindings.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
@@ -231,6 +232,14 @@ class _ImageTranslateViewState extends State<ImageTranslateView> {
                       ? () => unawaited(cubit.pickImage(ImagePickSource.camera))
                       : null,
                   icon: const Icon(Icons.photo_camera_outlined),
+                ),
+              // Live camera (W7-A): the Android app only.
+              if (liveCameraOffered)
+                IconButton(
+                  key: const Key('image_translate_appbar_live_camera'),
+                  tooltip: l10n.liveCameraOpen,
+                  onPressed: () => unawaited(openLiveCamera(context)),
+                  icon: const Icon(Icons.center_focus_weak),
                 ),
               IconButton(
                 key: const Key('image_translate_appbar_clear'),

@@ -42,7 +42,7 @@ echo "Guten Morgen" | mozhi translate --to ja --engine deepl
 mozhi translate -f Japanese -t pt-BR "おはようございます"
 
 # Pick an instance for one call
-mozhi translate -i https://mozhi.aryak.me -t de "See you tomorrow"
+mozhi translate -i https://mozhi.adminforge.de -t de "See you tomorrow"
 ```
 
 On a terminal a short summary is printed to stderr after the translation
@@ -118,12 +118,18 @@ mozhi engines                        # Mozhi engines of the instance + AI provid
 mozhi languages --engine deepl       # target languages
 mozhi languages --engine google --source chin   # filtered source languages
 mozhi instances list                 # public instances (and your configured one)
-mozhi instances ping                 # latency table, fastest first
+mozhi instances ping                 # translation speed table, fastest first
 mozhi instances ping https://translate.example.org --timeout 5
+mozhi instances ping --engine deepl  # test another Mozhi engine
 ```
 
 Without a configured instance, translations go to the public instances in
 order and fail over to the next one when an instance is down.
+
+`instances ping` translates the word "Hello" (and nothing else) from English
+to French on each instance, with the configured Mozhi engine or Google, and
+times it: a server that answers but doesn't translate with that engine is
+listed as `doesn't translate`, not as fast.
 
 ## Configuration
 

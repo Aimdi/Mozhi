@@ -33,8 +33,9 @@ import 'package:mozhi/documents/core/parsers/xml_tree.dart'
 /// Translations are quoted when they need it; placeholders, tags, URLs and
 /// e-mail addresses inside cells are protected. A translation that a
 /// spreadsheet would run as a formula (it starts with `=`, `+`, `-`, `@`,
-/// a tab or a carriage return, after leading spaces) gets a `'` in front,
-/// unless its source cell starts that way too (CSV injection).
+/// their full-width forms `＝＋－＠`, a tab or a carriage return, after
+/// leading spaces) gets a `'` in front, unless its source cell starts that
+/// way too (CSV injection).
 ///
 /// Parsing takes linear time: only cells of at most 256 characters are
 /// matched against the value patterns above.
@@ -130,12 +131,17 @@ bool _isEmail(String text) {
 
 /// Whether a spreadsheet would read [text] as a formula or a DDE call
 /// (OWASP's list for CSV injection): it starts with a tab or a carriage
-/// return, or with `=`, `+`, `-` or `@` after leading spaces.
+/// return, or with `=`, `+`, `-` or `@` after leading spaces. Their
+/// full-width forms (`＝＋－＠`, which CJK input methods type and some
+/// spreadsheets read as the ASCII ones) count too.
 bool _startsLikeFormula(String text) {
   if (text.startsWith('\t') || text.startsWith('\r')) return true;
   final trimmed = text.trimLeft();
-  return trimmed.isNotEmpty && '=+-@'.contains(trimmed[0]);
+  return trimmed.isNotEmpty && _formulaStarts.contains(trimmed[0]);
 }
+
+/// The characters that start a formula ([_startsLikeFormula]).
+const _formulaStarts = '=+-@＝＋－＠';
 
 final _identifierLike = RegExp(
   r'^[a-z][a-z0-9]*(?:[_.-][a-z0-9]+)*$'

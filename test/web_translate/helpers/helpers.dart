@@ -114,6 +114,18 @@ class FakeTranslationRepository extends Fake implements TranslationRepository {
     requests.add(request);
     return translator(engine, request);
   }
+
+  /// The consents [revokeOnce] withdrew.
+  final revoked = <ConsentRequiredException>[];
+
+  /// Thrown by [revokeOnce] when set.
+  Error? revokeError;
+
+  @override
+  void revokeOnce(ConsentRequiredException consent) {
+    if (revokeError case final error?) throw error;
+    revoked.add(consent);
+  }
 }
 
 TranslationResult result(

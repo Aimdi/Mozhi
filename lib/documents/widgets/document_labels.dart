@@ -2,6 +2,7 @@ import 'package:intl/intl.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/documents/core/core.dart';
 import 'package:mozhi/documents/cubit/document_translate_cubit.dart';
+import 'package:mozhi/documents/pdf/pdf_pages.dart' show PdfLimits;
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -28,6 +29,7 @@ String documentFormatLabel(AppLocalizations l10n, DocumentFormat format) =>
       DocumentFormat.odp => l10n.documentsFormatOdp,
       DocumentFormat.ods => l10n.documentsFormatOds,
       DocumentFormat.epub => l10n.documentsFormatEpub,
+      DocumentFormat.pdf => l10n.documentsFormatPdf,
     };
 
 /// Icon for [format].
@@ -49,6 +51,7 @@ IconData documentFormatIcon(DocumentFormat? format) => switch (format) {
   DocumentFormat.docx || DocumentFormat.odt => Icons.description_outlined,
   DocumentFormat.pptx || DocumentFormat.odp => Icons.slideshow_outlined,
   DocumentFormat.epub => Icons.menu_book_outlined,
+  DocumentFormat.pdf => Icons.picture_as_pdf_outlined,
   null => Icons.insert_drive_file_outlined,
 };
 
@@ -83,8 +86,13 @@ String documentErrorLabel(
   final formatName = format == null
       ? l10n.documentsFormatPlainText
       : documentFormatLabel(l10n, format);
+  final pdf = format == DocumentFormat.pdf;
   return switch (error) {
     DocumentError.unsupportedFormat => l10n.documentsErrorUnsupportedFile,
+    DocumentError.tooLarge when pdf => l10n.documentsErrorPdfTooLarge(
+      PdfLimits.maxPages,
+      documentSizeLabel(context, PdfLimits.maxBytes),
+    ),
     DocumentError.tooLarge => l10n.documentsErrorTooLarge(
       documentSizeLabel(context, maxBytes),
     ),
@@ -93,9 +101,12 @@ String documentErrorLabel(
     DocumentError.invalidJson => l10n.documentsErrorInvalidJson,
     DocumentError.invalidFormat => l10n.documentsErrorInvalidFormat(formatName),
     DocumentError.damagedFile => l10n.documentsErrorDamaged(formatName),
+    DocumentError.encrypted when pdf => l10n.documentsErrorPdfEncrypted,
     DocumentError.encrypted => l10n.documentsErrorEncrypted,
     DocumentError.unsafeFile => l10n.documentsErrorUnsafe,
     DocumentError.nothingToTranslate => l10n.documentsErrorNothing,
+    DocumentError.pdfNeedsApp => l10n.documentsErrorPdfNeedsApp,
+    DocumentError.pdfNoText => l10n.documentsErrorPdfNoText,
   };
 }
 

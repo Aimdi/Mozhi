@@ -180,7 +180,14 @@ class PhraseTranscriber {
   /// [finish] or [cancel].
   void add(List<int> chunk) {
     if (_finished || _cancelled) return;
-    final samples = _decoder.convert(chunk);
+    addSamples(_decoder.convert(chunk));
+  }
+
+  /// Adds 16 kHz mono [samples] (`-1..1`, e.g. other apps' sound for live
+  /// captions) like [add] does a PCM16 chunk; ignored after [finish] or
+  /// [cancel].
+  void addSamples(Float32List samples) {
+    if (_finished || _cancelled) return;
     _level = rmsDbfs(samples);
     _window.addAll(samples);
     final whole = _window.length - _window.length % speechFrameSize;

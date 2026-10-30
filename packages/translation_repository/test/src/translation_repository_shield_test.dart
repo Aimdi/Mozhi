@@ -196,6 +196,32 @@ void main() {
       expect(text, 'Mail $email or $phone. ⟨9⟩ ⟨');
     });
 
+    test('holds a token start back until it is complete', () async {
+      stubStream([
+        'Mail 〈',
+        ' ',
+        '1',
+        ' ',
+        '〉, ⟨1',
+        '234567⟩ ⟨ 2 ⟨1⟩ ⟨1 2⟩',
+        ' ⟨',
+        '2',
+      ]);
+      final deltas = await repository
+          .explain(claude, request, translation)
+          .toList();
+      // Seven digits and a second number are no token's start: they are
+      // not held back.
+      expect(deltas.join(), 'Mail $email, ⟨1234567⟩ ⟨ 2 $email ⟨1 2⟩ ⟨2');
+      expect(deltas, [
+        'Mail ',
+        '$email, ',
+        '⟨1234567⟩ ⟨ 2 $email ⟨1 2⟩',
+        ' ',
+        '⟨2',
+      ]);
+    });
+
     test('sends the text as written with the shield off', () async {
       shieldOff();
       stubStream(['Fine.']);

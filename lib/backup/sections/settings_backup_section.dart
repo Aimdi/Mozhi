@@ -59,8 +59,10 @@ class SettingsBackupSection implements BackupSection {
   /// never leave it: [export] leaves them out and a restore keeps this
   /// device's values (whatever a file says). The app lock
   /// ([AppSettings.appLock]) depends on this phone's screen lock, and a
-  /// copy must not lock (or unlock) another device.
-  static const deviceOnlyFields = {'appLock'};
+  /// copy must not lock (or unlock) another device; keeping the web app
+  /// for offline use ([AppSettings.offlineAppShell]) is up to each
+  /// browser.
+  static const deviceOnlyFields = {'appLock', 'offlineAppShell'};
 
   @override
   String get id => sectionId;
@@ -217,6 +219,7 @@ class SettingsBackupSection implements BackupSection {
       onboardingComplete: local.onboardingComplete || backup.onboardingComplete,
       // Device-only (deviceOnlyFields).
       appLock: local.appLock,
+      offlineAppShell: local.offlineAppShell,
       providers: List.unmodifiable([
         for (final provider in backup.providers)
           if (mine[provider.id] case final own? when sameServer(own, provider))
@@ -288,6 +291,7 @@ class SettingsBackupSection implements BackupSection {
       assistEngineId: cleared(local.assistEngineId),
       fastEngineId: cleared(local.fastEngineId),
       bestEngineId: cleared(local.bestEngineId),
+      liveEngineId: cleared(local.liveEngineId),
       compareEngineIds: List.unmodifiable(
         local.compareEngineIds.where((id) => !stale(id)),
       ),

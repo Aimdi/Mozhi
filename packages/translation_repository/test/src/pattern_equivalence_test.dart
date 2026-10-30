@@ -518,16 +518,46 @@ void main() {
     });
 
     test('partial tokens', () {
-      final current =
-          _privateOf(
-                _privateClass(TranslationRepository, '_Shield'),
-                '_partialToken',
-              )!
-              as RegExp;
+      // The streamed restore reads a token's start with a state machine
+      // (`_TokenTail`), one delta at a time: where it holds the text back
+      // from is where the old pattern matched, for the text in one delta
+      // and cut into random deltas (some empty).
+      final tail = _privateClass(TranslationRepository, '_TokenTail');
+      int? heldFrom(List<String> deltas) {
+        final reader = tail.newInstance(Symbol.empty, const []);
+        int? held;
+        var offset = 0;
+        for (final delta in deltas) {
+          final hold = reader.invoke(#read, [delta]).reflectee as int?;
+          if (hold != null) held = hold < delta.length ? offset + hold : null;
+          offset += delta.length;
+        }
+        return held;
+      }
+
+      final random = Random(7);
+      List<String> cut(String text) {
+        final deltas = <String>[];
+        var start = 0;
+        for (var i = 1; i <= text.length; i++) {
+          if (random.nextInt(8) == 0) deltas.add('');
+          if (i == text.length || random.nextInt(3) == 0) {
+            deltas.add(text.substring(start, i));
+            start = i;
+          }
+        }
+        return deltas;
+      }
+
       _expectSame(
-        _texts(['⟨', '〈', ' ', '\n', '1', '12', '1234567', 'a', '⟩']),
-        (text) => _first(_Old.partialToken, text),
-        (text) => _first(current, text),
+        _texts([
+          '⟨', '〈', ' ', '\n', '　', '1', '12', '1234567', 'a', '⟩', //
+        ]),
+        (text) {
+          final start = _Old.partialToken.firstMatch(text)?.start;
+          return (start, start);
+        },
+        (text) => (heldFrom([text]), heldFrom(cut(text))),
       );
     });
 

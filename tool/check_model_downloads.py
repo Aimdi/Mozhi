@@ -3,7 +3,7 @@
 served as the bundled catalogues describe it (CI job "Check model
 downloads"; needs the network).
 
-  python3 tool/check_model_downloads.py [--only whisper|tessdata]
+  python3 tool/check_model_downloads.py [--only whisper|tessdata|bergamot]
 
 For every file it asks the server for the size (HEAD, following redirects;
 nothing is downloaded) and compares it with the catalogue, because the app
@@ -14,6 +14,9 @@ rejects a download whose size or checksum differs:
             catalogue's `sha256`)
   tessdata  packages/tesseract_ocr/assets/catalog.json
             (raw.githubusercontent.com, pinned commit)
+  bergamot  packages/bergamot_translator/assets/catalog.json (the offline
+            languages: Firefox Translations on Mozilla's Google Cloud
+            Storage bucket; every file of every language pair)
 
 The checksums themselves are not re-checked here: the Whisper SHA-1s come
 from whisper.cpp's pinned models/README.md, the tessdata SHA-256s from the
@@ -37,6 +40,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 WHISPER = REPO_ROOT / "packages/whisper_speech/assets/models.json"
 TESSDATA = REPO_ROOT / "packages/tesseract_ocr/assets/catalog.json"
+BERGAMOT = REPO_ROOT / "packages/bergamot_translator/assets/catalog.json"
 USER_AGENT = "Mozhi model check (+https://github.com/Aimdi/Mozhi)"
 ATTEMPTS = 3
 
@@ -126,12 +130,25 @@ def entries(only: str | None) -> list[tuple[str, str, int, str | None]]:
                     None,
                 )
             )
+    if only in (None, "bergamot"):
+        catalog = json.loads(BERGAMOT.read_text(encoding="utf-8"))
+        for model in catalog["models"]:
+            pair = f"{model['source']}-{model['target']}"
+            for kind, file in sorted(model["files"].items()):
+                found.append(
+                    (
+                        f"bergamot/{pair}/{kind}",
+                        file["url"],
+                        int(file["size"]),
+                        None,
+                    )
+                )
     return found
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    parser.add_argument("--only", choices=["whisper", "tessdata"])
+    parser.add_argument("--only", choices=["whisper", "tessdata", "bergamot"])
     args = parser.parse_args()
 
     files = entries(args.only)

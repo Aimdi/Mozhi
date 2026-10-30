@@ -3,6 +3,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/network/network.dart' show isCleartextAllowed;
 import 'package:mozhi/core/privacy/ime_learning.dart';
+import 'package:mozhi/core/widgets/consent_prompt.dart' show upstreamEngineName;
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/onboarding/cubit/onboarding_cubit.dart';
@@ -150,8 +151,10 @@ class _ServerChoiceState extends State<ServerChoice> {
       children: [
         if (state.noneReachable) ...[
           OnboardingNote(
-            icon: Icons.wifi_off,
-            text: l10n.onboardingServiceNoneReachable,
+            icon: state.noneTranslates ? Icons.error_outline : Icons.wifi_off,
+            text: state.noneTranslates
+                ? l10n.onboardingServiceNoneTranslates
+                : l10n.onboardingServiceNoneReachable,
             background: colors.errorContainer,
             foreground: colors.onErrorContainer,
           ),
@@ -287,7 +290,7 @@ class _FindFastest extends StatelessWidget {
             ServiceStatus.pinging => l10n.onboardingServiceTesting,
             ServiceStatus.done => l10n.onboardingServiceTestAgain,
           }),
-          subtitle: Text(l10n.onboardingServiceFindFastestHint),
+          subtitle: Text(l10n.onboardingServiceFindFastestTranslateHint),
           trailing: status == ServiceStatus.done
               ? const Icon(Icons.refresh)
               : null,
@@ -396,6 +399,14 @@ class _OwnInstanceFormState extends State<OwnInstanceForm> {
       ),
       OwnInstanceError.timedOut => l10n.onboardingServiceOwnTimedOut,
       OwnInstanceError.insecure => l10n.commonHttpsRequired,
+      OwnInstanceError.noTranslation => l10n.onboardingServiceOwnNoTranslation(
+        upstreamEngineName(
+          OnboardingCubit.pingEngineOf(
+            context.read<SettingsCubit>().state.engineId,
+          ),
+        ),
+        message ?? '',
+      ),
     };
     return OnboardingSection(
       title: l10n.onboardingServiceOwnTitle,

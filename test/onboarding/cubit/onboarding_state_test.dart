@@ -11,6 +11,11 @@ void main() {
       expect(const InstancePing.failure('x').error, 'x');
       expect(const InstancePing.timedOut().isSuccess, isFalse);
       expect(const InstancePing.failure('x'), const InstancePing.failure('x'));
+      const untranslated = InstancePing.noTranslation('500');
+      expect(untranslated.status, PingStatus.noTranslation);
+      expect(untranslated.error, '500');
+      expect(untranslated.isSuccess, isFalse);
+      expect(untranslated, isNot(const InstancePing.failure('500')));
     });
   });
 
@@ -70,6 +75,42 @@ void main() {
       expect(const OnboardingState(pings: failed).noneReachable, isFalse);
       expect(
         const OnboardingState(serviceStatus: ServiceStatus.done).noneReachable,
+        isFalse,
+      );
+    });
+
+    test('noneTranslates when a server answered without translating', () {
+      const done = ServiceStatus.done;
+      expect(
+        const OnboardingState(
+          serviceStatus: done,
+          pings: {
+            'a': InstancePing.noTranslation('500'),
+            'b': InstancePing.failure('x'),
+          },
+        ).noneTranslates,
+        isTrue,
+      );
+      expect(
+        const OnboardingState(
+          serviceStatus: done,
+          pings: {'a': InstancePing.failure('x')},
+        ).noneTranslates,
+        isFalse,
+      );
+      expect(
+        const OnboardingState(
+          serviceStatus: done,
+          pings: {
+            'a': InstancePing.noTranslation('500'),
+            'b': InstancePing.success(Duration(milliseconds: 9)),
+          },
+        ).noneTranslates,
+        isFalse,
+      );
+      expect(
+        const OnboardingState(pings: {'a': InstancePing.noTranslation('500')})
+            .noneTranslates,
         isFalse,
       );
     });

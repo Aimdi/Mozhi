@@ -39,4 +39,12 @@
     <string name="bubble_remove_action">Убрать пузырь</string>
     <string name="bubble_remove_target">Убрать</string>
     <string name="bubble_clipboard_empty">Буфер обмена пуст</string>
+    <string name="live_captions_channel">Живые субтитры</string>
+    <string name="live_captions_channel_description">Показывается, пока Mozhi создаёт субтитры к звуку других приложений</string>
+    <string name="live_captions_notification_title">Живые субтитры включены</string>
+    <string name="live_captions_notification_text">Mozhi создаёт субтитры к звуку, который воспроизводят другие приложения. Ничего не записывается и не сохраняется.</string>
+    <string name="live_captions_stop">Остановить</string>
+    <string name="live_captions_stop_description">Остановить живые субтитры</string>
+    <string name="live_captions_open_description">Открыть Mozhi</string>
+    <string name="live_captions_bar_description">Живые субтитры</string>
 </resources>

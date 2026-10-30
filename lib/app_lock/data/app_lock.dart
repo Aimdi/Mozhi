@@ -12,7 +12,10 @@ import 'package:mozhi/settings/models/app_settings.dart';
 /// the lock screen while [isLocked].
 abstract interface class AppLock {
   /// Whether the app's content must stay hidden: the lock is on and the
-  /// app was not unlocked (or is still finding out at start).
+  /// app was not unlocked (or is still finding out at start). Also while
+  /// a return to the app is being checked ([noteForeground]), until the
+  /// platform said the app may stay unlocked: nothing should start then
+  /// (the camera, a link) behind a lock that is about to engage.
   bool get isLocked;
 
   /// [isLocked] as it changes.
@@ -58,8 +61,11 @@ enum AppLockStatus {
 ///
 /// While the app is in the background a timer locks it as soon as the
 /// timeout has passed, so it comes back already locked; coming back checks
-/// again ([noteForeground]). `clock` (monotonic, default a [Stopwatch])
-/// and `timer` are for tests.
+/// again ([noteForeground]): the timer may not have run while the phone
+/// slept, so until the platform answered, [isLocked] is true (and
+/// [changes] says so) while [status] stays unlocked (the lock gate goes on
+/// showing the app rather than flash the lock screen at every return).
+/// `clock` (monotonic, default a [Stopwatch]) and `timer` are for tests.
 ///
 /// When the phone has no secure lock screen (any more), there is nothing
 /// to unlock with and the app does not lock (the settings say why).
@@ -129,6 +135,11 @@ class AppLockController implements AppLock {
 
   Future<bool>? _prompt;
 
+  /// The check of a return to the app ([noteForeground]) that keeps
+  /// [isLocked] true until it answered, and completes then; null when none
+  /// is pending.
+  ({int generation, Completer<void> done})? _verifying;
+
   /// The app went to the background while a prompt showed (the screen
   /// lock is a screen of its own): the return that follows is not one.
   bool _hiddenDuringPrompt = false;
@@ -154,7 +165,7 @@ class AppLockController implements AppLock {
   bool get isPrompting => _prompt != null;
 
   @override
-  bool get isLocked => _status != AppLockStatus.unlocked;
+  bool get isLocked => _status != AppLockStatus.unlocked || _verifying != null;
 
   @override
   Stream<bool> get changes => _changes.stream;
@@ -201,6 +212,8 @@ class AppLockController implements AppLock {
         orElse: () => AppLockStatus.checking, // Disposed meanwhile.
       );
     }
+    // A return being checked: its answer decides.
+    if (_verifying case final verifying?) await verifying.done.future;
     if (_disposed) return false;
     if (!isLocked) return true;
     return await _showPrompt(confirming: false);
@@ -265,13 +278,20 @@ class AppLockController implements AppLock {
       final limit = (_awayIsOwnTrip ?? true) ? _ownTripLimit : _limit;
       if (_clock() - since >= limit) _lock();
     }
-    if (_status != AppLockStatus.checking) unawaited(_check());
+    if (_status != AppLockStatus.checking) {
+      // Still unlocked: locked for what would start now until the platform
+      // said (the clock may have stopped while the phone slept).
+      unawaited(_check(verify: _status == AppLockStatus.unlocked));
+    }
   }
 
   /// Stops the timer and closes the streams.
   Future<void> dispose() async {
     _disposed = true;
     _cancelTimer();
+    final verifying = _verifying;
+    _verifying = null;
+    verifying?.done.complete();
     await _statuses.close();
     await _changes.close();
   }
@@ -289,9 +309,36 @@ class AppLockController implements AppLock {
         (ownTrip != null && ownTrip >= _ownTripLimit);
   }
 
-  /// Reads the shared state and locks or unlocks this window by it.
-  Future<void> _check() async {
+  /// Reads the shared state and locks or unlocks this window by it. With
+  /// [verify] (a return while unlocked), [isLocked] is true until then.
+  Future<void> _check({bool verify = false}) async {
     final generation = ++_generation;
+    if (verify) _beginVerifying(generation);
+    try {
+      await _checkSession(generation);
+    } finally {
+      // Not settled by a status (an error, or a newer check overtook it).
+      final verifying = _verifying;
+      if (verifying != null && verifying.generation == generation) {
+        _verifying = null;
+        if (!isLocked) _changes.add(false);
+        verifying.done.complete();
+      }
+    }
+  }
+
+  /// [isLocked] is true until check [generation] answered.
+  void _beginVerifying(int generation) {
+    final wasLocked = isLocked;
+    _verifying = (
+      generation: generation,
+      // One that was pending ends with this one.
+      done: _verifying?.done ?? Completer<void>(),
+    );
+    if (!wasLocked) _changes.add(true);
+  }
+
+  Future<void> _checkSession(int generation) async {
     AppLockSession? session;
     try {
       session = await _platform.session();
@@ -390,12 +437,18 @@ class AppLockController implements AppLock {
     unawaited(_quietly(() => _platform.setUnlocked(unlocked: false)));
   }
 
+  /// Sets [status]; a return being checked is settled by it.
   void _setStatus(AppLockStatus next) {
-    if (_disposed || next == _status) return;
+    if (_disposed) return;
     final wasLocked = isLocked;
-    _status = next;
-    _statuses.add(next);
+    final verifying = _verifying;
+    _verifying = null;
+    if (next != _status) {
+      _status = next;
+      _statuses.add(next);
+    }
     if (wasLocked != isLocked) _changes.add(isLocked);
+    verifying?.done.complete();
   }
 
   void _schedule(Duration delay) {

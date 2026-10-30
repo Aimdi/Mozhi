@@ -7,6 +7,7 @@ import 'package:mozhi_cli/src/commands/mozhi_command.dart';
 import 'package:mozhi_cli/src/errors.dart';
 import 'package:mozhi_cli/src/output/format.dart';
 import 'package:mozhi_cli/src/output/table.dart';
+import 'package:mozhi_cli/src/resolvers.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 /// `mozhi instances`: public and configured Mozhi instances.
@@ -88,7 +89,9 @@ class InstancesListCommand extends MozhiCommand {
   }
 }
 
-/// `mozhi instances ping [url...]`.
+/// `mozhi instances ping [url...]`: times one translation of a fixed word
+/// on each instance (`TranslationRepository.pingInstance`), so a server
+/// that answers but doesn't translate counts as failed.
 class InstancesPingCommand extends MozhiCommand {
   new(super.context) {
     argParser.addOption(
@@ -96,6 +99,13 @@ class InstancesPingCommand extends MozhiCommand {
       valueHelp: 'seconds',
       defaultsTo: '10',
       help: 'Give up on an instance after this many seconds.',
+    );
+    addEngineOption(
+      help:
+          'Mozhi engine to translate the test word with (google, deepl, '
+          'yandex, reverso, libre, mymemory, duckduckgo or mozhi:<id>). '
+          'Default: the configured engine when it is a Mozhi engine, else '
+          'google.',
     );
     addJsonFlag();
   }
@@ -105,8 +115,35 @@ class InstancesPingCommand extends MozhiCommand {
 
   @override
   String get description =>
-      'Measure the latency of Mozhi instances (default: the configured one '
-      'and all public instances).';
+      'Measure how fast Mozhi instances translate a test word (default: the '
+      'configured one and all public instances). Only the word "Hello" is '
+      'sent.';
+
+  /// The Mozhi engine to test: `--engine` (which must be a Mozhi engine),
+  /// else the configured engine when it is one, else `google`.
+  String _engine() {
+    final option = this.option('engine');
+    if (option != null) {
+      final engine = resolveEngine(option, providers);
+      if (engine.mozhiEngine case final id? when engine.isMozhi) return id;
+      throw const CliException.usage(
+        '--engine must be a Mozhi engine: instances are tested with one.',
+      );
+    }
+    final configured = config.engine;
+    if (configured != null) {
+      try {
+        final engine = resolveEngine(configured, providers);
+        if (engine.mozhiEngine case final id? when engine.isMozhi) return id;
+      } on CliException {
+        // An AI engine without its provider: test the default.
+      }
+    }
+    return defaultPingEngine;
+  }
+
+  /// The engine tested when no Mozhi engine is given or configured.
+  static const defaultPingEngine = 'google';
 
   @override
   String get invocation => 'mozhi instances ping [arguments] [url...]';
@@ -120,6 +157,7 @@ class InstancesPingCommand extends MozhiCommand {
       );
     }
     final timeout = Duration(milliseconds: (seconds * 1000).round());
+    final engine = _engine();
     final instances = args.rest.isEmpty
         ? _knownInstances(config.instance)
         : [
@@ -130,12 +168,14 @@ class InstancesPingCommand extends MozhiCommand {
     final repository = context.repositoryFactory();
     final progress = jsonOutput || !interactive
         ? null
-        : logger.progress('Pinging ${instances.length} instances');
+        : logger.progress(
+            'Translating a test word on ${instances.length} instances',
+          );
     final List<_Ping> pings;
     try {
       pings = await Future.wait([
         for (final (index, instance) in instances.indexed)
-          _ping(repository, index, instance, timeout),
+          _ping(repository, index, instance, timeout, engine),
       ]);
     } finally {
       repository.dispose();
@@ -170,13 +210,13 @@ class InstancesPingCommand extends MozhiCommand {
       if (interactive && reachable.isNotEmpty) {
         final fastest = reachable.first.instance;
         note(
-          '${reachable.length} of ${pings.length} reachable. Use the fastest '
-          'with: mozhi config set instance ${fastest.url}',
+          '${reachable.length} of ${pings.length} translate with $engine. '
+          'Use the fastest with: mozhi config set instance ${fastest.url}',
         );
       }
     }
     if (reachable.isEmpty) {
-      if (!jsonOutput) logger.err('No instance is reachable.');
+      if (!jsonOutput) logger.err('No instance translates with $engine.');
       return ExitCode.unavailable.code;
     }
     return ExitCode.success.code;
@@ -187,12 +227,23 @@ class InstancesPingCommand extends MozhiCommand {
     int order,
     MozhiInstance instance,
     Duration timeout,
+    String engine,
   ) async {
     try {
-      final latency = await repository.pingInstance(instance).timeout(timeout);
+      final latency = await repository
+          .pingInstance(instance, engine: engine)
+          .timeout(timeout);
       return _Ping(order, instance, latency: latency);
     } on TimeoutException {
       return _Ping(order, instance, error: 'timed out');
+    } on InstanceDoesNotTranslateException catch (error) {
+      return _Ping(
+        order,
+        instance,
+        error: error.statusCode == null
+            ? "doesn't translate"
+            : "doesn't translate (HTTP ${error.statusCode})",
+      );
     } on MozhiApiException catch (error) {
       return _Ping(
         order,

@@ -132,9 +132,14 @@ jobs:
           python3 tool/mirror_models_test.py
           python3 tool/llm_catalog_test.py
           python3 tool/whisper_catalog_test.py
+          python3 tool/check_public_instances_test.py
+          python3 tool/android_smoke_test.py
           python3 tool/dictionary_packs_test.py
           python3 tool/phrasebooks_test.py
           python3 tool/check_coverage_markers_test.py
+          # The web app shell's manifest, and that mozhi_sw.js reads it
+          # (with Node.js).
+          python3 tool/web_shell_manifest_test.py
           # A misplaced coverage marker makes `--coverage` hang (see the
           # script): fail here instead.
           python3 tool/check_coverage_markers.py
@@ -418,6 +423,55 @@ jobs:
             dist/SHA256SUMS.txt
           if-no-files-found: error
 
+  # Runs the x86_64 release APK on an emulator without Google APIs (like a
+  # degoogled phone) the way a new user would: install, open, walk through
+  # the first run with its defaults, type a sentence and wait for the
+  # translation (tool/android_smoke.py). Fails when Mozhi crashes, stops or
+  # never shows its screens; screenshots, the accessibility tree of each
+  # step and logcat are uploaded for review.
+  android-smoke:
+    name: Android emulator smoke test
+    needs: build-android
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Download the APKs
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: mozhi-android
+          path: dist
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Run Mozhi on Android 14
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 34
+          arch: x86_64
+          target: default
+          ram-size: 4096M
+          disk-size: 6000M
+          script: python3 tool/android_smoke.py dist/mozhi-x86_64.apk smoke
+
+      - name: Summarize
+        if: ${{ !cancelled() }}
+        run: cat smoke/summary.md >> "$GITHUB_STEP_SUMMARY" || true
+
+      - name: Upload the screenshots and logs
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: android-smoke
+          path: smoke
+          if-no-files-found: warn
+
   # The Play variant: the default app plus Google ML Kit's on-device text
   # recognition (closed source) for camera and image translation, prepared
   # by tool/play_prepare.sh. Keeps that variant analyzing, testing and
@@ -665,6 +719,13 @@ jobs:
         run: |
           python3 tool/web_fallback_fonts_test.py
           python3 tool/web_fallback_fonts.py build/web
+
+      # The list of the build's files (sizes and SHA-256) that the app shell
+      # service worker (web/mozhi_sw.js) keeps for offline use, stamped into
+      # the worker. Last: it lists what the steps above put in the build.
+      - name: List the app shell's files
+        run: |
+          python3 tool/web_shell_manifest.py build/web
           {
             echo "### Web build"
             echo
@@ -726,8 +787,10 @@ jobs:
         run: |
           flutter build web --release -t lib/main_development.dart \
             --no-web-resources-cdn --base-href / -o build/web-e2e
-          # Like the release: fallback fonts from the build, not Google.
+          # Like the release: fallback fonts from the build, not Google,
+          # then the app shell's files (offline_shell.spec.js).
           python3 tool/web_fallback_fonts.py build/web-e2e
+          python3 tool/web_shell_manifest.py build/web-e2e
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -783,6 +846,14 @@ jobs:
 
       - name: Compare the served sizes with the catalogues
         run: python3 tool/check_model_downloads.py
+
+      # A new install translates online through the volunteer Mozhi
+      # servers built into the app: list which still translate, with which
+      # engines (job summary; a warning per server that no longer does).
+      # Fails only when none translates with the default engine.
+      - name: Check the public Mozhi instances
+        if: ${{ !cancelled() }}
+        run: python3 tool/check_public_instances.py
 
       # The on-device AI models (packages/llama_engine/assets/models.json)
       # come from Hugging Face's API, which only CI can reach: print the

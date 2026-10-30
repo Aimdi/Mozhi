@@ -43,7 +43,10 @@ class TranscribeNoEngineException implements Exception {
 /// * Translations follow the user's engine (`engine`, the translate
 ///   screen's) and the consent rules of [TranslationRepository.translate]
 ///   exactly: an entry that needs consent waits for it
-///   ([TranscribeState.awaitingConsent], [retryTranslations]). In Offline
+///   ([TranscribeState.awaitingConsent], [retryTranslations]); what a
+///   one-time approval for those entries did not use is withdrawn
+///   (`TranslationRepository.revokeOnce`) once they were all translated
+///   again, and when translations stop or the screen closes. In Offline
 ///   only the on-device engine translates (from `engines`). Nothing is
 ///   translated until the user turns translation on, one phrase at a
 ///   time, in order.
@@ -104,6 +107,10 @@ class TranscribeCubit extends Cubit<TranscribeState> {
   Future<void> _translations = Future.value();
   final Set<int> _queued = {};
   StreamSubscription<TranslationResult>? _translation;
+
+  /// The consents the user gave for entries that wait to be translated
+  /// again ([retryTranslations]).
+  final _grants = <ConsentRequiredException>[];
 
   /// The history entry this transcript is saved as (saving again updates
   /// it).
@@ -349,8 +356,33 @@ class TranscribeCubit extends Cubit<TranscribeState> {
         if (entry.translationStatus == TranscriptTranslationStatus.failed)
           entry.id,
     ];
+    final grants = [
+      for (final entry in state.entries)
+        if (entry.translationError case final ConsentRequiredException consent)
+          consent,
+    ];
     _markTranslating(failed);
     failed.forEach(_enqueue);
+    if (grants.isEmpty) return;
+    // Once they all were sent, nothing is left for the approval to cover.
+    _grants.addAll(grants);
+    _translations = _translations.then((_) => _revokeGrants(grants));
+  }
+
+  /// Withdraws what [only] (default: every consent the user gave) let
+  /// through once and was not used.
+  void _revokeGrants([List<ConsentRequiredException>? only]) {
+    final grants = [
+      for (final consent in only ?? List.of(_grants))
+        if (_grants.remove(consent)) consent,
+    ];
+    for (final consent in grants) {
+      try {
+        _repository.revokeOnce(consent);
+      } on Object {
+        // Withdrawing must never break the transcript.
+      }
+    }
   }
 
   void _translateAll({required bool force}) {
@@ -393,6 +425,7 @@ class TranscribeCubit extends Cubit<TranscribeState> {
     unawaited(_translation?.cancel());
     _translation = null;
     _translations = Future.value();
+    _revokeGrants();
     // What was waiting is not translated now.
     TranscriptEntry untranslated(TranscriptEntry entry) =>
         entry.translationStatus == TranscriptTranslationStatus.translating
@@ -669,6 +702,7 @@ class TranscribeCubit extends Cubit<TranscribeState> {
     if (recording != null && !recording.isCompleted) recording.complete();
     final translation = _translation;
     _translation = null;
+    _revokeGrants();
     await Future.wait<void>([
       keepAwake,
       ?cancelled,

@@ -251,6 +251,61 @@ it has no built-in Tor or I2P client: the device has to route the app's
 traffic through Tor or I2P, for example with Orbot's VPN mode on Android. If
 such an address fails the **Test**, the tunnel isn't routing the app.
 
+## Serve the web app
+
+The release's `mozhi-<version>-web.zip` (or a build of your own, see
+[Building](building.md#web-build-self-hosted-fonts-and-deferred-languages))
+is a folder of static files for any web server. Serve it over `https` (or
+`localhost`): browsers only give a secure page the private storage of the
+offline languages and the service worker that keeps the app for offline
+use. To serve it from a sub-path, change `<base href>` in its `index.html`
+(for example to `/mozhi/`); nothing else needs to change.
+
+**Caching.** Four files must be checked with the server on every load, or
+users keep an old version: `index.html`, `flutter_bootstrap.js`, the app
+shell's service worker `mozhi_sw.js` and its list of files
+`mozhi_sw_manifest.json`. Send them with `Cache-Control: no-cache` (the
+browser may keep them but asks the server first, cheaply with `ETag` or
+`Last-Modified`). The other files can be cached normally; `.wasm` files
+must be served as `application/wasm` (Caddy and nginx do).
+
+**Offline use.** With **Keep the web app for offline use** on (the
+default), `mozhi_sw.js` keeps the files listed in `mozhi_sw_manifest.json`
+(each with its size and SHA-256, written by `tool/web_shell_manifest.py`
+when the zip is built) in the browser, and the app opens without a network
+once it has been opened. It answers the app's requests for those files
+only; your Mozhi instances, AI providers, the model mirror at `models/` and
+any other path of the server are never touched. A new version is found
+when the app starts (the worker's file changes with the list), kept in the
+background and switched to with **Reload**. If you change a file of the
+build other than `<base href>` (say, an icon), run
+`python3 tool/web_shell_manifest.py <folder>` again: the worker refuses
+files that don't match the list (the app then works online only, as
+before). Each app on the same server needs a path of its own.
+
+**Caddy:** the commented `MOZHI_APP_DOMAIN` site in `deploy/Caddyfile`.
+
+**nginx:**
+
+```nginx
+server {
+    # ... listen 443 ssl, server_name, certificates ...
+    root /srv/mozhi-web;
+    # Checked with the server on every load (updates are found).
+    location ~ ^/(index\.html|flutter_bootstrap\.js|mozhi_sw\.js|mozhi_sw_manifest\.json)?$ {
+        add_header Cache-Control "no-cache" always;
+        add_header Content-Security-Policy "frame-ancestors 'none'" always;
+        try_files $uri /index.html;
+    }
+    location / {
+        add_header Content-Security-Policy "frame-ancestors 'none'" always;
+        try_files $uri =404;
+    }
+    # The model mirror next to the app (see below).
+    # location /models/ { ... }
+}
+```
+
 ## Mirror the on-device models
 
 The app's on-device models (offline languages, voice input, text

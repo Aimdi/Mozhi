@@ -523,11 +523,17 @@ class SpeechInputService {
   /// [SpeechInputResult.language]; [SpeechInputListening.detectsLanguage]
   /// says whether it does. Other recognisers listen in [languageCode] as
   /// usual.
+  ///
+  /// [offlinePause] replaces the 3 s of silence after which an offline
+  /// recogniser (Whisper, which tells speech from silence itself) stops,
+  /// e.g. for the turns of a conversation; the system recogniser keeps its
+  /// own.
   Future<bool> listen(
     String? languageCode, {
     bool? preferOnDevice,
     Object? owner,
     bool detectLanguage = false,
+    Duration? offlinePause,
   }) async {
     if (_disposed) return false;
     if (_activeSession != null || _finishingSession != null) await cancel();
@@ -568,6 +574,9 @@ class SpeechInputService {
               recognizer.offline != null ||
               (isOnDeviceSupported &&
                   (preferOnDevice ?? _preferOnDevice.value)),
+          pauseFor: recognizer.offline != null && offlinePause != null
+              ? offlinePause
+              : const SpeechListenRequest().pauseFor,
         ),
         onResult: (text, {required isFinal}) =>
             _onResult(session, text, isFinal: isFinal),

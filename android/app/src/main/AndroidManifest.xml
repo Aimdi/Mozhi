@@ -9,14 +9,23 @@
     <!-- Voice input (speech_to_text). Requested at runtime when the user taps
          the microphone. BLUETOOTH_CONNECT is deliberately not declared: the
          plugin then simply skips Bluetooth headset routing instead of asking
-         for the "Nearby devices" permission. CAMERA is not declared either:
-         image_picker hands photos off to the system camera app
-         (ACTION_IMAGE_CAPTURE), which needs no permission unless CAMERA is
-         declared. -->
+         for the "Nearby devices" permission. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <!-- RECORD_AUDIO implies a required microphone; keep the app installable
          on devices without one (voice input is optional). -->
     <uses-feature android:name="android.hardware.microphone" android:required="false"/>
+    <!-- Live camera (LiveCameraPlugin.kt, Camera2): the preview and its
+         frames, read on the phone and never stored or sent (only the
+         recognised text goes to the live engine). Requested at run time
+         when the live view opens. Declaring it also makes image_picker's
+         "Take photo" (the system camera app, ACTION_IMAGE_CAPTURE) ask for
+         it first, as Android requires then. Not required: the app stays
+         installable on devices without a camera (CAMERA alone would imply
+         a required back camera with autofocus to app stores). -->
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-feature android:name="android.hardware.camera.any" android:required="false"/>
+    <uses-feature android:name="android.hardware.camera" android:required="false"/>
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false"/>
     <!-- App lock (AppLockPlugin.kt): the framework BiometricPrompt asks for
          a fingerprint, face or the screen lock. A normal permission:
          granted at install, no prompt. Nothing else is needed (the screen
@@ -150,7 +159,8 @@
              An invisible window (ShareReceiverActivity.kt) that copies a
              shared file into the app's cache and opens MainActivity at the
              image screen (image/*) or the document translator (subtitles,
-             text, Markdown, JSON; text/* includes text/vtt), or hands shared
+             text, Markdown, JSON, office files, e-books and PDFs; text/*
+             includes text/vtt), or hands shared
              text on as before. Only content:// files of other apps are
              read. Nothing is translated or sent because of a share. -->
         <activity
@@ -175,6 +185,8 @@
                 <data android:mimeType="application/vnd.oasis.opendocument.presentation"/>
                 <data android:mimeType="application/vnd.oasis.opendocument.spreadsheet"/>
                 <data android:mimeType="application/epub+zip"/>
+                <!-- PDF documents (Documents, W7-B). -->
+                <data android:mimeType="application/pdf"/>
             </intent-filter>
         </activity>
         <!-- "Translate clipboard" entry point (MainActivity action
@@ -280,6 +292,15 @@
              stopped right after one frame). Not exported. -->
         <service
             android:name=".ScreenCaptureService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection" />
+        <!-- Live captions (LiveCaptionService.kt): other apps' sound through
+             a media projection (AudioPlaybackCapture, Android 10+, after the
+             capture consent asked every time; RECORD_AUDIO at run time),
+             captioned in an overlay bar (Display over other apps). Audio
+             only, in memory. Not exported. -->
+        <service
+            android:name=".LiveCaptionService"
             android:exported="false"
             android:foregroundServiceType="mediaProjection" />
         <!-- The opt-in translate bubble over other apps (Display over other

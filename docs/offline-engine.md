@@ -700,7 +700,8 @@ releases its caller at once, as on Android).
 | `preload` / `release` / `trim` / `dispose` | `chain` / `key` / – / – | |
 | `list` | | installed models: `{directory, manifest, sizeBytes}` |
 | `downloadOpen` / `downloadWrite` / `downloadClose` | `path`, `restart` / `path`, `at`, `bytes` / `path` | `{size}` |
-| `install` | `part`, `target`, `size`, `sha256`, `uncompressedSize`, `uncompressedSha256` | `{size}` |
+| `fingerprint` | `path` (a file written with `downloadOpen`/`downloadWrite`: an imported file) | `{size, sha256}` |
+| `install` | `part`, `target`, `size`, `sha256`, `uncompressedSize`, `uncompressedSha256`, `compressed?` (default `true`; `false`: an imported file decompressed already, checked against the decompressed size and SHA-256 and written as it is) | `{size}` |
 | `commit` | `directory`, `manifest`, `downloads` | |
 | `remove` / `cleanUp` / `usage` | `path` / – / – | `usage`: `{usage, quota, engineMemory}` |
 
@@ -749,9 +750,21 @@ each).
   download. Hence the web default "this web server" (a same-origin mirror,
   `tool/mirror_models.py`); "original publishers" only works for a web app
   served from `localhost`.
-* **Import from files** is Android-only: a browser has no file paths
-  (`OpfsModelManager.importFiles` throws `UnsupportedError`; the page hides
-  the action and the per-language file lists).
+* **Import from files** (wave 7): a browser has no file paths
+  (`OpfsModelManager.importFiles` throws `UnsupportedError`), so
+  `OpfsModelManager.importSources(sources, catalog:)` takes the picked
+  files' contents (`ModelImportSource`: name, length, a byte stream; the
+  app's `PickedImportFile` from `file_picker`) with the rules of Android's
+  `importFiles`: matched by name (published or decompressed, any case) or,
+  renamed, by size and SHA-256; a file of no catalog size is never read.
+  A candidate is written to `bergamot/.imports/<n>.part` in the worker's
+  storage and hashed there (`fingerprint`); a complete model is installed
+  with `install` (the published form verified and decompressed again, a
+  decompressed one verified, `compressed: false`) and `commit` (other
+  versions of the pair removed), like a download; `.imports/` is removed
+  afterwards in any case. Nothing goes over the network. The page lists
+  the files to download by hand per language, as on Android
+  (`WebBergamotModelDetails`).
 * "Wi-Fi only" uses `navigator.connection` (`type == 'cellular'` or
   `saveData`) where the browser has it; elsewhere the web app counts as not
   metered (it cannot tell).
@@ -789,9 +802,7 @@ of mobile browsers, `mozIntGemm` (Firefox's privileged pages only).
 
 ## Follow-ups
 
-* Web: *Import from files* in the browser (read the picked files' bytes
-  into the worker instead of paths; useful where no mirror is set up and
-  Mozilla's bucket refuses the site's origin), a run on Firefox and Safari
+* Web: a run on Firefox and Safari
   and on phones (memory: ~350 MB of WASM memory with a pivot), and
   multi-threading once the app can send COOP/COEP headers.
 * Web: report the `dart2js` miscompilation found here upstream

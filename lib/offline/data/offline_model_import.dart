@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 import 'package:flutter/foundation.dart';
 import 'package:mozhi/offline/data/offline_model_error.dart';
+import 'package:mozhi/offline/data/picked_import_file.dart';
 
 /// What an import did with one translation direction.
 enum OfflineImportStatus {
@@ -105,4 +106,15 @@ abstract interface class OfflineModelImport {
   /// The files to download by hand for [code] (both directions; empty for
   /// a language that needs none).
   List<OfflineModelFile> manualFiles(String code);
+}
+
+/// An [OfflineModelImport] that reads the picked files by their contents
+/// (the web app, whose files have no path: [importContents] instead of
+/// [OfflineModelImport.importFiles], with the same checks).
+abstract interface class OfflineModelContentsImport
+    implements OfflineModelImport {
+  /// Installs every model whose files are all among [files] (checked
+  /// against the bundled checksums) and reports what it found. Never uses
+  /// the network.
+  Future<OfflineImportReport> importContents(List<PickedImportFile> files);
 }

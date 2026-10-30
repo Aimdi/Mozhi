@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
@@ -74,7 +75,10 @@ class _OfflineManualFilesSheetState extends State<OfflineManualFilesSheet> {
         Padding(
           padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
           child: Text(
-            l10n.offlineManualBody(name),
+            // The web app imports into the browser, not to a phone.
+            kIsWeb
+                ? l10n.offlineManualBodyWeb(name)
+                : l10n.offlineManualBody(name),
             style: theme.textTheme.bodyMedium?.copyWith(color: secondary),
           ),
         ),

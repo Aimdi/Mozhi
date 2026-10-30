@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/theme.dart';
@@ -58,7 +59,9 @@ class DocumentSourceCard extends StatelessWidget {
               maxBytes: state.isBinary ? cubit.maxPackageBytes : cubit.maxBytes,
               format: state.format,
             ),
-            warning: error == DocumentError.nothingToTranslate,
+            warning:
+                error == DocumentError.nothingToTranslate ||
+                error == DocumentError.pdfNoText,
           ),
         if (state.hasDocument) const DocumentInfoChips(),
       ],
@@ -86,10 +89,16 @@ class _FileInput extends StatelessWidget {
         child: TabHero(
           icon: Icons.description_outlined,
           title: l10n.documentsHeroTitle,
-          body: l10n.documentsPickHintFormats(
-            documentSizeLabel(context, cubit.maxPackageBytes),
-            documentSizeLabel(context, cubit.maxBytes),
-          ),
+          // PDFs are read in the Android app only.
+          body: kIsWeb
+              ? l10n.documentsPickHintFormats(
+                  documentSizeLabel(context, cubit.maxPackageBytes),
+                  documentSizeLabel(context, cubit.maxBytes),
+                )
+              : l10n.documentsPickHintFormatsPdf(
+                  documentSizeLabel(context, cubit.maxPackageBytes),
+                  documentSizeLabel(context, cubit.maxBytes),
+                ),
           child: FilledButton.icon(
             key: const Key('documents_pick_file'),
             onPressed: loading ? null : () => unawaited(cubit.pickFile()),
@@ -351,11 +360,19 @@ class DocumentInfoChips extends StatelessWidget {
           icon: Icons.straighten,
           label: documentSizeLabel(context, state.sizeBytes),
         ),
-        _InfoChip(
-          icon: Icons.segment,
-          label: l10n.documentsSegmentCount(state.segmentCount),
-        ),
-        if (state.chunkCount > 0) ...[
+        if (state.pdf case final pdf?)
+          // A PDF's text is read page by page as it is translated.
+          _InfoChip(
+            key: const Key('documents_pdf_pages'),
+            icon: Icons.auto_stories_outlined,
+            label: l10n.documentsPdfPageCount(pdf.pageCount),
+          )
+        else
+          _InfoChip(
+            icon: Icons.segment,
+            label: l10n.documentsSegmentCount(state.segmentCount),
+          ),
+        if (state.chunkCount > 0 && !state.isPdf) ...[
           _InfoChip(
             icon: Icons.send_outlined,
             label: l10n.documentsChunkCount(state.chunkCount),
@@ -371,7 +388,7 @@ class DocumentInfoChips extends StatelessWidget {
 }
 
 class _InfoChip extends StatelessWidget {
-  const new({required this.icon, required this.label});
+  const new({required this.icon, required this.label, super.key});
 
   final IconData icon;
   final String label;

@@ -443,6 +443,35 @@ is translated):
   large files are read and written in a background isolate, so a hostile
   file can't freeze the screen.
 
+### PDF documents
+
+PDFs (Android only) are parsed by Android's own PDF renderer, the framework's
+`PdfRenderer` (pdfium, updated with the system), not by code in the app:
+
+- **Limits on both sides:** at most 25 MB and 200 pages, checked by the app
+  and again by the platform code (`PdfPagesPlugin.kt`). A page is rendered
+  with at most 8 megapixels (300 dpi at most); page sizes and every
+  rendered image are checked before they are used, and running out of
+  memory is reported as a file too large instead of crashing.
+- **Only the app's own copy is opened:** the platform side reads and writes
+  files only inside the app's private cache (canonical paths; anything
+  else is refused), opens the copy read-only and deletes it as soon as it
+  is open.
+- **Password-protected PDFs are refused, not cracked** (the renderer's
+  `SecurityException`); damaged ones are reported as damaged.
+- **One document, one thread:** every call runs in order on one background
+  thread, so one document is open at a time and the screen never waits for
+  a page. A failed open closes the document, pages and bitmaps are released
+  whatever happens, and the document is closed when it is removed, when
+  the screen closes and when the engine goes.
+- **Nothing in a PDF runs or is fetched:** pages are drawn to pixels;
+  scripts, forms, links, attachments and embedded files are never run,
+  followed or extracted. Only pixels reach the app, only the text
+  recognised in them reaches the translation engine.
+- **The translated PDF** is written with the framework's `PdfDocument` (the
+  original pages as pictures, the translations as text); the pages, boxes,
+  colours and texts the app sends for it are checked and kept on the page.
+
 ### Localisation files and web pages
 
 HTML, XLIFF, Android strings, PO, CSV/TSV, `.strings` and `.xcstrings`
@@ -567,6 +596,90 @@ capture only on purpose and to keep nothing:
   quick translate sheet, which shows it only after the unlock and never
   starts a paid AI request on its own.
 
+## Live camera (Android)
+
+The live camera sees whatever the phone is pointed at, so it runs only on
+purpose, only in front, and keeps nothing:
+
+- **Permission when asked for.** `CAMERA` is requested at run time when the
+  live camera opens (the framework's `requestPermissions`); a permanent
+  refusal is only ever undone by the user in Android's settings. The
+  camera is driven by the app's own `LiveCameraPlugin.kt` on the framework
+  Camera2 API: no CameraX, no androidx camera, no Google classes.
+- **Only from the app.** The route opens only from the image screen (an
+  in-app `extra`); a link, `mozhi://image/live` included, shows the image
+  screen instead, so no other app can turn the camera on through Mozhi.
+- **Only in front.** The camera is closed when the activity stops (it is
+  never used in the background, whatever Dart does), when the plugin
+  detaches and when the engine goes; the app closes it too while it is in
+  the background, while the app lock is locked and while the phone is
+  critically hot. Each opening has its own camera thread, session, readers
+  and texture, all released together.
+- **Frames on request, in memory.** Frames are pulled: the platform copies
+  a frame's grey plane only when Dart asks for one, at most a few a second,
+  and closes every other frame unread. Dart checks each frame against its
+  own size (at most 4096 pixels a side) before reading it, and a still
+  must be a JPEG of at most 32 MB. Nothing is written to disk, logged or
+  kept after it is read; translations stay in memory while the screen is
+  open and are not added to the history.
+- **The text** goes only to the live engine (the offline engine unless the
+  user picked another for live use and confirmed a network one once),
+  through the same privacy mode, consent prompts, personal data shield and
+  Network activity as typed text. Recognised text is only ever translated,
+  as text. A **Once** in a consent prompt covers the requests waiting at
+  that moment; what they don't use is withdrawn when the camera closes
+  (paused, frozen, failed, the screen left) and when the engine or the
+  languages change, so it can't let typed text, a link or the frozen
+  photo through later. Documents and web pages withdraw theirs when the
+  run ends, is cancelled or the screen closes.
+
+## Live captions (Android)
+
+Live captions hear whatever other apps play, so they capture only on
+purpose, only sound, and keep nothing:
+
+- **Consent every time.** The capture needs Android's own capture dialog
+  (`MediaProjectionManager.createScreenCaptureIntent`, for the whole
+  display on Android 14+), every time, and the `RECORD_AUDIO` permission,
+  asked at run time. The service (`LiveCaptionService`, a foreground
+  service of the type `mediaProjection` with a visible notification and
+  **Stop**) is not exported, so no other app can start a capture, and
+  only the Flutter engine that started it receives the audio; it stops
+  when that engine goes away.
+- **Sound only.** `AudioPlaybackCaptureConfiguration` with the media,
+  game and unknown usages: Android itself leaves out calls and apps that
+  opt out of capture. No virtual display is created, so nothing of the
+  screen (the caption bar included) is captured.
+- **Memory only.** Blocks of 100 ms go from the recording thread to Dart
+  over an event channel and are dropped once Whisper has read them;
+  nothing is written to disk or logged. While the phone is locked (screen
+  off, or the lock screen up) nothing is recorded: the `AudioRecord` is
+  stopped (the projection is kept) and starts again once the phone is
+  unlocked; if it can't start again, the captions end. Phrases waiting for
+  the engine are bounded (20 s of
+  audio, older phrases are skipped), the transcript too (2,000 phrases).
+- **The text** goes only to the live engine (the offline engine unless
+  the user picked another for live use and confirmed a network one once),
+  through the same privacy mode, consent prompts, personal data shield and
+  Network activity as typed text.
+- **The caption bar** (`TYPE_APPLICATION_OVERLAY`, **Display over other
+  apps**, granted by the user in Android's settings) is
+  `FLAG_NOT_FOCUSABLE`: it can't take the keyboard or input focus from
+  the app below, and touches outside it go to that app. Its buttons send
+  nothing but a stop or "open Mozhi" to the app. It hides while a Mozhi
+  window is on screen and while the phone is locked. Mozhi's windows are
+  followed from the app's first window on, so the window that started the
+  captions counts too (the microphone and capture dialogs in front of it
+  only pause it), and Translate screen never reads the bar. It shows the
+  current captions while the app lock is
+  locked (they are what is playing now, not stored data); the transcript
+  stays behind the lock.
+- **It ends** with Stop (in the app, on the bar, in the notification),
+  when the captions screen closes, when Android revokes the projection
+  (the status bar's stop) or the recording breaks (or doesn't start again
+  after the phone is unlocked), and when the app's
+  engine goes away; it is never restarted by the system.
+
 ## AI prompts and output
 
 The text you translate may come from a web page or another person, so it is
@@ -685,7 +798,9 @@ llama.cpp (MIT, built from a pinned release in the repository's
   the app and Android already do (see [Data on the device](#data-on-the-device)).
   When its time ran out while the phone slept (and the app could not run),
   Mozhi notices on return, a moment after the phone's own lock screen
-  was passed; otherwise it is locked before you come back.
+  was passed; otherwise it is locked before you come back. Until that
+  check answered, the last screen shows but nothing starts behind it: the
+  live camera stays closed, and links and text from other apps wait.
 - **Shared conversations are plain `http`** on the local network: anyone
   on that network who captures traffic can read them, and the PIN with
   them. Use the phone's hotspot for anything sensitive; there is no way to
@@ -726,6 +841,26 @@ llama.cpp (MIT, built from a pinned release in the repository's
   `.wasm` files as `application/wasm` (Caddy and nginx do by default).
   Debug web runs (`flutter run` in debug mode) are blocked by the
   policy; see [Contributing](contributing.md).
+- **Web app shell (service worker):** `mozhi_sw.js` is served from the
+  app's own origin (`worker-src 'self'`, no inline script) and only
+  answers `GET` and `HEAD` requests for the files its build lists in
+  `mozhi_sw_manifest.json`, under the app's own path; requests to other
+  hosts (Mozhi instances, AI providers, model downloads), `POST`s, the
+  language packs in the browser's private storage and every other path go
+  to the network untouched. It keeps a file only when its size and
+  SHA-256 match the manifest, which it fetches past the HTTP cache, and a
+  new build waits until you choose **Reload**. A file it serves from its
+  cache carries the security headers your server sent with it
+  (`Content-Security-Policy` with `frame-ancestors`, `X-Frame-Options`,
+  `Referrer-Policy`, `Permissions-Policy`, `X-Content-Type-Options` and the
+  `Cross-Origin-*` policies), so the protection above holds offline too;
+  after you change those headers, the next update of the app picks them
+  up. Its caches are named after
+  the app's path, so two copies of the app on one origin don't mix.
+  Turning off **Settings > General > Keep the web app for offline use**
+  unregisters it and deletes what it kept. Whoever controls the server can
+  still change the app, as for any web app: the manifest only protects
+  against damaged or half-finished downloads.
 - Android release builds made without a signing key (forks, local builds)
   are signed with the debug key. Official releases must use the release
   key.

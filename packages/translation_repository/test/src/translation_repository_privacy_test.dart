@@ -1192,6 +1192,27 @@ void main() {
       expect((await finalResult(googleEngine, autoToGerman)).text, 'Hallo');
     });
 
+    test('a job that ended early leaves nothing to a later request', () async {
+      stubMozhi(a());
+      final denied = await denial(googleEngine, englishToGerman);
+      // A live job approved as a whole that sent only two of its requests.
+      repository.allowOnce(denied, requests: 500);
+      await finalResult(googleEngine, englishToGerman);
+      await finalResult(
+        googleEngine,
+        englishToGerman.copyWith(text: 'Second part'),
+      );
+      repository.revokeOnce(denied);
+      // Typed text of the same engine and pair asks again.
+      await expectLater(
+        repository.translate(
+          googleEngine,
+          englishToGerman.copyWith(text: 'Typed later'),
+        ),
+        emitsError(consent(ConsentKind.pair)),
+      );
+    });
+
     test('expires', () async {
       final denied = await denial(googleEngine, englishToGerman);
       repository.allowOnce(denied);

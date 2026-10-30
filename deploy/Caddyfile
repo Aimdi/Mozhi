@@ -90,8 +90,10 @@
 # 	import models
 #
 # 	root * /srv/mozhi-web
-# 	# index.html must not be cached for long, or updates are not picked up.
-# 	@index path / /index.html /flutter_bootstrap.js /flutter_service_worker.js
+# 	# Checked with the server on every load, or updates are not picked up:
+# 	# the page, its bootstrap, and the app shell's service worker and list
+# 	# of files (docs/self-hosting-mozhi.md#serve-the-web-app).
+# 	@index path / /index.html /flutter_bootstrap.js /mozhi_sw.js /mozhi_sw_manifest.json
 # 	header @index Cache-Control "no-cache"
 # 	header -Server
 # 	file_server

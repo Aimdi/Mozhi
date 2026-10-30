@@ -90,6 +90,26 @@ final Map<String, String> _replies = {
   'an unclosed fence with spaces': '```${' ' * _size}{"a": 1}',
 };
 
+/// Bracket-heavy model output for the JSON search, where each opening
+/// bracket may start a candidate: brackets that never close, nested ones
+/// that never decode, and open brackets with many commas (the places a
+/// truncated reply is cut at).
+final Map<String, String> _brackets = {
+  'unclosed brackets': _many('['),
+  'unclosed braces': _many('{'),
+  'unclosed objects': _many('{"a":'),
+  'unclosed lists of objects': _many('[{"a":'),
+  'unclosed strings in brackets': _many('["'),
+  'unclosed objects in strings': _many('{"{'),
+  'nested lists': '${'[' * (_size ~/ 2)}${']' * (_size ~/ 2)}',
+  'nested objects that do not decode':
+      '${_many('{"a":')}x${'}' * (_size ~/ 5)}',
+  'nested lists before an object': '${'[' * _size}{"a": 1}',
+  'open brackets with commas': '${'[' * (_size ~/ 2)}${',' * (_size ~/ 2)}',
+  'open objects with commas': '{"a": [${_many('1, ')}',
+  'closed lists without objects': _many('[1, [2]] '),
+};
+
 /// [names] of [_hostile] and [_replies].
 Map<String, String> _pick(List<String> names) => {
   for (final name in names) name: _hostile[name] ?? _replies[name]!,
@@ -281,6 +301,22 @@ void main() {
       (text) => _parse(() => ResponseParsers.parseDetectedLanguage(text)),
       inputs: replies,
     );
+    _scales(
+      'extractJsonObject on brackets',
+      (text) => _parse(() => ResponseParsers.extractJsonObject(text)),
+      inputs: _brackets,
+    );
+    _scales(
+      'parseMeaningCheck on brackets',
+      (text) => _parse(
+        () => ResponseParsers.parseMeaningCheck(
+          text,
+          source: 'Hello',
+          translation: 'Hallo',
+        ),
+      ),
+      inputs: _brackets,
+    );
 
     final fields = {
       for (final MapEntry(key: name, value: text) in _pick([
@@ -378,5 +414,62 @@ void main() {
         expect(time, lessThan(_budget), reason: name);
       }
     }, timeout: Timeout(_stuck * 2));
+
+    test(
+      'streamed replies with the personal data shield, a space at a time',
+      () async {
+        final elapsed = await Isolate.run(() async {
+          registerTestFallbacks();
+          final client = MockLlmClient();
+          final repository =
+              allowNetwork(
+                TranslationRepository(
+                  llmClientFactory: (_) => client,
+                  snapshotInterval: Duration.zero,
+                ),
+              )..updateConfiguration(
+                instances: const [],
+                providers: const [claudeConfig],
+              );
+          // A token's start held back while a long run of spaces streams
+          // in, one delta each (the held text is not read again).
+          final spaces = List.filled(_size, ' ');
+          final times = <String, Duration>{};
+          for (final MapEntry(key: name, value: deltas) in {
+            'spaces after a token opener': ['Mail ⟨', ...spaces, '1⟩'],
+            'spaces after a token number': ['Mail ⟨1', ...spaces, '⟩'],
+            'spaces on both sides': ['Mail ⟨', ...spaces, '1', ...spaces, '⟩'],
+            'line breaks after a token number': [
+              'Mail ⟨1',
+              ...List.filled(_size, '\n'),
+              '⟩',
+            ],
+          }.entries) {
+            when(() => client.streamChat(any()))
+                .thenAnswer((_) => Stream.fromIterable(deltas));
+            final watch = Stopwatch()..start();
+            final reply = await repository
+                .explain(
+                  aiEngine(claudeConfig),
+                  const TranslationRequest(
+                    text: 'Write to jane@x.org.',
+                    source: english,
+                    target: german,
+                  ),
+                  'Schreib an jane@x.org.',
+                )
+                .join();
+            times[name] = watch.elapsed;
+            if (reply != 'Mail jane@x.org') times[name] = _stuck;
+          }
+          repository.dispose();
+          return times;
+        }).timeout(_stuck, onTimeout: () => fail('stuck for $_stuck'));
+        for (final MapEntry(key: name, value: time) in elapsed.entries) {
+          expect(time, lessThan(_budget), reason: name);
+        }
+      },
+      timeout: Timeout(_stuck * 2),
+    );
   });
 }

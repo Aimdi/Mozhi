@@ -69,7 +69,8 @@ final class OfficePackage implements PackagedDocument {
     String? targetLanguage,
     PackageLimits limits = const PackageLimits(),
   }) {
-    if (!format.isBinary) {
+    // PDFs are binary but not packages (lib/documents/pdf/).
+    if (!format.isBinary || format == DocumentFormat.pdf) {
       throw ArgumentError.value(format, 'format', 'not a packaged format');
     }
     final zip = ZipPackage.read(bytes, limits: limits);

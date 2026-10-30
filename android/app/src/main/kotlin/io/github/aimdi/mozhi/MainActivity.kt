@@ -272,6 +272,12 @@ open class MainActivity : FlutterActivity() {
         // (DeviceConditionsPlugin.kt).
         flutterEngine.plugins.add(DeviceStoragePlugin())
         flutterEngine.plugins.add(DeviceConditionsPlugin())
+        // Live captions of other apps' sound (LiveCaptionsPlugin.kt).
+        flutterEngine.plugins.add(LiveCaptionsPlugin())
+        // Live camera: Camera2 preview, frames and stills (LiveCameraPlugin.kt).
+        flutterEngine.plugins.add(LiveCameraPlugin())
+        // PDF documents: pages rendered and the translation written (PdfPagesPlugin.kt).
+        flutterEngine.plugins.add(PdfPagesPlugin())
 
         EventChannel(messenger, EVENT_CHANNEL).setStreamHandler(
             object : EventChannel.StreamHandler {

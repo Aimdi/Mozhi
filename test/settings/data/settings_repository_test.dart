@@ -244,6 +244,26 @@ void main() {
         expect(prefs.values[SettingsRepository.settingsKey], stored);
       });
 
+      test('loads the built-in instances of older versions in the new '
+          'default order', () async {
+        final json = const AppSettings(onboardingComplete: true).toJson()
+          ..['instances'] = [
+            for (final url in MozhiInstance.previousDefaultOrders.first)
+              {'url': url, 'isCustom': false},
+          ];
+        prefs.values[SettingsRepository.settingsKey] = jsonEncode(json);
+
+        final loaded = await repository.load();
+
+        expect(loaded.instances.map((i) => i.url), [
+          for (final instance in MozhiInstance.publicInstances) instance.url,
+        ]);
+        expect(
+          loaded.instances.map((i) => i.url),
+          isNot(contains('https://translate.nerdvpn.de')),
+        );
+      });
+
       test('round-trips the general settings', () async {
         const settings = AppSettings(
           appLocale: 'ja',

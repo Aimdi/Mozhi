@@ -86,6 +86,13 @@ void registerDocumentFallbacks() {
   registerFallbackValue(
     const TranslationRequest(text: '', source: english, target: german),
   );
+  registerFallbackValue(
+    const ConsentRequiredException(
+      kind: ConsentKind.pair,
+      destination: OnDeviceDestination(),
+      engineId: '',
+    ),
+  );
 }
 
 /// Stubs `translate` on [repository]: [respond] (default: upper-case the

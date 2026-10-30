@@ -4,6 +4,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/documents/cubit/document_translate_cubit.dart';
+import 'package:mozhi/documents/widgets/document_pdf_preview.dart';
 import 'package:mozhi/l10n/l10n.dart';
 
 /// Longest text the tabbed preview shows (large documents stay fast; the
@@ -53,21 +54,29 @@ class _DocumentPreviewTabsState extends State<DocumentPreviewTabs>
               Tab(text: l10n.documentsTabTranslation),
             ],
           ),
-          if (state.isBinary) _OfficeHints(state: state),
+          // A PDF: its own notes and its text page by page (W7-B).
+          if (state.isPdf)
+            const DocumentPdfNotes()
+          else if (state.isBinary)
+            _OfficeHints(state: state),
           ListenableBuilder(
             listenable: _tabs,
             builder: (context, _) => Padding(
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 16),
               child: _tabs.index == 0
-                  ? _PreviewText(
-                      key: const Key('documents_preview_original'),
-                      text: state.text,
-                    )
+                  ? state.isPdf
+                        ? const DocumentPdfPages(translated: false)
+                        : _PreviewText(
+                            key: const Key('documents_preview_original'),
+                            text: state.text,
+                          )
                   : state.hasTranslation
-                  ? _PreviewText(
-                      key: const Key('documents_preview_translation'),
-                      text: state.output,
-                    )
+                  ? state.isPdf
+                        ? const DocumentPdfPages(translated: true)
+                        : _PreviewText(
+                            key: const Key('documents_preview_translation'),
+                            text: state.output,
+                          )
                   : _Placeholder(text: l10n.documentsPreviewEmpty),
             ),
           ),
@@ -189,6 +198,8 @@ class DocumentSideBySide extends StatelessWidget {
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final state = context.watch<DocumentTranslateCubit>().state;
+    // A PDF's paragraphs, page by page (W7-B).
+    if (state.isPdf) return const DocumentPdfSideBySide();
     final segments = state.segments;
     if (!state.hasDocument || segments.isEmpty) {
       return Center(

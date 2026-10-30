@@ -204,6 +204,9 @@ Finder findTooltipMessage(String message) => find.byWidgetPredicate(
 class FakeConversationRecognizer implements ConversationRecognizer {
   /// Every [listen] call: the language and whether detection was asked.
   final listens = <({Language language, bool detectLanguage})>[];
+
+  /// The pause of every [listen] call (null: none given).
+  final pauses = <Duration?>[];
   StreamController<ConversationHearing>? _utterance;
   int cancels = 0;
   bool disposed = false;
@@ -218,10 +221,12 @@ class FakeConversationRecognizer implements ConversationRecognizer {
   Stream<ConversationHearing> listen(
     Language language, {
     bool detectLanguage = false,
+    Duration? pause,
   }) {
     final previous = _utterance;
     if (previous != null) unawaited(previous.close());
     listens.add((language: language, detectLanguage: detectLanguage));
+    pauses.add(pause);
     final utterance = _utterance = StreamController<ConversationHearing>();
     return utterance.stream;
   }

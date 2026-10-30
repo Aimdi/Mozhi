@@ -39,4 +39,12 @@
     <string name="bubble_remove_action">Balonu kaldır</string>
     <string name="bubble_remove_target">Kaldır</string>
     <string name="bubble_clipboard_empty">Pano boş</string>
+    <string name="live_captions_channel">Canlı altyazı</string>
+    <string name="live_captions_channel_description">Mozhi diğer uygulamaların sesini altyazıya dökerken gösterilir</string>
+    <string name="live_captions_notification_title">Canlı altyazı açık</string>
+    <string name="live_captions_notification_text">Mozhi diğer uygulamaların çaldığı sesi altyazıya döker. Hiçbir şey kaydedilmez veya saklanmaz.</string>
+    <string name="live_captions_stop">Durdur</string>
+    <string name="live_captions_stop_description">Canlı altyazıyı durdur</string>
+    <string name="live_captions_open_description">Mozhi uygulamasını aç</string>
+    <string name="live_captions_bar_description">Canlı altyazı</string>
 </resources>

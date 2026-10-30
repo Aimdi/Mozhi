@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io' show Directory, File, FileSystemException;
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:bergamot_translator/src/catalog.dart';
@@ -9,6 +10,7 @@ import 'package:bergamot_translator/src/engine/web/worker_engine.dart';
 import 'package:bergamot_translator/src/engine/web/worker_values.dart';
 import 'package:bergamot_translator/src/model_manager.dart';
 import 'package:http/http.dart' as http;
+import 'package:meta/meta.dart';
 
 /// The [BergamotModelManager] of the web app: models in the browser's
 /// Origin Private File System, which the worker behind [channel]
@@ -36,7 +38,9 @@ import 'package:http/http.dart' as http;
 /// ([requestPersistence]: `navigator.storage.persist()`), so the browser
 /// does not evict the models under storage pressure.
 ///
-/// [importFiles] is not available: a browser has no file paths.
+/// [importFiles] is not available (a browser has no file paths):
+/// [importSources] installs picked files from their contents instead, with
+/// the same checks.
 ///
 /// With [freeSpace] (what the browser's storage quota leaves, e.g. from
 /// `navigator.storage.estimate()`; null when it cannot tell), a download
@@ -99,6 +103,314 @@ class OpfsModelManager extends BergamotModelManager {
   }) => Future.error(
     UnsupportedError('Importing model files is not available in a browser'),
   );
+
+  /// The worker's folder for imported files being checked.
+  static const importsFolder = '.imports';
+
+  /// Installs models from files the user picked (downloaded by hand from
+  /// [CatalogFile.url]), from their contents: the browser's counterpart of
+  /// [importFiles], with the same rules and checks and without any network
+  /// request.
+  ///
+  /// Each of [sources] is matched to a file of [catalog] by name, as
+  /// published (`<name>.gz`) or decompressed (`<name>`), ignoring case, or
+  /// (a renamed copy) by its size and SHA-256. A file of a catalog size is
+  /// written to the worker's storage ([importsFolder]) and hashed there; it
+  /// counts when its size and SHA-256 are those of the published or the
+  /// decompressed file. A model whose files are all there is installed
+  /// through the worker's checks (a published file is verified again and
+  /// decompressed, then verified decompressed) and committed like a
+  /// download (replacing another version of the pair); other models are
+  /// left alone, and the checked files are removed in any case. Problems
+  /// with a file or a model do not throw: they are reported in the
+  /// [ModelSourceImportResult] ([ModelImportOutcome.damaged] stays empty:
+  /// a browser has no [File]s).
+  Future<ModelSourceImportResult> importSources(
+    Iterable<ModelImportSource> sources, {
+    required ModelCatalog catalog,
+  }) async {
+    final byName = <String, (CatalogModel, CatalogFile)>{};
+    final bySize = <int, List<(CatalogModel, CatalogFile)>>{};
+    for (final model in catalog.models) {
+      for (final file in model.files.values) {
+        byName[file.name.toLowerCase()] = (model, file);
+        for (final size in {file.size, file.uncompressedSize}) {
+          (bySize[size] ??= []).add((model, file));
+        }
+      }
+    }
+    final versions = {
+      for (final model in await installed()) model.pair: model.version,
+    };
+    bool isCurrent(CatalogModel model) => versions[model.pair] == model.version;
+
+    final touched = <CatalogModel>{};
+    final verified = <CatalogModel, Map<ModelFileKind, _StagedFile>>{};
+    final damaged = <CatalogModel, Set<ModelFileKind>>{};
+    final unmatched = <ModelImportSource>[];
+    final outcomes = <ModelImportOutcome>[];
+    var staged = 0;
+    String nextPart() => '$importsFolder/${staged++}.part';
+
+    try {
+      for (final source in sources) {
+        if (byName[_importName(source.name)] case (final model, final file)) {
+          touched.add(model);
+          if (isCurrent(model) ||
+              (verified[model]?.containsKey(file.kind) ?? false)) {
+            continue;
+          }
+          final length = source.length;
+          final compressed =
+              length == null ||
+                  length == file.size ||
+                  length == file.uncompressedSize
+              ? await _check(source, nextPart(), [
+                  (model, file),
+                ], maxBytes: max(file.size, file.uncompressedSize))
+              : null;
+          if (compressed == null) {
+            (damaged[model] ??= {}).add(file.kind);
+          } else {
+            (verified[model] ??= {})[file.kind] = compressed.$3;
+          }
+          continue;
+        }
+        // A renamed copy: the catalog file with its size and SHA-256.
+        final length = source.length;
+        final candidates = length == null ? null : bySize[length];
+        if (length == null || candidates == null) {
+          unmatched.add(source);
+          continue;
+        }
+        final match = await _check(
+          source,
+          nextPart(),
+          candidates,
+          maxBytes: length,
+        );
+        if (match == null) {
+          unmatched.add(source);
+          continue;
+        }
+        final (model, file, kept) = match;
+        touched.add(model);
+        if (isCurrent(model) ||
+            (verified[model]?.containsKey(file.kind) ?? false)) {
+          await _removeQuietly(kept.part);
+          continue;
+        }
+        (verified[model] ??= {})[file.kind] = kept;
+      }
+
+      for (final model
+          in touched.toList()..sort((a, b) => a.pair.compareTo(b.pair))) {
+        if (isCurrent(model)) {
+          outcomes.add(
+            ModelImportOutcome(
+              model: model,
+              status: ModelImportStatus.alreadyInstalled,
+            ),
+          );
+          continue;
+        }
+        final found = verified[model] ?? const {};
+        final missing = [
+          for (final file in model.files.values)
+            if (!found.containsKey(file.kind)) file,
+        ];
+        if (missing.isEmpty) {
+          outcomes.add(await _importStaged(model, found));
+          continue;
+        }
+        final bad = (damaged[model] ?? const {}).difference(found.keys.toSet());
+        outcomes.add(
+          ModelImportOutcome(
+            model: model,
+            status: bad.isEmpty
+                ? ModelImportStatus.incomplete
+                : ModelImportStatus.checksumMismatch,
+            missing: List.unmodifiable(missing),
+          ),
+        );
+      }
+    } finally {
+      await _removeQuietly(importsFolder);
+      _cache = null;
+    }
+    return ModelSourceImportResult(
+      models: List.unmodifiable(outcomes),
+      unmatched: List.unmodifiable(unmatched),
+    );
+  }
+
+  /// Writes [source] to [part] (at most [maxBytes]; more is no catalog
+  /// file) and has the worker hash it: the first of [candidates] it is
+  /// (published: compressed, or decompressed), with where it was written;
+  /// null when it is none of them (the part is removed again).
+  Future<(CatalogModel, CatalogFile, _StagedFile)?> _check(
+    ModelImportSource source,
+    String part,
+    List<(CatalogModel, CatalogFile)> candidates, {
+    required int maxBytes,
+  }) async {
+    ({int size, String sha256})? fingerprint;
+    try {
+      fingerprint = await _stage(source, part, maxBytes: maxBytes);
+    } on Object {
+      // Unreadable, or the storage refused it: no match.
+    }
+    if (fingerprint != null) {
+      for (final (model, file) in candidates) {
+        if (_formOf(file, fingerprint) case final compressed?) {
+          return (model, file, (part: part, compressed: compressed));
+        }
+      }
+    }
+    await _removeQuietly(part);
+    return null;
+  }
+
+  /// Writes [source] to [part] in the worker's storage and has the worker
+  /// hash it; null when it holds more than [maxBytes].
+  Future<({int size, String sha256})?> _stage(
+    ModelImportSource source,
+    String part, {
+    required int maxBytes,
+  }) async {
+    await channel.request('downloadOpen', {'path': part, 'restart': true});
+    var offset = 0;
+    final pending = BytesBuilder(copy: false);
+    Future<void> flush() async {
+      if (pending.isEmpty) return;
+      final bytes = pending.takeBytes();
+      await channel.request('downloadWrite', {
+        'path': part,
+        'at': offset,
+        'bytes': bytes,
+      });
+      offset += bytes.length;
+    }
+
+    try {
+      await for (final chunk in source.openRead()) {
+        if (offset + pending.length + chunk.length > maxBytes) return null;
+        pending.add(chunk);
+        if (pending.length >= writeChunkSize) await flush();
+      }
+      await flush();
+    } finally {
+      await _closeQuietly(part);
+    }
+    final result = (await channel.request('fingerprint', {'path': part})).asMap;
+    return (size: result['size'].asInt(), sha256: result['sha256'].asString());
+  }
+
+  /// Installs [model] from its checked imported [files] (all of them),
+  /// through the worker's checks, and commits it like a download.
+  Future<ModelImportOutcome> _importStaged(
+    CatalogModel model,
+    Map<ModelFileKind, _StagedFile> files,
+  ) async {
+    CatalogFile? writing;
+    final directory = 'models/${model.pair}/${model.version}';
+    try {
+      // A download of the same model that is running finishes first; when
+      // it fails, the files are installed instead.
+      if (_installs['${model.pair}/${model.version}'] case final running?) {
+        try {
+          await running;
+        } on Object {
+          // Installed from the files below.
+        }
+      }
+      _cache = null;
+      if (await isInstalled(model)) {
+        return ModelImportOutcome(
+          model: model,
+          status: ModelImportStatus.alreadyInstalled,
+        );
+      }
+      await _checkQuota(model, bytes: model.installedSize);
+      for (final file in model.files.values) {
+        writing = file;
+        final staged = files[file.kind]!;
+        await _call('install', {
+          'part': staged.part,
+          'target': '$directory/${file.name}',
+          'size': file.size,
+          'sha256': file.sha256,
+          'uncompressedSize': file.uncompressedSize,
+          'uncompressedSha256': file.uncompressedSha256,
+          'compressed': staged.compressed,
+        }, model.pair);
+      }
+      writing = null;
+      await _call('commit', {
+        'directory': directory,
+        'manifest': _manifestOf(model),
+      }, model.pair);
+      _cache = null;
+      if (!await isInstalled(model)) {
+        throw FileSystemException(
+          'The browser did not keep ${model.pair} (storage cleared?)',
+          directory,
+        );
+      }
+      return ModelImportOutcome(
+        model: model,
+        status: ModelImportStatus.installed,
+      );
+    } on ModelChecksumException catch (error) {
+      await _removeQuietly(directory);
+      return ModelImportOutcome(
+        model: model,
+        status: ModelImportStatus.checksumMismatch,
+        missing: [?writing],
+        error: error,
+      );
+    } on Object catch (error) {
+      await _removeQuietly(directory);
+      return ModelImportOutcome(
+        model: model,
+        status: ModelImportStatus.failed,
+        error: error,
+      );
+    } finally {
+      _cache = null;
+    }
+  }
+
+  Future<void> _removeQuietly(String path) async {
+    try {
+      await channel.request('remove', {'path': path});
+    } on Object {
+      // Removed by the next import, or by cleanUp.
+    }
+  }
+
+  /// The catalog name an imported file called [name] stands for: in lower
+  /// case, without a `.gz` extension (as [importFiles] matches paths).
+  static String _importName(String name) {
+    final base = name.split(RegExp(r'[/\\]')).last.toLowerCase();
+    return base.endsWith('.gz') ? base.substring(0, base.length - 3) : base;
+  }
+
+  /// Whether [fingerprint] is that of [file] as published (true: gzip) or
+  /// decompressed (false); null when it is neither.
+  static bool? _formOf(
+    CatalogFile file,
+    ({int size, String sha256}) fingerprint,
+  ) => switch (fingerprint) {
+    (:final size, :final sha256)
+        when size == file.size && sha256 == file.sha256 =>
+      true,
+    (:final size, :final sha256)
+        when size == file.uncompressedSize &&
+            sha256 == file.uncompressedSha256 =>
+      false,
+    _ => null,
+  };
 
   @override
   Future<void> delete(String source, String target) async {
@@ -174,9 +486,10 @@ class OpfsModelManager extends BergamotModelManager {
   }
 
   /// Throws a [ModelInsufficientSpaceException] when the storage quota
-  /// left ([freeSpace]) is below what [model] needs: its downloads (a
-  /// partial one counts whole) and its decompressed files, plus a margin.
-  Future<void> _checkQuota(CatalogModel model) async {
+  /// left ([freeSpace]) is below what [model] needs: [bytes] (default: its
+  /// downloads, a partial one counting whole, and its decompressed files),
+  /// plus a margin.
+  Future<void> _checkQuota(CatalogModel model, {int? bytes}) async {
     final query = freeSpace;
     if (query == null) return;
     int? available;
@@ -186,7 +499,7 @@ class OpfsModelManager extends BergamotModelManager {
       // Not known: the browser refuses a write that does not fit.
     }
     final needed = BergamotModelManager.requiredSpace(
-      model.downloadSize + model.installedSize,
+      bytes ?? model.downloadSize + model.installedSize,
     );
     if (available == null || available >= needed) return;
     throw ModelInsufficientSpaceException(
@@ -251,16 +564,7 @@ class OpfsModelManager extends BergamotModelManager {
       await _call('commit', {
         'directory': directory,
         'downloads': downloads,
-        'manifest': {
-          'schema': 1,
-          'source': model.source,
-          'target': model.target,
-          'version': model.version,
-          'files': {
-            for (final file in model.files.values)
-              file.kind.key: {'name': file.name, 'size': file.uncompressedSize},
-          },
-        },
+        'manifest': _manifestOf(model),
       }, model.pair);
     } finally {
       _cache = null;
@@ -472,4 +776,53 @@ class OpfsModelManager extends BergamotModelManager {
   /// ` from the mirror <mirror>` for a download from [mirror], else empty.
   static String _from(Uri? mirror) =>
       mirror == null ? '' : ' from the mirror $mirror';
+
+  /// The `manifest.json` of an installed [model] (the worker's `list`
+  /// reads it back).
+  static Map<String, Object?> _manifestOf(CatalogModel model) => {
+    'schema': 1,
+    'source': model.source,
+    'target': model.target,
+    'version': model.version,
+    'files': {
+      for (final file in model.files.values)
+        file.kind.key: {'name': file.name, 'size': file.uncompressedSize},
+    },
+  };
 }
+
+/// A file to import from its contents rather than a path (a file the user
+/// picked in a browser): see [OpfsModelManager.importSources].
+abstract interface class ModelImportSource {
+  /// The file's name as picked, e.g. `vocab.ende.spm.gz`.
+  String get name;
+
+  /// Its size in bytes; null when unknown.
+  int? get length;
+
+  /// Its bytes, from the start.
+  Stream<List<int>> openRead();
+}
+
+/// The result of [OpfsModelManager.importSources].
+@immutable
+final class ModelSourceImportResult {
+  const new({this.models = const [], this.unmatched = const []});
+
+  /// One outcome per catalog model that an imported file belongs to,
+  /// sorted by pair.
+  final List<ModelImportOutcome> models;
+
+  /// Imported files that belong to no catalog model.
+  final List<ModelImportSource> unmatched;
+
+  /// The models this import installed.
+  List<CatalogModel> get installed => [
+    for (final outcome in models)
+      if (outcome.status == ModelImportStatus.installed) outcome.model,
+  ];
+}
+
+/// An imported file written to the worker's storage and checked: where,
+/// and whether it is the published (gzip) form.
+typedef _StagedFile = ({String part, bool compressed});

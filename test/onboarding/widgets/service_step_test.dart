@@ -165,14 +165,15 @@ void main() {
       );
     });
 
-    testWidgets('find fastest starts pinging, saying it contacts them', (
+    testWidgets('find fastest starts pinging, saying what it sends', (
       tester,
     ) async {
       final cubit = await pump(tester);
       expect(
         find.text(
-          'Contacts every listed server once to measure its speed, then '
-          'tries the fastest first.',
+          'Translates the word “Hello” once on every listed server to '
+          'measure its speed, then tries the fastest first. None of your '
+          'text is sent.',
         ),
         findsOneWidget,
       );
@@ -228,6 +229,7 @@ void main() {
       );
 
       expect(find.text('Test again'), findsOneWidget);
+      expect(find.text('Doesn’t translate'), findsNothing);
       // On the row of the server in use.
       expect(find.text('90 ms'), findsOneWidget);
       expect(find.text('Fastest'), findsOneWidget);
@@ -296,6 +298,31 @@ void main() {
       expect(find.byType(CircularProgressIndicator), findsNWidgets(2));
     });
 
+    testWidgets('marks servers that answer but do not translate', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        OnboardingState(
+          serviceStatus: ServiceStatus.done,
+          pings: {
+            instanceA.url: const InstancePing.noTranslation('HTTP 500'),
+            instanceB.url: const InstancePing.success(
+              Duration(milliseconds: 90),
+            ),
+          },
+        ),
+      );
+
+      // On the row of the server in use.
+      expect(find.text('Doesn’t translate'), findsOneWidget);
+      await openList(tester);
+      expect(find.text('Doesn’t translate'), findsNWidgets(2));
+      expect(find.byTooltip('HTTP 500'), findsNWidgets(2));
+      expect(find.text('Fastest'), findsOneWidget);
+      expect(find.textContaining('none translated'), findsNothing);
+    });
+
     testWidgets('warns when no instance answered', (tester) async {
       await pump(
         tester,
@@ -305,6 +332,31 @@ void main() {
         ),
       );
       expect(find.textContaining('No instance answered'), findsOneWidget);
+      expect(find.byIcon(Icons.wifi_off), findsOneWidget);
+    });
+
+    testWidgets('says when servers answered but none translated', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        OnboardingState(
+          serviceStatus: ServiceStatus.done,
+          pings: {
+            instanceA.url: const InstancePing.noTranslation('HTTP 500'),
+            instanceB.url: const InstancePing.failure('x'),
+          },
+        ),
+      );
+      expect(
+        find.text(
+          'The servers answered, but none translated the test word. Test '
+          'again later, or add your own instance below.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.textContaining('No instance answered'), findsNothing);
+      expect(find.byIcon(Icons.wifi_off), findsNothing);
     });
 
     testWidgets('explains an empty instance list', (tester) async {
@@ -432,6 +484,10 @@ void main() {
           'Could not reach this instance: it took too long to answer.',
         ),
         (OwnInstanceError.insecure, 'Use https:// for public servers.'),
+        (
+          OwnInstanceError.noTranslation,
+          'This instance answers but doesn’t translate with Google: nope',
+        ),
       ]) {
         testWidgets('shows ${error.name} errors', (tester) async {
           await pump(

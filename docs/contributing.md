@@ -87,9 +87,12 @@ flutter build apk --release --flavor production -t lib/main_production.dart --sp
 flutter build apk --release --flavor production -t lib/main_production.dart
 
 # Web (for the root of a web server, like the CI and release builds; change
-# --base-href for a sub-path, e.g. /mozhi/)
+# --base-href for a sub-path, e.g. /mozhi/), then its fonts and the list of
+# files the app shell keeps for offline use (docs/building.md)
 flutter build web --release -t lib/main_production.dart \
   --base-href / --no-web-resources-cdn
+python3 tool/web_fallback_fonts.py build/web
+python3 tool/web_shell_manifest.py build/web
 ```
 
 Release signing for Android, the CI artifacts and tagged releases are
@@ -215,6 +218,29 @@ sh tool/check_no_google_test.sh
 flutter test --coverage
 ```
 
+Two checks need the internet and run in CI's "Check model downloads"
+job rather than with the tests:
+
+```sh
+# Every downloadable file (offline languages, voice models, text
+# recognition data) is still served with the size the app expects.
+python3 tool/check_model_downloads.py
+# The public Mozhi servers built into the app: which still translate, with
+# which engines (fails only when none translates with the default engine).
+python3 tool/check_public_instances.py
+```
+
+CI's "Android emulator smoke test" job installs the x86_64 release APK on
+an Android 14 emulator without Google APIs and uses it like a new user:
+it opens Mozhi, accepts the first-run defaults, types a French sentence
+and follows what the app offers, downloading French for offline use first
+and else allowing the text to be sent once
+(`tool/android_smoke.py <apk> <out-dir>`, with `adb` and a running
+emulator or phone). It fails when Mozhi crashes or stops or the sentence
+can't be typed; the job summary says whether and how it got translated,
+the log lists the text on screen at each step and the screenshots are in
+the job's `android-smoke` artifact.
+
 Conventions:
 
 - Cubits are tested with `bloc_test`; dependencies are mocked with
@@ -251,9 +277,12 @@ seeded into `localStorage` before the app starts.
 Requirements: Node.js 18 or newer and Python 3.
 
 ```sh
-# 1. Build the development flavor, served from /
+# 1. Build the development flavor, served from /, with its fonts and the
+#    app shell's list of files (offline_shell.spec.js)
 flutter build web --release -t lib/main_development.dart \
   --no-web-resources-cdn --base-href / -o build/web-e2e
+python3 tool/web_fallback_fonts.py build/web-e2e
+python3 tool/web_shell_manifest.py build/web-e2e
 
 # 2. Install Playwright and its Chromium (once)
 cd e2e
@@ -266,8 +295,13 @@ npx playwright show-report        # after a failure: screenshots and traces
 ```
 
 Environment variables: `E2E_WEB_DIR` (the build to serve, default
-`../build/web`), `E2E_APP_PORT` (default 8080) and `E2E_MOCK_PORT` (default
-8787; the fixtures are rewritten to it). Outside CI, servers that already
+`../build/web`), `E2E_APP_PORT` (default 8080), `E2E_MOCK_PORT` (default
+8787; the fixtures are rewritten to it) and `E2E_SERVICE_WORKERS` (`allow`
+runs every spec with the app shell's service worker; by default only
+`offline_shell.spec.js` allows it, since each test starts a fresh browser
+profile where the worker would download the whole build again).
+`E2E_MODELS_DIR` (`python3 fetch_models.py de <dir>`) enables the specs
+that need real offline models. Outside CI, servers that already
 listen on those ports are reused, so pick free ports if something else
 uses them.
 

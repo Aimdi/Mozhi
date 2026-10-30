@@ -250,6 +250,18 @@ void main() {
       );
     });
 
+    test('keeps and compares what the shield kept on the device', () {
+      const kept = ImageTranslation(translatedText: 'a', maskedPersonalData: 2);
+      expect(kept, isNot(const ImageTranslation(translatedText: 'a')));
+      expect(kept.copyWith(translatedText: 'b').maskedPersonalData, 2);
+      expect(
+        const ImageTranslation(translatedText: 'a')
+            .copyWith(maskedPersonalData: 2),
+        kept,
+      );
+      expect(kept.hashCode, isNot(const ImageTranslation().hashCode));
+    });
+
     test('compares destinations', () {
       const sent = ImageTranslation(
         translatedText: 'a',

@@ -19,9 +19,11 @@ else works with a Mozhi instance alone.
 - [Dictionary](#dictionary)
 - [Proofread](#proofread)
 - [Image translation](#image-translation)
+- [Live camera](#live-camera)
 - [Voice](#voice)
 - [Shared conversation](#shared-conversation)
 - [Transcribe](#transcribe)
+- [Live captions](#live-captions)
 - [Documents](#documents)
 - [Web pages](#web-pages)
 - [Offline translation](#offline-translation)
@@ -133,6 +135,30 @@ else works with a Mozhi instance alone.
   sends the most). **Open in Dictionary** opens the word on the
   [Dictionary](#dictionary) tab, and with an AI model for extras **More
   detail** loads the AI dictionary entry right there (one request).
+- **Tap a word** of a finished translation for its word card, a small
+  dictionary entry in a sheet: the word in its language, its pronunciation
+  and part of speech, up to three meanings with their translations into
+  your text's language, and where the data comes from (**From Wiktionary ·
+  CC BY-SA 4.0**). It comes from the [offline dictionaries](#dictionary) on
+  the device first, without a network: an inflected form finds its lemma
+  (*“went” is a form of “go”*), and in Chinese, Japanese, Thai, Lao, Khmer
+  and Myanmar, written without spaces, the tap finds the longest word of
+  the installed dictionary there (one character without a dictionary).
+  Elsewhere the word under your finger is taken whole, without the
+  punctuation around it (*don't*, *E-Mail-Adresse*). **Listen**, **Copy**,
+  **Open in Dictionary** (the Dictionary tab with the word and both
+  languages) and **Add to phrasebook…** are on the card. A word the
+  dictionaries don't have, or one in a language without a dictionary, can
+  be looked up with your AI model, only when you tap **Look up with …**
+  (one request with the word and its sentence; see
+  [privacy](privacy.md#offline-dictionaries)). Selecting, copying, the long
+  press and the double tap work as before: the card opens once a double
+  tap could no longer follow, and not while **Matching phrases**,
+  **Insights** or a meaning check difference is shown. Look-ups on the card
+  are not saved to History. **Settings > Appearance > Tap a word to look it
+  up** turns the tap off. **Look up** in the selection toolbar opens the
+  card for one to three selected words, also when you select with a
+  keyboard or a screen reader.
 - **Unsure sentences** (on-device engine). Sentences the offline engine is
   unsure about get a dotted underline (tap or point at one: **The on-device
   engine is unsure about this sentence**), and a note under the
@@ -615,8 +641,14 @@ don't matter (`cafe` finds *café*), and an inflected form finds its lemma
 AI provider for its fuller entry; a word the dictionaries don't have goes to
 the AI provider as before. Without one, the tab suggests similar words of
 the dictionaries, or says how to get a dictionary for the word's language.
+**Import from files** on the Dictionaries screen installs packs you
+downloaded by hand (`<language>.mzd`, from the links of the [pack
+catalogue](dictionary-packs.md)), on Android and in the web app: matched by
+name (or, renamed, by size and checksum) and checked like a download,
+without any request.
 The panel under a short translation shows the dictionaries' definitions
-when the engine returned none. Details: [Offline dictionary
+when the engine returned none, and so does the word card of a word you tap
+in a translation ([Tap a word](#translate)). Details: [Offline dictionary
 packs](dictionary-packs.md).
 
 A link such as `/dictionary?word=gato&from=es&to=en` opens the Dictionary tab
@@ -717,7 +749,8 @@ order:
 
 The method you choose is remembered for next time. A photo you took just as
 Android closed the app to free memory for the camera opens on the image
-screen when you come back.
+screen when you come back. To translate as you point the camera, without
+taking a photo first, use the [live camera](#live-camera).
 
 Before a photo is uploaded (AI vision, Mozhi) it is re-encoded without its
 metadata and scaled down to at most 1600 px on its longest side and about
@@ -727,6 +760,64 @@ front of the instance turns the upload down as too large, a smaller copy
 (about 900 KB) is sent once more. Language codes are mapped to Google's own
 (`zh-CN`, `zh-TW`, `iw`, ...), and a language Google does not offer is
 reported before anything is uploaded.
+
+## Live camera
+
+Point the camera at text and see it translated over the camera picture as
+you go, like a camera translator, on the phone (Android). **Live camera**
+is on the image screen (and in its toolbar while a photo is shown):
+
+- **The camera permission** is asked the first time you open it, by
+  Android's own dialog. When you refused it for good (**Don't ask again**),
+  **Open settings** takes you to Mozhi's page in Android's settings, and
+  coming back checks again.
+- **On-device reading.** The back camera's picture is read by the same
+  on-device text recognition as photos (Tesseract, see
+  [Text recognition](text-recognition.md)), in the language at the top
+  left; **Detect language** reads with the languages you installed (up to
+  three, your recent ones first). Missing language data is offered for
+  download or import, as on the image screen, and **Choose the language of
+  the text** is always at hand.
+- **Steady translations.** Each paragraph is followed from one frame to the
+  next, so its box holds still while the camera moves a little, and it is
+  translated once: only new or changed text is translated again (a reading
+  that differs by a letter or two is taken for the same text), and text
+  seen before is translated from memory. New paragraphs of a frame go to
+  the engine in one request. The translations are drawn like the photo
+  overlay: each paragraph's area is filled with the colour around it and the
+  translation fitted in, right to left for Arabic or Hebrew; text still
+  being read shows as a thin outline.
+- **Translate live with** (the chip under the languages) chooses the engine
+  of the live features (also [Live captions](#live-captions)): the offline
+  engine by default, an on-device AI model, or any other engine you set up.
+  An engine that sends text off the phone asks once first, saying it will
+  get the text of everything live translation reads, as it comes in; your
+  privacy mode and consent prompts still apply on top (**Once** there
+  covers the paragraphs waiting at that moment; it ends when the camera
+  closes or the engine or languages change).
+- **Gentle on the phone.** One frame is read at a time (the next is taken
+  once the last one is done, at most about three a second), less often
+  while the phone is hot or saving battery. The camera stops while Mozhi is
+  in the background, while the app lock is locked and while the phone is
+  critically hot, and goes on by itself afterwards.
+- **Flashlight, zoom, Freeze.** The flashlight button lights the text up;
+  the zoom button steps through 1×, 2×, 4× and back (as far as the camera
+  goes), or pinch the picture. **Freeze** takes a photo and opens it on the
+  image screen, translated with on-device text recognition, with the full
+  photo overlay: zoom, tap a paragraph for both texts, share or save the
+  image. **Close** goes back to the image screen.
+- **Accessible.** Every button has a label and a 48 dp target. Screen
+  readers find each translation where it is drawn, with the original as
+  hint. The status line under the picture is a live region that speaks only
+  when the status changes (paused, slower, the engine), never for every
+  frame.
+- **Private.** The camera picture never leaves the phone and is never
+  stored: frames are read in memory and dropped. Only the recognised text
+  goes to the live engine. A link (`mozhi://image/live`) opens the image
+  screen, never the camera. See [Privacy](privacy.md#screen-keyboard-and-clipboard).
+
+Live camera needs the Android app (it uses Android's own Camera2 interface,
+no Google code); the web app doesn't offer it.
 
 ## Voice
 
@@ -751,8 +842,14 @@ reported before anything is uploaded.
   into two halves, the far one upside down, and covers the tabs; back
   returns to the tab. With Whisper and its speech detector, each phrase is
   transcribed while the person goes on speaking, so the translation follows
-  sooner after they stop; Whisper still tells which of the two languages
-  was spoken. The menu's **Transcribe a talk** opens [Transcribe](#transcribe).
+  sooner after they stop, and a turn ends at a real pause (0.8 s of
+  silence by default) instead of after 3 seconds. **Detect the speaker**
+  (on by default) lets whoever speaks take the turn: the side whose
+  language Whisper hears translates next; off, the person whose turn it is
+  speaks and Whisper listens in their language only. Both are in the
+  menu's **Voice options**, with the pause (0.5 to 2 s; longer lets people
+  think mid-sentence). With the system recogniser the turns work as before
+  (it ends them itself). The menu's **Transcribe a talk** opens [Transcribe](#transcribe).
   On Android, the menu's **Share on this network** lets everyone else
   follow on their own phone, in their own language
   ([Shared conversation](#shared-conversation)).
@@ -858,6 +955,64 @@ paragraph per phrase with its time (`1:05`), as a rolling transcript.
   **Save to History** saves the transcript as one entry, only when you ask
   (as a favourite while history is paused). Nothing is saved otherwise:
   the transcript is gone when you leave the screen.
+- **Caption other apps** (the closed-caption button, Android 10 and
+  later) opens [Live captions](#live-captions): the same on-device
+  transcription for the sound other apps play.
+
+## Live captions
+
+Translated captions of what your phone plays: a video, a podcast, a call
+in an app that allows it. Open **Transcribe > Caption other apps**
+(Android 10 and later) and tap **Start captions**.
+
+- **What is captured.** Only the sound other apps play (media, games and
+  other sound; Android never lets apps capture phone calls or the sound of
+  apps that opt out, and many streaming and calling apps do), never the
+  screen. Android asks every time whether Mozhi may capture (it calls this
+  "recording or casting"); the first time Mozhi also asks for the
+  microphone permission, which Android requires for capturing other apps'
+  sound (the microphone itself is not used), and, on Android 13 and
+  later, for notifications.
+- **On the phone.** Whisper (the speech model of
+  [Voice input](voice-input.md); without one, the screen offers to
+  download it) writes each phrase down on the phone as soon as there is a
+  pause (with the speech detector) or at most every 8 seconds, so the
+  captions keep up with speech and music that never pause. **Sound:
+  Detect language** lets Whisper tell the language phrase by phrase (the
+  screen shows what it heard), or pick it. A phrase already in the
+  captions' language is shown as it is.
+- **Translation** uses the live engine (**Translate live with**, the
+  engine chip; the same choice as the live camera): the offline engine
+  unless you picked another, and a network engine asks once before it
+  gets the text of everything the captions hear. One phrase at a time, in
+  order; when phrases come faster than they translate, older ones are
+  skipped so the captions stay current.
+- **The caption bar** floats over the app you watch: the translation in
+  large text, the original smaller below it (**Show the original on the
+  caption bar** turns it off), **Open** (back to Mozhi) and **Stop**. Drag
+  it up or down; it remembers where. It follows the system font size,
+  never takes the keyboard from the app below, and hides while Mozhi is
+  on screen and while the phone is locked. It needs **Display over other
+  apps**, which Mozhi explains and opens before the first start; without
+  it, the captions show on Mozhi's screen only. A notification with
+  **Stop** shows while captions run.
+- **In Mozhi** the captions are a transcript (time, original,
+  translation; side by side from 840 dp), with Copy, Share, **Save as
+  text (.txt)**, **Save as subtitles (.srt)** and **Save to History** in
+  the menu, only when you ask. Nothing is kept otherwise: the transcript
+  goes when you leave the screen.
+- **When nothing is heard** for 20 seconds, the screen and the bar say
+  that the app playing may not allow capturing its sound (or nothing
+  plays). Captions pause while the phone is locked (the recording stops:
+  nothing is captured) and, on-device work being heavy, while the phone is
+  hot; they go on by themselves afterwards (if the recording can't start
+  again after the lock, the captions end). They keep running while you use other apps, and
+  stop with **Stop** (in Mozhi, on the bar or in the notification), when
+  you leave the captions screen, or when Android ends the capture (the
+  status bar's cast or record icon). Screen readers hear when captions
+  start, stop and pause, not every caption.
+- See [Privacy](privacy.md#on-your-device) and
+  [Security](security.md#live-captions-android). Not in the web app.
 
 ## Documents
 
@@ -885,6 +1040,7 @@ result. Supported formats:
 | Excel workbooks | `.xlsx` | Text cells (plain and rich text, each distinct text translated once); numbers, dates, formulas, sheet names and charts' data |
 | OpenDocument text, presentations, spreadsheets | `.odt`, `.odp`, `.ods` | Headings, paragraphs, lists, tables, spans, links, notes, frames, headers and footers; spreadsheet cells with numbers, dates or formulas |
 | EPUB e-books | `.epub` | Every chapter in reading order, the table of contents and the title; inline markup, links, images, code, scripts, styles and `pre` blocks |
+| PDF documents (Android) | `.pdf` | Every page as it looks, with the translation written over the original text as real text; pages without text as they are (see [PDF documents](#pdf-documents)) |
 
 Documents are split into parts that are translated a couple at a time, with
 progress shown as they finish; failed parts are retried.
@@ -930,6 +1086,51 @@ they are translated with the engine and privacy mode you choose.
   prompts, and document properties other than the e-book's title. In a
   spreadsheet, formulas that compare cells with a text (`=IF(A1="Yes";…)`)
   may need the translated word.
+
+### PDF documents
+
+On Android, PDFs are translated page by page on the phone: each page is
+drawn (with Android's own PDF renderer), its text is read with on-device
+text recognition (the same Tesseract data as photos: the source language's,
+or for **Detect language** the languages you use most), its paragraphs are
+translated with the engine you chose, like any document, and the
+translation is written back where the original text was.
+
+- **Open:** pick a `.pdf` or share one to Mozhi. A file that is a PDF is
+  read as one whatever its name says. The page count is shown, and the
+  first page is read right away so you see what was recognised; the other
+  pages are read when you translate. If the source language's recognition
+  data is missing, the page offers to download it (or import it from files)
+  and never downloads it by itself.
+- **Progress** goes page by page ("Page 3 of 12: reading the text…", then
+  "translating…"); **Cancel** keeps the pages that are done. A page that
+  can't be read or translated is listed with a retry; the rest go on.
+  On-device AI pauses while the phone is hot or saving battery, as for other
+  documents.
+- **Save file** / **Share file** give `<name>.<target>.pdf`: every page is
+  the original page as a picture, each translated paragraph's area is
+  covered in the colour around it, and the translation is drawn there as
+  real text in the colour of the original text, aligned like it and written
+  in the target language's direction. It can be selected, searched, copied
+  and read aloud. Translations that are longer than the original are drawn
+  smaller, down to 6 pt; one that does not fit even then runs on below its
+  box rather than becoming unreadable. Pages without text, and paragraphs
+  that were not translated, are kept as they are.
+- **Save the text** saves the translation as plain text, page by page
+  (`<name>.<target>.txt`); **Copy text** copies it.
+- **Limits:** PDFs up to 25 MB and 200 pages; pages are read at up to
+  300 dpi and 8 megapixels. Password-protected PDFs aren't opened (remove
+  the password first, for example by printing to a new PDF), nor damaged
+  ones; a PDF with no text that can be recognised says so.
+- **What to expect:** the original's own text becomes part of the page
+  picture (Android can't edit PDFs in place), so the translated file is
+  usually larger than the original, and in long documents the pages are
+  stored at a lower resolution (150 dpi for short ones, less from about 15
+  pages on) so that the whole file can be written on the phone. Text in a
+  photo or a drawing is read and translated like any other text; very
+  unsure readings (patterns, textures) are left as they are.
+- **The web app** lists PDFs as needing the Android app: they can't be read
+  in a browser.
 
 ### Localisation files and web pages
 
@@ -1004,7 +1205,8 @@ with its line endings, byte order mark, indentation and comments.
   as such values. In the other columns every cell with words is
   translated; formulas (`=SUM(A1:A3)`) stay as they are. A translation
   that a spreadsheet would read as a formula (one that starts with `=`,
-  `+`, `-`, `@`, a tab or a carriage return) gets a `'` in front, so that
+  `+`, `-`, `@`, their full-width forms `＝＋－＠`, a tab or a carriage
+  return) gets a `'` in front, so that
   it shows as text and can't run anything (see
   [Security](security.md#localisation-files-and-web-pages)); cells whose
   original starts that way already are left alone. To fill a language
@@ -1071,7 +1273,27 @@ site (they stay after a reload and are removed with the site's data). It
 needs a recent browser (Chrome or Edge 102, Firefox 125, Safari 16.4 or
 later), `https` (or `localhost`) and the site's storage (Firefox's private
 windows have none); the Offline languages screen says what is missing. It is slower than on Android (about 120 to 150 words a
-second on a desktop computer) and **Import from files** isn't available.
+second on a desktop computer). **Import from files** works there too: tap a
+language for the links of its files, download them (in the browser or on
+another device), then pick them under **Import from files**; they are read
+in the browser, checked against the bundled checksums like downloads (by
+name, or renamed by size and checksum, published or decompressed) and kept
+in its private storage, without any request.
+
+### The web app with no network
+
+Once you have opened the web app, it opens again with no network at all:
+with **Settings > General > Keep the web app for offline use** on (the
+default; web app only), the browser keeps the app's own files (about 35 MB,
+plus the fonts of the scripts you see), and with offline languages
+downloaded or imported it also translates offline. The switch says where
+the copy is (**Saving the app in this browser…**, **Opens in this browser
+without a network**, or that the browser can't keep it: that needs `https`
+or `localhost`). When the server has a new version, the app keeps it in the
+background and says **Update ready** with **Reload**; the settings offer
+**Reload** too, and otherwise the new version starts the next time every tab
+of the app was closed. Turning the switch off removes the copy. Hosting it
+needs two headers ([Serve the web app](self-hosting-mozhi.md#serve-the-web-app)).
 
 ## On-device AI
 
@@ -1204,7 +1426,8 @@ Collections of phrases, on the device and offline (details in
   collection you used comes first, collections that have the phrase are
   ticked, and **New collection** makes one on the spot.
 - **Each phrase**: **Listen to the phrase** and **to the translation** (a
-  long press reads slowly), **Copy translation**, **Show full screen**,
+  long press reads slowly; the word being read is
+  [highlighted](#text-to-speech)), **Copy translation**, **Show full screen**,
   and in its menu **Copy phrase**, **Share**, a **note**, **Copy to** or
   **Move to collection…** and **Remove** (with **Undo**). Search, a
   language pair filter and **Newest first** / **A to Z** sorting.
@@ -1404,7 +1627,8 @@ and **Data** (details in [Privacy](privacy.md)):
 - **Hide personal data from online engines** (on by default): e-mail
   addresses, phone numbers, IBANs, card numbers and IP addresses are
   replaced before text goes online and put back into the translation; the
-  result says how many items stayed on the device.
+  result says how many items stayed on the device (also for the text of a
+  photo and for documents, under their translation).
 - **Network activity**: every request of this session, grouped by
   destination, with its purpose and size and never its text. Kept in
   memory only.
@@ -1457,6 +1681,17 @@ it again (**Stop**) to stop.
 - With a screen reader, the **Listen slowly** action of the button
   (TalkBack also offers it as the button's long press).
 
+**Follow along.** While a device voice reads a translation, or a phrase of
+the [phrasebook](#phrasebook), the word it is reading is highlighted. It
+moves from word to word without animation (also with reduced motion on),
+and screen readers hear nothing extra. It needs a voice that tells where it
+is: Android 8.0 and later, and browsers that report word boundaries for
+their voices; Mozhi voices and voices that don't report it show no
+highlight. In Chinese, Japanese or Thai a browser may highlight up to the
+next punctuation mark. While part of the text is selected the highlight
+holds still. **Settings > Appearance > Highlight the word being read**
+turns it off.
+
 The sound comes from one of two places:
 
 - **Device voices** (first): the text-to-speech voices of your phone,
@@ -1467,7 +1702,9 @@ The sound comes from one of two places:
   …**, a voice on the device is preferred, and before an online voice
   reads for the first time Mozhi asks (your answer is kept per voice;
   **Allowed online voices > Forget** asks again). In **Offline only** they
-  never read. See [Online voices](privacy.md#online-voices).
+  never read. See [Online voices](privacy.md#online-voices). A text longer
+  than 3,900 characters (Android's voices take at most 4,000 at once) is
+  read in parts, cut at sentence ends.
 - **Mozhi voices**: only for a language the device has no voice for, your
   Mozhi instance fetches the audio from Google (with Reverso as a fallback).
   Mozhi receives the text in the request address, which can end up in its
@@ -1670,12 +1907,12 @@ field, then eight categories, each on a page of its own:
 
 | Category | What it holds |
 | --- | --- |
-| **General** | App language, tab order, haptic feedback, multiline input; **Android integration**: [Translate screen](#android-integration) (with **Add the Quick Settings tile** on Android 13+) and the **Translate bubble** |
+| **General** | App language, tab order, haptic feedback, multiline input, **Keep the web app for offline use** (web app); **Android integration**: [Translate screen](#android-integration) (with **Add the Quick Settings tile** on Android 13+) and the **Translate bubble** |
 | **Privacy & data** | **Privacy** (privacy mode, incognito, screenshot blocking, [app lock](#privacy-controls), hiding personal data), **History** (saving, automatic deletion, export and import, the phrasebook, recent language pairs), **Network** (approved pairs and cloud providers, HTTP proxy, network activity) and **Data** (**Clear history** and **Delete all local data**, last and in red) |
 | **Backup & sync** | **Encrypted backup** ([**Back up now**](#backup-and-restore) with the date of the last backup, **Restore from a backup**), then sync and phone to phone |
 | **Translation engines** | Offline languages, on-device AI, Mozhi instances, translation services (DeepL API, LibreTranslate), quality modes, **Remember quality selection** and **Instant translate** |
 | **AI** (marked **Advanced**) | On-device AI, AI providers, the AI assistant for insights, presets, glossaries, usage & costs |
-| **Appearance** | Theme, dynamic color, dark theme, romanization, accent color |
+| **Appearance** | Theme, dynamic color, dark theme, romanization, **Tap a word to look it up**, **Highlight the word being read**, accent color |
 | **Read aloud & voice** | Read aloud and voice input |
 | **About** | Version, privacy, source code, the Mozhi project, open-source licenses and **Run setup again** |
 
@@ -1726,10 +1963,13 @@ unprotected.**).
 | Mozhi engines, AI providers, Proofread, history | ✓ | ✓ |
 | Text selection menu and share target | ✓ | |
 | `mozhi://` links | ✓ | |
-| Offline translation | ✓ | ✓ (models in the browser's private storage) |
+| Offline translation | ✓ | ✓ (models in the browser's private storage; **Import from files** too) |
+| Opens with no network (after a first visit) | ✓ | ✓ (**Keep the web app for offline use**) |
 | On-device AI | ✓ (64-bit phones with enough memory) | |
 | On-device text recognition | ✓ (Tesseract; ML Kit in the Play variant) | |
+| Live camera (translation over the camera picture) | ✓ (a camera; Camera2) | |
 | Office documents, e-books, localisation files and HTML | ✓ | ✓ (large files can pause the page while they are read) |
+| PDF documents (pages read on the device, translated PDF and text) | ✓ | — (listed as needing the Android app) |
 | Translate screen, floating bubble | ✓ | |
 | App lock | ✓ (with a screen lock set) | |
 | Privacy screen, sensitive clipboard, HTTP proxy | ✓ | |

@@ -1,7 +1,8 @@
 import 'dart:async';
 
 import 'package:bloc/bloc.dart';
-import 'package:mozhi/core/network/network.dart' show isCleartextAllowed;
+import 'package:mozhi/core/network/network.dart'
+    show isCleartextAllowed, mozhiEngineOf;
 import 'package:mozhi/onboarding/cubit/onboarding_state.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi_api/mozhi_api.dart';
@@ -173,10 +174,25 @@ class OnboardingCubit extends Cubit<OnboardingState> {
 
   // Translation service
 
-  /// Pings every configured instance concurrently (each bounded by the ping
-  /// timeout), reporting results as they arrive. When all finished, the
-  /// fastest instance (unless the user picked one) becomes preferred and,
-  /// with [OnboardingState.sortBySpeed], the list is sorted by latency.
+  /// The Mozhi engine instances are tested with while the app's engine is
+  /// [engineId]: its Mozhi engine (`mozhi:deepl` -> `deepl`), else
+  /// [defaultPingEngine], the app's default
+  /// ([TranslationRepository.pingInstance]).
+  static String pingEngineOf(String? engineId) =>
+      mozhiEngineOf(engineId) ?? defaultPingEngine;
+
+  /// [pingEngineOf] when no Mozhi engine is chosen.
+  static const defaultPingEngine = 'google';
+
+  String get _pingEngine => pingEngineOf(_settings.state.engineId);
+
+  /// Tests every configured instance concurrently (each bounded by the ping
+  /// timeout) by translating a fixed word with [pingEngineOf] (never any of
+  /// the user's text), reporting results as they arrive: a server that
+  /// answers but doesn't translate is [PingStatus.noTranslation], not
+  /// fast. When all finished, the fastest instance (unless the user picked
+  /// one) becomes preferred and, with [OnboardingState.sortBySpeed], the
+  /// list is sorted by latency.
   Future<void> findFastestInstance() async {
     if (state.serviceStatus == ServiceStatus.pinging) return;
     final instances = _settings.state.instances;
@@ -191,7 +207,8 @@ class OnboardingCubit extends Cubit<OnboardingState> {
         },
       ),
     );
-    await Future.wait([for (final i in instances) _ping(i, run)]);
+    final engine = _pingEngine;
+    await Future.wait([for (final i in instances) _ping(i, engine, run)]);
     if (isClosed || run != _pingRun) return;
     if (!_userChoseInstance) {
       final fastest = state.fastestUrl;
@@ -201,15 +218,17 @@ class OnboardingCubit extends Cubit<OnboardingState> {
     _applyOrder();
   }
 
-  Future<void> _ping(MozhiInstance instance, int run) async {
+  Future<void> _ping(MozhiInstance instance, String engine, int run) async {
     InstancePing result;
     try {
       final latency = await _repository
-          .pingInstance(instance)
+          .pingInstance(instance, engine: engine)
           .timeout(_pingTimeout);
       result = InstancePing.success(latency);
     } on TimeoutException {
       result = const InstancePing.timedOut();
+    } on InstanceDoesNotTranslateException catch (error) {
+      result = InstancePing.noTranslation(_describe(error));
     } on Object catch (error) {
       result = InstancePing.failure(_describe(error));
     }
@@ -282,8 +301,12 @@ class OnboardingCubit extends Cubit<OnboardingState> {
     );
   }
 
-  /// Validates [input] with `MozhiApiClient.normalizeBaseUrl`, pings it and
-  /// on success adds it (unless already configured) and prefers it.
+  /// Validates [input] with `MozhiApiClient.normalizeBaseUrl`, tests it
+  /// like [findFastestInstance] and on success adds it (unless already
+  /// configured) and prefers it. A server that doesn't offer the tested
+  /// engine ([pingEngineOf]) at all is added too (the app then uses an
+  /// engine it offers); one whose engine fails is refused with
+  /// [OwnInstanceError.noTranslation].
   ///
   /// A plain `http://` address outside this device and the local network
   /// is refused with [OwnInstanceError.insecure] ([isCleartextAllowed]): the
@@ -318,9 +341,7 @@ class OnboardingCubit extends Cubit<OnboardingState> {
         .firstOrNull;
     final instance = existing ?? MozhiInstance(url: url);
     try {
-      final latency = await _repository
-          .pingInstance(instance)
-          .timeout(_pingTimeout);
+      final latency = await _pingOwn(instance);
       if (isClosed || run != _ownRun) return;
       if (existing == null) _settings.addInstance(instance);
       _userChoseInstance = true;
@@ -336,9 +357,27 @@ class OnboardingCubit extends Cubit<OnboardingState> {
     } on TimeoutException {
       if (isClosed || run != _ownRun) return;
       _ownFailed(OwnInstanceError.timedOut);
+    } on InstanceDoesNotTranslateException catch (error) {
+      if (isClosed || run != _ownRun) return;
+      _ownFailed(OwnInstanceError.noTranslation, _describe(error));
     } on Object catch (error) {
       if (isClosed || run != _ownRun) return;
       _ownFailed(OwnInstanceError.unreachable, _describe(error));
+    }
+  }
+
+  /// The latency of [instance] translating the test word with
+  /// [pingEngineOf]; that of its answer when it is a Mozhi server without
+  /// that engine (`InstanceDoesNotTranslateException.engineUnavailable`).
+  Future<Duration> _pingOwn(MozhiInstance instance) async {
+    final stopwatch = Stopwatch()..start();
+    try {
+      return await _repository
+          .pingInstance(instance, engine: _pingEngine)
+          .timeout(_pingTimeout);
+    } on InstanceDoesNotTranslateException catch (error) {
+      if (error.engineUnavailable) return stopwatch.elapsed;
+      rethrow;
     }
   }
 

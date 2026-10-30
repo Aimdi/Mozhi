@@ -31,6 +31,12 @@ typedef ReadablePageExtractor = Future<ReadablePage> Function(
 /// block. Progress is emitted per batch; [cancel] stops loading or
 /// translating (keeping what is translated) and [resume] continues.
 ///
+/// A translation the privacy settings stopped continues once the user
+/// allowed it ([consentGranted]); what a one-time approval did not use
+/// (the page needed fewer requests, or the run was stopped or replaced)
+/// is withdrawn (`TranslationRepository.revokeOnce`) when that run ends,
+/// so it can't let anything else through.
+///
 /// With "Detect language" ([Language.auto]) and an engine that needs a
 /// source language (the offline engine, translation-specialised AI
 /// models), the language of the page is identified once on the device
@@ -209,14 +215,37 @@ class WebTranslateCubit extends Cubit<WebTranslateState> {
 
   /// Continues a stopped or failed translation with the same selection,
   /// translating only what is still missing.
-  Future<void> resume() async {
+  Future<void> resume() => _resume();
+
+  /// The user allowed what the privacy settings stopped (the consent
+  /// prompt recorded a one-time approval of what is left of the page, or
+  /// the pair or provider for good): continues like [resume]. What a
+  /// one-time approval did not use is withdrawn when that run ends.
+  Future<void> consentGranted() {
+    final consent = state.error;
+    return _resume(grant: consent is ConsentRequiredException ? consent : null);
+  }
+
+  Future<void> _resume({ConsentRequiredException? grant}) async {
     final selection = state.selection;
-    if (!state.hasPage || selection == null || state.isBusy) return;
+    if (!state.hasPage || selection == null || state.isBusy) {
+      if (grant != null) _revoke(grant);
+      return;
+    }
     _cancelJob();
     emit(
       state.copyWith(status: WebTranslateStatus.translating, error: () => null),
     );
-    await _run(selection);
+    await _run(selection, grant: grant);
+  }
+
+  /// Withdraws what [consent] let through once and was not used.
+  void _revoke(ConsentRequiredException consent) {
+    try {
+      _repository.revokeOnce(consent);
+    } on Object {
+      // Withdrawing must never break page translation.
+    }
   }
 
   /// Stops loading (back to idle) or translating (keeping the blocks
@@ -248,13 +277,41 @@ class WebTranslateCubit extends Cubit<WebTranslateState> {
   }
 
   void _cancelJob() {
-    _job?.cancel();
+    final job = _job;
     _job = null;
+    if (job == null) return;
+    job.cancel();
+    _endJob(job);
   }
 
-  Future<void> _run(WebTranslateSelection selection) async {
+  /// Withdraws what the user allowed once for [job] (it is over).
+  void _endJob(_TranslationJob job) {
+    final grant = job.grant;
+    job.grant = null;
+    if (grant != null) _revoke(grant);
+  }
+
+  /// Translates what is missing of the page with [selection]; [grant] is
+  /// the consent the user gave for it, withdrawn when it ends.
+  Future<void> _run(
+    WebTranslateSelection selection, {
+    ConsentRequiredException? grant,
+  }) async {
+    final job = _job = _TranslationJob()
+      ..detectedSource = state.detectedSource
+      ..grant = grant;
+    try {
+      await _runJob(job, selection);
+    } finally {
+      _endJob(job);
+    }
+  }
+
+  Future<void> _runJob(
+    _TranslationJob job,
+    WebTranslateSelection selection,
+  ) async {
     final page = state.page!;
-    final job = _job = _TranslationJob()..detectedSource = state.detectedSource;
     final items = <TranslationItem>[
       if (state.translatedTitle == null && page.title.trim().isNotEmpty)
         TranslationItem(_titleId, page.title),
@@ -529,6 +586,10 @@ class _Undetectable implements Exception {
 /// The in-flight requests of one translation run.
 class _TranslationJob {
   bool cancelled = false;
+
+  /// The consent the user gave for this run ([WebTranslateCubit
+  /// .consentGranted]), withdrawn when it ends.
+  ConsentRequiredException? grant;
 
   /// The source language every request of the run uses (identified for the
   /// whole page), or null for the selection's.

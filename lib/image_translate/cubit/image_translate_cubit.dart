@@ -694,6 +694,7 @@ class ImageTranslateCubit extends Cubit<ImageTranslateState> {
               translatedText: translation.text,
               detectedSource: translation.detectedSource,
               destination: translation.destination,
+              maskedPersonalData: translation.maskedPersonalData,
             );
             emit(state.copyWith(result: () => current));
           },

@@ -314,14 +314,15 @@ void main() {
         manifest,
         'uses-permission',
       ).map((tag) => tag['name']).toSet();
-      // No CAMERA: image_picker hands the photo to the camera app, which
-      // needs no permission unless the manifest declares CAMERA (then the
-      // capture fails until it is granted). No storage or media
-      // permissions: the system photo and file pickers need none.
+      // No storage or media permissions: the system photo and file pickers
+      // need none.
       expect(permissions, {
         'android.permission.INTERNET',
         'android.permission.ACCESS_NETWORK_STATE',
         'android.permission.RECORD_AUDIO',
+        // Live camera (Camera2, asked when the live view opens); with it
+        // declared, image_picker asks for it before the camera app opens.
+        'android.permission.CAMERA',
         // App lock: the system's biometric prompt (a normal permission).
         'android.permission.USE_BIOMETRIC',
         // Translate screen: the one-shot screenshot (a mediaProjection
@@ -338,6 +339,18 @@ void main() {
         'uses-feature',
       ).singleWhere((tag) => tag['name'] == 'android.hardware.microphone');
       expect(microphone['required'], 'false');
+      // CAMERA alone would make app stores require a camera.
+      final features = {
+        for (final tag in _tags(manifest, 'uses-feature'))
+          tag['name']: tag['required'],
+      };
+      for (final camera in [
+        'android.hardware.camera.any',
+        'android.hardware.camera',
+        'android.hardware.camera.autofocus',
+      ]) {
+        expect(features[camera], 'false', reason: camera);
+      }
     });
 
     test('keeps the data on the device and refuses platform cleartext', () {

@@ -143,6 +143,7 @@ const OPERATIONS = {
   downloadOpen,
   downloadWrite,
   downloadClose,
+  fingerprint,
   install,
   commit,
   remove,
@@ -742,12 +743,39 @@ async function sha256(bytes) {
 }
 
 /**
+ * The size and SHA-256 of a file written with downloadOpen/downloadWrite
+ * (an imported file: the app matches it to a catalog file by them).
+ */
+async function fingerprint({ path }) {
+  await downloadClose({ path });
+  const bytes = new Uint8Array(await (await (await fileHandle(path, false)).getFile()).arrayBuffer());
+  return { size: bytes.length, sha256: await sha256(bytes) };
+}
+
+/**
  * Verifies a finished download (size and SHA-256 of the gzip file), then
  * decompresses it into `target` and verifies that too. A mismatch deletes
- * the download. The download is deleted once installed.
+ * the download. The download is deleted once installed. With `compressed:
+ * false` (an imported file that was decompressed already) the file is
+ * verified as the decompressed one and written as it is.
  */
-async function install({ part, target, size, sha256: expected, uncompressedSize, uncompressedSha256 }) {
+async function install({ part, target, size, sha256: expected, uncompressedSize, uncompressedSha256, compressed: gzipped = true }) {
   await downloadClose({ path: part });
+  if (gzipped === false) {
+    const plain = new Uint8Array(await (await (await fileHandle(part, false)).getFile()).arrayBuffer());
+    const digest = await sha256(plain);
+    if (plain.length !== uncompressedSize || digest !== uncompressedSha256) {
+      await removePath(part);
+      throw failure(
+        'checksum',
+        `${target}: got ${plain.length} bytes with SHA-256 ${digest}, ` +
+          `expected ${uncompressedSize} bytes with SHA-256 ${uncompressedSha256}`,
+      );
+    }
+    await writeFile(target, plain);
+    await removePath(part);
+    return { size: plain.length };
+  }
   const compressed = new Uint8Array(await (await (await fileHandle(part, false)).getFile()).arrayBuffer());
   const digest = await sha256(compressed);
   if (compressed.length !== size || digest !== expected) {

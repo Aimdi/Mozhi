@@ -1,7 +1,10 @@
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:mozhi/image_translate/data/text_recognition_service.dart';
 import 'package:mozhi/image_translate/models/models.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 // Play variant only (tool/play_prepare.sh copies it to
@@ -15,18 +18,45 @@ typedef TextRecognizerFactory = TextRecognizer Function(
   TextRecognitionScript script,
 );
 
+/// Writes [bytes] (an encoded image) to a new private temporary file and
+/// returns its path (overridable for tests).
+typedef TemporaryImageWriter = Future<String> Function(Uint8List bytes);
+
 /// [TextRecognitionService] backed by Google ML Kit (Android and iOS only).
+///
+/// ML Kit reads files: an image without a path (a screenshot, a still of
+/// the live camera) is written to the app's private cache for the reading
+/// and deleted right after. It goes into the screenshots' folder
+/// (`<cache>/screen_translate`), which the app empties when it starts
+/// (`ScreenCaptures.sweepLeftovers`), so a copy left by a process that died
+/// while reading is deleted too.
 class MlKitTextRecognitionService implements TextRecognitionService {
   new({
     TextRecognizerFactory? recognizerFactory,
+    TemporaryImageWriter? temporaryImageWriter,
     this._platform,
     this._isWeb = kIsWeb,
-  }) : _factory = recognizerFactory ?? _defaultFactory;
+  }) : _factory = recognizerFactory ?? _defaultFactory,
+       _writeTemporary = temporaryImageWriter ?? _defaultTemporaryImageWriter;
 
   static TextRecognizer _defaultFactory(TextRecognitionScript script) =>
       TextRecognizer(script: script);
 
+  // coverage:ignore-start
+  static Future<String> _defaultTemporaryImageWriter(Uint8List bytes) async {
+    final cache = await getTemporaryDirectory();
+    final folder = Directory('${cache.path}/screen_translate');
+    await folder.create(recursive: true);
+    final file = File(
+      '${folder.path}/mlkit_${DateTime.now().microsecondsSinceEpoch}.img',
+    );
+    await file.writeAsBytes(bytes, flush: true);
+    return file.path;
+  }
+  // coverage:ignore-end
+
   final TextRecognizerFactory _factory;
+  final TemporaryImageWriter _writeTemporary;
   final TargetPlatform? _platform;
   final bool _isWeb;
 
@@ -42,10 +72,19 @@ class MlKitTextRecognitionService implements TextRecognitionService {
     PickedImage image, {
     required Language source,
   }) async {
-    final path = image.path;
-    if (!isSupported || path == null) {
+    if (!isSupported) {
       throw const ImageTranslateException(
         ImageTranslateErrorKind.recognitionFailed,
+      );
+    }
+    String? temporary;
+    final String path;
+    try {
+      path = image.path ?? (temporary = await _writeTemporary(image.bytes));
+    } on Object catch (error) {
+      throw ImageTranslateException(
+        ImageTranslateErrorKind.recognitionFailed,
+        cause: error,
       );
     }
     final recognizer = _factory(scriptFor(source));
@@ -65,6 +104,15 @@ class MlKitTextRecognitionService implements TextRecognitionService {
       } on Object {
         // Closing is best effort.
       }
+      if (temporary != null) await _delete(temporary);
+    }
+  }
+
+  static Future<void> _delete(String path) async {
+    try {
+      await File(path).delete();
+    } on Object {
+      // Already gone; the next start sweeps the folder otherwise.
     }
   }
 

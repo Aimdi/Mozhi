@@ -356,6 +356,99 @@ void main() {
       await cubit.close();
     });
 
+    group('a one-time consent', () {
+      const consent = ConsentRequiredException(
+        kind: ConsentKind.pair,
+        destination: PublicInstanceDestination('mozhi.example'),
+        engineId: 'mozhi:google',
+        source: 'auto',
+        target: 'es',
+      );
+
+      /// A cubit whose translation the privacy settings stopped; once
+      /// allowed, [answer] translates.
+      Future<(WebTranslateCubit, FakeTranslationRepository)> stopped({
+        Stream<TranslationResult> Function(
+          TranslationEngine engine,
+          TranslationRequest request,
+        )?
+        answer,
+      }) async {
+        final repository = FakeTranslationRepository(
+          (engine, request) => Stream.error(consent),
+        );
+        final cubit = buildCubit(repository: repository, concurrency: 1);
+        addTearDown(cubit.close);
+        await cubit.load(selection: googleToSpanish);
+        expect(cubit.state.error, consent);
+        repository.translator = answer ?? upperCaseTranslator;
+        return (cubit, repository);
+      }
+
+      test('is withdrawn when the page is done', () async {
+        final (cubit, repository) = await stopped();
+        await cubit.consentGranted();
+        expect(cubit.state.status, WebTranslateStatus.translated);
+        expect(repository.revoked, [consent]);
+      });
+
+      test('is withdrawn when the translation stops', () async {
+        final gate = Completer<void>();
+        final (cubit, repository) = await stopped(
+          answer: (engine, request) async* {
+            await gate.future;
+            yield result(request.text.toUpperCase());
+          },
+        );
+        final run = cubit.consentGranted();
+        await pumpEventQueue();
+        expect(cubit.state.status, WebTranslateStatus.translating);
+        expect(repository.revoked, isEmpty);
+        await cubit.cancel();
+        expect(repository.revoked, [consent]);
+        gate.complete();
+        await run;
+        // Only once.
+        expect(repository.revoked, [consent]);
+      });
+
+      test('is withdrawn when the screen closes', () async {
+        final (cubit, repository) = await stopped(
+          answer: (engine, request) =>
+              StreamController<TranslationResult>().stream,
+        );
+        unawaited(cubit.consentGranted());
+        await pumpEventQueue();
+        await cubit.close();
+        expect(repository.revoked, [consent]);
+      });
+
+      test('is withdrawn at once when there is nothing to go on', () async {
+        final repository = _OfflineOnlyRepository();
+        final cubit = buildCubit(repository: repository);
+        addTearDown(cubit.close);
+        await cubit.load(selection: googleToSpanish);
+        final refusal = cubit.state.error! as ConsentRequiredException;
+        await cubit.consentGranted();
+        expect(repository.revoked, [refusal]);
+        expect(repository.requests, isEmpty);
+      });
+
+      test('withdrawing never breaks the translation', () async {
+        final (cubit, repository) = await stopped();
+        repository.revokeError = StateError('x');
+        await cubit.consentGranted();
+        expect(cubit.state.status, WebTranslateStatus.translated);
+      });
+
+      test('a plain resume withdraws nothing', () async {
+        final (cubit, repository) = await stopped();
+        await cubit.resume();
+        expect(cubit.state.status, WebTranslateStatus.translated);
+        expect(repository.revoked, isEmpty);
+      });
+    });
+
     test('cancel while loading returns to idle and ignores the page', () async {
       final response = Completer<http.Response>();
       final cubit = buildCubit(client: MockClient((_) => response.future));

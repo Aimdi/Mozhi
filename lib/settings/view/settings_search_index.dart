@@ -76,6 +76,13 @@ List<SettingsSearchEntry> settingsSearchIndex(
       l10n.settingsMultilineInput,
       subtitle: l10n.settingsMultilineInputSubtitle,
     ),
+    if (GeneralSettings.offlineAppShellSupported)
+      entry(
+        general,
+        GeneralAnchors.offlineAppShell,
+        l10n.settingsOfflineAppShell,
+        keywords: [l10n.settingsOfflineAppShellKeywords],
+      ),
     // Android integration (ScreenTranslateSettingsSection).
     entry(
       general,
@@ -382,6 +389,18 @@ List<SettingsSearchEntry> settingsSearchIndex(
       AppearanceAnchors.transliteration,
       l10n.settingsShowTransliteration,
       subtitle: l10n.settingsShowTransliterationSubtitle,
+    ),
+    entry(
+      appearance,
+      AppearanceAnchors.tapToLookUp,
+      l10n.settingsTapToLookUp,
+      subtitle: l10n.settingsTapToLookUpSubtitle,
+    ),
+    entry(
+      appearance,
+      AppearanceAnchors.highlightSpokenWord,
+      l10n.settingsHighlightSpokenWord,
+      subtitle: l10n.settingsHighlightSpokenWordSubtitle,
     ),
     if (!dynamicColor || !settings.dynamicColor)
       entry(

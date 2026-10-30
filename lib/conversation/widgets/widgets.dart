@@ -12,4 +12,5 @@ export 'conversation_session_status.dart';
 export 'conversation_transcript_list.dart';
 export 'conversation_turn_bubble.dart';
 export 'conversation_voice_mic.dart';
+export 'conversation_voice_options.dart';
 export 'side_colors.dart';

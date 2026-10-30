@@ -1,8 +1,11 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show immutable;
+
 import 'package:http/http.dart' as http;
 import 'package:mozhi/dictionary/data/dictionary_pack_storage.dart';
+import 'package:mozhi/offline/data/picked_import_file.dart';
 import 'package:mozhi/platform/free_space.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -214,6 +217,108 @@ class DictionaryPacks implements OfflineDictionary {
       _installed = null;
     }
     _changes.add(null);
+  }
+
+  /// Installs packs of [catalog] from files the user picked (downloaded by
+  /// hand from [DictionaryPackInfo.url]), without any network request:
+  /// on Android and in the browser alike.
+  ///
+  /// A file is matched to a pack by its name ([DictionaryPackInfo.fileName],
+  /// ignoring case), or, renamed, by its size and then its SHA-256 (the
+  /// first pack of that size it is). It is installed like a download, with
+  /// the same checks ([installFrom]: the catalogue's size and SHA-256, else
+  /// nothing is installed). A pack already installed in that version is not
+  /// read again; a file of the wrong size is reported damaged without being
+  /// read. Problems with a file never throw: they are in the report.
+  Future<DictionaryImportReport> importFiles(
+    List<PickedImportFile> files,
+  ) async {
+    final byName = {
+      for (final pack in catalog.packs) pack.fileName.toLowerCase(): pack,
+    };
+    final bySize = <int, List<DictionaryPackInfo>>{};
+    for (final pack in catalog.packs) {
+      (bySize[pack.size] ??= []).add(pack);
+    }
+    final outcomes = <String, DictionaryImportedPack>{};
+    final unmatched = <String>[];
+    void report(
+      DictionaryPackInfo pack,
+      DictionaryImportStatus status, [
+      Object? error,
+    ]) {
+      final known = outcomes[pack.id]?.status;
+      // A pack installed (or found installed) stays so for this import.
+      if (known == DictionaryImportStatus.installed ||
+          known == DictionaryImportStatus.alreadyInstalled) {
+        return;
+      }
+      outcomes[pack.id] = DictionaryImportedPack(
+        pack: pack,
+        status: status,
+        error: error,
+      );
+    }
+
+    Future<DictionaryImportStatus> install(
+      DictionaryPackInfo pack,
+      PickedImportFile file,
+    ) async {
+      if ((await installedPack(pack.id))?.sha256 == pack.sha256) {
+        return DictionaryImportStatus.alreadyInstalled;
+      }
+      await installFrom(pack, file.openRead());
+      return DictionaryImportStatus.installed;
+    }
+
+    for (final file in files) {
+      final name = file.name.split(RegExp(r'[/\\]')).last.toLowerCase();
+      if (byName[name] case final pack?) {
+        final known = outcomes[pack.id]?.status;
+        if (known == DictionaryImportStatus.installed ||
+            known == DictionaryImportStatus.alreadyInstalled) {
+          continue;
+        }
+        if (file.length case final length? when length != pack.size) {
+          if ((await installedPack(pack.id))?.sha256 == pack.sha256) {
+            report(pack, DictionaryImportStatus.alreadyInstalled);
+          } else {
+            report(pack, DictionaryImportStatus.damaged);
+          }
+          continue;
+        }
+        try {
+          report(pack, await install(pack, file));
+        } on DictionaryPackChecksumException catch (error) {
+          report(pack, DictionaryImportStatus.damaged, error);
+        } on Object catch (error) {
+          report(pack, DictionaryImportStatus.failed, error);
+        }
+        continue;
+      }
+      // A renamed copy: a pack of its size whose checks it passes.
+      var matched = false;
+      for (final pack in bySize[file.length] ?? const <DictionaryPackInfo>[]) {
+        try {
+          report(pack, await install(pack, file));
+          matched = true;
+          break;
+        } on DictionaryPackChecksumException {
+          // Not this pack.
+        } on Object catch (error) {
+          report(pack, DictionaryImportStatus.failed, error);
+          matched = true;
+          break;
+        }
+      }
+      if (!matched) unmatched.add(file.name);
+    }
+    final packs = outcomes.values.toList()
+      ..sort((a, b) => a.pack.id.compareTo(b.pack.id));
+    return DictionaryImportReport(
+      packs: List.unmodifiable(packs),
+      unmatchedFiles: List.unmodifiable(unmatched),
+    );
   }
 
   @override
@@ -455,4 +560,61 @@ class DictionaryPacks implements OfflineDictionary {
       ),
     );
   }
+}
+
+/// What [DictionaryPacks.importFiles] did with a pack.
+enum DictionaryImportStatus {
+  /// Installed from the file.
+  installed,
+
+  /// This version was installed already.
+  alreadyInstalled,
+
+  /// The file named like the pack did not match its size or SHA-256
+  /// (damaged, incomplete or another version); nothing was installed.
+  damaged,
+
+  /// The file was fine but could not be installed (no room, no storage).
+  failed,
+}
+
+/// One pack an import found a file for.
+@immutable
+final class DictionaryImportedPack {
+  const new({required this.pack, required this.status, this.error});
+
+  final DictionaryPackInfo pack;
+  final DictionaryImportStatus status;
+
+  /// Why it was not installed, when known.
+  final Object? error;
+
+  @override
+  bool operator ==(Object other) =>
+      other is DictionaryImportedPack &&
+      other.pack.id == pack.id &&
+      other.status == status &&
+      other.error == error;
+
+  @override
+  int get hashCode => Object.hash(pack.id, status, error);
+
+  @override
+  String toString() => 'DictionaryImportedPack(${pack.id}, ${status.name})';
+}
+
+/// The result of [DictionaryPacks.importFiles].
+@immutable
+final class DictionaryImportReport {
+  const new({this.packs = const [], this.unmatchedFiles = const []});
+
+  /// One entry per pack a file belongs to, sorted by id.
+  final List<DictionaryImportedPack> packs;
+
+  /// Names of the files that belong to no pack.
+  final List<String> unmatchedFiles;
+
+  /// Whether a pack was installed.
+  bool get installedAny =>
+      packs.any((pack) => pack.status == DictionaryImportStatus.installed);
 }

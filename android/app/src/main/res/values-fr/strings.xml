@@ -39,4 +39,12 @@
     <string name="bubble_remove_action">Retirer la bulle</string>
     <string name="bubble_remove_target">Retirer</string>
     <string name="bubble_clipboard_empty">Le presse-papiers est vide</string>
+    <string name="live_captions_channel">Sous-titres en direct</string>
+    <string name="live_captions_channel_description">Affiché pendant que Mozhi sous-titre le son des autres applis</string>
+    <string name="live_captions_notification_title">Les sous-titres en direct sont activés</string>
+    <string name="live_captions_notification_text">Mozhi sous-titre le son que lisent les autres applis. Rien n\'est enregistré ni conservé.</string>
+    <string name="live_captions_stop">Arrêter</string>
+    <string name="live_captions_stop_description">Arrêter les sous-titres en direct</string>
+    <string name="live_captions_open_description">Ouvrir Mozhi</string>
+    <string name="live_captions_bar_description">Sous-titres en direct</string>
 </resources>

@@ -523,7 +523,9 @@ void main() {
       // The background check's (stale) answer: ignored.
       platform.pendingSessions.first.complete(platform.current);
       await pumpEventQueue();
-      expect(lock.isLocked, isFalse);
+      expect(lock.status, AppLockStatus.unlocked);
+      // Nothing starts until the return's own check answered.
+      expect(lock.isLocked, isTrue);
 
       // The return's own check decides.
       platform.pendingSessions.last.complete(platform.current);
@@ -574,7 +576,7 @@ void main() {
         ..comeBack();
 
       lock.noteForeground();
-      expect(lock.isLocked, isFalse);
+      expect(lock.status, AppLockStatus.unlocked);
       await pumpEventQueue();
 
       expect(lock.isLocked, isFalse);
@@ -590,10 +592,13 @@ void main() {
         ..comeBack();
 
       lock.noteForeground();
-      expect(lock.isLocked, isFalse);
+      // Not locked yet (no lock screen), but nothing may start meanwhile.
+      expect(lock.status, AppLockStatus.unlocked);
+      expect(lock.isLocked, isTrue);
       await pumpEventQueue();
 
       expect(lock.isLocked, isTrue);
+      expect(lock.status, AppLockStatus.locked);
     });
 
     test('stays unlocked within the timeout', () async {
@@ -630,6 +635,193 @@ void main() {
 
       expect(platform.pendingSessions, hasLength(1));
       expect(lock.status, AppLockStatus.checking);
+    });
+  });
+
+  group('a return being checked', () {
+    /// A lock that is unlocked and in the background; its next check
+    /// waits for the test to answer it.
+    Future<(AppLockController, List<bool>, List<AppLockStatus>)> away() async {
+      final lock = await unlocked();
+      final changes = <bool>[];
+      final statuses = <AppLockStatus>[];
+      lock.changes.listen(changes.add);
+      lock.statusChanges.listen(statuses.add);
+      lock.noteBackground();
+      platform.holdSessions = true;
+      return (lock, changes, statuses);
+    }
+
+    test('holds back what would start until the platform said', () async {
+      final (lock, changes, statuses) = await away();
+      // The phone slept: this clock says nothing passed.
+      lock.noteForeground();
+      expect(lock.isLocked, isTrue);
+      expect(lock.status, AppLockStatus.unlocked, reason: 'no lock screen');
+      await pumpEventQueue();
+      expect(changes, [true]);
+
+      platform.pendingSessions.single.complete(platform.current);
+      await pumpEventQueue();
+      expect(lock.isLocked, isFalse);
+      expect(changes, [true, false]);
+      expect(statuses, isEmpty, reason: 'the lock gate never changed');
+    });
+
+    test('locks when the platform says the phone slept too long', () async {
+      final (lock, changes, statuses) = await away();
+      lock.noteForeground();
+      platform
+        ..leave(const Duration(minutes: 3))
+        ..comeBack();
+      platform.pendingSessions.single.complete(platform.current);
+      await pumpEventQueue();
+      expect(lock.isLocked, isTrue);
+      // Locked from the return on: never unlocked in between.
+      expect(changes, [true]);
+      expect(statuses, [AppLockStatus.locked]);
+    });
+
+    test('stays unlocked when the platform cannot tell', () async {
+      final (lock, changes, _) = await away();
+      platform
+        ..holdSessions = false
+        ..sessionError = PlatformException(code: 'x');
+      lock.noteForeground();
+      await pumpEventQueue();
+      expect(lock.isLocked, isFalse);
+      expect(changes, [true, false]);
+    });
+
+    test('a second return goes on with the same check', () async {
+      final (lock, changes, _) = await away();
+      lock
+        ..noteForeground()
+        ..noteBackground()
+        ..noteForeground();
+      expect(platform.pendingSessions, hasLength(2));
+      // The first return's answer is stale.
+      platform.pendingSessions.first.complete(platform.current);
+      await pumpEventQueue();
+      expect(lock.isLocked, isTrue);
+      platform.pendingSessions.last.complete(platform.current);
+      await pumpEventQueue();
+      expect(lock.isLocked, isFalse);
+      expect(changes, [true, false]);
+    });
+
+    test('a check of the background overtaking it settles it', () async {
+      final (lock, changes, _) = await away();
+      lock
+        ..noteForeground()
+        ..noteBackground();
+      timers.fire();
+      expect(platform.pendingSessions, hasLength(2));
+      // The return's answer comes after the background check started.
+      platform.pendingSessions.first.complete(platform.current);
+      await pumpEventQueue();
+      expect(lock.isLocked, isFalse);
+      expect(changes, [true, false]);
+      platform.pendingSessions.last.complete(platform.current);
+      await pumpEventQueue();
+      expect(lock.isLocked, isFalse);
+    });
+
+    test('unlock waits for its answer rather than prompting', () async {
+      final (lock, _, _) = await away();
+      lock.noteForeground();
+      final unlocking = lock.unlock();
+      await pumpEventQueue();
+      expect(platform.prompts, isEmpty);
+      platform.pendingSessions.single.complete(platform.current);
+      expect(await unlocking, isTrue);
+      expect(platform.prompts, isEmpty);
+    });
+
+    test('unlock prompts when its answer locks', () async {
+      final (lock, _, _) = await away();
+      lock.noteForeground();
+      final unlocking = lock.unlock();
+      platform
+        ..leave(const Duration(minutes: 3))
+        ..comeBack();
+      platform.pendingSessions.single.complete(platform.current);
+      expect(await unlocking, isTrue);
+      expect(platform.prompts, hasLength(1));
+    });
+
+    test('untilUnlocked waits for its answer', () async {
+      final (lock, _, _) = await away();
+      lock.noteForeground();
+      var unlocked = false;
+      unawaited(lock.untilUnlocked().then((_) => unlocked = true));
+      await pumpEventQueue();
+      expect(unlocked, isFalse);
+      platform.pendingSessions.single.complete(platform.current);
+      await pumpEventQueue();
+      expect(unlocked, isTrue);
+    });
+
+    test('turning the lock off settles it', () async {
+      final (lock, changes, _) = await away();
+      lock
+        ..noteForeground()
+        ..configure(AppLockTimeout.off);
+      expect(lock.isLocked, isFalse);
+      await pumpEventQueue();
+      expect(changes, [true, false]);
+      platform.pendingSessions.single.complete(platform.current);
+      await pumpEventQueue();
+      expect(changes, [true, false]);
+    });
+
+    test('a prompt passed meanwhile settles it', () async {
+      final (lock, _, _) = await away();
+      lock.noteForeground();
+      expect(await lock.confirm(), isTrue);
+      expect(lock.isLocked, isFalse);
+      platform
+        ..leave(const Duration(minutes: 3))
+        ..comeBack();
+      platform.pendingSessions.single.complete(platform.current);
+      await pumpEventQueue();
+      // The user just passed the prompt: the stale answer is ignored.
+      expect(lock.isLocked, isFalse);
+    });
+
+    test('dispose ends it', () async {
+      final (lock, _, _) = await away();
+      lock.noteForeground();
+      final unlocking = lock.unlock();
+      await lock.dispose();
+      expect(await unlocking, isFalse);
+      platform.pendingSessions.single.complete(platform.current);
+      await pumpEventQueue();
+    });
+
+    test('the lock off checks no return at all', () async {
+      final lock = create(timeout: AppLockTimeout.off);
+      final changes = <bool>[];
+      lock.changes.listen(changes.add);
+      lock
+        ..noteBackground()
+        ..noteForeground();
+      expect(lock.isLocked, isFalse);
+      await pumpEventQueue();
+      expect(changes, isEmpty);
+    });
+
+    test('a locked app is checked as before', () async {
+      final lock = create();
+      await pumpEventQueue();
+      final changes = <bool>[];
+      lock.changes.listen(changes.add);
+      platform.holdSessions = true;
+      lock.noteForeground();
+      expect(lock.isLocked, isTrue);
+      platform.pendingSessions.single.complete(platform.current);
+      await pumpEventQueue();
+      expect(changes, isEmpty);
     });
   });
 

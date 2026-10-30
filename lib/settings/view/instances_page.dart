@@ -236,8 +236,11 @@ class _InstancesViewState extends State<InstancesView> {
       case _InstanceAction.test:
         showDialog<void>(
           context: context,
-          builder: (_) =>
-              InstanceTestDialog(checker: widget.checker, instance: instance),
+          builder: (_) => InstanceTestDialog(
+            checker: widget.checker,
+            instance: instance,
+            engine: mozhiEngineOf(cubit.state.engineId),
+          ),
         );
       case _InstanceAction.edit:
         unawaited(_edit(index, instance));
@@ -908,11 +911,19 @@ class _CatalogTile extends StatelessWidget {
 
 /// Runs [MozhiInstanceChecker.test] for [instance] when shown and reports
 /// the translation of `hello`, the engine and the latency, or the error.
+/// [engine] is the Mozhi engine the app uses (tested when the instance
+/// offers it).
 class InstanceTestDialog extends StatefulWidget {
-  const new({required this.checker, required this.instance, super.key});
+  const new({
+    required this.checker,
+    required this.instance,
+    this.engine,
+    super.key,
+  });
 
   final MozhiInstanceChecker checker;
   final MozhiInstance instance;
+  final String? engine;
 
   @override
   State<InstanceTestDialog> createState() => _InstanceTestDialogState();
@@ -930,7 +941,10 @@ class _InstanceTestDialogState extends State<InstanceTestDialog> {
 
   Future<void> _run() async {
     try {
-      final result = await widget.checker.test(widget.instance.url);
+      final result = await widget.checker.test(
+        widget.instance.url,
+        engine: widget.engine,
+      );
       if (mounted) setState(() => _result = result);
     } on Object catch (error) {
       if (mounted) setState(() => _error = error);

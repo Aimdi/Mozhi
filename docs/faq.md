@@ -258,9 +258,11 @@ player can change the speed. See [Text-to-speech](features.md#text-to-speech).
 ### Why does it say it couldn't reach the Mozhi instance?
 
 Every instance in your list failed. Public instances go down or get rate
-limited from time to time: open **Settings > Translation engines > Mozhi
-instances** to see which ones respond, reorder them, or **Reset to public
-list** to restore the built-in list. For your own instance, see
+limited from time to time, and some answer but can't reach Google for a
+while: open **Settings > Translation engines > Mozhi instances** to see
+which ones respond (**Test** in an instance's menu translates a word with
+it), reorder them, or **Reset to public list** to restore the built-in
+list. For your own instance, see
 [Troubleshooting](self-hosting-mozhi.md#troubleshooting).
 
 ### Why does Reverso (or DeepL) fail?

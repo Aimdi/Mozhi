@@ -3542,9 +3542,67 @@ class TranslationRepository {
     return match.code;
   }
 
-  /// Latency of `/api/version` on [instance]; throws on failure.
-  Future<Duration> pingInstance(MozhiInstance instance) =>
-      _mozhi.withClient(instance, (client) => client.ping());
+  /// The word [pingInstance] translates, and from and to which language.
+  static const pingText = 'Hello';
+  static const pingSource = 'en';
+  static const pingTarget = 'fr';
+
+  /// How long [instance] takes to translate the fixed word [pingText] from
+  /// English to French ([pingSource], [pingTarget]) with its Mozhi [engine]
+  /// (`google` by default, the engine the app uses unless the user picked
+  /// another): one `POST /api/translate`. Only that word is sent, never any
+  /// of the user's text, so like the other connection tests (see
+  /// [updatePrivacy]) it is not restricted by the privacy settings.
+  ///
+  /// A server that answers but doesn't translate fails too, unlike with
+  /// `GET /api/version` (a server whose Google engine fails answers that
+  /// just as fast): throws an [InstanceDoesNotTranslateException] when the
+  /// instance answered with an HTTP 5xx error or without a translation of
+  /// the word (blank, or the word itself), and the [MozhiApiException]
+  /// otherwise (network errors, the client's timeout, other HTTP statuses,
+  /// an answer that is not Mozhi's JSON, such as a bot wall's page).
+  Future<Duration> pingInstance(
+    MozhiInstance instance, {
+    String engine = 'google',
+  }) async {
+    final Duration latency;
+    final MozhiTranslation translation;
+    try {
+      (latency, translation) = await _mozhi.withClient(instance, (
+        client,
+      ) async {
+        final stopwatch = Stopwatch()..start();
+        final result = await client.translate(
+          engine: engine,
+          from: pingSource,
+          to: pingTarget,
+          text: pingText,
+        );
+        return (stopwatch.elapsed, result);
+      });
+    } on MozhiApiException catch (error, stackTrace) {
+      if (error.statusCode case final status? when status >= 500) {
+        Error.throwWithStackTrace(
+          InstanceDoesNotTranslateException(
+            error.message,
+            engine: engine,
+            statusCode: status,
+            uri: error.uri,
+          ),
+          stackTrace,
+        );
+      }
+      rethrow;
+    }
+    final text = translation.translatedText.trim();
+    if (text.isEmpty || text.toLowerCase() == pingText.toLowerCase()) {
+      throw InstanceDoesNotTranslateException(
+        '$engine returned no translation',
+        engine: engine,
+      );
+    }
+    return latency;
+  }
 
   /// Loads the model of a local AI [engine] (Ollama, LM Studio, llama.cpp:
   /// [TranslationEngine.isLocal] or a local provider, and models on this
@@ -3825,29 +3883,83 @@ class _Shield {
       yield* deltas;
       return;
     }
-    final pending = StringBuffer();
+    // The text held back (a token's start, as parts: a long run of spaces
+    // after it may come one delta at a time) and how its end reads.
+    final held = <String>[];
+    final tail = _TokenTail();
     await for (final delta in deltas) {
-      pending.write(delta);
-      final text = pending.toString();
-      final hold = _partialTokenStart(text);
-      pending
-        ..clear()
-        ..write(text.substring(hold));
-      if (hold > 0) yield tokens.restore(text.substring(0, hold)).text;
+      // Only the new text is read, never the held text again (linear
+      // time).
+      final hold = tail.read(delta);
+      if (hold == null) {
+        held.add(delta);
+        continue;
+      }
+      final ready = [...held, delta.substring(0, hold)].join();
+      held.clear();
+      if (hold < delta.length) held.add(delta.substring(hold));
+      if (ready.isNotEmpty) yield tokens.restore(ready).text;
     }
-    if (pending.isNotEmpty) yield tokens.restore(pending.toString()).text;
+    final rest = held.join();
+    if (rest.isNotEmpty) yield tokens.restore(rest).text;
+  }
+}
+
+/// The end of a streamed reply as [_Shield.restoreDeltas] reads it: whether
+/// it ends with the start of a token (`TextMasker.bracketToken`: `⟨` or
+/// `〈`, spaces, at most `TextMasker.maxTokenDigits` digits, spaces) that
+/// a later delta may complete. Only the last opening bracket can start
+/// one (the brackets, digits and spaces of a token's start contain no
+/// other bracket), so each delta is read once, character by character.
+class _TokenTail {
+  /// Where the text after the last opening bracket is: not a token's
+  /// start, spaces after the bracket, digits, or spaces after the digits.
+  _TailState _state = _TailState.none;
+  int _digits = 0;
+
+  /// Reads [delta] (the next part of the text): the index in it where a
+  /// token's start begins that must be held back with what follows
+  /// ([delta]'s length when nothing is held), or null when the held text
+  /// before [delta] still starts one, which then goes on to its end.
+  int? read(String delta) {
+    int? start;
+    for (var i = 0; i < delta.length; i++) {
+      final unit = delta.codeUnitAt(i);
+      if (unit == 0x27E8 || unit == 0x3008) {
+        start = i;
+        _state = _TailState.afterBracket;
+        _digits = 0;
+        continue;
+      }
+      _state = switch (_state) {
+        _TailState.none => _TailState.none,
+        _TailState.afterBracket when _isSpace(unit) => _TailState.afterBracket,
+        _TailState.afterBracket || _TailState.digits when _isDigit(unit) =>
+          ++_digits <= TextMasker.maxTokenDigits
+              ? _TailState.digits
+              : _TailState.none,
+        _TailState.digits ||
+        _TailState.afterDigits when _isSpace(unit) => _TailState.afterDigits,
+        _ => _TailState.none,
+      };
+    }
+    if (_state == _TailState.none) return delta.length;
+    return start;
   }
 
-  /// The start of a token (`TextMasker.bracketToken`, at most
-  /// `TextMasker.maxTokenDigits` digits) at the end of a delta. The spaces
-  /// after the digits only follow digits (linear time).
-  static final _partialToken = RegExp(r'[⟨〈]\s*(?:\d{1,6}\s*)?$');
+  static bool _isDigit(int unit) => unit >= 0x30 && unit <= 0x39;
 
-  /// Where a token that the next delta may complete starts at the end of
-  /// [text] (its length when there is none).
-  static int _partialTokenStart(String text) =>
-      _partialToken.firstMatch(text)?.start ?? text.length;
+  /// Whether [unit] is `\s` of a Dart regular expression (Unicode
+  /// spaces and line terminators).
+  static bool _isSpace(int unit) => switch (unit) {
+    0x09 || 0x0A || 0x0B || 0x0C || 0x0D || 0x20 || 0xA0 || 0x1680 => true,
+    >= 0x2000 && <= 0x200A => true,
+    0x2028 || 0x2029 || 0x202F || 0x205F || 0x3000 || 0xFEFF => true,
+    _ => false,
+  };
 }
+
+enum _TailState { none, afterBracket, digits, afterDigits }
 
 /// Sends one (masked) part of a non-AI translation: [masked] when it has
 /// tokens, [original] the part before masking.

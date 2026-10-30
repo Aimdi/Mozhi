@@ -450,6 +450,8 @@ void main() {
         await tester.pumpAndSettle();
         verify(() => repository.allowOnce(consent)).called(1);
         expect(find.text('Translation complete'), findsOneWidget);
+        // What the run did not use lets nothing else through.
+        verify(() => repository.revokeOnce(consent)).called(1);
       });
 
       testWidgets('after Cancel, the parts wait for an inline answer', (
@@ -471,6 +473,7 @@ void main() {
         );
         await tester.pumpAndSettle();
         expect(find.text('Translation complete'), findsOneWidget);
+        verify(() => repository.revokeOnce(consent)).called(1);
       });
     });
 

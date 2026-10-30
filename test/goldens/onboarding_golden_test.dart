@@ -18,7 +18,7 @@ void main() {
       testWidgets('privacy and languages steps on a phone '
           '(${brightness.name})', (tester) async {
         final repository = MockTranslationRepository();
-        when(() => repository.pingInstance(any()))
+        when(() => repository.pingInstance(any(), engine: any(named: 'engine')))
             .thenAnswer((_) async => const Duration(milliseconds: 100));
         final settings = createSettings();
         addTearDown(settings.close);

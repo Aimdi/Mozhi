@@ -10,12 +10,21 @@ import 'package:mozhi/speech/device_tts.dart';
 import 'package:mozhi/speech/speech_chunker.dart';
 import 'package:mozhi/speech/speech_language.dart';
 import 'package:mozhi/speech/speech_settings.dart';
+import 'package:mozhi/speech/spoken_range.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 export 'audio_output.dart';
 export 'device_tts.dart';
 export 'speech_language.dart';
 export 'speech_settings.dart';
+export 'spoken_range.dart';
+
+/// Longest part of a text the device's speech engine is given at once, in
+/// UTF-16 code units: below Android's limit
+/// (`TextToSpeech.getMaxSpeechInputLength()`, 4,000), which rejects longer
+/// texts. Longer texts are read in parts ([speechChunks]), one after
+/// another.
+const maxDeviceSpeechChunkLength = 3900;
 
 /// Thrown by [SpeechService.toggle] when no backend can read the text aloud:
 /// the device has no voice for [languageCode] (or its voice failed, or is
@@ -98,6 +107,25 @@ class _MozhiPlayback {
   bool get hasNext => index + 1 < chunks.length;
 }
 
+/// One read-aloud by the device engine: the text in [chunks] (one, unless
+/// the text is longer than the engine takes at once), spoken one after
+/// another.
+class _DevicePlayback {
+  new({required this.generation, required this.chunks});
+
+  final int generation;
+
+  /// The parts, with their offsets in the text given to the service.
+  final List<SpeechChunk> chunks;
+
+  /// Index of the chunk being spoken.
+  int index = 0;
+
+  bool get hasNext => index + 1 < chunks.length;
+
+  SpeechChunk get current => chunks[index];
+}
+
 /// Reads text aloud.
 ///
 /// Strategy (privacy first): the device engine ([DeviceTts]) reads the text
@@ -149,6 +177,15 @@ class _MozhiPlayback {
 /// moment [toggle] is called (including while the clips are being fetched)
 /// until the last one completes, is stopped, or fails.
 ///
+/// [spokenRanges] tells which word of the text is being read, when the
+/// device engine reports its progress ([DeviceTtsProgress]: Android 8.0+
+/// and browsers that send `boundary` events): offsets into the text given
+/// to [toggle] or [speak], also across the parts of a long text (the
+/// device engine reads at most [maxDeviceSpeechChunkLength] code units at
+/// once, `deviceChunkLength` in tests). Mozhi clips and engines without
+/// progress report no range; null follows whenever reading starts,
+/// stops, ends or fails.
+///
 /// `output` defaults to [AudioPlayersOutput] and `deviceTts` to
 /// [FlutterTtsDeviceTts]; the service owns both and disposes them in
 /// [dispose]. `store` persists [preferDeviceVoice] under [preferDeviceKey]
@@ -162,6 +199,7 @@ class SpeechService {
     DeviceTts? deviceTts,
     this._store,
     bool Function(String languageCode)? mozhiSupportsLanguage,
+    this._deviceChunkLength = maxDeviceSpeechChunkLength,
   }) : _output = output ?? AudioPlayersOutput(),
        _device = deviceTts ?? FlutterTtsDeviceTts(),
        _mozhiSupports = mozhiSupportsLanguage ?? isSpeakableLanguageCode {
@@ -171,6 +209,9 @@ class SpeechService {
     _deviceCompletions = _device.onComplete.listen(
       (_) => _onComplete(_Backend.device),
     );
+    if (_device case final DeviceTtsProgress progress) {
+      _deviceProgress = progress.onProgress.listen(_onDeviceProgress);
+    }
   }
 
   /// Number of clips (chunks) kept in the in-memory LRU cache.
@@ -226,7 +267,16 @@ class SpeechService {
   final DeviceTts _device;
   final KeyValueStore? _store;
   final bool Function(String languageCode) _mozhiSupports;
+  final int _deviceChunkLength;
   final StreamController<String?> _speaking = StreamController.broadcast();
+  final StreamController<SpokenRange?> _ranges = StreamController.broadcast();
+  StreamSubscription<SpokenRange>? _deviceProgress;
+
+  /// The latest range reported on [spokenRanges].
+  SpokenRange? _range;
+
+  /// The latest read-aloud of the device engine.
+  _DevicePlayback? _devicePlayback;
   final LinkedHashMap<String, Uint8List> _cache = LinkedHashMap();
   late final StreamSubscription<void> _completions;
   late final StreamSubscription<void> _deviceCompletions;
@@ -262,6 +312,12 @@ class SpeechService {
   /// Broadcast stream of the speaking id (null = idle); emits on change.
   Stream<String?> get speaking => _speaking.stream;
   String? get current => _current;
+
+  /// Broadcast stream of the part of the [current] clip's text being read
+  /// (offsets into the text given to [toggle] or [speak]), as the device
+  /// engine reports it; null when reading starts, stops, ends or fails.
+  /// Never emits for Mozhi clips and engines that report no progress.
+  Stream<SpokenRange?> get spokenRanges => _ranges.stream;
 
   /// Whether this platform has a device speech engine (hide the
   /// "use device voice" setting when false).
@@ -474,6 +530,7 @@ class SpeechService {
     final generation = ++_generation;
     _playing = null;
     _playingBackend = null;
+    _setRange(null);
     _setCurrent(id);
     try {
       if (previous != null) await _stopOutputs();
@@ -506,6 +563,7 @@ class SpeechService {
             _Backend.device => await _speakOnDevice(
               trimmed,
               languageCode,
+              offset: text.length - text.trimLeft().length,
               slow: slow,
               generation: generation,
               voice: voice,
@@ -640,12 +698,15 @@ class SpeechService {
     return tag;
   }
 
-  /// Speaks [text] on the device with [voice] (null: the default voice).
+  /// Speaks [text] on the device with [voice] (null: the default voice),
+  /// in parts of at most [_deviceChunkLength] code units ([offset]: where
+  /// [text] starts in the text given to the service, for [spokenRanges]).
   /// An online voice reads only when allowed ([_allowVoice]; previews
   /// whenever the privacy mode allows the network).
   Future<_Outcome> _speakOnDevice(
     String text,
     String languageCode, {
+    required int offset,
     required bool slow,
     required int generation,
     required DeviceVoice? voice,
@@ -662,12 +723,19 @@ class SpeechService {
     await _device.setSpeechRate(slow: slow, rate: settings.rate);
     if (generation != _generation) return _Outcome.superseded;
     _deviceOwner = generation;
+    final playback = _devicePlayback = _DevicePlayback(
+      generation: generation,
+      chunks: [
+        for (final chunk in speechChunks(text, maxLength: _deviceChunkLength))
+          SpeechChunk(chunk.start + offset, chunk.text),
+      ],
+    );
     // Utterances can end before speak() returns; interrupted ones never
     // emit, so any completion from now on belongs to this request.
     _playing = generation;
     _playingBackend = _Backend.device;
     try {
-      await _device.speak(text);
+      await _device.speak(playback.current.text);
     } on Object {
       if (_playing == generation) {
         _playing = null;
@@ -708,6 +776,41 @@ class SpeechService {
     }
   }
 
+  /// Called when [playback]'s current part has been read: reads the next
+  /// one. When the engine rejects it, the service becomes idle.
+  Future<void> _speakNextDeviceChunk(_DevicePlayback playback) async {
+    final generation = playback.generation;
+    playback.index++;
+    try {
+      await _device.speak(playback.current.text);
+    } on Object {
+      if (generation != _generation) return;
+      _playing = null;
+      _playingBackend = null;
+      _setCurrent(null);
+      return;
+    }
+    if (generation != _generation && _deviceOwner == generation) {
+      await _device.stop();
+    }
+  }
+
+  /// The device engine reads [range] of its current part.
+  void _onDeviceProgress(SpokenRange range) {
+    final playback = _devicePlayback;
+    if (playback == null ||
+        playback.generation != _generation ||
+        _playing != playback.generation ||
+        _playingBackend != _Backend.device) {
+      return;
+    }
+    final chunk = playback.current;
+    if (range.isEmpty || range.start < 0 || range.end > chunk.text.length) {
+      return;
+    }
+    _setRange(range.shift(chunk.start));
+  }
+
   Future<void> stop() async {
     _generation++;
     _playing = null;
@@ -731,6 +834,7 @@ class SpeechService {
     _last = null;
     _lastConsent = null;
     _mozhi = null;
+    _devicePlayback = null;
     _settings = null;
     _settingsLoad = null;
     _preferDevice = null;
@@ -747,7 +851,9 @@ class SpeechService {
     _current = null;
     await _completions.cancel();
     await _deviceCompletions.cancel();
+    await _deviceProgress?.cancel();
     await _speaking.close();
+    await _ranges.close();
     await _output.dispose();
     await _device.dispose();
   }
@@ -790,6 +896,10 @@ class SpeechService {
         unawaited(_playNextChunk(playback));
         return;
       }
+    } else if (_devicePlayback case final playback?
+        when playback.generation == _playing && playback.hasNext) {
+      unawaited(_speakNextDeviceChunk(playback));
+      return;
     }
     _playing = null;
     _playingBackend = null;
@@ -797,8 +907,15 @@ class SpeechService {
   }
 
   void _setCurrent(String? id) {
+    if (id == null) _setRange(null);
     if (_current == id) return;
     _current = id;
     if (!_speaking.isClosed) _speaking.add(id);
+  }
+
+  void _setRange(SpokenRange? range) {
+    if (_range == range) return;
+    _range = range;
+    if (!_ranges.isClosed) _ranges.add(range);
   }
 }

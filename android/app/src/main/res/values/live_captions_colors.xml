@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The caption bar of live captions (LiveCaptionService): white text on
+         a dark translucent panel, like broadcast captions, the same in light
+         and dark mode so it reads over any app. The original is a softer
+         grey (still above 7:1 on the panel). -->
+    <color name="live_captions_background">#E6121212</color>
+    <color name="live_captions_border">#33FFFFFF</color>
+    <color name="live_captions_text">#FFFFFFFF</color>
+    <color name="live_captions_original">#FFD0D0D0</color>
+    <color name="live_captions_ripple">#40FFFFFF</color>
+    <color name="live_captions_glyph">#FFFFFFFF</color>
+</resources>

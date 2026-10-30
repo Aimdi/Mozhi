@@ -3,6 +3,15 @@ import 'dart:async';
 import 'package:equatable/equatable.dart';
 import 'package:mozhi_api/mozhi_api.dart';
 
+/// The Mozhi engine of the app's engine id [engineId] (`mozhi:deepl` ->
+/// `deepl`), or null when it is not a Mozhi engine (or none is chosen).
+String? mozhiEngineOf(String? engineId) {
+  const prefix = 'mozhi:';
+  if (engineId == null || !engineId.startsWith(prefix)) return null;
+  final engine = engineId.substring(prefix.length);
+  return engine.isEmpty ? null : engine;
+}
+
 /// Creates a client for the Mozhi instance at [baseUrl] whose requests
 /// give up after [timeout].
 typedef MozhiCheckClientFactory = MozhiApiClient Function(
@@ -80,9 +89,10 @@ class InstanceHasNoEnginesException implements Exception {
 /// * [check]: `GET /api/engines` with the short [checkTimeout]; stores the
 ///   latency and the engine list ([InstanceOnline]) or the error
 ///   ([InstanceOffline]).
-/// * [test]: translates `hello` from English to German with the first
-///   available engine ([testEngineOrder]) and reports the result and its
-///   latency.
+/// * [test]: translates `hello` from English to German with the engine
+///   the app uses when the instance offers it, else the first available
+///   one ([testEngineOrder]), and reports the result and its latency, so
+///   a server whose engine fails (an HTTP 500) fails the test.
 ///
 /// Requests go through the client factory, so the app's network policy and
 /// proxy apply. [changes] fires whenever a stored result changes.
@@ -155,8 +165,10 @@ class MozhiInstanceChecker {
   /// Translates [testText] with the instance at [url]; throws the error
   /// otherwise ([InstanceHasNoEnginesException] when no engine is
   /// enabled). The engine list comes from a stored [InstanceOnline] or is
-  /// fetched (and stored) first.
-  Future<InstanceTestResult> test(String url) async {
+  /// fetched (and stored) first. [engine] (the Mozhi engine the app uses,
+  /// see [mozhiEngineOf]) is tested when the instance lists it; otherwise
+  /// [pickTestEngine] chooses.
+  Future<InstanceTestResult> test(String url, {String? engine}) async {
     final client = _clientFor(Uri.parse(url), testTimeout);
     try {
       var engines = switch (_results[url]) {
@@ -176,18 +188,20 @@ class MozhiInstanceChecker {
           InstanceOnline(latency: stopwatch.elapsed, engines: engines),
         );
       }
-      final engine = pickTestEngine(engines);
-      if (engine == null) throw const InstanceHasNoEnginesException();
+      final tested = engine != null && engines.containsKey(engine)
+          ? engine
+          : pickTestEngine(engines);
+      if (tested == null) throw const InstanceHasNoEnginesException();
       final stopwatch = Stopwatch()..start();
       final translation = await client.translate(
-        engine: engine,
+        engine: tested,
         from: testSource,
         to: testTarget,
         text: testText,
       );
       return InstanceTestResult(
-        engineId: engine,
-        engineName: engines[engine] ?? engine,
+        engineId: tested,
+        engineName: engines[tested] ?? tested,
         text: translation.translatedText,
         latency: stopwatch.elapsed,
       );

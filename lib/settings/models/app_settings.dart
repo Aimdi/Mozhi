@@ -122,6 +122,10 @@ class AppSettings extends Equatable {
     this.maskPersonalData = true,
     this.modelSource = ModelSource.platformDefault,
     this.appLock = AppLockTimeout.off,
+    this.liveEngineId,
+    this.tapToLookUp = true,
+    this.highlightSpokenWord = true,
+    this.offlineAppShell = true,
   });
 
   /// Tolerant counterpart of [toJson]: missing or invalid fields fall back to
@@ -135,9 +139,11 @@ class AppSettings extends Equatable {
       dynamicColor: _bool(json['dynamicColor']) ?? defaults.dynamicColor,
       pureBlack: _bool(json['pureBlack']) ?? defaults.pureBlack,
       seedColor: _int(json['seedColor']) ?? defaults.seedColor,
-      instances:
-          _list(json['instances'], MozhiInstance.fromJson) ??
-          defaults.instances,
+      // Stored lists still in an earlier default order get the current
+      // one, without the servers the app retired (see migrateDefaults).
+      instances: MozhiInstance.migrateDefaults(
+        _list(json['instances'], MozhiInstance.fromJson) ?? defaults.instances,
+      ),
       providers:
           _list(json['providers'], AiProviderConfig.fromJson) ??
           defaults.providers,
@@ -207,6 +213,12 @@ class AppSettings extends Equatable {
           _object(json['modelSource'], ModelSource.fromJson) ??
           defaults.modelSource,
       appLock: AppLockTimeout.fromName(json['appLock']),
+      liveEngineId: _string(json['liveEngineId']),
+      tapToLookUp: _bool(json['tapToLookUp']) ?? defaults.tapToLookUp,
+      highlightSpokenWord:
+          _bool(json['highlightSpokenWord']) ?? defaults.highlightSpokenWord,
+      offlineAppShell:
+          _bool(json['offlineAppShell']) ?? defaults.offlineAppShell,
     );
   }
 
@@ -254,6 +266,8 @@ class AppSettings extends Equatable {
   final int seedColor;
 
   /// Ordered by preference; the repository fails over in this order.
+  /// [AppSettings.fromJson] brings a list still in an earlier default order
+  /// up to date (`MozhiInstance.migrateDefaults`).
   final List<MozhiInstance> instances;
 
   /// API keys are included in memory but never serialised by [toJson].
@@ -385,6 +399,23 @@ class AppSettings extends Equatable {
   /// out and keeps this device's value on restore).
   final AppLockTimeout appLock;
 
+  /// The engine the live features (the live camera and live captions)
+  /// translate with; null = the offline engine
+  /// (`TranslationEngine.offlineId`). See `resolveLiveEngine`: an engine
+  /// that is no longer configured falls back to the offline one.
+  final String? liveEngineId;
+
+  /// A tap on a word in a translation opens the word lookup.
+  final bool tapToLookUp;
+
+  /// The word being read aloud is highlighted while Listen plays.
+  final bool highlightSpokenWord;
+
+  /// The web app keeps its own files for offline use (an app-shell service
+  /// worker). A setting of this browser: backups, sync and phone to phone
+  /// never carry it (`SettingsBackupSection.deviceOnlyFields`).
+  final bool offlineAppShell;
+
   /// The quality mode a start of the app begins in when [rememberQuality]
   /// is off: [QualityMode.fast] when a fast engine is chosen, else
   /// [QualityMode.off] (the usual engine).
@@ -398,7 +429,8 @@ class AppSettings extends Equatable {
       : copyWith(qualityMode: launchQualityMode);
 
   /// Returns a copy with the given fields replaced. The nullable
-  /// [engineId] / [assistEngineId] / [fastEngineId] / [bestEngineId] take
+  /// [engineId] / [assistEngineId] / [fastEngineId] / [bestEngineId] /
+  /// [liveEngineId] take
   /// closures so they can be reset to null: `copyWith(engineId: () => null)`;
   /// so do [httpProxy] and [appLocale].
   AppSettings copyWith({
@@ -441,6 +473,10 @@ class AppSettings extends Equatable {
     bool? maskPersonalData,
     ModelSource? modelSource,
     AppLockTimeout? appLock,
+    String? Function()? liveEngineId,
+    bool? tapToLookUp,
+    bool? highlightSpokenWord,
+    bool? offlineAppShell,
   }) {
     return AppSettings(
       themeMode: themeMode ?? this.themeMode,
@@ -484,6 +520,10 @@ class AppSettings extends Equatable {
       maskPersonalData: maskPersonalData ?? this.maskPersonalData,
       modelSource: modelSource ?? this.modelSource,
       appLock: appLock ?? this.appLock,
+      liveEngineId: liveEngineId != null ? liveEngineId() : this.liveEngineId,
+      tapToLookUp: tapToLookUp ?? this.tapToLookUp,
+      highlightSpokenWord: highlightSpokenWord ?? this.highlightSpokenWord,
+      offlineAppShell: offlineAppShell ?? this.offlineAppShell,
     );
   }
 
@@ -547,6 +587,10 @@ class AppSettings extends Equatable {
       'maskPersonalData': maskPersonalData,
       'modelSource': modelSource.toJson(),
       'appLock': appLock.name,
+      'liveEngineId': liveEngineId,
+      'tapToLookUp': tapToLookUp,
+      'highlightSpokenWord': highlightSpokenWord,
+      'offlineAppShell': offlineAppShell,
     };
   }
 
@@ -592,6 +636,10 @@ class AppSettings extends Equatable {
     maskPersonalData,
     modelSource,
     appLock,
+    liveEngineId,
+    tapToLookUp,
+    highlightSpokenWord,
+    offlineAppShell,
   ];
 }
 

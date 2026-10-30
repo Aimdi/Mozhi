@@ -619,7 +619,11 @@ class _ImportTile extends StatelessWidget {
       leading: const Icon(Icons.file_open_outlined),
       title: Text(l10n.offlineImportAction),
       subtitle: Text(
-        importing ? l10n.offlineImporting : l10n.offlineImportSubtitle,
+        importing
+            ? l10n.offlineImporting
+            : kIsWeb
+            ? l10n.offlineImportSubtitleWeb
+            : l10n.offlineImportSubtitle,
         style: TextStyle(
           color: importing ? theme.colorScheme.primary : palette.secondaryText,
         ),

@@ -39,4 +39,12 @@
     <string name="bubble_remove_action">குமிழை அகற்று</string>
     <string name="bubble_remove_target">அகற்று</string>
     <string name="bubble_clipboard_empty">கிளிப்போர்டு காலியாக உள்ளது</string>
+    <string name="live_captions_channel">நேரலை வசனங்கள்</string>
+    <string name="live_captions_channel_description">மற்ற ஆப்ஸின் ஒலிக்கு Mozhi வசனம் எழுதும்போது காட்டப்படும்</string>
+    <string name="live_captions_notification_title">நேரலை வசனங்கள் இயக்கத்தில் உள்ளன</string>
+    <string name="live_captions_notification_text">மற்ற ஆப்ஸ் இயக்கும் ஒலிக்கு Mozhi வசனம் எழுதுகிறது. எதுவும் பதிவு செய்யப்படுவதோ சேமிக்கப்படுவதோ இல்லை.</string>
+    <string name="live_captions_stop">நிறுத்து</string>
+    <string name="live_captions_stop_description">நேரலை வசனங்களை நிறுத்து</string>
+    <string name="live_captions_open_description">Mozhi-ஐத் திற</string>
+    <string name="live_captions_bar_description">நேரலை வசனங்கள்</string>
 </resources>

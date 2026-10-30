@@ -126,6 +126,8 @@ class Chunker {
     DocumentFormat.ods => .markers,
     // Web pages: blocks of prose without line breaks (W6-B).
     DocumentFormat.html => .paragraphs,
+    // The paragraphs read on a PDF page (W7-B).
+    DocumentFormat.pdf => .paragraphs,
     // Subtitles and string tables: short texts whose alignment matters.
     DocumentFormat.srt ||
     DocumentFormat.vtt ||

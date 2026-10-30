@@ -5,6 +5,8 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/documents/data/document_file_service.dart';
 import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/live_captions/widgets/live_captions_widgets.dart'
+    show LiveCaptionsEntryButton;
 import 'package:mozhi/platform/clipboard_service.dart';
 import 'package:mozhi/transcribe/cubit/transcribe_cubit.dart';
 import 'package:mozhi/transcribe/data/screen_awake.dart';
@@ -58,6 +60,7 @@ class TranscribePage extends StatelessWidget {
     this.screenAwake,
     this.files = const PlatformDocumentFileService(),
     this.share = shareTranscriptText,
+    this.captionsAvailable,
     super.key,
   });
 
@@ -65,6 +68,9 @@ class TranscribePage extends StatelessWidget {
   final ScreenAwake? screenAwake;
   final DocumentFileService files;
   final TranscribeShareCallback share;
+
+  /// See [TranscribeView.captionsAvailable].
+  final Future<bool> Function()? captionsAvailable;
 
   static T? _maybe<T>(BuildContext context) {
     try {
@@ -100,7 +106,11 @@ class TranscribePage extends StatelessWidget {
         unawaited(cubit.load());
         return cubit;
       },
-      child: TranscribeView(files: files, share: share),
+      child: TranscribeView(
+        files: files,
+        share: share,
+        captionsAvailable: captionsAvailable,
+      ),
     );
   }
 }
@@ -114,11 +124,16 @@ class TranscribeView extends StatelessWidget {
   const new({
     this.files = const PlatformDocumentFileService(),
     this.share = shareTranscriptText,
+    this.captionsAvailable,
     super.key,
   });
 
   final DocumentFileService files;
   final TranscribeShareCallback share;
+
+  /// Whether live captions run here, for "Caption other apps" (default:
+  /// the platform says; tests replace it).
+  final Future<bool> Function()? captionsAvailable;
 
   /// Widest the transcript gets on large screens (both columns).
   static const double maxContentWidth = 1100;
@@ -196,6 +211,8 @@ class TranscribeView extends StatelessWidget {
           appBar: AppBar(
             title: Text(l10n.transcribeTitle),
             actions: [
+              // Live captions of other apps' sound (Android 10+).
+              LiveCaptionsEntryButton(available: captionsAvailable),
               if (mode.canListen) ...[
                 _CopyButton(),
                 TranscribeMenuButton(files: files, share: share),

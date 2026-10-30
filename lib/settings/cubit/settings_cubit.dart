@@ -183,7 +183,8 @@ class SettingsCubit extends Cubit<AppSettings> {
   /// Removes the provider and clears every selection that points at its
   /// engine (`ai:<id>` or `mt:<id>`): [AppSettings.engineId],
   /// [AppSettings.assistEngineId], [AppSettings.fastEngineId],
-  /// [AppSettings.bestEngineId] and [AppSettings.compareEngineIds].
+  /// [AppSettings.bestEngineId], [AppSettings.liveEngineId] and
+  /// [AppSettings.compareEngineIds].
   void removeProvider(String id) {
     final engineIds = {'ai:$id', 'mt:$id'};
     String? Function()? cleared(String? current) =>
@@ -195,6 +196,7 @@ class SettingsCubit extends Cubit<AppSettings> {
         assistEngineId: cleared(state.assistEngineId),
         fastEngineId: cleared(state.fastEngineId),
         bestEngineId: cleared(state.bestEngineId),
+        liveEngineId: cleared(state.liveEngineId),
         compareEngineIds: List.unmodifiable(
           state.compareEngineIds.where((e) => !engineIds.contains(e)),
         ),
@@ -333,6 +335,24 @@ class SettingsCubit extends Cubit<AppSettings> {
   /// `AppLockController.confirm`), so nobody locks themselves out.
   void setAppLock(AppLockTimeout timeout) =>
       _apply(state.copyWith(appLock: timeout));
+
+  /// The engine of the live features (`AppSettings.liveEngineId`; null =
+  /// the offline engine). A network engine is confirmed by the caller
+  /// first (`showLiveEnginePicker`).
+  void setLiveEngine(String? id) =>
+      _apply(state.copyWith(liveEngineId: () => id));
+
+  /// "Tap a word to look it up" (`AppSettings.tapToLookUp`).
+  void setTapToLookUp({required bool enabled}) =>
+      _apply(state.copyWith(tapToLookUp: enabled));
+
+  /// "Highlight the word being read" (`AppSettings.highlightSpokenWord`).
+  void setHighlightSpokenWord({required bool enabled}) =>
+      _apply(state.copyWith(highlightSpokenWord: enabled));
+
+  /// "Keep the web app for offline use" (`AppSettings.offlineAppShell`).
+  void setOfflineAppShell({required bool enabled}) =>
+      _apply(state.copyWith(offlineAppShell: enabled));
 
   /// "Hide personal data from online engines"
   /// (`AppSettings.maskPersonalData`).

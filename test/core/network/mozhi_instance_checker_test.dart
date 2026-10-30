@@ -161,6 +161,34 @@ void main() {
       );
     });
 
+    test('tests the engine the app uses when the instance has it', () async {
+      final result = await checker.test(_url, engine: 'deepl');
+
+      expect(result.engineId, 'deepl');
+      expect(result.engineName, 'DeepL');
+      expect(requests.last.bodyFields['engine'], 'deepl');
+    });
+
+    test('picks another engine when the instance lacks it', () async {
+      final result = await checker.test(_url, engine: 'yandex');
+
+      expect(result.engineId, 'google');
+      expect(requests.last.bodyFields['engine'], 'google');
+    });
+
+    test('a server whose engine fails does not pass', () async {
+      respond = (request) => request.url.path == '/api/engines'
+          ? _json({'google': 'Google'})
+          : http.Response('Post "https://translate.google.com": 429', 500);
+
+      await expectLater(
+        checker.test(_url, engine: 'google'),
+        throwsA(
+          isA<MozhiApiException>().having((e) => e.statusCode, 'status', 500),
+        ),
+      );
+    });
+
     test('rethrows a failing translation', () async {
       respond = (request) => request.url.path == '/api/engines'
           ? _json({'yandex': 'Yandex'})
@@ -169,6 +197,15 @@ void main() {
       await expectLater(checker.test(_url), throwsA(isA<MozhiApiException>()));
       expect(requests.last.bodyFields['engine'], 'yandex');
     });
+  });
+
+  test('mozhiEngineOf reads the Mozhi engine of an engine id', () {
+    expect(mozhiEngineOf('mozhi:google'), 'google');
+    expect(mozhiEngineOf('mozhi:deepl'), 'deepl');
+    expect(mozhiEngineOf('mozhi:'), isNull);
+    expect(mozhiEngineOf('ai:claude'), isNull);
+    expect(mozhiEngineOf('offline'), isNull);
+    expect(mozhiEngineOf(null), isNull);
   });
 
   test('pickTestEngine prefers Google, then the listed order', () {
