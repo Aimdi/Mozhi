@@ -2,9 +2,9 @@ Mozhi Terjemahan adalah penerjemah privat tanpa akun, tanpa iklan, dan tanpa pel
 
 PRIVAT SECARA BAWAAN
 • Utamakan offline: diterjemahkan di ponsel jika pasangan bahasanya terpasang; jika tidak, Mozhi bertanya dulu sebelum teks Anda dikirim online. Atau pilih Hanya offline atau Online
-• Teks Anda hanya dikirim ke layanan yang Anda pilih, dan setiap terjemahan menyebutkan siapa yang menerimanya
-• Alamat email, nomor telepon, IBAN, nomor kartu, dan alamat IP tetap di ponsel saat teks dikirim online
-• Riwayat terenkripsi yang tidak ikut dalam cadangan cloud Android; mode samaran, kunci aplikasi, dan daftar setiap permintaan jaringan
+• Teks Anda hanya dikirim ke tempat yang Anda izinkan, dan setiap terjemahan menyebutkan siapa yang menerimanya
+• Secara default, pada teks yang Anda terjemahkan, alamat email, nomor telepon, IBAN, nomor kartu, dan alamat IP tetap di ponsel saat teks dikirim online
+• Riwayat terenkripsi yang tidak ikut dalam cadangan cloud Android; mode samaran, kunci aplikasi, dan daftar setiap permintaan yang dikirim aplikasi
 • Tanpa analitik, tanpa telemetri, tanpa laporan error, tanpa kode Google
 
 OFFLINE DI PONSEL
@@ -24,14 +24,14 @@ EKSTRA AI
 • Koreksi teks dan kamus
 
 KAMERA, DOKUMEN, DAN SUARA
-• Kamera langsung dan foto: teks dibaca di ponsel dan terjemahannya digambar di atasnya
+• Kamera langsung dan foto: teks dibaca di ponsel dan terjemahannya digambar di atasnya, atau foto dikirim ke mesin Mozhi atau AI yang Anda pilih
 • Dokumen tetap mempertahankan format dan tata letaknya: PDF, Word, PowerPoint, Excel, OpenDocument, EPUB, subtitel, dan file lokalisasi
 • Percakapan tatap muka, atau dibagikan ke ponsel tamu di Wi-Fi yang sama
 • Transkripsi pembicaraan dan teks untuk suara dari aplikasi lain (Android 10 ke atas), dikenali di ponsel
 
 PENGGUNAAN SEHARI-HARI
 • Terjemahan instan saat mengetik, deteksi bahasa, ketuk kata untuk mencarinya
-• "Terjemahkan di Mozhi" dan "Terjemahkan offline" di menu pilihan teks aplikasi apa pun; terjemahkan layar, bagikan ke Mozhi, ubin Setelan Cepat, dan widget
+• "Terjemahkan di Mozhi" dan "Terjemahkan offline" di menu pilihan teks aplikasi lain; terjemahkan layar, bagikan ke Mozhi, ubin Setelan Cepat, dan widget
 • Favorit, buku frasa, dan latihan flashcard
 • Cadangan terenkripsi, sinkronisasi lewat server WebDAV Anda sendiri, transfer antarponsel
 • Material You, tema gelap, tata letak tablet, dan label pembaca layar

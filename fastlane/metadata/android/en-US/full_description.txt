@@ -2,9 +2,9 @@ Mozhi Translate is a private translator with no account, no ads and no tracking.
 
 PRIVATE BY DEFAULT
 • Offline first: translated on the phone when the language pair is installed; otherwise Mozhi asks before your text goes online. Or choose Offline only or Online
-• Your text goes only to services you chose, and each translation names who received it
-• E-mail addresses, phone numbers, IBANs, card numbers and IP addresses stay on the phone when text goes online
-• Encrypted history, kept out of Android's cloud backup; incognito, an app lock and a list of every network request
+• Your text goes only where you allowed it, and each translation names who received it
+• By default, for text you translate, e-mail addresses, phone numbers, IBANs, card numbers and IP addresses stay on the phone when the text goes online
+• Encrypted history, kept out of Android's cloud backup; incognito, an app lock and a list of every request the app makes
 • No analytics, no telemetry, no crash reporting, no Google code
 
 OFFLINE ON THE PHONE
@@ -24,14 +24,14 @@ AI EXTRAS
 • Proofreading and a dictionary
 
 CAMERA, DOCUMENTS AND VOICE
-• Live camera and photos: the text is read on the phone and the translation drawn over it
+• Live camera and photos: the text is read on the phone and the translation drawn over it, or a photo is sent to the Mozhi or AI engine you pick
 • Documents keep their format and layout: PDF, Word, PowerPoint, Excel, OpenDocument, EPUB, subtitles and localisation files
 • Conversation face to face, or shared with guests' phones on the same Wi-Fi
 • Transcribe talks and caption other apps' sound (Android 10 and later), recognised on the phone
 
 EVERYDAY USE
 • Instant translation as you type, language detection, tap a word to look it up
-• "Translate with Mozhi" and "Translate offline" in the selection menu of any app; translate the screen, share to Mozhi, Quick Settings tiles and a widget
+• "Translate with Mozhi" and "Translate offline" in the selection menu of other apps; translate the screen, share to Mozhi, Quick Settings tiles and a widget
 • Favorites, phrasebooks and flashcard practice
 • Encrypted backups, sync through your own WebDAV server, phone-to-phone transfer
 • Material You, dark themes, tablet layouts and screen-reader labels

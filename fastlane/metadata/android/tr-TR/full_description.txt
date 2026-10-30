@@ -2,9 +2,9 @@ Mozhi Çeviri; hesap, reklam ve izleme olmadan çalışan, gizlilik odaklı bir 
 
 VARSAYILAN OLARAK GİZLİ
 • Önce çevrimdışı: dil çifti yüklüyse metin telefonda çevrilir; değilse Mozhi, metniniz çevrimiçine gitmeden önce size sorar. Ya da Yalnızca çevrimdışı veya Çevrimiçi modunu seçin
-• Metniniz yalnızca seçtiğiniz hizmetlere gider ve her çeviri, metni kimin aldığını belirtir
-• Metin çevrimiçine gittiğinde e-posta adresleri, telefon numaraları, IBAN'lar, kart numaraları ve IP adresleri telefonda kalır
-• Android'in bulut yedeğine dahil edilmeyen şifreli geçmiş; gizli mod, uygulama kilidi ve her ağ isteğinin listesi
+• Metniniz yalnızca izin verdiğiniz yerlere gider ve her çeviri, metni kimin aldığını belirtir
+• Varsayılan olarak, çevirdiğiniz metin çevrimiçine gittiğinde içindeki e-posta adresleri, telefon numaraları, IBAN'lar, kart numaraları ve IP adresleri telefonda kalır
+• Android'in bulut yedeğine dahil edilmeyen şifreli geçmiş; gizli mod, uygulama kilidi ve uygulamanın gönderdiği her isteğin listesi
 • Analiz yok, telemetri yok, çökme raporu yok, Google kodu yok
 
 TELEFONDA ÇEVRİMDIŞI
@@ -24,14 +24,14 @@ YAPAY ZEKÂ EKSTRALARI
 • Düzeltme ve sözlük
 
 KAMERA, BELGELER VE SES
-• Canlı kamera ve fotoğraflar: metin telefonda okunur ve çeviri üzerine çizilir
+• Canlı kamera ve fotoğraflar: metin telefonda okunur ve çeviri üzerine çizilir ya da fotoğraf seçtiğiniz Mozhi veya yapay zekâ motoruna gönderilir
 • Belgeler biçimini ve düzenini korur: PDF, Word, PowerPoint, Excel, OpenDocument, EPUB, altyazılar ve yerelleştirme dosyaları
 • Yüz yüze Sohbet ya da aynı Wi-Fi ağındaki misafirlerin telefonlarıyla paylaşım
 • Konuşmaları yazıya dökme ve diğer uygulamaların sesi için altyazı (Android 10 ve üzeri), tanıma telefonda yapılır
 
 GÜNLÜK KULLANIM
 • Yazarken anında çeviri, dil algılama ve aramak için sözcüğe dokunma
-• Her uygulamanın seçim menüsünde "Mozhi ile çevir" ve "Çevrimdışı çevir"; ekranı çevirme, Mozhi'ye paylaşma, Hızlı Ayarlar kutucukları ve bir widget
+• Diğer uygulamaların seçim menüsünde "Mozhi ile çevir" ve "Çevrimdışı çevir"; ekranı çevirme, Mozhi'ye paylaşma, Hızlı Ayarlar kutucukları ve bir widget
 • Favoriler, konuşma kılavuzları ve bilgi kartlarıyla alıştırma
 • Şifreli yedekler, kendi WebDAV sunucunuz üzerinden eşitleme, telefondan telefona aktarım
 • Material You, koyu temalar, tablet düzenleri ve ekran okuyucu etiketleri

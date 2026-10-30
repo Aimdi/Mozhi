@@ -2,9 +2,9 @@ Mozhi Translate ist ein privater Übersetzer ohne Konto, ohne Werbung und ohne T
 
 STANDARDMÄSSIG PRIVAT
 • Offline bevorzugt: Übersetzt wird auf dem Smartphone, wenn das Sprachpaar installiert ist; sonst fragt Mozhi nach, bevor dein Text online geht. Oder wähle „Nur offline“ oder „Online“
-• Dein Text geht nur an Dienste, die du gewählt hast, und bei jeder Übersetzung steht, wer sie erhalten hat
-• E-Mail-Adressen, Telefonnummern, IBANs, Kartennummern und IP-Adressen bleiben auf dem Smartphone, wenn Text online geht
-• Verschlüsselter Verlauf, nicht im Cloud-Backup von Android enthalten; Inkognito-Modus, App-Sperre und eine Liste aller Netzwerkanfragen
+• Dein Text geht nur dorthin, wo du es erlaubt hast, und bei jeder Übersetzung steht, wer sie erhalten hat
+• Standardmäßig bleiben bei Text, den du übersetzt, E-Mail-Adressen, Telefonnummern, IBANs, Kartennummern und IP-Adressen auf dem Smartphone, wenn der Text online geht
+• Verschlüsselter Verlauf, nicht im Cloud-Backup von Android enthalten; Inkognito-Modus, App-Sperre und eine Liste aller Anfragen, die die App sendet
 • Keine Analyse, keine Telemetrie, keine Absturzberichte, kein Google-Code
 
 OFFLINE AUF DEM SMARTPHONE
@@ -24,14 +24,14 @@ KI-EXTRAS
 • Korrektur und ein Wörterbuch
 
 KAMERA, DOKUMENTE UND SPRACHE
-• Live-Kamera und Fotos: Der Text wird auf dem Smartphone gelesen und die Übersetzung darübergelegt
+• Live-Kamera und Fotos: Der Text wird auf dem Smartphone gelesen und die Übersetzung darübergelegt, oder ein Foto wird an die Mozhi- oder KI-Engine gesendet, die du wählst
 • Dokumente behalten Format und Layout: PDF, Word, PowerPoint, Excel, OpenDocument, EPUB, Untertitel und Lokalisierungsdateien
 • Gespräch von Angesicht zu Angesicht oder geteilt mit den Smartphones von Gästen im selben WLAN
 • Vorträge transkribieren und den Ton anderer Apps untertiteln (Android 10 und neuer), erkannt auf dem Smartphone
 
 IM ALLTAG
 • Sofortübersetzung beim Tippen, automatisches Erkennen der Sprache, zum Nachschlagen auf ein Wort tippen
-• „Mit Mozhi übersetzen“ und „Offline übersetzen“ im Textauswahlmenü jeder App; Bildschirm übersetzen, an Mozhi teilen, Schnelleinstellungs-Kacheln und ein Widget
+• „Mit Mozhi übersetzen“ und „Offline übersetzen“ im Textauswahlmenü anderer Apps; Bildschirm übersetzen, an Mozhi teilen, Schnelleinstellungs-Kacheln und ein Widget
 • Favoriten, Sprachführer und Üben mit Karteikarten
 • Verschlüsselte Backups, Synchronisierung über deinen eigenen WebDAV-Server, Übertragung von Smartphone zu Smartphone
 • Material You, dunkle Designs, Tablet-Layouts und Screenreader-Beschriftungen

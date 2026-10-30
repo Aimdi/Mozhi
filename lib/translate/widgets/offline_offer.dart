@@ -95,13 +95,14 @@ void openOfflineModels(BuildContext context) =>
 /// stopped before it left the device ([consent]), or one that failed on
 /// the network ([OfflinePairOffer.pair], see `TranslateErrorView`).
 /// "Download German (25 MB)" downloads the missing models right here
-/// ([OfflineDownloadAction]) and then translates on the device ("Manage
-/// languages" opens the offline languages; back here, the offer is checked
-/// again); once they are all there, "Translate on this device" switches to
-/// the on-device engine (or, when it is already selected, translates again
-/// with it). Shows nothing
-/// otherwise (no offline engine, e.g. on the web, or a pair it does not
-/// support).
+/// ([OfflineDownloadAction]) and then translates on the device, the
+/// consent prompt put away ("Manage languages" opens the offline
+/// languages; back here, the offer is checked again, and a prompt of the
+/// on-device engine tried first goes away once the pair is there, the text
+/// translated on the device); once they are all there, "Translate on this
+/// device" switches to the on-device engine (or, when it is already
+/// selected, translates again with it). Shows nothing otherwise (no
+/// offline engine, e.g. on the web, or a pair it does not support).
 class OfflinePairOffer extends StatefulWidget {
   /// For the pair of [consent].
   const new({
@@ -178,6 +179,25 @@ class _OfflinePairOfferState extends State<OfflinePairOffer> {
     });
   }
 
+  /// Back from the offline languages ("Manage languages"): checks the pair
+  /// again. When the device tried first ([ConsentRequest.fromOnDevice]) and
+  /// the pair is there now, the prompt to send the text online goes away
+  /// and the text is translated on the device ([translateOnDevice]), so no
+  /// stale "Once" is left that the device does not need.
+  Future<void> _reloadAfterManaging() async {
+    await _load();
+    if (!mounted || !(_downloads?.isEmpty ?? false)) return;
+    final TranslateCubit cubit;
+    try {
+      cubit = context.read<TranslateCubit>();
+    } on ProviderNotFoundException {
+      return;
+    }
+    if (!(cubit.state.consent?.fromOnDevice ?? false)) return;
+    cubit.dismissConsent();
+    translateOnDevice(context);
+  }
+
   @override
   Widget build(BuildContext context) {
     final downloads = _downloads;
@@ -204,7 +224,13 @@ class _OfflinePairOfferState extends State<OfflinePairOffer> {
       button = OfflineDownloadAction(
         downloads: downloads,
         translator: _translator,
-        onManaged: () => unawaited(_load()),
+        onReady: () {
+          // The language is here: the prompt to send the text online is
+          // gone (no "Once" left to tap for a text the device translates).
+          cubit.dismissConsent();
+          translateOnDevice(context);
+        },
+        onManaged: () => unawaited(_reloadAfterManaging()),
       );
     }
     return Padding(

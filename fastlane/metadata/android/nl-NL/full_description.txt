@@ -2,9 +2,9 @@ Mozhi Translate is een privévertaler zonder account, zonder advertenties en zon
 
 STANDAARD PRIVÉ
 • Eerst offline: vertaald op de telefoon als het taalpaar is geïnstalleerd; anders vraagt Mozhi het eerst voordat je tekst online gaat. Of kies ‘Alleen offline’ of ‘Online’
-• Je tekst gaat alleen naar diensten die je zelf hebt gekozen, en bij elke vertaling staat wie die heeft ontvangen
-• E-mailadressen, telefoonnummers, IBAN's, kaartnummers en IP-adressen blijven op de telefoon als tekst online gaat
-• Versleutelde geschiedenis, buiten de cloudback-up van Android gehouden; incognitomodus, app-vergrendeling en een lijst van elk netwerkverzoek
+• Je tekst gaat alleen naar plekken die je hebt toegestaan, en bij elke vertaling staat wie die heeft ontvangen
+• Standaard blijven in tekst die je vertaalt e-mailadressen, telefoonnummers, IBAN's, kaartnummers en IP-adressen op de telefoon als de tekst online gaat
+• Versleutelde geschiedenis, buiten de cloudback-up van Android gehouden; incognitomodus, app-vergrendeling en een lijst van elk verzoek dat de app verstuurt
 • Geen analytics, geen telemetrie, geen crashrapporten, geen Google-code
 
 OFFLINE OP DE TELEFOON
@@ -24,14 +24,14 @@ AI-EXTRA'S
 • Nakijken en een woordenboek
 
 CAMERA, DOCUMENTEN EN SPRAAK
-• Livecamera en foto's: de tekst wordt op de telefoon gelezen en de vertaling eroverheen geplaatst
+• Livecamera en foto's: de tekst wordt op de telefoon gelezen en de vertaling eroverheen geplaatst, of een foto wordt naar de Mozhi- of AI-engine van je keuze gestuurd
 • Documenten behouden hun opmaak en lay-out: PDF, Word, PowerPoint, Excel, OpenDocument, EPUB, ondertitels en lokalisatiebestanden
 • Gesprek van aangezicht tot aangezicht, of gedeeld met de telefoons van gasten op hetzelfde wifinetwerk
 • Lezingen transcriberen en het geluid van andere apps ondertitelen (Android 10 en hoger), herkend op de telefoon
 
 DAGELIJKS GEBRUIK
 • Directe vertaling terwijl je typt, taalherkenning, op een woord tikken om het op te zoeken
-• ‘Vertalen met Mozhi’ en ‘Offline vertalen’ in het selectiemenu van elke app; het scherm vertalen, delen met Mozhi, tegels voor Snelle instellingen en een widget
+• ‘Vertalen met Mozhi’ en ‘Offline vertalen’ in het selectiemenu van andere apps; het scherm vertalen, delen met Mozhi, tegels voor Snelle instellingen en een widget
 • Favorieten, taalgidsen en oefenen met flashcards
 • Versleutelde back-ups, synchronisatie via je eigen WebDAV-server, overzetten van telefoon naar telefoon
 • Material You, donkere thema's, tabletindelingen en labels voor schermlezers

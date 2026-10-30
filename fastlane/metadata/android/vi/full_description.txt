@@ -2,9 +2,9 @@ Mozhi Dịch là trình dịch riêng tư, không cần tài khoản, không qu�
 
 RIÊNG TƯ THEO MẶC ĐỊNH
 • Ưu tiên ngoại tuyến: dịch trên điện thoại khi đã cài cặp ngôn ngữ; nếu chưa, Mozhi sẽ hỏi trước khi văn bản của bạn được gửi lên mạng. Hoặc chọn Chỉ ngoại tuyến hay Trực tuyến
-• Văn bản của bạn chỉ được gửi đến các dịch vụ bạn đã chọn, và mỗi bản dịch đều ghi rõ ai đã nhận văn bản
-• Địa chỉ email, số điện thoại, IBAN, số thẻ và địa chỉ IP vẫn ở lại trên điện thoại khi văn bản được gửi lên mạng
-• Lịch sử được mã hóa, không nằm trong bản sao lưu đám mây của Android; chế độ ẩn danh, khóa ứng dụng và danh sách mọi yêu cầu mạng
+• Văn bản của bạn chỉ được gửi đến nơi bạn đã cho phép, và mỗi bản dịch đều ghi rõ ai đã nhận văn bản
+• Theo mặc định, trong văn bản bạn dịch, địa chỉ email, số điện thoại, IBAN, số thẻ và địa chỉ IP vẫn ở lại trên điện thoại khi văn bản được gửi lên mạng
+• Lịch sử được mã hóa, không nằm trong bản sao lưu đám mây của Android; chế độ ẩn danh, khóa ứng dụng và danh sách mọi yêu cầu mà ứng dụng gửi đi
 • Không phân tích, không đo từ xa, không báo cáo sự cố, không có mã của Google
 
 NGOẠI TUYẾN TRÊN ĐIỆN THOẠI
@@ -24,14 +24,14 @@ TÍNH NĂNG AI
 • Soát lỗi và từ điển
 
 MÁY ẢNH, TÀI LIỆU VÀ GIỌNG NÓI
-• Máy ảnh trực tiếp và ảnh: chữ được đọc trên điện thoại và bản dịch được vẽ đè lên
+• Máy ảnh trực tiếp và ảnh: chữ được đọc trên điện thoại và bản dịch được vẽ đè lên, hoặc ảnh được gửi đến công cụ Mozhi hay AI mà bạn chọn
 • Tài liệu giữ nguyên định dạng và bố cục: PDF, Word, PowerPoint, Excel, OpenDocument, EPUB, phụ đề và tệp bản địa hóa
 • Hội thoại trực tiếp, hoặc chia sẻ với điện thoại của khách trong cùng mạng Wi-Fi
 • Chép lời bài nói và phụ đề cho âm thanh của ứng dụng khác (Android 10 trở lên), nhận dạng trên điện thoại
 
 SỬ DỤNG HẰNG NGÀY
 • Dịch tức thì khi gõ, phát hiện ngôn ngữ, nhấn vào từ để tra
-• "Dịch bằng Mozhi" và "Dịch ngoại tuyến" trong menu chọn văn bản của mọi ứng dụng; dịch màn hình, chia sẻ tới Mozhi, ô Cài đặt nhanh và tiện ích
+• "Dịch bằng Mozhi" và "Dịch ngoại tuyến" trong menu chọn văn bản của các ứng dụng khác; dịch màn hình, chia sẻ tới Mozhi, ô Cài đặt nhanh và tiện ích
 • Yêu thích, sổ tay cụm từ và luyện tập bằng thẻ ghi nhớ
 • Bản sao lưu được mã hóa, đồng bộ qua máy chủ WebDAV của riêng bạn, chuyển dữ liệu giữa hai điện thoại
 • Material You, giao diện tối, bố cục cho máy tính bảng và nhãn cho trình đọc màn hình

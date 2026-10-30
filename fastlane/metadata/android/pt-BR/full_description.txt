@@ -2,9 +2,9 @@ O Mozhi Translate é um tradutor privado, sem conta, sem anúncios e sem rastrea
 
 PRIVADO POR PADRÃO
 • Preferir off-line: a tradução é feita no celular quando o par de idiomas está instalado; caso contrário, o Mozhi pergunta antes de o seu texto ir para a internet. Ou escolha “Somente off-line” ou “On-line”
-• Seu texto vai apenas para os serviços que você escolheu, e cada tradução informa quem a recebeu
-• Endereços de e-mail, números de telefone, IBANs, números de cartão e endereços IP ficam no celular quando o texto vai para a internet
-• Histórico criptografado, mantido fora do backup na nuvem do Android; modo incógnito, bloqueio do app e uma lista de todas as solicitações de rede
+• Seu texto vai apenas para onde você permitiu, e cada tradução informa quem a recebeu
+• Por padrão, no texto que você traduz, endereços de e-mail, números de telefone, IBANs, números de cartão e endereços IP ficam no celular quando o texto vai para a internet
+• Histórico criptografado, mantido fora do backup na nuvem do Android; modo incógnito, bloqueio do app e uma lista de todas as solicitações que o app envia
 • Sem análises, sem telemetria, sem relatórios de falhas, sem código do Google
 
 OFF-LINE NO CELULAR
@@ -24,14 +24,14 @@ EXTRAS DE IA
 • Revisão de textos e um dicionário
 
 CÂMERA, DOCUMENTOS E VOZ
-• Câmera ao vivo e fotos: o texto é lido no celular e a tradução aparece sobre ele
+• Câmera ao vivo e fotos: o texto é lido no celular e a tradução aparece sobre ele, ou uma foto é enviada ao mecanismo do Mozhi ou de IA que você escolher
 • Os documentos mantêm o formato e o layout: PDF, Word, PowerPoint, Excel, OpenDocument, EPUB, legendas e arquivos de localização
 • Conversa cara a cara ou compartilhada com os celulares dos convidados na mesma rede Wi-Fi
 • Transcrição de palestras e legendas para o som de outros apps (Android 10 ou posterior), com reconhecimento no celular
 
 USO NO DIA A DIA
 • Tradução instantânea enquanto você digita, detecção de idioma, tocar em uma palavra para consultá-la
-• “Traduzir com o Mozhi” e “Traduzir off-line” no menu de seleção de qualquer app; “Traduzir tela”, compartilhar com o Mozhi, blocos nas Configurações rápidas e um widget
+• “Traduzir com o Mozhi” e “Traduzir off-line” no menu de seleção de outros apps; “Traduzir tela”, compartilhar com o Mozhi, blocos nas Configurações rápidas e um widget
 • Favoritos, livros de frases e prática com flashcards
 • Backups criptografados, sincronização pelo seu próprio servidor WebDAV, transferência de celular para celular
 • Material You, temas escuros, layouts para tablet e rótulos para leitores de tela

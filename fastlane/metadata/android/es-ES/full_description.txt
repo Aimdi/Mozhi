@@ -2,9 +2,9 @@ Mozhi Translate es un traductor privado sin cuenta, sin anuncios y sin rastreo. 
 
 PRIVADO POR DEFECTO
 • Primero sin conexión: se traduce en el teléfono cuando el par de idiomas está instalado; si no, Mozhi te pregunta antes de que tu texto salga a internet. O elige Solo sin conexión o En línea
-• Tu texto solo va a los servicios que elegiste, y cada traducción indica quién lo recibió
-• Las direcciones de correo electrónico, números de teléfono, IBAN, números de tarjeta y direcciones IP se quedan en el teléfono cuando el texto sale a internet
-• Historial cifrado, excluido de la copia de seguridad en la nube de Android; modo incógnito, bloqueo de la app y una lista de cada solicitud de red
+• Tu texto solo va adonde lo permitiste, y cada traducción indica quién lo recibió
+• De forma predeterminada, en el texto que traduces, las direcciones de correo electrónico, números de teléfono, IBAN, números de tarjeta y direcciones IP se quedan en el teléfono cuando el texto sale a internet
+• Historial cifrado, excluido de la copia de seguridad en la nube de Android; modo incógnito, bloqueo de la app y una lista de cada solicitud que envía la app
 • Sin analíticas, sin telemetría, sin informes de fallos, sin código de Google
 
 SIN CONEXIÓN EN EL TELÉFONO
@@ -24,14 +24,14 @@ EXTRAS DE IA
 • Corrección de textos y diccionario
 
 CÁMARA, DOCUMENTOS Y VOZ
-• Cámara en directo y fotos: el texto se lee en el teléfono y la traducción se dibuja encima
+• Cámara en directo y fotos: el texto se lee en el teléfono y la traducción se dibuja encima, o una foto se envía al motor de Mozhi o de IA que elijas
 • Los documentos conservan su formato y diseño: PDF, Word, PowerPoint, Excel, OpenDocument, EPUB, subtítulos y archivos de localización
 • Conversación cara a cara, o compartida con los teléfonos de los invitados en la misma red Wi-Fi
 • Transcribir charlas y subtitular el sonido de otras apps (Android 10 y posteriores), con reconocimiento en el teléfono
 
 USO DIARIO
 • Traducción instantánea mientras escribes, detección del idioma, tocar una palabra para buscarla
-• «Traducir con Mozhi» y «Traducir sin conexión» en el menú de selección de cualquier app; traducir la pantalla, compartir con Mozhi, iconos de Ajustes rápidos y un widget
+• «Traducir con Mozhi» y «Traducir sin conexión» en el menú de selección de otras apps; traducir la pantalla, compartir con Mozhi, iconos de Ajustes rápidos y un widget
 • Favoritos, libros de frases y práctica con tarjetas
 • Copias de seguridad cifradas, sincronización con tu propio servidor WebDAV, transferencia de teléfono a teléfono
 • Material You, temas oscuros, diseños para tablet y etiquetas para lectores de pantalla

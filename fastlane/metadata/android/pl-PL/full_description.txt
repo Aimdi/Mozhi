@@ -2,9 +2,9 @@ Mozhi Translate to prywatny tłumacz bez konta, bez reklam i bez śledzenia. Tł
 
 DOMYŚLNIE PRYWATNIE
 • Najpierw offline: tłumaczenie na telefonie, gdy para języków jest zainstalowana; w przeciwnym razie Mozhi pyta, zanim Twój tekst trafi do sieci. Możesz też wybrać „Tylko offline” lub „Online”
-• Twój tekst trafia tylko do wybranych przez Ciebie usług, a przy każdym tłumaczeniu widać, kto je otrzymał
-• Adresy e-mail, numery telefonów, numery IBAN, numery kart i adresy IP zostają na telefonie, gdy tekst trafia do sieci
-• Szyfrowana historia, wyłączona z kopii zapasowej Androida w chmurze; tryb incognito, blokada aplikacji i lista wszystkich żądań sieciowych
+• Twój tekst trafia tylko tam, gdzie na to pozwolisz, a przy każdym tłumaczeniu widać, kto je otrzymał
+• Domyślnie w tłumaczonym tekście adresy e-mail, numery telefonów, numery IBAN, numery kart i adresy IP zostają na telefonie, gdy tekst trafia do sieci
+• Szyfrowana historia, wyłączona z kopii zapasowej Androida w chmurze; tryb incognito, blokada aplikacji i lista wszystkich żądań wysyłanych przez aplikację
 • Bez analityki, bez telemetrii, bez raportów o awariach, bez kodu Google
 
 OFFLINE NA TELEFONIE
@@ -24,14 +24,14 @@ DODATKI AI
 • Korekta i słownik
 
 APARAT, DOKUMENTY I GŁOS
-• Aparat na żywo i zdjęcia: tekst jest odczytywany na telefonie, a tłumaczenie nakładane na niego
+• Aparat na żywo i zdjęcia: tekst jest odczytywany na telefonie, a tłumaczenie nakładane na niego, albo zdjęcie trafia do wybranego przez Ciebie silnika Mozhi lub AI
 • Dokumenty zachowują formatowanie i układ: PDF, Word, PowerPoint, Excel, OpenDocument, EPUB, napisy i pliki lokalizacyjne
 • Rozmowa twarzą w twarz lub udostępniona na telefony gości w tej samej sieci Wi-Fi
 • Transkrypcja wykładów i napisy do dźwięku z innych aplikacji (Android 10 i nowsze), rozpoznawane na telefonie
 
 NA CO DZIEŃ
 • Natychmiastowe tłumaczenie podczas pisania, wykrywanie języka, dotknij słowa, aby je wyszukać
-• „Przetłumacz w Mozhi” i „Przetłumacz offline” w menu zaznaczania każdej aplikacji; tłumaczenie ekranu, udostępnianie do Mozhi, kafelki szybkich ustawień i widżet
+• „Przetłumacz w Mozhi” i „Przetłumacz offline” w menu zaznaczania innych aplikacji; tłumaczenie ekranu, udostępnianie do Mozhi, kafelki szybkich ustawień i widżet
 • Ulubione, rozmówki i ćwiczenia z fiszkami
 • Szyfrowane kopie zapasowe, synchronizacja przez Twój własny serwer WebDAV, przesyłanie z telefonu na telefon
 • Material You, ciemne motywy, układy dla tabletów i etykiety dla czytników ekranu

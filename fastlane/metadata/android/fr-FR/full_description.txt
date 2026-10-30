@@ -2,9 +2,9 @@ Mozhi Translate est un traducteur privé, sans compte, sans publicité et sans p
 
 CONFIDENTIEL PAR DÉFAUT
 • Hors ligne en priorité : traduction sur le téléphone quand la paire de langues est installée ; sinon, Mozhi vous demande avant que votre texte ne parte en ligne. Ou choisissez Hors ligne uniquement ou En ligne
-• Votre texte n’est envoyé qu’aux services que vous avez choisis, et chaque traduction indique qui l’a reçu
-• Les adresses e-mail, numéros de téléphone, IBAN, numéros de carte et adresses IP restent sur le téléphone quand le texte part en ligne
-• Historique chiffré, exclu de la sauvegarde cloud d’Android ; mode incognito, verrouillage de l’app et liste de chaque requête réseau
+• Votre texte n’est envoyé que là où vous l’avez autorisé, et chaque traduction indique qui l’a reçu
+• Par défaut, dans le texte que vous traduisez, les adresses e-mail, numéros de téléphone, IBAN, numéros de carte et adresses IP restent sur le téléphone quand le texte part en ligne
+• Historique chiffré, exclu de la sauvegarde cloud d’Android ; mode incognito, verrouillage de l’app et liste de chaque requête envoyée par l’app
 • Aucune statistique d’utilisation, aucune télémétrie, aucun rapport de plantage, aucun code Google
 
 HORS LIGNE SUR LE TÉLÉPHONE
@@ -24,14 +24,14 @@ EXTRAS IA
 • Correction et dictionnaire
 
 APPAREIL PHOTO, DOCUMENTS ET VOIX
-• Appareil photo en direct et photos : le texte est lu sur le téléphone et la traduction s’affiche par-dessus
+• Appareil photo en direct et photos : le texte est lu sur le téléphone et la traduction s’affiche par-dessus, ou une photo est envoyée au moteur Mozhi ou d’IA de votre choix
 • Les documents conservent leur format et leur mise en page : PDF, Word, PowerPoint, Excel, OpenDocument, EPUB, sous-titres et fichiers de localisation
 • Conversation en face à face, ou partagée avec les téléphones d’invités sur le même Wi-Fi
 • Transcrire des conférences et sous-titrer le son d’autres apps (Android 10 ou version ultérieure), avec reconnaissance sur le téléphone
 
 AU QUOTIDIEN
 • Traduction instantanée pendant la saisie, détection de la langue, toucher un mot pour le rechercher
-• « Traduire avec Mozhi » et « Traduire hors ligne » dans le menu de sélection de n’importe quelle app ; traduire l’écran, partager vers Mozhi, vignettes de réglages rapides et un widget
+• « Traduire avec Mozhi » et « Traduire hors ligne » dans le menu de sélection des autres apps ; traduire l’écran, partager vers Mozhi, vignettes de réglages rapides et un widget
 • Favoris, guides de conversation et entraînement avec des cartes mémoire
 • Sauvegardes chiffrées, synchronisation via votre propre serveur WebDAV, transfert de téléphone à téléphone
 • Material You, thèmes sombres, mises en page pour tablette et libellés pour lecteurs d’écran
