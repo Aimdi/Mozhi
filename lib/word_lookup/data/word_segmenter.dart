@@ -70,10 +70,9 @@ abstract final class WordSegmenter {
 
   static final _letter = RegExp(r'[\p{L}\p{N}]', unicode: true);
   static final _hasLetter = RegExp(r'\p{L}', unicode: true);
-  static final _symbol = RegExp(
-    r'[\p{S}\p{Extended_Pictographic}]',
-    unicode: true,
-  );
+  // Emoji are symbols (\p{S}); `\p{Extended_Pictographic}` would add
+  // only unassigned code points, and some analyzers reject it.
+  static final _symbol = RegExp(r'\p{S}', unicode: true);
 
   /// Characters that join two parts of one word.
   static const _joiners = {

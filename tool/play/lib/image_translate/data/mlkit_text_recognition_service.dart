@@ -26,7 +26,10 @@ typedef TemporaryImageWriter = Future<String> Function(Uint8List bytes);
 ///
 /// ML Kit reads files: an image without a path (a screenshot, a still of
 /// the live camera) is written to the app's private cache for the reading
-/// and deleted right after.
+/// and deleted right after. It goes into the screenshots' folder
+/// (`<cache>/screen_translate`), which the app empties when it starts
+/// (`ScreenCaptures.sweepLeftovers`), so a copy left by a process that died
+/// while reading is deleted too.
 class MlKitTextRecognitionService implements TextRecognitionService {
   new({
     TextRecognizerFactory? recognizerFactory,
@@ -41,9 +44,11 @@ class MlKitTextRecognitionService implements TextRecognitionService {
 
   // coverage:ignore-start
   static Future<String> _defaultTemporaryImageWriter(Uint8List bytes) async {
-    final directory = await getTemporaryDirectory();
+    final cache = await getTemporaryDirectory();
+    final folder = Directory('${cache.path}/screen_translate');
+    await folder.create(recursive: true);
     final file = File(
-      '${directory.path}/mlkit_${DateTime.now().microsecondsSinceEpoch}.img',
+      '${folder.path}/mlkit_${DateTime.now().microsecondsSinceEpoch}.img',
     );
     await file.writeAsBytes(bytes, flush: true);
     return file.path;
@@ -107,7 +112,7 @@ class MlKitTextRecognitionService implements TextRecognitionService {
     try {
       await File(path).delete();
     } on Object {
-      // Already gone, or the cache is cleared at the next start anyway.
+      // Already gone; the next start sweeps the folder otherwise.
     }
   }
 

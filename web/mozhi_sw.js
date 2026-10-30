@@ -300,10 +300,29 @@ function urlOf(path) {
 }
 
 /**
+ * The server's security headers, kept with every file so a page served
+ * from the cache is as protected as one from the network (a
+ * `frame-ancestors` CSP or X-Frame-Options against clickjacking, a
+ * stricter CSP, the worker's own CSP; docs/self-hosting-mozhi.md).
+ */
+const SECURITY_HEADERS = [
+  'Content-Security-Policy',
+  'Content-Security-Policy-Report-Only',
+  'X-Frame-Options',
+  'X-Content-Type-Options',
+  'Referrer-Policy',
+  'Permissions-Policy',
+  'Cross-Origin-Opener-Policy',
+  'Cross-Origin-Embedder-Policy',
+  'Cross-Origin-Resource-Policy',
+];
+
+/**
  * A response to keep for [entry] made of [response]'s bytes when they are
- * the entry's (size and SHA-256), else null. Only the content type is
- * kept: the body is decoded already (no Content-Encoding), and a redirect
- * the server made is not repeated.
+ * the entry's (size and SHA-256), else null. Only the content type and
+ * the server's security headers ([SECURITY_HEADERS]) are kept: the body
+ * is decoded already (no Content-Encoding), and a redirect the server
+ * made is not repeated.
  */
 async function verified(entry, response) {
   const bytes = new Uint8Array(await response.arrayBuffer());
@@ -314,6 +333,10 @@ async function verified(entry, response) {
   const headers = new Headers();
   const extension = entry.path.split('.').pop();
   headers.set('Content-Type', response.headers.get('Content-Type') || TYPES[extension] || 'application/octet-stream');
+  for (const name of SECURITY_HEADERS) {
+    const value = response.headers.get(name);
+    if (value !== null) headers.set(name, value);
+  }
   return new Response(bytes, { status: 200, statusText: 'OK', headers });
 }
 

@@ -835,7 +835,13 @@ llama.cpp (MIT, built from a pinned release in the repository's
   language packs in the browser's private storage and every other path go
   to the network untouched. It keeps a file only when its size and
   SHA-256 match the manifest, which it fetches past the HTTP cache, and a
-  new build waits until you choose **Reload**. Its caches are named after
+  new build waits until you choose **Reload**. A file it serves from its
+  cache carries the security headers your server sent with it
+  (`Content-Security-Policy` with `frame-ancestors`, `X-Frame-Options`,
+  `Referrer-Policy`, `Permissions-Policy`, `X-Content-Type-Options` and the
+  `Cross-Origin-*` policies), so the protection above holds offline too;
+  after you change those headers, the next update of the app picks them
+  up. Its caches are named after
   the app's path, so two copies of the app on one origin don't mix.
   Turning off **Settings > General > Keep the web app for offline use**
   unregisters it and deletes what it kept. Whoever controls the server can
