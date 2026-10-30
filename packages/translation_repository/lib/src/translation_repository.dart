@@ -3542,9 +3542,67 @@ class TranslationRepository {
     return match.code;
   }
 
-  /// Latency of `/api/version` on [instance]; throws on failure.
-  Future<Duration> pingInstance(MozhiInstance instance) =>
-      _mozhi.withClient(instance, (client) => client.ping());
+  /// The word [pingInstance] translates, and from and to which language.
+  static const pingText = 'Hello';
+  static const pingSource = 'en';
+  static const pingTarget = 'fr';
+
+  /// How long [instance] takes to translate the fixed word [pingText] from
+  /// English to French ([pingSource], [pingTarget]) with its Mozhi [engine]
+  /// (`google` by default, the engine the app uses unless the user picked
+  /// another): one `POST /api/translate`. Only that word is sent, never any
+  /// of the user's text, so like the other connection tests (see
+  /// [updatePrivacy]) it is not restricted by the privacy settings.
+  ///
+  /// A server that answers but doesn't translate fails too, unlike with
+  /// `GET /api/version` (a server whose Google engine fails answers that
+  /// just as fast): throws an [InstanceDoesNotTranslateException] when the
+  /// instance answered with an HTTP 5xx error or without a translation of
+  /// the word (blank, or the word itself), and the [MozhiApiException]
+  /// otherwise (network errors, the client's timeout, other HTTP statuses,
+  /// an answer that is not Mozhi's JSON, such as a bot wall's page).
+  Future<Duration> pingInstance(
+    MozhiInstance instance, {
+    String engine = 'google',
+  }) async {
+    final Duration latency;
+    final MozhiTranslation translation;
+    try {
+      (latency, translation) = await _mozhi.withClient(instance, (
+        client,
+      ) async {
+        final stopwatch = Stopwatch()..start();
+        final result = await client.translate(
+          engine: engine,
+          from: pingSource,
+          to: pingTarget,
+          text: pingText,
+        );
+        return (stopwatch.elapsed, result);
+      });
+    } on MozhiApiException catch (error, stackTrace) {
+      if (error.statusCode case final status? when status >= 500) {
+        Error.throwWithStackTrace(
+          InstanceDoesNotTranslateException(
+            error.message,
+            engine: engine,
+            statusCode: status,
+            uri: error.uri,
+          ),
+          stackTrace,
+        );
+      }
+      rethrow;
+    }
+    final text = translation.translatedText.trim();
+    if (text.isEmpty || text.toLowerCase() == pingText.toLowerCase()) {
+      throw InstanceDoesNotTranslateException(
+        '$engine returned no translation',
+        engine: engine,
+      );
+    }
+    return latency;
+  }
 
   /// Loads the model of a local AI [engine] (Ollama, LM Studio, llama.cpp:
   /// [TranslationEngine.isLocal] or a local provider, and models on this

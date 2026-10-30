@@ -168,8 +168,9 @@ class DocumentTranslateView extends StatelessWidget {
                       .whereType<ConsentRequiredException>()
                       .firstOrNull,
             requestsOf: documentRequests,
-            onGranted: (context) =>
-                unawaited(context.read<DocumentTranslateCubit>().retryFailed()),
+            onGranted: (context) => unawaited(
+              context.read<DocumentTranslateCubit>().consentGranted(),
+            ),
             child: Scaffold(
               appBar: AppBar(
                 title: Text(l10n.documentsTitle),

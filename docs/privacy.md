@@ -581,8 +581,10 @@ In the web app, clearing the site's data does the same.
   and goes with the captions screen unless you save it. Apps that don't
   allow capture (and phone calls) can't be captioned. The caption bar
   (**Display over other apps**) shows what is playing to whoever looks at
-  the screen, also while the app lock is locked; it hides while the phone
-  is locked, when nothing is captured either.
+  the screen, also while the app lock is locked; it hides while Mozhi is
+  on screen. While the phone is locked the bar hides and nothing is
+  captured: the recording stops and starts again when you unlock (if it
+  can't, the captions end).
 - **Reading the clipboard.** The app reads the clipboard only when you tap
   **Paste**, **Translate clipboard** or the start screen's **Paste and
   translate** (**Paste copied text**) chip. To offer that chip, the Android

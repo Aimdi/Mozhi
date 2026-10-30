@@ -1,3 +1,4 @@
+import 'package:mozhi_api/mozhi_api.dart';
 import 'package:translation_repository/src/models/data_destination.dart';
 
 /// The engine needs an explicit source language, and none could be
@@ -72,4 +73,30 @@ final class ConsentRequiredException implements Exception {
   String toString() =>
       'ConsentRequiredException(${kind.name}, $engineId -> $destination'
       '${source == null ? '' : ', $source>$target'})';
+}
+
+/// The Mozhi instance answered `TranslationRepository.pingInstance`, but
+/// its [engine] did not translate the test word: the instance answered
+/// with an HTTP 5xx error (Mozhi reports an engine that failed upstream,
+/// or one it doesn't offer, as 500), or without a translation.
+///
+/// A [MozhiApiException], so code that handles those keeps working; its
+/// [message], [statusCode] and [uri] are the instance's answer (sanitised
+/// like every Mozhi error).
+final class InstanceDoesNotTranslateException extends MozhiApiException {
+  const new(super.message, {required this.engine, super.statusCode, super.uri});
+
+  /// The Mozhi engine that was tested (`google`, ...).
+  final String engine;
+
+  /// Whether the instance doesn't offer [engine] at all (Mozhi's `Engine
+  /// does not exist or has been disabled`): it is a working Mozhi server
+  /// that translates with other engines only.
+  bool get engineUnavailable =>
+      statusCode != null && _unavailable.hasMatch(message);
+
+  static final _unavailable = RegExp(
+    'engine does not exist|not supported or implemented',
+    caseSensitive: false,
+  );
 }

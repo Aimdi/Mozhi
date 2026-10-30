@@ -73,7 +73,11 @@ class LiveCameraTiming {
 /// * [freeze] takes a still for the photo page; [setTorch], [setZoom].
 /// * The privacy settings apply (the repository enforces them): a stopped
 ///   request shows [LiveCameraState.consent] and nothing more is sent
-///   until [consentGranted].
+///   until [consentGranted]. A one-time approval covers what waits then
+///   ([consentRequests]); what it did not use is withdrawn
+///   (`TranslationRepository.revokeOnce`) when the camera closes (paused,
+///   frozen, failed, the screen closed) and when the engine or the
+///   languages change, so it can't let anything else through.
 ///
 /// Frames, stills and recognised text are never logged or stored.
 class LiveCameraCubit extends Cubit<LiveCameraState> {
@@ -199,6 +203,10 @@ class LiveCameraCubit extends Cubit<LiveCameraState> {
   Timer? _retryTimer;
   final _requests = <_Request>[];
 
+  /// The consents the user gave ([consentGranted]) whose one-time
+  /// approvals may not be used up yet.
+  final _grants = <ConsentRequiredException>[];
+
   // ---------------------------------------------------------------------
   // Starting and access
   // ---------------------------------------------------------------------
@@ -248,6 +256,7 @@ class LiveCameraCubit extends Cubit<LiveCameraState> {
   /// The next step towards a running camera, unless paused.
   Future<void> _proceed() async {
     if (isClosed || !_started) return;
+    _followLock();
     if (_pauses.isNotEmpty) {
       _emitPaused();
       return;
@@ -392,8 +401,12 @@ class LiveCameraCubit extends Cubit<LiveCameraState> {
       ),
     );
     _restartTimer = Timer(_timing.restartDelay, () {
-      if (isClosed || _pauses.isNotEmpty) return;
-      if (state.status != LiveCameraStatus.starting) return;
+      if (isClosed || state.status != LiveCameraStatus.starting) return;
+      _followLock();
+      if (_pauses.isNotEmpty) {
+        _emitPaused();
+        return;
+      }
       unawaited(_openCamera());
     });
   }
@@ -406,6 +419,8 @@ class LiveCameraCubit extends Cubit<LiveCameraState> {
     _cameraOpen = false;
     _restartTimer?.cancel();
     unawaited(_quietly(_camera.stop));
+    // What waited for the approval is gone with the camera.
+    _revokeGrants();
   }
 
   // ---------------------------------------------------------------------
@@ -416,6 +431,13 @@ class LiveCameraCubit extends Cubit<LiveCameraState> {
   void setForeground({required bool visible}) => visible
       ? _resume(LivePauseReason.background)
       : _pause(LivePauseReason.background);
+
+  /// Adds [LivePauseReason.locked] when the app lock says it is locked
+  /// now: its change may still be on the way (the lock checks on every
+  /// return to the app), and nothing may start behind it.
+  void _followLock() {
+    if (_lock?.isLocked ?? false) _pauses.add(LivePauseReason.locked);
+  }
 
   void _pause(LivePauseReason reason) {
     if (isClosed || !_pauses.add(reason)) return;
@@ -437,6 +459,7 @@ class LiveCameraCubit extends Cubit<LiveCameraState> {
   void _resume(LivePauseReason reason) {
     if (isClosed || !_pauses.remove(reason)) return;
     if (!_started) return;
+    _followLock();
     if (_pauses.isNotEmpty) {
       if (state.status == LiveCameraStatus.paused) _emitPaused();
       return;
@@ -594,6 +617,7 @@ class LiveCameraCubit extends Cubit<LiveCameraState> {
       // recreated).
       _session++;
       _cameraOpen = false;
+      _revokeGrants();
       _scheduleRestart();
       return;
     }
@@ -682,6 +706,38 @@ class LiveCameraCubit extends Cubit<LiveCameraState> {
       block.missed == 0 &&
       (block.seen >= minSightings || (block.paragraph.confidence ?? 0) >= 80);
 
+  /// The blocks waiting for a translation, in the batches they are sent
+  /// in (each one request).
+  List<List<LiveBlock>> _batches() {
+    final batches = <List<LiveBlock>>[];
+    var batch = <LiveBlock>[];
+    var characters = 0;
+    for (final block in state.blocks) {
+      if (!_isReady(block)) continue;
+      if (batch.isNotEmpty &&
+          (batch.length >= maxBatchBlocks ||
+              characters + block.text.length > maxBatchCharacters)) {
+        batches.add(batch);
+        batch = [];
+        characters = 0;
+      }
+      batch.add(block);
+      characters += block.text.length;
+    }
+    if (batch.isNotEmpty) batches.add(batch);
+    return batches;
+  }
+
+  /// How many requests translating what waits now takes (at least 1):
+  /// what a one-time approval of [LiveCameraState.consent] covers, as live
+  /// captions and Transcribe count the phrases waiting.
+  // Read-only query derived from state; it changes nothing.
+  // ignore: prefer_void_public_cubit_methods
+  int get consentRequests {
+    final batches = _batches().length;
+    return batches < 1 ? 1 : batches;
+  }
+
   /// Translates the blocks waiting for it, in one batch, unless one is
   /// running, the engine needs consent or failed a moment ago.
   void _translatePending() {
@@ -691,22 +747,11 @@ class LiveCameraCubit extends Cubit<LiveCameraState> {
         (_retryTimer?.isActive ?? false)) {
       return;
     }
-    final batch = <LiveBlock>[];
-    var characters = 0;
-    for (final block in state.blocks) {
-      if (!_isReady(block)) continue;
-      if (batch.isNotEmpty &&
-          (batch.length >= maxBatchBlocks ||
-              characters + block.text.length > maxBatchCharacters)) {
-        break;
-      }
-      batch.add(block);
-      characters += block.text.length;
-    }
-    if (batch.isEmpty) return;
+    final batches = _batches();
+    if (batches.isEmpty) return;
     _translating = true;
     final run = _translationRun;
-    unawaited(_translateBatch(run, batch));
+    unawaited(_translateBatch(run, batches.first));
   }
 
   Future<void> _translateBatch(int run, List<LiveBlock> batch) async {
@@ -797,7 +842,8 @@ class LiveCameraCubit extends Cubit<LiveCameraState> {
   }
 
   /// Drops the running translation and every translation shown (they are
-  /// translated again, the old ones shown meanwhile).
+  /// translated again, the old ones shown meanwhile), and what the user
+  /// allowed for them.
   void _restartTranslations() {
     _translationRun++;
     _translating = false;
@@ -806,6 +852,7 @@ class LiveCameraCubit extends Cubit<LiveCameraState> {
       request.cancel();
     }
     _requests.clear();
+    _revokeGrants();
     if (isClosed) return;
     emit(
       state.copyWith(
@@ -842,11 +889,31 @@ class LiveCameraCubit extends Cubit<LiveCameraState> {
     _translatePending();
   }
 
-  /// The user allowed the live engine (the consent prompt): translate on.
+  /// The user allowed the live engine (the consent prompt, which recorded
+  /// a one-time approval of [consentRequests] requests, or the pair or
+  /// provider for good): translate on. A one-time approval is withdrawn
+  /// with what it was for (see the class).
   void consentGranted() {
-    if (state.consent == null || isClosed) return;
+    final consent = state.consent;
+    if (consent == null || isClosed) return;
+    _grants.add(consent);
     emit(state.copyWith(consent: () => null));
     _translatePending();
+  }
+
+  /// Withdraws what the consents the user gave let through once and was
+  /// not used.
+  void _revokeGrants() {
+    if (_grants.isEmpty) return;
+    final grants = List.of(_grants);
+    _grants.clear();
+    for (final consent in grants) {
+      try {
+        _repository.revokeOnce(consent);
+      } on Object {
+        // Withdrawing must never break the camera.
+      }
+    }
   }
 
   // ---------------------------------------------------------------------

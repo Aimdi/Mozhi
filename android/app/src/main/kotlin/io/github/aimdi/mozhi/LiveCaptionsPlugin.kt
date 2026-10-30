@@ -2,6 +2,7 @@ package io.github.aimdi.mozhi
 
 import android.Manifest
 import android.app.Activity
+import android.app.Application
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
@@ -9,6 +10,7 @@ import android.content.pm.PackageManager
 import android.media.projection.MediaProjectionConfig
 import android.media.projection.MediaProjectionManager
 import android.os.Build
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import io.flutter.embedding.engine.plugins.FlutterPlugin
@@ -94,6 +96,8 @@ class LiveCaptionsPlugin :
         this.binding = binding
         binding.addActivityResultListener(this)
         binding.addRequestPermissionsResultListener(this)
+        // In the activity's onCreate: its start is seen (LiveCaptions.appInFront).
+        LiveCaptions.followWindows(binding.activity.application)
     }
 
     override fun onDetachedFromActivityForConfigChanges() {
@@ -319,7 +323,8 @@ class LiveCaptionsPlugin :
  * one Flutter engine) that started it, in the app's process. Each start is
  * a session of its own ([begin]); what the service reports for an older
  * session is dropped. The service reports from any thread; the listener
- * hears on the main thread.
+ * hears on the main thread. Also tells the service whether a Mozhi window
+ * is on screen ([appInFront]).
  */
 object LiveCaptions {
     const val EVENT_STOP_TAPPED = "stopTapped"
@@ -390,5 +395,54 @@ object LiveCaptions {
             val current = listener
             if (current != null && id == session) action(current)
         }
+    }
+
+    // ---------------------------------------------------------------------
+    // Mozhi's windows on screen (main thread)
+    // ---------------------------------------------------------------------
+
+    /**
+     * The Mozhi activities on screen (started, not stopped), followed for
+     * the whole process from the first Flutter window's creation on
+     * ([followWindows]). A service that only started following when it
+     * starts would miss the window that started the captions: it started
+     * earlier, and the microphone and capture dialogs in front of it are
+     * translucent (it is only paused, never started again).
+     */
+    private val windows = mutableSetOf<Int>()
+    private var following = false
+
+    /** A Mozhi window is on screen: the caption bar hides. */
+    val appInFront: Boolean
+        get() = windows.isNotEmpty()
+
+    /** Follows [application]'s activities from now on (once). */
+    fun followWindows(application: Application) {
+        if (following) return
+        following = true
+        application.registerActivityLifecycleCallbacks(
+            object : Application.ActivityLifecycleCallbacks {
+                override fun onActivityStarted(activity: Activity) {
+                    // At once: Translate screen's screenshot must not show the bar.
+                    if (windows.add(System.identityHashCode(activity))) service?.onWindowsChanged()
+                }
+
+                override fun onActivityStopped(activity: Activity) = gone(activity)
+
+                override fun onActivityDestroyed(activity: Activity) = gone(activity)
+
+                override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {}
+                override fun onActivityResumed(activity: Activity) {}
+                override fun onActivityPaused(activity: Activity) {}
+                override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
+            },
+        )
+    }
+
+    private fun gone(activity: Activity) {
+        if (!windows.remove(System.identityHashCode(activity))) return
+        // Posted: a window recreated for a configuration change is started
+        // again first, and the bar does not flash over it.
+        main.post { service?.onWindowsChanged() }
     }
 }

@@ -1001,9 +1001,10 @@ in an app that allows it. Open **Transcribe > Caption other apps**
   goes when you leave the screen.
 - **When nothing is heard** for 20 seconds, the screen and the bar say
   that the app playing may not allow capturing its sound (or nothing
-  plays). Captions pause while the phone is locked (nothing is captured)
-  and, on-device work being heavy, while the phone is hot; they go on by
-  themselves afterwards. They keep running while you use other apps, and
+  plays). Captions pause while the phone is locked (the recording stops:
+  nothing is captured) and, on-device work being heavy, while the phone is
+  hot; they go on by themselves afterwards (if the recording can't start
+  again after the lock, the captions end). They keep running while you use other apps, and
   stop with **Stop** (in Mozhi, on the bar or in the notification), when
   you leave the captions screen, or when Android ends the capture (the
   status bar's cast or record icon). Screen readers hear when captions

@@ -103,10 +103,12 @@ enum CaptionBarEvent {
   openTapped,
 
   /// The capture ended by itself: the projection was revoked (the status
-  /// bar's stop), or the recording broke.
+  /// bar's stop), or the recording broke (also: it did not start again
+  /// after the phone was unlocked).
   captureEnded,
 
-  /// The phone was locked: no audio arrives until [deviceUnlocked].
+  /// The phone was locked: nothing is recorded, so no audio arrives, until
+  /// [deviceUnlocked].
   deviceLocked,
 
   /// The phone was unlocked again.

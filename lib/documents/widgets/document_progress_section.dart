@@ -187,7 +187,8 @@ class _Status extends StatelessWidget {
 
 /// How many translation requests retrying the failed parts makes at most
 /// (a part whose batch cannot be split back is translated unit by unit):
-/// what a one-time consent covers.
+/// what a one-time consent covers. What the run does not use is withdrawn
+/// when it ends (`DocumentTranslateCubit.consentGranted`).
 int documentRequests(DocumentTranslateState state) {
   if (state.pdf case final pdf?) return _pdfRequests(state, pdf);
   final chunks = state.plan?.chunks ?? const [];
@@ -227,8 +228,7 @@ int _pdfRequests(DocumentTranslateState state, PdfSource pdf) {
 }
 
 /// What a page not read yet is counted as: most pages are one or two
-/// requests, and an approval that is not used up ends a couple of minutes
-/// after the last request.
+/// requests, and what the run does not use is withdrawn when it ends.
 const _requestsPerUnreadPage = 3;
 
 /// "Page 3 of 12: reading the text…", "Page 3 of 12: translating…", or
@@ -286,7 +286,7 @@ class DocumentFailuresCard extends StatelessWidget {
           key: const Key('documents_consent'),
           consent: consent,
           requests: documentRequests(state),
-          onGranted: () => unawaited(cubit.retryFailed()),
+          onGranted: () => unawaited(cubit.consentGranted()),
         ),
       );
     }

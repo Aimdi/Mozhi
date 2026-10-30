@@ -15,6 +15,8 @@ import 'package:translation_repository/translation_repository.dart'
 
 /// How many translation requests the rest of the page needs at most (one
 /// per untranslated block and the title): what a one-time consent covers.
+/// What the run does not use is withdrawn when it ends
+/// (`WebTranslateCubit.consentGranted`).
 int webTranslateRequests(WebTranslateState state) {
   final missing = state.totalItems - state.doneItems;
   return missing < 1 ? 1 : missing;
@@ -120,7 +122,7 @@ class WebTranslateStatusPanel extends StatelessWidget {
           key: const Key('web_translate_consent'),
           consent: state.error! as ConsentRequiredException,
           requests: webTranslateRequests(state),
-          onGranted: () => unawaited(cubit.resume()),
+          onGranted: () => unawaited(cubit.consentGranted()),
         );
 
       case WebTranslateStatus.failure:

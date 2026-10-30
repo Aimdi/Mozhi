@@ -2,7 +2,6 @@ package io.github.aimdi.mozhi
 
 import android.annotation.TargetApi
 import android.app.Activity
-import android.app.Application
 import android.app.KeyguardManager
 import android.app.Notification
 import android.app.PendingIntent
@@ -24,7 +23,6 @@ import android.media.AudioRecord
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Build
-import android.os.Bundle
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
@@ -43,6 +41,8 @@ import android.view.WindowManager
 import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.TextView
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -66,12 +66,16 @@ import kotlin.math.roundToInt
  *    translation in large text, the original smaller below it, **Open** and
  *    **Stop**; draggable up and down, never focusable (it cannot take the
  *    keyboard from another app), text in `sp` so it follows the font size.
- *    It hides while a Mozhi window is on screen (the transcript is there,
- *    and Translate screen's screenshot must not show it) and while the phone
- *    is locked.
+ *    It hides while a Mozhi window is on screen ([LiveCaptions.appInFront],
+ *    the window that started the captions included: the transcript is
+ *    there, and Translate screen's screenshot must not show it) and while
+ *    the phone is locked.
  *
- * While the phone is locked (screen off, or the lock screen up) no audio
- * is handed on ([LiveCaptions.EVENT_LOCKED] / [LiveCaptions.EVENT_UNLOCKED]).
+ * While the phone is locked (screen off, or the lock screen up) nothing is
+ * recorded: the [AudioRecord] is stopped, the projection kept, and it
+ * records again once the phone is unlocked ([LiveCaptions.EVENT_LOCKED] /
+ * [LiveCaptions.EVENT_UNLOCKED]); when it does not start again, the
+ * captions end ([LiveCaptions.EVENT_ENDED]).
  * It ends when Dart stops it, from the bar's or the notification's Stop
  * ([LiveCaptions.EVENT_STOP_TAPPED]), when the projection is revoked (the
  * status bar's stop) or the recording fails ([LiveCaptions.EVENT_ENDED]),
@@ -99,33 +103,11 @@ class LiveCaptionService : Service() {
     /** Read by the reader thread. */
     @Volatile private var running = false
 
-    /** The phone is locked: audio is dropped. Read by the reader thread. */
+    /**
+     * The phone is locked: the recording is stopped ([AudioCapture.pause]),
+     * and a block read as it stopped is dropped. Read by the reader thread.
+     */
     @Volatile private var locked = false
-
-    /** The Mozhi activities on screen (started, not stopped). */
-    private val visibleActivities = mutableSetOf<Int>()
-
-    private val activityCallbacks = object : Application.ActivityLifecycleCallbacks {
-        override fun onActivityStarted(activity: Activity) {
-            visibleActivities.add(System.identityHashCode(activity))
-            updateBar()
-        }
-
-        override fun onActivityStopped(activity: Activity) {
-            visibleActivities.remove(System.identityHashCode(activity))
-            updateBar()
-        }
-
-        override fun onActivityDestroyed(activity: Activity) {
-            visibleActivities.remove(System.identityHashCode(activity))
-            updateBar()
-        }
-
-        override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {}
-        override fun onActivityResumed(activity: Activity) {}
-        override fun onActivityPaused(activity: Activity) {}
-        override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
-    }
 
     private val projectionCallback = object : MediaProjection.Callback() {
         override fun onStop() {
@@ -139,7 +121,8 @@ class LiveCaptionService : Service() {
     override fun onCreate() {
         super.onCreate()
         LiveCaptions.service = this
-        application.registerActivityLifecycleCallbacks(activityCallbacks)
+        // Already followed since the first Mozhi window (LiveCaptionsPlugin).
+        LiveCaptions.followWindows(application)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -187,7 +170,6 @@ class LiveCaptionService : Service() {
 
     override fun onDestroy() {
         stopCapture()
-        application.unregisterActivityLifecycleCallbacks(activityCallbacks)
         bar?.detach()
         bar = null
         if (LiveCaptions.service === this) LiveCaptions.service = null
@@ -230,25 +212,32 @@ class LiveCaptionService : Service() {
         reader = Thread({ read(capture, id) }, READER_THREAD).also { it.start() }
     }
 
-    /** The reader thread: blocks of audio to Dart until stopped. */
+    /**
+     * The reader thread: blocks of audio to Dart until stopped. While the
+     * phone is locked it waits, recording nothing, and records again once
+     * unlocked ([AudioCapture.awaitRecording]).
+     */
     private fun read(capture: AudioCapture, id: Int) {
-        while (running) {
+        while (running && capture.awaitRecording()) {
             val block = capture.read()
             if (block == null) {
-                // The recording broke (another app took it, a dead server).
-                main.post { end(LiveCaptions.EVENT_ENDED) }
-                return
+                // A read cut short by the lock's stop; otherwise broken.
+                if (capture.stoppedByPause()) continue
+                break
             }
             if (block.isNotEmpty() && running && !locked) LiveCaptions.audio(id, block)
         }
+        // Broken (another app took the recording, a dead server) or not
+        // started again after the lock: over. Nothing when it was stopped.
+        main.post { if (this.capture === capture) end(LiveCaptions.EVENT_ENDED) }
     }
 
     private fun stopCapture() {
         running = false
         val capture = capture
         this.capture = null
-        // Unblocks the reader's read().
-        capture?.stop()
+        // Unblocks the reader: its read(), or its wait while locked.
+        capture?.close()
         reader?.let { thread ->
             try {
                 thread.join(JOIN_MILLIS)
@@ -312,7 +301,8 @@ class LiveCaptionService : Service() {
     /** Screen off: locked. Screen on without a lock screen, or unlocked: not. */
     private fun watchLock() {
         val keyguard = getSystemService(KeyguardManager::class.java)
-        locked = keyguard?.isKeyguardLocked ?: false
+        // This session's recording has just started (an earlier one may have ended locked).
+        locked = false
         val watcher = object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) {
                 when (intent.action) {
@@ -338,12 +328,17 @@ class LiveCaptionService : Service() {
         } catch (e: RuntimeException) {
             // Without it the captions just go on while locked.
         }
-        if (locked) LiveCaptions.event(session, LiveCaptions.EVENT_LOCKED)
+        if (keyguard?.isKeyguardLocked == true) setLocked(true)
     }
 
+    /**
+     * Locked: the recording stops (the projection stays). Unlocked: the
+     * reader starts it again, or ends the captions when it cannot.
+     */
     private fun setLocked(value: Boolean) {
         if (locked == value || ended) return
         locked = value
+        if (value) capture?.pause() else capture?.resume()
         LiveCaptions.event(
             session,
             if (value) LiveCaptions.EVENT_LOCKED else LiveCaptions.EVENT_UNLOCKED,
@@ -459,10 +454,13 @@ class LiveCaptionService : Service() {
         return true
     }
 
+    /** A Mozhi window came on screen or went ([LiveCaptions.appInFront]). Main thread. */
+    fun onWindowsChanged() = updateBar()
+
     /** Shown unless a Mozhi window is on screen or the phone is locked. */
     private fun updateBar() {
         val bar = bar ?: return
-        if (ended || locked || visibleActivities.isNotEmpty() || !Settings.canDrawOverlays(this)) {
+        if (ended || locked || LiveCaptions.appInFront || !Settings.canDrawOverlays(this)) {
             bar.detach()
         } else {
             bar.attach()
@@ -736,7 +734,9 @@ class LiveCaptionService : Service() {
 /**
  * Records other apps' sound ([AudioPlaybackCaptureConfiguration]) and
  * returns it as 16 kHz mono float blocks ([read]), whatever the device
- * records in ([open] tries 16 kHz float first).
+ * records in ([open] tries 16 kHz float first). Stopped while the phone is
+ * locked ([pause], [resume]): only the reader thread starts it again, so a
+ * start never runs alongside a read.
  */
 @TargetApi(Build.VERSION_CODES.Q)
 private class AudioCapture(
@@ -749,6 +749,19 @@ private class AudioCapture(
     private val shorts = if (float) null else ShortArray(chunk)
     private val resampler = Resampler(rate.toDouble() / LiveCaptionService.TARGET_RATE)
 
+    private val gate = ReentrantLock()
+    private val unpaused = gate.newCondition()
+
+    /** The phone is locked: the reader waits. Guarded by [gate]. */
+    private var paused = false
+
+    /** [pause] stopped the recording: the reader starts it. Guarded by [gate]. */
+    private var stopped = false
+
+    /** [close]d: the reader ends. Guarded by [gate]. */
+    private var closed = false
+
+    /** Starts recording (once, before the reader runs); false when it cannot. */
     fun start(): Boolean = try {
         record.startRecording()
         record.recordingState == AudioRecord.RECORDSTATE_RECORDING
@@ -756,7 +769,63 @@ private class AudioCapture(
         false
     }
 
-    /** The next block (empty after a stop); null when the recording broke. */
+    /**
+     * Stops recording while the phone is locked (main thread): a read in
+     * progress returns, then the reader waits in [awaitRecording].
+     */
+    fun pause() {
+        gate.withLock {
+            if (closed || paused) return
+            paused = true
+            stopped = true
+            // Under the gate: a start in awaitRecording is over, so this stop wins.
+            stopRecording()
+        }
+    }
+
+    /** The phone is unlocked (main thread): the reader records again. */
+    fun resume() {
+        gate.withLock {
+            paused = false
+            unpaused.signalAll()
+        }
+    }
+
+    /** [pause] stopped the recording since the reader last started it. */
+    fun stoppedByPause(): Boolean = gate.withLock { stopped }
+
+    /**
+     * The reader, before each read: waits while paused, then starts the
+     * recording again if [pause] stopped it. False once closed, or when the
+     * recording does not start again.
+     */
+    fun awaitRecording(): Boolean {
+        gate.withLock {
+            try {
+                while (paused && !closed) unpaused.await()
+            } catch (e: InterruptedException) {
+                Thread.currentThread().interrupt()
+                return false
+            }
+            if (closed) return false
+            if (stopped) {
+                if (!start()) return false
+                stopped = false
+            }
+            return true
+        }
+    }
+
+    /** Ends the recording for good: a read in progress or a wait returns. */
+    fun close() {
+        gate.withLock {
+            closed = true
+            unpaused.signalAll()
+        }
+        stopRecording()
+    }
+
+    /** The next block (empty after a stop); null when the recording broke. Reader thread. */
     fun read(): FloatArray? {
         val count = if (float) {
             record.read(floats, 0, chunk, AudioRecord.READ_BLOCKING)
@@ -770,7 +839,7 @@ private class AudioCapture(
         return resampler.process(floats, count)
     }
 
-    fun stop() {
+    private fun stopRecording() {
         try {
             record.stop()
         } catch (e: IllegalStateException) {

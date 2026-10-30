@@ -647,8 +647,11 @@ purpose, only sound, and keep nothing:
   screen (the caption bar included) is captured.
 - **Memory only.** Blocks of 100 ms go from the recording thread to Dart
   over an event channel and are dropped once Whisper has read them;
-  nothing is written to disk or logged. While the phone is locked no
-  audio is handed on. Phrases waiting for the engine are bounded (20 s of
+  nothing is written to disk or logged. While the phone is locked (screen
+  off, or the lock screen up) nothing is recorded: the `AudioRecord` is
+  stopped (the projection is kept) and starts again once the phone is
+  unlocked; if it can't start again, the captions end. Phrases waiting for
+  the engine are bounded (20 s of
   audio, older phrases are skipped), the transcript too (2,000 phrases).
 - **The text** goes only to the live engine (the offline engine unless
   the user picked another for live use and confirmed a network one once),
@@ -659,13 +662,17 @@ purpose, only sound, and keep nothing:
   `FLAG_NOT_FOCUSABLE`: it can't take the keyboard or input focus from
   the app below, and touches outside it go to that app. Its buttons send
   nothing but a stop or "open Mozhi" to the app. It hides while a Mozhi
-  window is on screen (so Translate screen never reads it) and while the
-  phone is locked. It shows the current captions while the app lock is
+  window is on screen and while the phone is locked. Mozhi's windows are
+  followed from the app's first window on, so the window that started the
+  captions counts too (the microphone and capture dialogs in front of it
+  only pause it), and Translate screen never reads the bar. It shows the
+  current captions while the app lock is
   locked (they are what is playing now, not stored data); the transcript
   stays behind the lock.
 - **It ends** with Stop (in the app, on the bar, in the notification),
   when the captions screen closes, when Android revokes the projection
-  (the status bar's stop) or the recording breaks, and when the app's
+  (the status bar's stop) or the recording breaks (or doesn't start again
+  after the phone is unlocked), and when the app's
   engine goes away; it is never restarted by the system.
 
 ## AI prompts and output

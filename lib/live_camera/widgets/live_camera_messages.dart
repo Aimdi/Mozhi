@@ -15,11 +15,6 @@ import 'package:mozhi/live_camera/widgets/live_camera_labels.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:translation_repository/translation_repository.dart';
 
-/// How many requests one "Once" in the live camera's consent prompt lets
-/// through (each block translation is one; each use keeps it alive a
-/// while, see `TranslationRepository.allowOnce`).
-const liveCameraConsentRequests = 500;
-
 /// Lets the user pick the language of the text ([source]) or the target
 /// of the live camera (the translator's languages, else the catalogue).
 Future<void> pickLiveCameraLanguage(
@@ -187,7 +182,9 @@ class LiveCameraMessages extends StatelessWidget {
         child: ConsentInlinePrompt(
           key: ValueKey(consent),
           consent: consent,
-          requests: liveCameraConsentRequests,
+          // "Once" covers what waits now; the cubit withdraws what it
+          // does not use when the camera closes.
+          requests: cubit.consentRequests,
           onGranted: cubit.consentGranted,
         ),
       );

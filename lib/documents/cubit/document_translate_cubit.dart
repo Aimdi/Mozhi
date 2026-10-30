@@ -42,6 +42,11 @@ export 'document_translate_state.dart';
 /// * [translate] runs the [DocumentTranslator]; progress, partial output
 ///   and failed chunks update live. [cancel] stops the run (keeping what
 ///   is done); [retryFailed]/[retryChunk] translate what is missing.
+/// * Parts the privacy settings stopped are translated once the user
+///   allowed them ([consentGranted]); what a one-time approval for them
+///   did not use is withdrawn (`TranslationRepository.revokeOnce`) when
+///   that run ends (done, failed, cancelled or replaced) and when the
+///   screen closes, so it can't let anything else through.
 /// * Changing the document, engine or languages discards translations.
 class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
   new({
@@ -165,6 +170,10 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
   StreamSubscription<DocumentProgress>? _subscription;
   Completer<void>? _runDone;
   int _run = 0;
+
+  /// The consents the user gave for the run that is starting or running
+  /// ([consentGranted]), withdrawn when it ends.
+  final _grants = <ConsentRequiredException>[];
 
   /// The last picked file, kept while the user looks at pasted text.
   _FileInput? _file;
@@ -798,6 +807,34 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
   /// Translates chunk [index] again.
   Future<void> retryChunk(int index) => _start(fresh: false, only: [index]);
 
+  /// The user allowed what the privacy settings stopped (the consent
+  /// prompt recorded a one-time approval of what is missing, or the pair or
+  /// provider for good): translates what is missing ([retryFailed]). What
+  /// a one-time approval did not use is withdrawn when that run ends; a
+  /// run that is still going takes it, and withdraws it when it ends.
+  Future<void> consentGranted() async {
+    _grants.addAll(state.failures.values.whereType<ConsentRequiredException>());
+    if (state.isTranslating) return;
+    await retryFailed();
+    // Nothing started (or it is over): nothing is left to use them.
+    if (!state.isTranslating) _revokeGrants();
+  }
+
+  /// Withdraws what the consents the user gave let through once and was
+  /// not used.
+  void _revokeGrants() {
+    if (_grants.isEmpty) return;
+    final grants = List.of(_grants);
+    _grants.clear();
+    for (final consent in grants) {
+      try {
+        _repository.revokeOnce(consent);
+      } on Object {
+        // Withdrawing must never break the translation.
+      }
+    }
+  }
+
   Future<void> _start({required bool fresh, List<int>? only}) {
     if (state.isPdf) return _startPdf(fresh: fresh, only: only);
     final plan = state.plan;
@@ -856,6 +893,7 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
           onDone: () {
             if (run == _run) {
               _subscription = null;
+              _revokeGrants();
               emit(state.copyWith(status: DocumentStatus.translated));
             }
             if (!done.isCompleted) done.complete();
@@ -883,6 +921,7 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
     _subscription = null;
     unawaited(_pdfSubscription?.cancel());
     _pdfSubscription = null;
+    _revokeGrants();
     final done = _runDone;
     if (done != null && !done.isCompleted) done.complete();
   }
@@ -1127,6 +1166,7 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
     };
     if (codes == null) {
       _runDone = null;
+      _revokeGrants();
       emit(
         state.copyWith(
           status: state.hasTranslation
@@ -1192,6 +1232,7 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
           onDone: () {
             if (run == _run) {
               _pdfSubscription = null;
+              _revokeGrants();
               final pdf = state.pdf!.copyWith(
                 currentPage: () => null,
                 stage: () => null,
