@@ -13192,7 +13192,7 @@
   "@liveCaptionsAbout": {
     "description": "liveCaptionsAbout"
   },
-  "liveCaptionsAboutPrivacy": "Only the sound is used, never the screen. It stays in memory: nothing is recorded, saved or sent. Only the recognised text goes to the engine below, and the captions are gone when you leave this screen unless you save them.",
+  "liveCaptionsAboutPrivacy": "Only the sound is used, never the screen. It stays in memory: nothing is recorded, saved or sent. Only the recognized text goes to the engine below, and the captions are gone when you leave this screen unless you save them.",
   "@liveCaptionsAboutPrivacy": {
     "description": "liveCaptionsAboutPrivacy"
   },
