@@ -47,13 +47,14 @@ gaps that matter:
 - **Continuity:** no encrypted backup or sync, favorites aren't a
   phrasebook, no learning tools (all closed in wave 4).
 
-## Done: waves 1 to 7
+## Done: waves 1 to 8
 
 Wave 1 (trust, speed and transparency), wave 2 (feel like the best app),
 wave 3 (offline everywhere), wave 4 (continuity and learning), wave 5
-(offline AI), wave 6 (translate everything, anywhere) and wave 7 (live and
-in place) are built; the [changelog](../CHANGELOG.md) lists what changed
-(0.1.0-rc.3 for wave 5, 0.1.0-rc.4 for wave 6 and 0.1.0-rc.5 for wave 7).
+(offline AI), wave 6 (translate everything, anywhere), wave 7 (live and
+in place) and wave 8 (works everywhere, the first time) are built; the [changelog](../CHANGELOG.md) lists what changed
+(0.1.0-rc.3 for wave 5, 0.1.0-rc.4 for wave 6, 0.1.0-rc.5 for wave 7 and
+0.1.0-rc.6 for wave 8).
 Wave 3
 brought offline translation to the web app (Bergamot and CLD2 as
 WebAssembly in a worker, models in the browser's private storage), a model
@@ -128,6 +129,16 @@ dictionaries from files; and wave 6's engineering leftovers are closed
 (linear JSON search and streamed restore, the full-width CSV formula
 guard, longer document placeholders, the "kept on this device" note for
 photos and documents).
+
+Wave 8 came from checking that Mozhi works for someone who just installed
+it: CI now runs the APK on an Android emulator without Google services
+and checks the public servers and every download. It showed a first run
+that ended without a translation and a download button that only opened
+a list. Now the default engine translates on the phone or asks before
+going online, downloads happen in place, a server that fails is tried
+last for a while, and errors say what to do. The web app is tested in
+Firefox and WebKit, the store listings exist in all 18 languages, and
+passphrases with accented letters match however they were typed.
 
 Carried over to later waves:
 
