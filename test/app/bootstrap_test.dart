@@ -232,10 +232,13 @@ void main() {
     });
 
     test('every repository client uses the session client', () async {
-      final requests = <http.BaseRequest>[];
+      final requests = <http.Request>[];
       final client = MockClient((request) async {
         requests.add(request);
-        return http.Response('{"fiberversion":"v2","goversion":"go1"}', 200);
+        return http.Response(
+          '{"engine":"google","translated-text":"Bonjour"}',
+          200,
+        );
       });
 
       final dependencies = await createDependencies(
@@ -259,9 +262,46 @@ void main() {
         ),
       );
 
-      expect(requests.map((r) => r.url.toString()), [
-        'https://mozhi.example/api/version',
+      // The test of an instance translates a fixed word, nothing else.
+      expect(requests.map((r) => (r.method, r.url.toString())), [
+        ('POST', 'https://mozhi.example/api/translate'),
       ]);
+      expect(requests.single.bodyFields, {
+        'engine': 'google',
+        'from': 'en',
+        'to': 'fr',
+        'text': 'Hello',
+      });
+    });
+
+    test('an instance test fails when the server answers without '
+        'translating', () async {
+      final requests = <String>[];
+      final client = MockClient((request) async {
+        requests.add(request.url.path);
+        return request.url.path == '/api/version'
+            ? http.Response('{"fiberversion":"v2","goversion":"go1"}', 200)
+            : http.Response('Post "https://translate.google.com": 429', 500);
+      });
+
+      final dependencies = await createDependencies(
+        prefs: MemoryStore(),
+        secrets: MemoryStore(),
+        network: (proxy) => NetworkSession(proxy: proxy, httpClient: client),
+      );
+      await expectLater(
+        dependencies.translationRepository.pingInstance(
+          const MozhiInstance(url: 'https://mozhi.example'),
+        ),
+        throwsA(
+          isA<InstanceDoesNotTranslateException>().having(
+            (e) => e.statusCode,
+            'statusCode',
+            500,
+          ),
+        ),
+      );
+      expect(requests, ['/api/translate']);
     });
   });
 

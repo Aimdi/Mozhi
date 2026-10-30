@@ -21,6 +21,7 @@ import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:translation_repository/translation_repository.dart';
 
+import '../../app_lock/helpers/fake_app_lock_platform.dart';
 import '../helpers/live_camera_fakes.dart';
 
 class _MockSettingsCubit extends MockCubit<AppSettings>
@@ -597,6 +598,35 @@ void main() {
     );
   });
 
+  testLive('"Once" covers what waits and ends with the screen', (tester) async {
+    const consent = ConsentRequiredException(
+      kind: ConsentKind.pair,
+      destination: PublicInstanceDestination('mozhi.example', engine: 'google'),
+      engineId: 'mozhi:google',
+      source: 'en',
+      target: 'de',
+    );
+    var refusing = true;
+    when(() => repository.translate(any(), any())).thenAnswer(
+      (invocation) =>
+          refusing ? Stream.error(consent) : bracketTranslation(invocation),
+    );
+    when(() => repository.allowOnce(consent, requests: any(named: 'requests')))
+        .thenAnswer((_) => refusing = false);
+    await pumpPage(tester);
+    await show(tester, [paragraph('Hello world')]);
+
+    await tester.tap(find.text('Once'));
+    await tester.pump();
+    // One paragraph waits: one request, not a stream of them.
+    verify(() => repository.allowOnce(consent)).called(1);
+    expect(cubitOf(tester).state.blocks.single.translation, '<Hello world>de');
+    verifyNever(() => repository.revokeOnce(any()));
+
+    await tester.pumpWidget(const SizedBox());
+    verify(() => repository.revokeOnce(consent)).called(1);
+  });
+
   testLive('an engine failure offers another engine', (tester) async {
     when(() => repository.translate(any(), any()))
         .thenAnswer((_) => Stream.error(StateError('down')));
@@ -665,6 +695,70 @@ void main() {
     await tester.pump();
     await tester.pump();
     expect(find.byType(Texture), findsOneWidget);
+  });
+
+  group('back after the phone slept', () {
+    late FakeAppLockPlatform platform;
+    late AppLockController lock;
+
+    /// The page under an app lock that hears of the app's comings and
+    /// goings first, as the lock gate above the router does.
+    Future<void> pumpLocked(WidgetTester tester) async {
+      platform = FakeAppLockPlatform(unlocked: true);
+      lock = AppLockController(
+        platform: platform,
+        timeout: AppLockTimeout.after1Minute,
+        // The phone's sleep stopped this clock: it says nothing passed.
+        clock: () => Duration.zero,
+        timer: FakeTimers().call,
+      );
+      addTearDown(lock.dispose);
+      final gate = AppLifecycleListener(
+        onHide: lock.noteBackground,
+        onShow: lock.noteForeground,
+      );
+      addTearDown(gate.dispose);
+      await pumpPage(tester, lock: lock);
+      expect(camera.starts, 1);
+      tester.binding
+        ..handleAppLifecycleStateChanged(AppLifecycleState.inactive)
+        ..handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      await tester.pump();
+      expect(cubitOf(tester).state.status, LiveCameraStatus.paused);
+      platform.holdSessions = true;
+      tester.binding
+        ..handleAppLifecycleStateChanged(AppLifecycleState.inactive)
+        ..handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+      await tester.pump();
+    }
+
+    testLive('the camera waits for the lock to check', (tester) async {
+      await pumpLocked(tester);
+      expect(camera.starts, 1, reason: 'not opened before the lock said');
+      expect(find.text('Paused while Mozhi is locked'), findsOneWidget);
+
+      // Away for less than the timeout.
+      platform.pendingSessions.single.complete(platform.current);
+      await tester.pump();
+      await tester.pump();
+      expect(camera.starts, 2);
+      expect(cubitOf(tester).state.status, LiveCameraStatus.running);
+    });
+
+    testLive('the camera never opens behind the lock', (tester) async {
+      await pumpLocked(tester);
+      platform
+        ..leave(const Duration(minutes: 3))
+        ..comeBack();
+      platform.pendingSessions.single.complete(platform.current);
+      await tester.pump();
+      await tester.pump();
+      expect(lock.status, AppLockStatus.locked);
+      expect(camera.starts, 1);
+      expect(camera.stops, 1, reason: 'only when it went to the background');
+      expect(find.text('Paused while Mozhi is locked'), findsOneWidget);
+    });
   });
 
   testLive('says it reads less often while the phone is hot', (tester) async {

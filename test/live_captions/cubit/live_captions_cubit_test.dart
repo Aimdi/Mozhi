@@ -41,6 +41,7 @@ void main() {
       const TranslationRequest(text: '', source: english, target: german),
     );
     registerFallbackValue(_FakeHistoryEntry());
+    registerFallbackValue(_consent);
   });
 
   setUp(() {
@@ -496,6 +497,69 @@ void main() {
       await settle();
       verify(() => repository.translate(any(), any())).called(2);
       await cubit.close();
+    });
+
+    test('withdraws what a one-time consent did not use once the waiting '
+        'phrases were sent', () async {
+      var allowed = false;
+      when(() => repository.translate(any(), any())).thenAnswer((_) {
+        if (!allowed) return Stream.error(_consent);
+        return Stream.value(resultOf('Hello'));
+      });
+      final cubit = await running();
+      recognizer.recording.phrase('Hola', language: 'es');
+      await settle();
+      verifyNever(() => repository.revokeOnce(any()));
+      allowed = true;
+      cubit.retryTranslations();
+      await settle();
+      expect(cubit.state.entries.single.translation, 'Hello');
+      verify(() => repository.revokeOnce(_consent)).called(1);
+      // Stopping and closing have nothing left to withdraw.
+      await cubit.stop();
+      await cubit.close();
+      verifyNever(() => repository.revokeOnce(any()));
+    });
+
+    test('withdraws a one-time consent when the captions stop', () async {
+      final waiting = StreamController<TranslationResult>();
+      var allowed = false;
+      when(() => repository.translate(any(), any())).thenAnswer((_) {
+        if (!allowed) return Stream.error(_consent);
+        return waiting.stream;
+      });
+      final cubit = await running();
+      recognizer.recording.phrase('Hola', language: 'es');
+      await settle();
+      allowed = true;
+      cubit.retryTranslations();
+      await settle();
+      await cubit.stop();
+      verify(() => repository.revokeOnce(_consent)).called(1);
+      await waiting.close();
+      await settle();
+      await cubit.close();
+      verifyNever(() => repository.revokeOnce(any()));
+    });
+
+    test('withdraws a one-time consent when the screen closes', () async {
+      final waiting = StreamController<TranslationResult>();
+      var allowed = false;
+      when(() => repository.translate(any(), any())).thenAnswer((_) {
+        if (!allowed) return Stream.error(_consent);
+        return waiting.stream;
+      });
+      when(() => repository.revokeOnce(any())).thenThrow(StateError('gone'));
+      final cubit = await running();
+      recognizer.recording.phrase('Hola', language: 'es');
+      await settle();
+      allowed = true;
+      cubit.retryTranslations();
+      await settle();
+      // A failing withdrawal never breaks closing.
+      await cubit.close();
+      verify(() => repository.revokeOnce(_consent)).called(1);
+      await waiting.close();
     });
 
     test('the engine is the live engine of the moment', () async {

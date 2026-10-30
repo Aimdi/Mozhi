@@ -39,6 +39,9 @@ class _FakeChecker implements MozhiInstanceChecker {
       throw StateError('not stubbed');
   final List<String> tested = [];
 
+  /// The `engine` of each [test], in order.
+  final List<String?> testedEngines = [];
+
   final _changes = StreamController<void>.broadcast();
 
   void put(String url, InstanceHealth health) {
@@ -67,8 +70,9 @@ class _FakeChecker implements MozhiInstanceChecker {
   }
 
   @override
-  Future<InstanceTestResult> test(String url) async {
+  Future<InstanceTestResult> test(String url, {String? engine}) async {
     tested.add(url);
+    testedEngines.add(engine);
     return await onTest(url);
   }
 
@@ -514,10 +518,35 @@ void main() {
             isSemantics(label: result, isLiveRegion: true),
           );
           expect(checker.tested, [_fast.url]);
+          // No engine chosen: the checker picks (Google first).
+          expect(checker.testedEngines, [null]);
           await tester.tap(find.text('Close'));
           await tester.pumpAndSettle();
           expect(find.text(result), findsNothing);
           handle.dispose();
+        });
+
+        testWidgets('tests the Mozhi engine the app uses', (tester) async {
+          when(() => settings.state).thenReturn(
+            const AppSettings(
+              instances: [_fast, _slow, _down],
+              engineId: 'mozhi:deepl',
+            ),
+          );
+          checker.onTest = (_) => const InstanceTestResult(
+            engineId: 'deepl',
+            engineName: 'DeepL',
+            text: 'Hallo',
+            latency: Duration(milliseconds: 80),
+          );
+          await runTest(tester);
+          await tester.pumpAndSettle();
+
+          expect(checker.testedEngines, ['deepl']);
+          expect(
+            find.text('DeepL translated “hello” to “Hallo” in 80 ms.'),
+            findsOneWidget,
+          );
         });
 
         testWidgets('shows a failure', (tester) async {

@@ -82,7 +82,7 @@ class MozhiPublicInstance {
       'https://codeberg.org/aryak/mozhi/raw/branch/master/instances.json';
 
   /// When [all] was taken (ISO 8601 date).
-  static const snapshotDate = '2026-10-17';
+  static const snapshotDate = '2026-10-30';
 
   /// The bundled snapshot of Mozhi's public instances.
   ///
@@ -92,7 +92,24 @@ class MozhiPublicInstance {
   /// list. Hosting providers are not known for this snapshot. Tor and I2P
   /// addresses are attached to a clearnet URL only where the operator is
   /// evident from the address; the others are listed on their own.
+  ///
+  /// Clearnet servers come in the order of the app's default list (those
+  /// that translate with Google first). Servers an app can't use are left
+  /// out (checked on 2026-10-30): `translate.nerdvpn.de` (no longer
+  /// resolves), `translate.privacyredirect.com` (refuses the API with HTTP
+  /// 403), `mozhi.canine.tools` and `mozhi.bloat.cat` (a bot wall answers
+  /// with an HTML page).
   static const all = <MozhiPublicInstance>[
+    MozhiPublicInstance(url: 'https://mozhi.adminforge.de', country: 'Germany'),
+    MozhiPublicInstance(url: 'https://mozhi.ducks.party', country: 'Germany'),
+    MozhiPublicInstance(
+      url: 'https://mozhi.catsarch.com',
+      country: 'USA',
+      onion:
+          'http://mozhi.catsarchywsyuss6jdxlypsw5dc7owd5u5tr6bujxb7o6xw2hipqehyd'
+          '.onion',
+    ),
+    MozhiPublicInstance(url: 'https://mzh.dc09.xyz', country: 'Russia'),
     MozhiPublicInstance(
       url: 'https://mozhi.aryak.me',
       country: 'India',
@@ -105,28 +122,8 @@ class MozhiPublicInstance {
       country: 'Germany, USA, India',
     ),
     MozhiPublicInstance(
-      url: 'https://translate.nerdvpn.de',
-      country: 'Ukraine',
-    ),
-    MozhiPublicInstance(url: 'https://mozhi.ducks.party', country: 'Germany'),
-    MozhiPublicInstance(
       url: 'https://mozhi.pussthecat.org',
       country: 'Germany',
-    ),
-    MozhiPublicInstance(url: 'https://mozhi.adminforge.de', country: 'Germany'),
-    MozhiPublicInstance(
-      url: 'https://translate.privacyredirect.com',
-      country: 'Finland',
-    ),
-    MozhiPublicInstance(url: 'https://mozhi.canine.tools', country: 'USA'),
-    MozhiPublicInstance(url: 'https://mzh.dc09.xyz', country: 'Russia'),
-    MozhiPublicInstance(url: 'https://mozhi.bloat.cat', country: 'Germany'),
-    MozhiPublicInstance(
-      url: 'https://mozhi.catsarch.com',
-      country: 'USA',
-      onion:
-          'http://mozhi.catsarchywsyuss6jdxlypsw5dc7owd5u5tr6bujxb7o6xw2hipqehyd'
-          '.onion',
     ),
     MozhiPublicInstance(
       onion: 'http://42i2bzogwkph3dvoo2bm6srskf7vvabsphw7uzftymbjjlzgfluhnmid.onion',

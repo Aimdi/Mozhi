@@ -1650,7 +1650,6 @@
   "onboardingServiceChange": "Ubah",
   "onboardingServiceChangeDone": "Selesai",
   "onboardingServiceFindFastestTitle": "Cari server tercepat",
-  "onboardingServiceFindFastestHint": "Menghubungi setiap server dalam daftar sekali untuk mengukur kecepatannya, lalu mencoba yang tercepat lebih dulu.",
   "onboardingServiceAskFirst": "Tanya sebelum mengirim teks",
   "onboardingServiceAskFirstBody": "Perangkat ini tidak dapat menerjemahkan sendiri, jadi teks Anda dikirim ke server di bawah. Aktifkan ini agar Anda ditanya sekali untuk setiap pasangan bahasa.",
   "translateErrorUseEngine": "Terjemahkan dengan {engine}",

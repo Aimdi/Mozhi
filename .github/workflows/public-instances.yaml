@@ -1,0 +1,39 @@
+name: public instances
+
+# A new install translates online through the volunteer Mozhi servers built
+# into the app (MozhiInstance.publicInstances in
+# packages/translation_repository/lib/src/models/mozhi_instance.dart),
+# starting at the first one. Servers go down, put up bot walls, or lose
+# their Google engine, so this checks every week which still translate,
+# with which engines: the job summary has the table, each server that no
+# longer translates with the default engine gets a warning, and the run
+# fails when none does. Reorder or retire servers in the list (and in
+# MozhiInstance.retiredUrls / previousDefaultOrders) when it says so.
+on:
+  schedule:
+    # Mondays, 05:17 UTC.
+    - cron: "17 5 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Check the public Mozhi instances
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Test the check
+        run: python3 tool/check_public_instances_test.py
+
+      # Translates one fixed English sentence per engine on each server;
+      # nothing else is sent.
+      - name: Check the built-in servers
+        run: python3 tool/check_public_instances.py

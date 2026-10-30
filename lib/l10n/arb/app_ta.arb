@@ -1650,7 +1650,6 @@
   "onboardingServiceChange": "மாற்று",
   "onboardingServiceChangeDone": "முடிந்தது",
   "onboardingServiceFindFastestTitle": "மிக வேகமான சர்வரைக் கண்டறி",
-  "onboardingServiceFindFastestHint": "பட்டியலிலுள்ள ஒவ்வொரு சர்வரின் வேகத்தையும் அளக்க அதை ஒருமுறை தொடர்புகொண்டு, மிக வேகமானதை முதலில் முயலும்.",
   "onboardingServiceAskFirst": "உரையை அனுப்பும் முன் கேள்",
   "onboardingServiceAskFirstBody": "இந்தச் சாதனத்தால் தானாக மொழிபெயர்க்க முடியாது; எனவே உங்கள் உரை கீழே உள்ள சர்வருக்குச் செல்லும். ஒவ்வொரு மொழி இணைக்கும் ஒருமுறை கேட்கப்பட, இதை இயக்கவும்.",
   "translateErrorUseEngine": "{engine} மூலம் மொழிபெயர்",

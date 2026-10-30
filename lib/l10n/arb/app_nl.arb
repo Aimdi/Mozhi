@@ -1650,7 +1650,6 @@
   "onboardingServiceChange": "Wijzigen",
   "onboardingServiceChangeDone": "Klaar",
   "onboardingServiceFindFastestTitle": "Snelste server zoeken",
-  "onboardingServiceFindFastestHint": "Neemt één keer contact op met elke server in de lijst om de snelheid te meten en probeert daarna eerst de snelste.",
   "onboardingServiceAskFirst": "Vragen voordat tekst wordt verstuurd",
   "onboardingServiceAskFirstBody": "Dit apparaat kan niet zelf vertalen, dus je tekst gaat naar de server hieronder. Zet dit aan, dan vraagt Mozhi het je één keer per taalpaar.",
   "translateErrorUseEngine": "Vertalen met {engine}",

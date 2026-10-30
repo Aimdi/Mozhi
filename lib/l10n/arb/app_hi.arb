@@ -1650,7 +1650,6 @@
   "onboardingServiceChange": "बदलें",
   "onboardingServiceChangeDone": "हो गया",
   "onboardingServiceFindFastestTitle": "सबसे तेज़ सर्वर खोजें",
-  "onboardingServiceFindFastestHint": "सूची के हर सर्वर से उसकी गति मापने के लिए एक बार संपर्क करता है, फिर सबसे तेज़ सर्वर को पहले आज़माता है।",
   "onboardingServiceAskFirst": "टेक्स्ट भेजने से पहले पूछें",
   "onboardingServiceAskFirstBody": "यह डिवाइस खुद अनुवाद नहीं कर सकता, इसलिए आपका टेक्स्ट नीचे दिए गए सर्वर पर जाता है। हर भाषा-जोड़ी के लिए एक बार पूछे जाने के लिए इसे चालू करें।",
   "translateErrorUseEngine": "{engine} से अनुवाद करें",

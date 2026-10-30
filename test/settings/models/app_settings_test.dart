@@ -799,6 +799,75 @@ void main() {
         expect(settings.instances, isEmpty);
       });
 
+      group('migrates the built-in instance list', () {
+        // As written by versions up to October 2026.
+        final oldDefaults = [
+          for (final url in MozhiInstance.previousDefaultOrders.first)
+            {'url': url, 'label': url, 'isCustom': false},
+        ];
+        final newOrder = [
+          for (final instance in MozhiInstance.publicInstances) instance.url,
+        ];
+        List<String> urlsOf(AppSettings settings) => [
+          for (final instance in settings.instances) instance.url,
+        ];
+
+        test('an old default order becomes the new one', () {
+          final settings = AppSettings.fromJson({'instances': oldDefaults});
+
+          expect(urlsOf(settings), newOrder);
+          expect(settings.instances, MozhiInstance.publicInstances);
+          // And stays so after a save.
+          expect(
+            urlsOf(
+              AppSettings.fromJson(
+                jsonDecode(jsonEncode(settings)) as Map<String, dynamic>,
+              ),
+            ),
+            newOrder,
+          );
+        });
+
+        test('keeps the user own order without the retired servers', () {
+          final reordered = [...oldDefaults.reversed];
+          final settings = AppSettings.fromJson({'instances': reordered});
+
+          expect(urlsOf(settings), [
+            for (final url
+                in MozhiInstance.previousDefaultOrders.first.reversed)
+              if (!MozhiInstance.retiredUrls.contains(url)) url,
+          ]);
+        });
+
+        test('keeps custom instances', () {
+          final settings = AppSettings.fromJson({
+            'instances': [
+              _instance.toJson(),
+              ...oldDefaults,
+              const {'url': 'https://mozhi.bloat.cat'},
+            ],
+          });
+
+          expect(urlsOf(settings), [
+            _instance.url,
+            ...newOrder,
+            'https://mozhi.bloat.cat',
+          ]);
+          expect(settings.instances.first.isCustom, isTrue);
+          expect(settings.instances.last.isCustom, isTrue);
+        });
+
+        test('a list of retired servers only becomes empty', () {
+          final settings = AppSettings.fromJson(const {
+            'instances': [
+              {'url': 'https://translate.nerdvpn.de', 'isCustom': false},
+            ],
+          });
+
+          expect(settings.instances, isEmpty);
+        });
+      });
+
       test('accepts a floating point seed colour', () {
         final settings = AppSettings.fromJson(const {
           'seedColor': 4278228616.0,

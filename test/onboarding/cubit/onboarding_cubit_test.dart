@@ -34,9 +34,24 @@ void main() {
     when(
       () => repository.pingInstance(
         any(that: isA<MozhiInstance>().having((i) => i.url, 'url', url)),
+        engine: any(named: 'engine'),
       ),
     ).thenAnswer((_) => answer());
   }
+
+  /// [url] answers without translating (an HTTP 500, as when Google fails
+  /// on that server).
+  void stubNoTranslation(String url, {String message = 'Post: 429'}) =>
+      stubPing(
+        url,
+        () => Future.error(
+          InstanceDoesNotTranslateException(
+            message,
+            engine: 'google',
+            statusCode: 500,
+          ),
+        ),
+      );
 
   void stubLatencies(Map<String, int?> millis) {
     for (final MapEntry(key: url, value: ms) in millis.entries) {
@@ -326,6 +341,73 @@ void main() {
       expect(urlsOf(settings), [instanceC.url, instanceA.url, instanceB.url]);
     });
 
+    test('tests with a translation of Google by default', () async {
+      stubLatencies({instanceA.url: 30, instanceB.url: 20, instanceC.url: 10});
+      final cubit = build();
+      expect(OnboardingCubit.pingEngineOf(settings.state.engineId), 'google');
+
+      await cubit.findFastestInstance();
+
+      final engines = verify(
+        () =>
+            repository.pingInstance(any(), engine: captureAny(named: 'engine')),
+      ).captured;
+      expect(engines, ['google', 'google', 'google']);
+    });
+
+    test('tests with the chosen Mozhi engine', () async {
+      stubLatencies({instanceA.url: 30, instanceB.url: 20, instanceC.url: 10});
+      settings.setEngine('mozhi:deepl');
+      final cubit = build();
+      expect(OnboardingCubit.pingEngineOf(settings.state.engineId), 'deepl');
+
+      await cubit.findFastestInstance();
+
+      verify(() => repository.pingInstance(any(), engine: 'deepl')).called(3);
+    });
+
+    test('pingEngineOf tests Google unless a Mozhi engine is chosen', () {
+      expect(OnboardingCubit.pingEngineOf(null), 'google');
+      expect(OnboardingCubit.pingEngineOf('mozhi:yandex'), 'yandex');
+      expect(OnboardingCubit.pingEngineOf('ai:claude'), 'google');
+      expect(
+        OnboardingCubit.pingEngineOf('mozhi:'),
+        OnboardingCubit.defaultPingEngine,
+      );
+    });
+
+    test('a server that answers but does not translate is not the '
+        'fastest', () async {
+      stubNoTranslation(instanceA.url);
+      stubLatencies({instanceB.url: 300, instanceC.url: null});
+      final cubit = build();
+
+      await cubit.findFastestInstance();
+
+      expect(
+        cubit.state.pings[instanceA.url],
+        const InstancePing.noTranslation('Post: 429'),
+      );
+      expect(cubit.state.pings[instanceA.url]?.isSuccess, isFalse);
+      expect(cubit.state.fastestUrl, instanceB.url);
+      expect(cubit.state.noneReachable, isFalse);
+      expect(urlsOf(settings), [instanceB.url, instanceA.url, instanceC.url]);
+    });
+
+    test('says when servers answered but none translated', () async {
+      stubNoTranslation(instanceA.url);
+      stubNoTranslation(instanceB.url);
+      stubLatencies({instanceC.url: null});
+      final cubit = build();
+
+      await cubit.findFastestInstance();
+
+      expect(cubit.state.noneReachable, isTrue);
+      expect(cubit.state.noneTranslates, isTrue);
+      expect(cubit.state.selectedUrl, isNull);
+      expect(urlsOf(settings), [for (final i in testInstances) i.url]);
+    });
+
     test('keeps the order when no instance answers', () async {
       stubLatencies({
         instanceA.url: null,
@@ -337,6 +419,7 @@ void main() {
       await cubit.findFastestInstance();
 
       expect(cubit.state.noneReachable, isTrue);
+      expect(cubit.state.noneTranslates, isFalse);
       expect(cubit.state.selectedUrl, isNull);
       expect(urlsOf(settings), [for (final i in testInstances) i.url]);
     });
@@ -469,6 +552,52 @@ void main() {
       expect(cubit.state.ownInstanceError, OwnInstanceError.unreachable);
       expect(cubit.state.ownInstanceMessage, 'down');
       expect(urlsOf(settings), [for (final i in testInstances) i.url]);
+    });
+
+    test('tests the own instance with the engine the app uses', () async {
+      const url = 'https://mozhi.example.com';
+      stubLatencies({url: 40});
+      settings.setEngine('mozhi:yandex');
+      final cubit = build();
+
+      await cubit.addOwnInstance(url);
+
+      expect(cubit.state.ownInstanceStatus, OwnInstanceStatus.success);
+      verify(
+        () => repository.pingInstance(
+          any(that: isA<MozhiInstance>().having((i) => i.url, 'url', url)),
+          engine: 'yandex',
+        ),
+      ).called(1);
+    });
+
+    test('refuses an instance whose engine does not translate', () async {
+      const url = 'https://broken.example';
+      stubNoTranslation(url, message: 'Post "https://x": 429');
+      final cubit = build();
+
+      await cubit.addOwnInstance(url);
+
+      expect(cubit.state.ownInstanceStatus, OwnInstanceStatus.failure);
+      expect(cubit.state.ownInstanceError, OwnInstanceError.noTranslation);
+      expect(cubit.state.ownInstanceMessage, 'Post "https://x": 429');
+      expect(urlsOf(settings), [for (final i in testInstances) i.url]);
+    });
+
+    test('adds an instance that only lacks the engine', () async {
+      const url = 'https://libre-only.example';
+      stubNoTranslation(
+        url,
+        message: 'Engine does not exist or has been disabled',
+      );
+      final cubit = build();
+
+      await cubit.addOwnInstance(url);
+
+      expect(cubit.state.ownInstanceStatus, OwnInstanceStatus.success);
+      expect(cubit.state.ownInstanceLatency, isNotNull);
+      expect(cubit.state.pings[url]?.isSuccess, isTrue);
+      expect(urlsOf(settings).first, url);
     });
 
     test('reports timeouts', () async {

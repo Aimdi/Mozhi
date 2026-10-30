@@ -626,7 +626,12 @@ purpose, only in front, and keeps nothing:
   user picked another for live use and confirmed a network one once),
   through the same privacy mode, consent prompts, personal data shield and
   Network activity as typed text. Recognised text is only ever translated,
-  as text.
+  as text. A **Once** in a consent prompt covers the requests waiting at
+  that moment; what they don't use is withdrawn when the camera closes
+  (paused, frozen, failed, the screen left) and when the engine or the
+  languages change, so it can't let typed text, a link or the frozen
+  photo through later. Documents and web pages withdraw theirs when the
+  run ends, is cancelled or the screen closes.
 
 ## Live captions (Android)
 
@@ -793,7 +798,9 @@ llama.cpp (MIT, built from a pinned release in the repository's
   the app and Android already do (see [Data on the device](#data-on-the-device)).
   When its time ran out while the phone slept (and the app could not run),
   Mozhi notices on return, a moment after the phone's own lock screen
-  was passed; otherwise it is locked before you come back.
+  was passed; otherwise it is locked before you come back. Until that
+  check answered, the last screen shows but nothing starts behind it: the
+  live camera stays closed, and links and text from other apps wait.
 - **Shared conversations are plain `http`** on the local network: anyone
   on that network who captures traffic can read them, and the PIN with
   them. Use the phone's hotspot for anything sensitive; there is no way to

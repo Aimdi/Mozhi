@@ -1650,7 +1650,6 @@
   "onboardingServiceChange": "Đổi",
   "onboardingServiceChangeDone": "Xong",
   "onboardingServiceFindFastestTitle": "Tìm máy chủ nhanh nhất",
-  "onboardingServiceFindFastestHint": "Liên hệ mỗi máy chủ trong danh sách một lần để đo tốc độ, sau đó thử máy chủ nhanh nhất trước.",
   "onboardingServiceAskFirst": "Hỏi trước khi gửi văn bản",
   "onboardingServiceAskFirstBody": "Thiết bị này không thể tự dịch nên văn bản của bạn sẽ được gửi đến máy chủ bên dưới. Bật tùy chọn này để được hỏi một lần cho mỗi cặp ngôn ngữ.",
   "translateErrorUseEngine": "Dịch bằng {engine}",

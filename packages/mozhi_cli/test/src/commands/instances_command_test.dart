@@ -21,7 +21,9 @@ void main() {
       test('lists public instances', () async {
         when(() => h.console.stdoutHasTerminal).thenReturn(true);
         expect(await h.run(['instances', 'list']), 0);
+        expect(h.stdout, contains('https://mozhi.adminforge.de'));
         expect(h.stdout, contains('https://mozhi.aryak.me'));
+        expect(h.stdout, isNot(contains('nerdvpn')));
         expect(h.stderr, contains('No instance configured'));
       });
 
@@ -48,7 +50,9 @@ void main() {
     group('ping', () {
       test('sorts by latency and reports failures', () async {
         when(() => h.console.stdoutHasTerminal).thenReturn(true);
-        when(() => h.repository.pingInstance(any())).thenAnswer((invocation) {
+        when(
+          () => h.repository.pingInstance(any(), engine: any(named: 'engine')),
+        ).thenAnswer((invocation) {
           final instance =
               invocation.positionalArguments.first as MozhiInstance;
           return switch (instance.url) {
@@ -64,6 +68,19 @@ void main() {
             'https://d.example' => Future.error(
               const MozhiApiException('Connection refused'),
             ),
+            'https://f.example' => Future.error(
+              const InstanceDoesNotTranslateException(
+                'boom',
+                engine: 'google',
+                statusCode: 500,
+              ),
+            ),
+            'https://g.example' => Future.error(
+              const InstanceDoesNotTranslateException(
+                'google returned no translation',
+                engine: 'google',
+              ),
+            ),
             _ => Future.error(StateError('boom')),
           };
         });
@@ -75,6 +92,8 @@ void main() {
           'c.example',
           'd.example',
           'e.example',
+          'f.example',
+          'g.example',
         ]);
         expect(code, ExitCode.success.code);
         final lines = h.stdout.split('\n');
@@ -84,29 +103,82 @@ void main() {
         expect(lines[3], contains('HTTP 502'));
         expect(lines[4], contains('Connection refused'));
         expect(lines[5], contains('boom'));
-        expect(h.stderr, contains('2 of 5 reachable'));
+        expect(lines[6], contains("doesn't translate (HTTP 500)"));
+        expect(lines[7], contains("doesn't translate"));
+        expect(lines[7], isNot(contains('HTTP')));
+        expect(h.stderr, contains('2 of 7 translate with google'));
         expect(h.stderr, contains('https://b.example'));
+        verify(() => h.repository.pingInstance(any())).called(7);
         verify(() => h.progress.cancel()).called(1);
         verify(() => h.repository.dispose()).called(1);
       });
 
       test('pings the public instances by default and prints JSON', () async {
-        when(() => h.repository.pingInstance(any()))
-            .thenAnswer((_) async => const Duration(milliseconds: 42));
+        when(
+          () => h.repository.pingInstance(any(), engine: any(named: 'engine')),
+        ).thenAnswer((_) async => const Duration(milliseconds: 42));
         expect(await h.run(['instances', 'ping', '--json']), 0);
         final json = h.json()! as List<Object?>;
         expect(json, hasLength(MozhiInstance.publicInstances.length));
         expect(json.first, {
-          'url': 'https://mozhi.aryak.me',
-          'label': 'mozhi.aryak.me (India)',
+          'url': 'https://mozhi.adminforge.de',
+          'label': 'adminforge.de (Germany)',
           'ok': true,
           'latencyMs': 42,
         });
       });
 
+      test('tests the given Mozhi engine', () async {
+        when(
+          () => h.repository.pingInstance(any(), engine: any(named: 'engine')),
+        ).thenAnswer((_) async => const Duration(milliseconds: 42));
+        expect(
+          await h.run([
+            'instances',
+            'ping',
+            '--engine',
+            'mozhi:duckduckgo',
+            'a.example',
+          ]),
+          0,
+        );
+        verify(() => h.repository.pingInstance(any(), engine: 'duckduckgo'))
+            .called(1);
+      });
+
+      test('tests the configured Mozhi engine', () async {
+        h.writeConfig(const CliConfig(engine: 'deepl'));
+        when(
+          () => h.repository.pingInstance(any(), engine: any(named: 'engine')),
+        ).thenAnswer((_) async => const Duration(milliseconds: 42));
+        expect(await h.run(['instances', 'ping', 'a.example']), 0);
+        verify(() => h.repository.pingInstance(any(), engine: 'deepl'))
+            .called(1);
+      });
+
+      test('tests Google when an AI engine is configured', () async {
+        h.writeConfig(const CliConfig(engine: 'ai'));
+        when(
+          () => h.repository.pingInstance(any(), engine: any(named: 'engine')),
+        ).thenAnswer((_) async => const Duration(milliseconds: 42));
+        expect(await h.run(['instances', 'ping', 'a.example']), 0);
+        verify(() => h.repository.pingInstance(any())).called(1);
+      });
+
+      test('rejects an AI engine', () async {
+        expect(
+          await h.run(['instances', 'ping', '--engine', 'ai', 'a.example']),
+          ExitCode.usage.code,
+        );
+        verifyNever(
+          () => h.repository.pingInstance(any(), engine: any(named: 'engine')),
+        );
+      });
+
       test('times out slow instances and fails when none answer', () async {
-        when(() => h.repository.pingInstance(any()))
-            .thenAnswer((_) => Completer<Duration>().future);
+        when(
+          () => h.repository.pingInstance(any(), engine: any(named: 'engine')),
+        ).thenAnswer((_) => Completer<Duration>().future);
         final code = await h.run([
           'instances',
           'ping',
@@ -116,7 +188,7 @@ void main() {
         ]);
         expect(code, ExitCode.unavailable.code);
         expect(h.stdout, contains('timed out'));
-        expect(h.stderr, contains('No instance is reachable.'));
+        expect(h.stderr, contains('No instance translates with google.'));
       });
 
       test('rejects an invalid timeout', () async {

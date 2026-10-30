@@ -142,7 +142,7 @@ void main() {
       expect(h.json(), {
         'engine': 'mozhi:google',
         'engineName': 'Google',
-        'instance': 'https://mozhi.aryak.me',
+        'instance': MozhiInstance.publicInstances.first.url,
         'source': 'auto',
         'detectedSource': 'fr',
         'target': 'en',
@@ -156,10 +156,8 @@ void main() {
       when(() => h.console.stdoutHasTerminal).thenReturn(true);
       expect(await h.run(['translate', 'Bonjour']), 0);
       expect(h.stderr, contains('helo'));
-      expect(
-        h.stderr,
-        contains('Detected French → English · Google (mozhi.aryak.me)'),
-      );
+      final host = Uri.parse(MozhiInstance.publicInstances.first.url).host;
+      expect(h.stderr, contains('Detected French → English · Google ($host)'));
       expect(h.stderr, contains('120 ms'));
     });
 

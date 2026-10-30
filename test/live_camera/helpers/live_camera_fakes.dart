@@ -357,4 +357,11 @@ void registerLiveCameraFallbacks() {
   registerFallbackValue(
     const TranslationRequest(text: '', source: Language.auto, target: english),
   );
+  registerFallbackValue(
+    const ConsentRequiredException(
+      kind: ConsentKind.pair,
+      destination: OnDeviceDestination(),
+      engineId: '',
+    ),
+  );
 }

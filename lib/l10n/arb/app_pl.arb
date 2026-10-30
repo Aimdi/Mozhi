@@ -1650,7 +1650,6 @@
   "onboardingServiceChange": "Zmień",
   "onboardingServiceChangeDone": "Gotowe",
   "onboardingServiceFindFastestTitle": "Znajdź najszybszy serwer",
-  "onboardingServiceFindFastestHint": "Łączy się raz z każdym serwerem z listy, aby zmierzyć jego szybkość, a potem najpierw próbuje najszybszego.",
   "onboardingServiceAskFirst": "Pytaj przed wysłaniem tekstu",
   "onboardingServiceAskFirstBody": "To urządzenie nie potrafi tłumaczyć samodzielnie, więc Twój tekst trafia na serwer poniżej. Włącz tę opcję, aby Mozhi pytał Cię raz dla każdej pary językowej.",
   "translateErrorUseEngine": "Przetłumacz za pomocą {engine}",

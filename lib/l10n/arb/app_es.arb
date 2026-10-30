@@ -1650,7 +1650,6 @@
   "onboardingServiceChange": "Cambiar",
   "onboardingServiceChangeDone": "Listo",
   "onboardingServiceFindFastestTitle": "Buscar el servidor más rápido",
-  "onboardingServiceFindFastestHint": "Contacta una vez con cada servidor de la lista para medir su velocidad y luego prueba primero el más rápido.",
   "onboardingServiceAskFirst": "Preguntar antes de enviar texto",
   "onboardingServiceAskFirstBody": "Este dispositivo no puede traducir por sí solo, así que tu texto va al servidor de abajo. Actívalo para que se te pregunte una vez por cada par de idiomas.",
   "translateErrorUseEngine": "Traducir con {engine}",

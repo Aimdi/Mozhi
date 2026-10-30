@@ -82,6 +82,7 @@ void main() {
     FakeAppLock? lock,
     LiveCameraTiming timing = _fast,
     int minSightings = 2,
+    int maxBatchBlocks = 12,
     Object recognizerOverride = const Object(),
   }) => LiveCameraCubit(
     camera: camera,
@@ -97,6 +98,7 @@ void main() {
     timing: timing,
     delay: (duration) async => delays.add(duration),
     minSightings: minSightings,
+    maxBatchBlocks: maxBatchBlocks,
   );
 
   /// A cubit that runs and waits for its first frame.
@@ -104,13 +106,17 @@ void main() {
     Language source = english,
     TranslationEngine? engine,
     int minSightings = 2,
+    int maxBatchBlocks = 12,
     LiveCameraTiming timing = _fast,
+    FakeAppLock? lock,
   }) async {
     final cubit = build(
       source: source,
       engine: engine,
       minSightings: minSightings,
+      maxBatchBlocks: maxBatchBlocks,
       timing: timing,
+      lock: lock,
     );
     addTearDown(cubit.close);
     await cubit.start();
@@ -666,6 +672,115 @@ void main() {
       cubit.consentGranted();
     });
 
+    group('a one-time approval', () {
+      const consent = ConsentRequiredException(
+        kind: ConsentKind.pair,
+        destination: PublicInstanceDestination(
+          'mozhi.example',
+          engine: 'google',
+        ),
+        engineId: 'mozhi:google',
+        source: 'en',
+        target: 'de',
+      );
+
+      /// A cubit whose first request needed [consent], which the user gave.
+      Future<LiveCameraCubit> granted({int maxBatchBlocks = 12}) async {
+        var calls = 0;
+        when(() => repository.translate(any(), any())).thenAnswer((invocation) {
+          if (calls++ == 0) return Stream.error(consent);
+          return bracketTranslation(invocation);
+        });
+        final cubit = await running(
+          engine: googleEngine,
+          maxBatchBlocks: maxBatchBlocks,
+        );
+        await show([paragraph('Hello world')]);
+        expect(cubit.state.consent, consent);
+        cubit.consentGranted();
+        await pumpEventQueue();
+        expect(cubit.state.blocks.single.translation, '<Hello world>de');
+        verifyNever(() => repository.revokeOnce(any()));
+        return cubit;
+      }
+
+      test('covers the requests waiting for it', () async {
+        when(() => repository.translate(any(), any()))
+            .thenAnswer((_) => Stream.error(consent));
+        final cubit = await running(engine: googleEngine, maxBatchBlocks: 2);
+        expect(cubit.consentRequests, 1, reason: 'nothing waits');
+        await show([
+          for (var i = 0; i < 5; i++)
+            paragraph(
+              'Line number $i',
+              box: Rect.fromLTWH(10, 10 + 40.0 * i, 100, 20),
+            ),
+        ]);
+        expect(cubit.state.consent, consent);
+        // Five blocks, two per request.
+        expect(cubit.consentRequests, 3);
+      });
+
+      test('is withdrawn when the screen closes', () async {
+        final cubit = await granted();
+        await cubit.close();
+        verify(() => repository.revokeOnce(consent)).called(1);
+      });
+
+      test('is withdrawn when the engine changes', () async {
+        final cubit = await granted();
+        cubit.setEngine(offlineEngine);
+        verify(() => repository.revokeOnce(consent)).called(1);
+        // Nothing more to withdraw.
+        await cubit.close();
+        verifyNever(() => repository.revokeOnce(any()));
+      });
+
+      test('is withdrawn when the languages change', () async {
+        final cubit = await granted();
+        await cubit.setTarget(french);
+        verify(() => repository.revokeOnce(consent)).called(1);
+      });
+
+      test('is withdrawn when the camera pauses', () async {
+        final cubit = await granted();
+        cubit.setForeground(visible: false);
+        verify(() => repository.revokeOnce(consent)).called(1);
+      });
+
+      test('is withdrawn when the camera freezes', () async {
+        camera.picture = PickedImage(
+          bytes: Uint8List.fromList([0xFF, 0xD8, 0xFF]),
+          mimeType: 'image/jpeg',
+        );
+        final cubit = await granted();
+        await cubit.freeze();
+        expect(cubit.state.status, LiveCameraStatus.frozen);
+        verify(() => repository.revokeOnce(consent)).called(1);
+      });
+
+      test('is withdrawn when Android closes the camera', () async {
+        await granted();
+        camera.push(null);
+        await pumpEventQueue();
+        verify(() => repository.revokeOnce(consent)).called(1);
+      });
+
+      test('withdrawing never breaks the camera', () async {
+        when(() => repository.revokeOnce(any())).thenThrow(StateError('x'));
+        final cubit = await granted();
+        await cubit.close();
+        expect(camera.stops, 1);
+      });
+
+      test('nothing is withdrawn without one', () async {
+        final cubit = await running(engine: googleEngine);
+        await show([paragraph('Hello world')]);
+        await cubit.close();
+        verifyNever(() => repository.revokeOnce(any()));
+      });
+    });
+
     test('a new engine translates the blocks again', () async {
       final cubit = await running();
       await show([paragraph('Hello world')]);
@@ -758,6 +873,36 @@ void main() {
       lock.unlockNow();
       await pumpEventQueue();
       expect(cubit.state.pauseReason, LivePauseReason.background);
+    });
+
+    test('a lock that says it is locked before its change came', () async {
+      final lock = FakeAppLock();
+      final cubit = await running(lock: lock);
+      cubit.setForeground(visible: false);
+      // Back in front: the lock checks the return (no change event yet).
+      lock.isLocked = true;
+      cubit.setForeground(visible: true);
+      await pumpEventQueue();
+      expect(camera.starts, 1, reason: 'nothing opens behind the lock');
+      expect(cubit.state.status, LiveCameraStatus.paused);
+      expect(cubit.state.pauseReason, LivePauseReason.locked);
+
+      lock.unlockNow();
+      await pumpEventQueue();
+      expect(camera.starts, 2);
+      expect(cubit.state.status, LiveCameraStatus.running);
+    });
+
+    test('a camera Android closed waits for such a lock too', () async {
+      final lock = FakeAppLock();
+      final cubit = await running(lock: lock);
+      lock.isLocked = true;
+      camera.push(null);
+      await pumpEventQueue();
+      await Future<void>.delayed(Duration.zero);
+      await pumpEventQueue();
+      expect(camera.starts, 1);
+      expect(cubit.state.pauseReason, LivePauseReason.locked);
     });
 
     test('a pause before the start waits with it', () async {

@@ -75,7 +75,9 @@ class InstanceTile extends StatelessWidget {
   }
 }
 
-/// Latency badge (or progress) for an [InstancePing].
+/// Latency badge (or progress) for an [InstancePing]: the speed, or
+/// "Unreachable", "Timed out" or "Doesn't translate" (with the server's
+/// message as a tooltip).
 class PingIndicator extends StatelessWidget {
   const new({
     required this.ping,
@@ -155,6 +157,15 @@ class PingIndicator extends StatelessWidget {
           label: l10n.onboardingServiceTimedOut,
           color: colors.error,
           icon: Icons.timer_off_outlined,
+        );
+      case PingStatus.noTranslation:
+        return Tooltip(
+          message: ping.error ?? '',
+          child: OnboardingBadge(
+            label: l10n.onboardingServiceNoTranslation,
+            color: colors.error,
+            icon: Icons.error_outline,
+          ),
         );
     }
   }

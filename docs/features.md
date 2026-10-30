@@ -792,7 +792,9 @@ is on the image screen (and in its toolbar while a photo is shown):
   engine by default, an on-device AI model, or any other engine you set up.
   An engine that sends text off the phone asks once first, saying it will
   get the text of everything live translation reads, as it comes in; your
-  privacy mode and consent prompts still apply on top.
+  privacy mode and consent prompts still apply on top (**Once** there
+  covers the paragraphs waiting at that moment; it ends when the camera
+  closes or the engine or languages change).
 - **Gentle on the phone.** One frame is read at a time (the next is taken
   once the last one is done, at most about three a second), less often
   while the phone is hot or saving battery. The camera stops while Mozhi is

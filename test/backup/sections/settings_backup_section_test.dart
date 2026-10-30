@@ -290,6 +290,77 @@ void main() {
 
         expect((await repository.load()).offlineAppShell, isFalse);
       });
+
+      group('a backup from an older version', () {
+        // The built-in list as versions up to October 2026 wrote it.
+        final oldDefaults = [
+          for (final url in MozhiInstance.previousDefaultOrders.first)
+            {'url': url, 'label': url, 'isCustom': false},
+        ];
+        final newOrder = [
+          for (final instance in MozhiInstance.publicInstances) instance.url,
+        ];
+
+        Map<String, Object?> older(List<Object?> instances) => {
+          'settings': {...theirs.toJson(), 'instances': instances},
+        };
+
+        test('gets the new default order', () async {
+          final data = older(oldDefaults);
+          final additions = await section.additions(
+            throughJson(data),
+            version: 1,
+          );
+          await section.restore(
+            throughJson(data),
+            version: 1,
+            mode: BackupRestoreMode.replace,
+          );
+
+          final restored = await repository.load();
+          expect(restored.instances.map((i) => i.url), newOrder);
+          expect(
+            additions[BackupRestoreMode.replace]!.instances.map((i) => i.url),
+            newOrder,
+          );
+        });
+
+        test('keeps its custom instances and its own order, without the '
+            'retired servers', () async {
+          await section.restore(
+            throughJson(
+              older([
+                ...oldDefaults.reversed,
+                {'url': 'https://mozhi.example.com', 'label': 'Theirs'},
+              ]),
+            ),
+            version: 1,
+            mode: BackupRestoreMode.replace,
+          );
+
+          final restored = await repository.load();
+          expect(restored.instances.map((i) => i.url), [
+            for (final url
+                in MozhiInstance.previousDefaultOrders.first.reversed)
+              if (!MozhiInstance.retiredUrls.contains(url)) url,
+            // This device's password stays with its instance.
+            'https://user:pw@mozhi.example.com',
+          ]);
+          expect(restored.instances.last.label, 'Theirs');
+        });
+
+        test('merge keeps this device instances as they are', () async {
+          await section.restore(
+            throughJson(older(oldDefaults)),
+            version: 1,
+            mode: BackupRestoreMode.merge,
+          );
+
+          expect((await repository.load()).instances.map((i) => i.url), [
+            'https://user:pw@mozhi.example.com',
+          ]);
+        });
+      });
     });
 
     group('merge', () {

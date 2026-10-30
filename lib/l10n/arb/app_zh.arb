@@ -1650,7 +1650,6 @@
   "onboardingServiceChange": "更改",
   "onboardingServiceChangeDone": "完成",
   "onboardingServiceFindFastestTitle": "查找最快的服务器",
-  "onboardingServiceFindFastestHint": "连接列表中的每台服务器各一次以测量速度，然后优先尝试最快的服务器。",
   "onboardingServiceAskFirst": "发送文本前先询问",
   "onboardingServiceAskFirstBody": "此设备无法独立翻译，因此你的文本会发送到下方的服务器。开启后，Mozhi 会针对每个语言对询问你一次。",
   "translateErrorUseEngine": "使用 {engine} 翻译",

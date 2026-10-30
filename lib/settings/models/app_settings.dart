@@ -139,9 +139,11 @@ class AppSettings extends Equatable {
       dynamicColor: _bool(json['dynamicColor']) ?? defaults.dynamicColor,
       pureBlack: _bool(json['pureBlack']) ?? defaults.pureBlack,
       seedColor: _int(json['seedColor']) ?? defaults.seedColor,
-      instances:
-          _list(json['instances'], MozhiInstance.fromJson) ??
-          defaults.instances,
+      // Stored lists still in an earlier default order get the current
+      // one, without the servers the app retired (see migrateDefaults).
+      instances: MozhiInstance.migrateDefaults(
+        _list(json['instances'], MozhiInstance.fromJson) ?? defaults.instances,
+      ),
       providers:
           _list(json['providers'], AiProviderConfig.fromJson) ??
           defaults.providers,
@@ -264,6 +266,8 @@ class AppSettings extends Equatable {
   final int seedColor;
 
   /// Ordered by preference; the repository fails over in this order.
+  /// [AppSettings.fromJson] brings a list still in an earlier default order
+  /// up to date (`MozhiInstance.migrateDefaults`).
   final List<MozhiInstance> instances;
 
   /// API keys are included in memory but never serialised by [toJson].

@@ -5,6 +5,7 @@ import 'dart:ui';
 
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/documents/documents.dart';
 import 'package:mozhi/documents/pdf/pdf.dart';
 import 'package:mozhi/documents/widgets/widgets.dart' show documentRequests;
@@ -406,6 +407,90 @@ void main() {
         // Page 0's request (and, if its batch comes apart, one per
         // paragraph), pages 1 and 2 not read yet.
         expect(documentRequests(cubit.state), 3 + 3 + 3);
+      });
+
+      group('a one-time consent', () {
+        const consent = ConsentRequiredException(
+          kind: ConsentKind.pair,
+          destination: PublicInstanceDestination(
+            'mozhi.example',
+            engine: 'google',
+          ),
+          engineId: 'mozhi:google',
+          source: 'en',
+          target: 'de',
+        );
+
+        /// Stops the requests for [stoppedText] (all when null) until the
+        /// user allows them ("Once").
+        void refuse({String? stoppedText}) {
+          var refusing = true;
+          stubTranslate(
+            repository,
+            requests: requests,
+            respond: (request) =>
+                refusing && (stoppedText ?? request.text) == request.text
+                ? Stream.error(consent)
+                : Stream.value(result(request.text.toUpperCase())),
+          );
+          when(
+            () =>
+                repository.allowOnce(consent, requests: any(named: 'requests')),
+          ).thenAnswer((_) => refusing = false);
+        }
+
+        test('is withdrawn when the PDF is done', () async {
+          refuse();
+          final cubit = await opened(build());
+          addTearDown(cubit.close);
+          await cubit.translate();
+          expect(cubit.state.failures, {0: consent});
+          // What the prompt does on "Once": one approval for 9 requests.
+          repository.allowOnce(
+            consent,
+            requests: documentRequests(cubit.state),
+          );
+          requests.clear();
+          await cubit.consentGranted();
+          expect(cubit.state.isComplete, isTrue);
+          // Two requests sent; the other 7 are withdrawn.
+          expect(requests, hasLength(2));
+          verify(() => repository.revokeOnce(consent)).called(1);
+        });
+
+        test('is withdrawn when the run cannot read the pages', () async {
+          refuse();
+          recognizer.installed = {...recognizer.installed, 'deu': 1500};
+          final cubit = await opened(build(source: german));
+          addTearDown(cubit.close);
+          await cubit.translate();
+          expect(cubit.state.failures, {0: consent});
+          recognizer.installed = {
+            for (final entry in recognizer.installed.entries)
+              if (entry.key != 'deu') entry.key: entry.value,
+          };
+          await cubit.consentGranted();
+          expect(cubit.state.pdf!.missingData, isNotNull);
+          verify(() => repository.revokeOnce(consent)).called(1);
+        });
+
+        test('is withdrawn at once when nothing can start', () async {
+          refuse(stoppedText: 'Last page');
+          final cubit = await opened(build());
+          addTearDown(cubit.close);
+          await cubit.translate();
+          expect(cubit.state.failures, {2: consent});
+          // The translated PDF is being written: nothing translates now.
+          final gate = pages.writeGate = Completer<void>();
+          final saving = cubit.save();
+          await pumpEventQueue();
+          expect(cubit.state.canTranslate, isFalse);
+          await cubit.consentGranted();
+          verify(() => repository.revokeOnce(consent)).called(1);
+          expect(cubit.state.failures, {2: consent});
+          gate.complete();
+          await saving;
+        });
       });
 
       test('cancel keeps what is done', () async {

@@ -1650,7 +1650,6 @@
   "onboardingServiceChange": "Змінити",
   "onboardingServiceChangeDone": "Готово",
   "onboardingServiceFindFastestTitle": "Знайти найшвидший сервер",
-  "onboardingServiceFindFastestHint": "Один раз звертається до кожного сервера зі списку, щоб виміряти його швидкість, а потім спершу пробує найшвидший.",
   "onboardingServiceAskFirst": "Запитувати перед надсиланням тексту",
   "onboardingServiceAskFirstBody": "Цей пристрій не може перекладати самостійно, тому ваш текст надсилається на сервер нижче. Увімкніть, щоб вас запитували один раз для кожної мовної пари.",
   "translateErrorUseEngine": "Перекласти за допомогою {engine}",

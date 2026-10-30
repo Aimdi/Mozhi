@@ -1650,7 +1650,6 @@
   "onboardingServiceChange": "Değiştir",
   "onboardingServiceChangeDone": "Tamam",
   "onboardingServiceFindFastestTitle": "En hızlı sunucuyu bul",
-  "onboardingServiceFindFastestHint": "Hızını ölçmek için listedeki her sunucuya bir kez bağlanır, ardından önce en hızlısını dener.",
   "onboardingServiceAskFirst": "Metin göndermeden önce sor",
   "onboardingServiceAskFirstBody": "Bu cihaz kendi başına çeviri yapamıyor, bu yüzden metniniz aşağıdaki sunucuya gider. Her dil çifti için bir kez sorulmasını istiyorsanız bunu açın.",
   "translateErrorUseEngine": "{engine} ile çevir",

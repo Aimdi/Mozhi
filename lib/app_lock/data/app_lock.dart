@@ -317,7 +317,13 @@ class AppLockController implements AppLock {
     try {
       await _checkSession(generation);
     } finally {
-      if (_verifying?.generation == generation) _endVerifying();
+      // Not settled by a status (an error, or a newer check overtook it).
+      final verifying = _verifying;
+      if (verifying != null && verifying.generation == generation) {
+        _verifying = null;
+        if (!isLocked) _changes.add(false);
+        verifying.done.complete();
+      }
     }
   }
 
@@ -330,15 +336,6 @@ class AppLockController implements AppLock {
       done: _verifying?.done ?? Completer<void>(),
     );
     if (!wasLocked) _changes.add(true);
-  }
-
-  /// The pending check of a return ended ([isLocked] by [status] again).
-  void _endVerifying() {
-    final verifying = _verifying;
-    if (verifying == null || _disposed) return;
-    _verifying = null;
-    if (!isLocked) _changes.add(false);
-    verifying.done.complete();
   }
 
   Future<void> _checkSession(int generation) async {

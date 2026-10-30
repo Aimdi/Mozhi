@@ -1650,7 +1650,6 @@
   "onboardingServiceChange": "Изменить",
   "onboardingServiceChangeDone": "Готово",
   "onboardingServiceFindFastestTitle": "Найти самый быстрый сервер",
-  "onboardingServiceFindFastestHint": "Один раз обращается к каждому серверу из списка, чтобы измерить его скорость, а затем сначала пробует самый быстрый.",
   "onboardingServiceAskFirst": "Спрашивать перед отправкой текста",
   "onboardingServiceAskFirstBody": "Это устройство не может переводить самостоятельно, поэтому ваш текст отправляется на сервер ниже. Включите, чтобы вас спрашивали один раз для каждой языковой пары.",
   "translateErrorUseEngine": "Перевести с помощью {engine}",

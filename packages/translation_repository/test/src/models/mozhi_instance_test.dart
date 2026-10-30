@@ -153,13 +153,13 @@ void main() {
       expect(MozhiInstance.migrateDefaults(const []), isEmpty);
     });
 
-    test('a list of retired servers only becomes empty', () {
+    test('a list of retired servers only gets the current defaults', () {
       expect(
         MozhiInstance.migrateDefaults([
           for (final url in MozhiInstance.retiredUrls)
             MozhiInstance(url: url, isCustom: false),
         ]),
-        isEmpty,
+        MozhiInstance.publicInstances,
       );
     });
 

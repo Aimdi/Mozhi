@@ -59,6 +59,7 @@ void main() {
       cubit = MockWebTranslateCubit();
       when(() => cubit.cancel()).thenAnswer((_) async {});
       when(() => cubit.resume()).thenAnswer((_) async {});
+      when(() => cubit.consentGranted()).thenAnswer((_) async {});
     });
 
     Future<void> pumpPanel(
@@ -247,7 +248,9 @@ void main() {
       await tester.pump();
       // The title and the second block are left.
       verify(() => repository.allowOnce(consent, requests: 2)).called(1);
-      verify(() => cubit.resume()).called(1);
+      // It goes on, and withdraws what the rest did not use.
+      verify(() => cubit.consentGranted()).called(1);
+      verifyNever(() => cubit.resume());
     });
 
     test('a one-time consent covers what is left of the page', () {

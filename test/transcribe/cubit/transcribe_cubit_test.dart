@@ -418,6 +418,63 @@ void main() {
       await cubit.close();
     });
 
+    group('a one-time consent', () {
+      const consent = ConsentRequiredException(
+        kind: ConsentKind.pair,
+        destination: PublicInstanceDestination('mozhi.example'),
+        engineId: 'mozhi:deepl',
+      );
+
+      /// A cubit whose entry 'A.' waited for [consent], which the user gave.
+      Future<TranscribeCubit> retried() async {
+        final cubit = await listening();
+        addTearDown(cubit.close);
+        transcriber.heard('A.', start: 0, end: 1);
+        await settle();
+        cubit.setTranslate(enabled: true);
+        await settle();
+        translations['A.']!.addError(consent);
+        await settle();
+        cubit.retryTranslations();
+        await settle();
+        expect(requests, hasLength(2));
+        verifyNever(() => repository.revokeOnce(consent));
+        return cubit;
+      }
+
+      test('is withdrawn once what waited was sent again', () async {
+        final cubit = await retried();
+        answer('A.', 'Ah');
+        await settle();
+        expect(cubit.state.entries.single.isTranslated, isTrue);
+        verify(() => repository.revokeOnce(consent)).called(1);
+        // A new phrase after it asks again (nothing is left to use).
+        transcriber.heard('B.', start: 1, end: 2);
+        await settle();
+        verifyNever(() => repository.revokeOnce(consent));
+      });
+
+      test('is withdrawn when translation is turned off', () async {
+        final cubit = await retried();
+        cubit.setTranslate(enabled: false);
+        verify(() => repository.revokeOnce(consent)).called(1);
+      });
+
+      test('is withdrawn when the screen closes', () async {
+        final cubit = await retried();
+        await cubit.close();
+        verify(() => repository.revokeOnce(consent)).called(1);
+      });
+
+      test('withdrawing never breaks the transcript', () async {
+        when(() => repository.revokeOnce(consent)).thenThrow(StateError('x'));
+        final cubit = await retried();
+        answer('A.', 'Ah');
+        await settle();
+        expect(cubit.state.entries.single.isTranslated, isTrue);
+      });
+    });
+
     test('without an engine the translation fails', () async {
       engine = null;
       engines = [];

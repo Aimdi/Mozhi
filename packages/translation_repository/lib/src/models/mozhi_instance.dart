@@ -113,17 +113,21 @@ class MozhiInstance {
   ///   never arranged them: they are replaced by the current default list
   ///   ([publicInstances]), in its order. Custom instances before or after
   ///   them stay where they are.
+  /// * A list that only had retired servers gets the current default list
+  ///   (it would be left with none, and the app could not translate
+  ///   online at all).
   /// * Anything else is kept as it is: custom instances (also one whose
   ///   address is retired), a list the user reordered, or one from which
   ///   they removed or added servers.
   ///
   /// Pure and idempotent: a list that is already current comes back
-  /// unchanged (an empty one too).
+  /// unchanged (an empty one too: the user removed every server).
   static List<MozhiInstance> migrateDefaults(List<MozhiInstance> stored) {
     final kept = [
       for (final instance in stored)
         if (instance.isCustom || !retiredUrls.contains(instance.url)) instance,
     ];
+    if (kept.isEmpty && stored.isNotEmpty) return publicInstances;
     final first = kept.indexWhere((instance) => !instance.isCustom);
     if (first < 0) return List.unmodifiable(kept);
     final end = kept.lastIndexWhere((instance) => !instance.isCustom) + 1;

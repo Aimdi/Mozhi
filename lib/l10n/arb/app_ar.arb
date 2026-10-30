@@ -1650,7 +1650,6 @@
   "onboardingServiceChange": "تغيير",
   "onboardingServiceChangeDone": "تم",
   "onboardingServiceFindFastestTitle": "البحث عن أسرع خادم",
-  "onboardingServiceFindFastestHint": "يتصل بكل خادم في القائمة مرة واحدة لقياس سرعته، ثم يجرّب الأسرع أولًا.",
   "onboardingServiceAskFirst": "طلب الإذن قبل إرسال النص",
   "onboardingServiceAskFirstBody": "لا يستطيع هذا الجهاز الترجمة بمفرده، لذا يذهب نصك إلى الخادم أدناه. فعّل هذا الخيار ليُطلب إذنك مرة واحدة لكل زوج لغات.",
   "translateErrorUseEngine": "الترجمة باستخدام {engine}",

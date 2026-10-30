@@ -1650,7 +1650,6 @@
   "onboardingServiceChange": "変更",
   "onboardingServiceChangeDone": "完了",
   "onboardingServiceFindFastestTitle": "最速のサーバーを探す",
-  "onboardingServiceFindFastestHint": "一覧のすべてのサーバーに 1 回ずつ接続して速度を測定し、最も速いサーバーを最初に試します。",
   "onboardingServiceAskFirst": "テキストを送信する前に確認",
   "onboardingServiceAskFirstBody": "このデバイスは単体で翻訳できないため、テキストは下のサーバーに送信されます。オンにすると、言語ペアごとに 1 回確認します。",
   "translateErrorUseEngine": "{engine} で翻訳",

@@ -522,6 +522,105 @@ void main() {
       });
     });
 
+    group('a one-time consent', () {
+      const consent = ConsentRequiredException(
+        kind: ConsentKind.pair,
+        destination: PublicInstanceDestination(
+          'mozhi.example',
+          engine: 'google',
+        ),
+        engineId: 'mozhi:google',
+        source: 'auto',
+        target: 'de',
+      );
+
+      /// A cubit whose parts the privacy settings stopped: [respond]
+      /// answers once the user allowed them.
+      Future<DocumentTranslateCubit> stopped({
+        Stream<TranslationResult> Function(TranslationRequest request)? respond,
+      }) async {
+        var refusing = true;
+        stubTranslate(
+          repository,
+          requests: requests,
+          respond: (request) => refusing
+              ? Stream.error(consent)
+              : respond?.call(request) ??
+                    Stream.value(result(request.text.toUpperCase())),
+        );
+        when(
+          () => repository.allowOnce(consent, requests: any(named: 'requests')),
+        ).thenAnswer((_) => refusing = false);
+        final cubit = build(chunker: const Chunker(maxUnits: 1))
+          ..loadFile('a.txt', bytesOf('one\n\ntwo'));
+        addTearDown(cubit.close);
+        await cubit.translate();
+        expect(cubit.state.failures.values, everyElement(consent));
+        // What the prompt does on "Once".
+        repository.allowOnce(consent, requests: 4);
+        return cubit;
+      }
+
+      test('translates what it stopped, then is withdrawn', () async {
+        final cubit = await stopped();
+        await cubit.consentGranted();
+        expect(cubit.state.isComplete, isTrue);
+        expect(cubit.state.output, 'ONE\n\nTWO');
+        // Each part that waited for it, once the run is over.
+        verify(() => repository.revokeOnce(consent)).called(2);
+      });
+
+      test('is withdrawn when the run is cancelled', () async {
+        final cubit = await stopped(
+          respond: (_) => StreamController<TranslationResult>().stream,
+        );
+        unawaited(cubit.consentGranted());
+        await pumpEventQueue();
+        expect(cubit.state.isTranslating, isTrue);
+        verifyNever(() => repository.revokeOnce(any()));
+        cubit.cancel();
+        verify(() => repository.revokeOnce(consent)).called(2);
+        await pumpEventQueue();
+        verifyNever(() => repository.revokeOnce(any()));
+      });
+
+      test('is withdrawn when the screen closes', () async {
+        final cubit = await stopped(
+          respond: (_) => StreamController<TranslationResult>().stream,
+        );
+        unawaited(cubit.consentGranted());
+        await pumpEventQueue();
+        await cubit.close();
+        verify(() => repository.revokeOnce(consent)).called(2);
+      });
+
+      test('a running translation keeps it until it ends', () async {
+        final gate = Completer<void>();
+        final cubit = await stopped(
+          respond: (request) async* {
+            await gate.future;
+            yield result(request.text.toUpperCase());
+          },
+        );
+        final run = cubit.retryChunk(0);
+        await pumpEventQueue();
+        expect(cubit.state.isTranslating, isTrue);
+        // The prompt still shows for part 2, and is answered meanwhile.
+        await cubit.consentGranted();
+        verifyNever(() => repository.revokeOnce(any()));
+        gate.complete();
+        await run;
+        verify(() => repository.revokeOnce(consent)).called(1);
+      });
+
+      test('withdrawing never breaks the translation', () async {
+        when(() => repository.revokeOnce(any())).thenThrow(StateError('x'));
+        final cubit = await stopped();
+        await cubit.consentGranted();
+        expect(cubit.state.isComplete, isTrue);
+      });
+    });
+
     group('engine and languages', () {
       test('selectEngine loads and remaps languages', () async {
         stubLanguages(

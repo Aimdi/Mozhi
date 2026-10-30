@@ -10,10 +10,13 @@ import 'package:equatable/equatable.dart';
 /// the settings.
 enum OnboardingStep { welcome, privacy, languages, service }
 
-/// Outcome of pinging one Mozhi instance.
-enum PingStatus { pending, success, failure, timedOut }
+/// Outcome of pinging one Mozhi instance: translating a test word
+/// (`TranslationRepository.pingInstance`). [noTranslation]: the server
+/// answered but its engine did not translate (an HTTP 5xx error, or no
+/// translation); [failure]: it could not be reached or refused.
+enum PingStatus { pending, success, failure, timedOut, noTranslation }
 
-/// Latency check of a single instance (see `OnboardingCubit`).
+/// Speed test of a single instance (see `OnboardingCubit`).
 class InstancePing extends Equatable {
   const new({required this.status, this.latency, this.error});
 
@@ -27,12 +30,16 @@ class InstancePing extends Equatable {
 
   const new timedOut() : this(status: PingStatus.timedOut);
 
+  const new noTranslation(String error)
+    : this(status: PingStatus.noTranslation, error: error);
+
   final PingStatus status;
 
   /// Round-trip time, set for [PingStatus.success].
   final Duration? latency;
 
-  /// Message of the error, set for [PingStatus.failure].
+  /// Message of the error, set for [PingStatus.failure] and
+  /// [PingStatus.noTranslation].
   final String? error;
 
   bool get isSuccess => status == PingStatus.success;
@@ -48,8 +55,16 @@ enum ServiceStatus { idle, pinging, done }
 enum OwnInstanceStatus { idle, testing, success, failure }
 
 /// Why "use my own instance" failed ([insecure]: plain http outside the
-/// local network that the user has not confirmed).
-enum OwnInstanceError { empty, invalidUrl, unreachable, timedOut, insecure }
+/// local network that the user has not confirmed; [noTranslation]: the
+/// server answered but did not translate the test word).
+enum OwnInstanceError {
+  empty,
+  invalidUrl,
+  unreachable,
+  timedOut,
+  insecure,
+  noTranslation,
+}
 
 class OnboardingState extends Equatable {
   const new({
@@ -100,7 +115,8 @@ class OnboardingState extends Equatable {
   final OwnInstanceStatus ownInstanceStatus;
   final OwnInstanceError? ownInstanceError;
 
-  /// Error message for [OwnInstanceError.unreachable].
+  /// Error message for [OwnInstanceError.unreachable] and
+  /// [OwnInstanceError.noTranslation].
   final String? ownInstanceMessage;
 
   /// Latency of the own instance after a successful test.
@@ -129,6 +145,12 @@ class OnboardingState extends Equatable {
       serviceStatus == ServiceStatus.done &&
       pings.isNotEmpty &&
       pings.values.every((p) => !p.isSuccess);
+
+  /// [noneReachable], and at least one server answered without
+  /// translating ([PingStatus.noTranslation]): the connection works.
+  bool get noneTranslates =>
+      noneReachable &&
+      pings.values.any((p) => p.status == PingStatus.noTranslation);
 
   OnboardingState copyWith({
     OnboardingStep? step,

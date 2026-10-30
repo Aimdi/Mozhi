@@ -8346,10 +8346,6 @@
   "@onboardingServiceFindFastestTitle": {
     "description": "Onboarding: measures the speed of every listed server and uses the fastest first (one tap, never automatic)."
   },
-  "onboardingServiceFindFastestHint": "Contacts every listed server once to measure its speed, then tries the fastest first.",
-  "@onboardingServiceFindFastestHint": {
-    "description": "Subtitle of onboardingServiceFindFastestTitle: says that it contacts each volunteer server."
-  },
   "onboardingServiceAskFirst": "Ask before sending text",
   "@onboardingServiceAskFirst": {
     "description": "Onboarding switch where the device can't translate on its own: on = ask once for each language pair before text goes to a server (Offline first mode), off = Online mode."
@@ -13699,5 +13695,29 @@
         "type": "int"
       }
     }
+  },
+  "onboardingServiceNoTranslation": "Doesn’t translate",
+  "@onboardingServiceNoTranslation": {
+    "description": "Onboarding: badge of a server that answered the speed test but did not translate the test word (its translation engine failed)."
+  },
+  "onboardingServiceNoneTranslates": "The servers answered, but none translated the test word. Test again later, or add your own instance below.",
+  "@onboardingServiceNoneTranslates": {
+    "description": "Onboarding: shown when every server failed the speed test and at least one answered without translating."
+  },
+  "onboardingServiceOwnNoTranslation": "This instance answers but doesn’t translate with {engine}: {error}",
+  "@onboardingServiceOwnNoTranslation": {
+    "description": "Onboarding, Use my own instance: the server answered but did not translate the test word. engine is a translation engine name (Google), error the server’s message.",
+    "placeholders": {
+      "engine": {
+        "type": "String"
+      },
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "onboardingServiceFindFastestTranslateHint": "Translates the word “Hello” once on every listed server to measure its speed, then tries the fastest first. None of your text is sent.",
+  "@onboardingServiceFindFastestTranslateHint": {
+    "description": "Subtitle of onboardingServiceFindFastestTitle: says that it sends one fixed test word to each volunteer server, and nothing the user wrote."
   }
 }

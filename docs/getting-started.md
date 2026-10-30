@@ -107,8 +107,11 @@ again** starts it over):
    device. Mozhi uses one of the built-in public instances, run by
    volunteers, and tries the next one if it is down: **Using
    mozhi.example** names it, and **Change** lists the others to pick one.
-   **Find the fastest server** contacts every listed server once to measure
-   its speed and puts the fastest first; it only runs when you tap it.
+   **Find the fastest server** translates the word "Hello" once on every
+   listed server (with the engine Mozhi will use, Google unless you picked
+   another; none of your text is sent), and puts the fastest first; a
+   server that answers but doesn't translate is marked **Doesn't
+   translate** and never picked. It only runs when you tap it.
    **Use my own instance** lets you enter your server's address and **Test &
    add** it. AI translators are optional: **Open AI provider settings**
    finishes the setup and opens **Settings > AI > AI providers**.
@@ -183,11 +186,18 @@ Mozhi can use several kinds of back ends, and you can mix them:
 
 Mozhi ships with the public instances listed in the
 [Mozhi README](https://codeberg.org/aryak/mozhi#instances), so it works out of
-the box. Open **Settings > Translation engines > Mozhi instances** to see
+the box. The servers that translate with Google, the default engine, come
+first; servers an app can't use (gone, or behind a bot check that only lets
+web browsers through) are left out, and the list is checked every week.
+Open **Settings > Translation engines > Mozhi instances** to see
 them with their response times. Instances are tried from top to bottom: if
 the first one is down, slow or rate limited, the app quietly moves on to the
 next. Drag an instance to reorder the list, or use **Make preferred** to move
 it to the top. **Reset to public list** restores the built-in list.
+
+After an update, a list you never changed gets the new built-in order, and
+built-in servers that were retired are removed from every list. Instances
+you added and a list you reordered stay as they are.
 
 Public instances are run by volunteers. Be kind to them, and keep in mind
 that their operators could see what you translate.

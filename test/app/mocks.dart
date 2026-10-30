@@ -115,7 +115,7 @@ void stubTranslationRepository(MockTranslationRepository repository) {
       .thenAnswer((_) async => const [Language.auto, _english]);
   when(() => repository.getTargetLanguages(any()))
       .thenAnswer((_) async => const [_english]);
-  when(() => repository.pingInstance(any()))
+  when(() => repository.pingInstance(any(), engine: any(named: 'engine')))
       .thenAnswer((_) async => const Duration(milliseconds: 42));
   when(() => repository.listModels(any())).thenAnswer((_) async => const []);
   when(() => repository.translate(any(), any()))

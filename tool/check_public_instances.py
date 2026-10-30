@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Checks that the public Mozhi instances built into the app still translate
-(CI job "Check model downloads"; needs the network).
+(CI job "Check model downloads", and every week the workflow
+.github/workflows/public-instances.yaml; needs the network).
 
   python3 tool/check_public_instances.py [--min-working N] [--text TEXT]
 

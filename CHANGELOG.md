@@ -48,6 +48,11 @@ in `-rc.N`).
 
 ### Changed
 
+- **"Once" means once.** A one-time approval to send text to an online
+  engine covers the text waiting at that moment; what it didn't use is
+  withdrawn when the work ends, in the live camera, documents, web pages,
+  Transcribe and live captions (before, a camera or document run could
+  leave approvals behind for a few minutes).
 - **Take photo asks for the camera permission** the first time, because
   Mozhi now uses the camera itself (for the live camera).
 - **Photo and document results say when personal data stayed on the
@@ -55,6 +60,14 @@ in `-rc.N`).
 
 ### Fixed
 
+- **Online translation on a new install.** Mozhi started on public
+  servers whose Google engine answered every translation with an error
+  (and four of the built-in servers were gone or blocked apps), so a new
+  install often waited or failed. The working servers now come first, the
+  dead ones are gone, settings that still have the old default list are
+  updated, and **Find the fastest server** times a translation of the word
+  "Hello" instead of only asking each server for its version, so a server
+  that doesn't translate is never picked.
 - **Listen with the phone's voice on very long texts.** Texts over about
   4,000 characters are read in parts instead of failing.
 - **Play variant:** screenshots and frozen live camera pictures are read

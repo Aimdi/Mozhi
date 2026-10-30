@@ -58,7 +58,12 @@ When a request needs your OK, nothing has been sent yet. The prompt names
 the destination and what it can see, and offers:
 
 - **Once**, or **Always for** the language pair (for example *French →
-  English*); the approved pairs are kept in the settings;
+  English*); the approved pairs are kept in the settings. **Once** lets
+  through what is waiting: the request that asked or, for a job (a web
+  page, a document, what the live camera or Transcribe have waiting), its
+  requests. What the job doesn't use is withdrawn when it ends, is
+  stopped or its screen closes, so it never lets a later, unrelated
+  request through without asking;
 - **Download** the pair for offline use instead, when the offline engine
   has it;
 - **Change privacy mode**.
@@ -358,7 +363,7 @@ stores on the device and what the other party may keep.
 | Offline speech model download (**Settings > Read aloud & voice > Voice input**) | The [model source](#where-model-files-come-from); by default `huggingface.co` (the [whisper.cpp models](https://huggingface.co/ggerganov/whisper.cpp), and the 0.9 MB speech detector from [ggml-org/whisper-vad](https://huggingface.co/ggml-org/whisper-vad), downloaded with the first model), which may redirect to its download servers | Plain file requests (HTTPS `GET`, `Range` to resume): Hugging Face sees your IP address, the time and which model (Fast or Better, and the speech detector) you download. No voice, text, identifiers or cookies | Hugging Face's logs. The model stays on the device until you delete it; **Import from files** contacts nothing. |
 | On-device AI model download (**Settings > On-device AI**) | The [model source](#where-model-files-come-from); by default `huggingface.co` (the publishers' repositories, pinned to one commit), which may redirect to its download servers | Plain file requests (HTTPS `GET`, `Range` to resume): Hugging Face sees your IP address, the time and which model you download. No text, identifiers or cookies | Hugging Face's logs. The model stays on the device until you delete it; **Import from files** contacts nothing. |
 | Engine and language lists | The Mozhi instances in your list | Nothing about you except your IP address | The instance's logs. Stored on the device as a cache. |
-| **Check instances**, **Find the fastest server** (setup), **Test**, **Test connection**, **Browse models** | Each instance or provider, only when you ask | A version request, or a model list request with your key | The server's logs. |
+| **Check instances**, **Find the fastest server** and **Test & add** (setup), **Test**, **Test connection**, **Browse models** | Each instance or provider, only when you ask | **Check instances**: an engine list request. **Find the fastest server**, **Test & add** and an instance's **Test**: one fixed word to translate ("Hello", or "hello" into German), never your text. Providers: a model list request with your key | The server's logs. |
 | Sync (**Settings > Backup & sync > Sync**, only once you set it up) | Your WebDAV server | The sync file, encrypted on the device (`GET`, `PUT`), folder checks (`PROPFIND`, `MKCOL`), your user name and app password (HTTP Basic over `https`; plain `http` only to this device, your local network or `.onion`), your IP address. Never in Offline only | The server keeps the file: it sees its name, size, when it changes and its readable header (app version, when it was written, the key derivation parameters), never its contents ([what the server sees](sync.md#what-the-server-sees)). **Turn off sync** can delete it. |
 | Web app fonts | The server that hosts the web app: the release zip and the CI builds include the fonts for scripts the bundled font lacks (for example Chinese or Devanagari) and emoji. Only a web build made without `tool/web_fallback_fonts.py` ([building](building.md#web-build-self-hosted-fonts-and-deferred-languages)) fetches them from Google's `fonts.gstatic.com` | The font file name, so which scripts you read, and your IP address; not your text | The browser caches the font. |
 

@@ -1650,7 +1650,6 @@
   "onboardingServiceChange": "변경",
   "onboardingServiceChangeDone": "완료",
   "onboardingServiceFindFastestTitle": "가장 빠른 서버 찾기",
-  "onboardingServiceFindFastestHint": "목록의 모든 서버에 한 번씩 연결해 속도를 측정한 뒤, 가장 빠른 서버를 먼저 시도합니다.",
   "onboardingServiceAskFirst": "텍스트를 보내기 전에 확인",
   "onboardingServiceAskFirstBody": "이 기기는 자체적으로 번역할 수 없으므로 텍스트가 아래 서버로 전송됩니다. 이 옵션을 켜면 언어 쌍마다 한 번씩 확인합니다.",
   "translateErrorUseEngine": "{engine}(으)로 번역",

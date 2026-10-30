@@ -132,6 +132,12 @@ class LiveCaptionsCubit extends Cubit<LiveCaptionsState> {
 
   /// Translations run one at a time, in order.
   Future<void> _translations = Future.value();
+
+  /// The consents the user gave for the phrases that waited for one (see
+  /// [retryTranslations]): what such a one-time approval did not use is
+  /// withdrawn once those phrases were sent, and when the captions stop
+  /// or the screen closes.
+  final _grants = <ConsentRequiredException>[];
   final List<int> _waiting = [];
   StreamSubscription<TranslationResult>? _translation;
 
@@ -281,6 +287,7 @@ class LiveCaptionsCubit extends Cubit<LiveCaptionsState> {
   }
 
   void _idle([LiveCaptionsNotice? notice]) {
+    _revokeGrants();
     emit(
       state.copyWith(
         status: LiveCaptionsStatus.idle,
@@ -561,7 +568,18 @@ class LiveCaptionsCubit extends Cubit<LiveCaptionsState> {
             entry.translationError is! LiveCaptionsBehindException)
           entry.id,
     ];
+    final grants = <ConsentRequiredException>{
+      ?state.consent,
+      for (final entry in state.entries)
+        if (entry.translationError case final ConsentRequiredException consent)
+          consent,
+    }.toList();
     emit(state.copyWith(consent: () => null));
+    if (grants.isNotEmpty) {
+      _grants.addAll(grants);
+      // Once the phrases were sent, nothing is left for the approval.
+      _translations = _translations.then((_) => _revokeGrants(grants));
+    }
     if (failed.isEmpty) return;
     final ids = failed.toSet();
     emit(
@@ -581,6 +599,22 @@ class LiveCaptionsCubit extends Cubit<LiveCaptionsState> {
       ),
     );
     failed.forEach(_enqueue);
+  }
+
+  /// Withdraws what [only] (default: every consent the user gave) let
+  /// through once and was not used.
+  void _revokeGrants([List<ConsentRequiredException>? only]) {
+    final grants = [
+      for (final consent in only ?? List.of(_grants))
+        if (_grants.remove(consent)) consent,
+    ];
+    for (final consent in grants) {
+      try {
+        _repository.revokeOnce(consent);
+      } on Object {
+        // Withdrawing must never break the captions.
+      }
+    }
   }
 
   /// Leaves the translations that wait for consent untranslated.
@@ -703,6 +737,7 @@ class LiveCaptionsCubit extends Cubit<LiveCaptionsState> {
     final recording = _recording;
     _recording = null;
     _waiting.clear();
+    _revokeGrants();
     await Future.wait<void>([
       if (running) _host.stop(),
       ?recording?.cancel(),
