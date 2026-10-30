@@ -218,6 +218,18 @@ sh tool/check_no_google_test.sh
 flutter test --coverage
 ```
 
+Two checks need the internet and run in CI's "Check model downloads"
+job rather than with the tests:
+
+```sh
+# Every downloadable file (offline languages, voice models, text
+# recognition data) is still served with the size the app expects.
+python3 tool/check_model_downloads.py
+# The public Mozhi servers built into the app: which still translate, with
+# which engines (fails only when none translates with the default engine).
+python3 tool/check_public_instances.py
+```
+
 Conventions:
 
 - Cubits are tested with `bloc_test`; dependencies are mocked with

@@ -132,6 +132,7 @@ jobs:
           python3 tool/mirror_models_test.py
           python3 tool/llm_catalog_test.py
           python3 tool/whisper_catalog_test.py
+          python3 tool/check_public_instances_test.py
           python3 tool/dictionary_packs_test.py
           python3 tool/phrasebooks_test.py
           python3 tool/check_coverage_markers_test.py
@@ -795,6 +796,14 @@ jobs:
 
       - name: Compare the served sizes with the catalogues
         run: python3 tool/check_model_downloads.py
+
+      # A new install translates online through the volunteer Mozhi
+      # servers built into the app: list which still translate, with which
+      # engines (job summary; a warning per server that no longer does).
+      # Fails only when none translates with the default engine.
+      - name: Check the public Mozhi instances
+        if: ${{ !cancelled() }}
+        run: python3 tool/check_public_instances.py
 
       # The on-device AI models (packages/llama_engine/assets/models.json)
       # come from Hugging Face's API, which only CI can reach: print the
