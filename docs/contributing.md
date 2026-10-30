@@ -235,9 +235,10 @@ an Android 14 emulator without Google APIs and uses it like a new user:
 it opens Mozhi, accepts the first-run defaults, types a French sentence
 and follows what the app offers, downloading French for offline use first
 and else allowing the text to be sent once
-(`tool/android_smoke.py <apk> <out-dir>`, with `adb` and a running
-emulator or phone). It fails when Mozhi crashes or stops or the sentence
-can't be typed; the job summary says whether and how it got translated,
+(`tool/android_smoke.py <apk> <out-dir>`, with `adb` and a fresh
+emulator: it refuses a device where Mozhi is already installed, and it
+clears the device log). It fails when Mozhi crashes or stops or the
+sentence can't be typed; the job summary says whether and how it got translated,
 the log lists the text on screen at each step and the screenshots are in
 the job's `android-smoke` artifact.
 

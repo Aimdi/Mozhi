@@ -13,6 +13,7 @@ import struct
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 import zlib
 from pathlib import Path
 from unittest import mock
@@ -203,6 +204,23 @@ class ParseArgsTest(unittest.TestCase):
         ):
             self.assertIsNone(smoke.parse_args(argv), argv)
 
+    def test_main_refuses_a_device_where_mozhi_is_installed(self):
+        calls = []
+
+        def adb(self, *args, check=True, timeout=120):
+            calls.append(args)
+            if args[:3] == ("shell", "pm", "list"):
+                return f"package:{smoke.PACKAGE}\n"
+            return ""
+
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(
+            smoke.Device, "adb", adb
+        ), redirect_stdout(io.StringIO()) as out:
+            self.assertEqual(smoke.main(["app.apk", tmp]), 2)
+        self.assertIn("already installed", out.getvalue())
+        self.assertFalse(any(c[:1] == ("install",) for c in calls))
+        self.assertFalse(any(c[:2] == ("logcat", "-c") for c in calls))
+
     def test_main_prints_the_usage_for_wrong_arguments(self):
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
@@ -342,8 +360,12 @@ class StoreScreenshotsTest(unittest.TestCase):
             if c[:4] == ("shell", "cmd", "uimode", "night") and len(c) == 5
         ]
         self.assertEqual(night, ["no", "yes", "no"])
-        self.assertEqual(calls[-1], ("shell", "wm", "size", "reset"))
-        self.assertIn("exit", calls[-2])
+        self.assertIn(("shell", "wm", "size", "reset"), calls)
+        self.assertEqual(
+            calls[-1],
+            ("shell", "settings", "delete", "global", "sysui_demo_allowed"),
+        )
+        self.assertIn("exit", calls[-3])
         self.assertTrue(any("clock" in c for c in calls))
 
     def test_puts_everything_back_when_adb_fails(self):
@@ -352,7 +374,11 @@ class StoreScreenshotsTest(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             smoke.store_screenshots(self.device, self.folder)
 
-        self.assertEqual(self.device.calls[-1], ("shell", "wm", "size", "reset"))
+        self.assertIn(("shell", "wm", "size", "reset"), self.device.calls)
+        self.assertEqual(
+            self.device.calls[-1],
+            ("shell", "settings", "delete", "global", "sysui_demo_allowed"),
+        )
         self.assertEqual(len(list(self.folder.iterdir())), 5)
 
     def test_closes_the_keyboard_and_tips(self):

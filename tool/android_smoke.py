@@ -438,6 +438,9 @@ def store_screenshots(device: Device, folder: Path) -> list[str]:
     theme_before = night_mode(
         device.adb("shell", "cmd", "uimode", "night", check=False)
     )
+    demo_before = device.adb(
+        "shell", "settings", "get", "global", "sysui_demo_allowed", check=False
+    ).strip()
     try:
         device.adb("shell", "wm", "size", "x".join(map(str, STORE_SIZE)), check=False)
         device.adb(
@@ -473,6 +476,16 @@ def store_screenshots(device: Device, folder: Path) -> list[str]:
             "-e", "command", "exit", check=False,
         )
         device.adb("shell", "wm", "size", "reset", check=False)
+        if demo_before in ("", "null"):
+            device.adb(
+                "shell", "settings", "delete", "global", "sysui_demo_allowed",
+                check=False,
+            )
+        else:
+            device.adb(
+                "shell", "settings", "put", "global", "sysui_demo_allowed",
+                demo_before, check=False,
+            )
     return missing
 
 
@@ -511,9 +524,21 @@ def main(argv: list[str]) -> int:
     missing_shots: list[str] = []
     shots_taken = False
     route = ""
+    # Meant for a fresh emulator: on a phone where Mozhi is installed, the
+    # run would start from that phone's own data (history, servers) and the
+    # log would hold other apps' lines, so it refuses.
+    installed = device.adb(
+        "shell", "pm", "list", "packages", PACKAGE, check=False
+    )
+    if f"package:{PACKAGE}" in installed.split():
+        print(
+            f"{PACKAGE} is already installed on this device: run the smoke "
+            "test on a fresh emulator (it would use this device's own data)."
+        )
+        return 2
     try:
         device.adb("logcat", "-c", check=False)
-        device.adb("install", "-r", str(apk), timeout=600)
+        device.adb("install", str(apk), timeout=600)
         device.adb("shell", "am", "start", "-W", "-n", ACTIVITY)
         first = device.wait_for(r".+", 90)
         device.capture("start")

@@ -80,8 +80,10 @@ python3 assets/store/make_feature_graphic.py  # -> images/featureGraphic.png
   with `--all`.
 
 **Fresh phone screenshots** come from the emulator smoke test of CI (job
-*Android emulator smoke test*, artifact `store-screenshots`), or from any
-emulator or phone with `adb`:
+*Android emulator smoke test*, artifact `store-screenshots`), or from a
+fresh emulator with `adb` (never a personal phone: the script refuses a
+device where Mozhi is installed, since it would use that device's data,
+and it clears the device log):
 
 ```sh
 python3 tool/android_smoke.py mozhi-x86_64.apk smoke --screenshots store-screenshots
