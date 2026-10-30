@@ -72,6 +72,33 @@ class FindTest(unittest.TestCase):
         self.assertEqual(node.cls, "android.widget.Button")
 
 
+class TranslatedTest(unittest.TestCase):
+    def node(self, label: str, cls: str = "android.view.View") -> smoke.Node:
+        return smoke.Node(label, "", cls, (0, 0, 10, 10), False, False)
+
+    def test_finds_the_english_translation_outside_the_text_field(self):
+        self.assertTrue(smoke.translated([
+            self.node(smoke.SENTENCE, "android.widget.EditText"),
+            self.node("I'm looking for the station"),
+        ]))
+
+    def test_ignores_the_text_field_and_other_labels(self):
+        self.assertFalse(smoke.translated([
+            self.node("Looking for the station", "android.widget.EditText"),
+            self.node("Translate"),
+            self.node("Stationery"),
+        ]))
+
+    def test_the_input_box_is_the_first_text_field(self):
+        nodes = smoke.parse_nodes(DUMP)
+
+        self.assertEqual(smoke.input_box(nodes).text, "Hello")
+        self.assertIsNone(smoke.input_box([]))
+
+    def test_offers_prefer_the_offline_download(self):
+        self.assertTrue(smoke.OFFERS[0][1].startswith("offline"))
+
+
 class CrashLinesTest(unittest.TestCase):
     def test_finds_a_java_crash_of_the_app(self):
         log = "\n".join([

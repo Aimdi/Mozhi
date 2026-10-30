@@ -6,15 +6,19 @@
 
 It installs the APK (no permission is granted up front), starts Mozhi,
 walks through the first-run screens with their default choices, types a
-sentence into the translate box and waits for the result, saving a
-screenshot, the screen's accessibility tree (uiautomator) and the log of
-every step in <out-dir> for review.
+French sentence into the translate box and follows what the app offers,
+as a new user would: it downloads French for offline use when offered
+(the private route: the translation then runs on the phone), else allows
+sending the text **Once** (the online route). It saves a screenshot, the
+screen's accessibility tree (uiautomator) and the log of every step in
+<out-dir> for review.
 
 It fails (exit 1) when Mozhi crashes or stops (a Java or native crash of
 its process in logcat, or the process gone), when the first screen never
-appears, or when the translate box can't be found. Whether the sentence
-got translated depends on the public servers and the network, so that is
-reported (summary.md) but does not fail the run.
+appears, or when the sentence can't be typed into the translate box.
+Whether the sentence got translated depends on the downloads, the public
+servers and the network, so that is reported (summary.md, with the route)
+but does not fail the run.
 """
 
 from __future__ import annotations
@@ -29,7 +33,15 @@ from pathlib import Path
 
 PACKAGE = "io.github.aimdi.mozhi"
 ACTIVITY = f"{PACKAGE}/.MainActivity"
-SENTENCE = "Good morning, where is the train station?"
+# ASCII only and no "?": `adb shell input text` sends key events.
+SENTENCE = "Bonjour je cherche la gare"
+# The English translation ("I'm looking for the station").
+RESULT = r".*\b(station|looking)\b.*"
+# What the app offers, in the order a privacy-minded user would pick it.
+OFFERS = (
+    (r"Download French.*", "offline: downloaded French"),
+    (r"Once", "online: allowed once"),
+)
 
 
 @dataclass(frozen=True)
@@ -199,26 +211,79 @@ def walk_first_run(device: Device) -> None:
     device.note("first run: still not done after 10 screens")
 
 
-def translate(device: Device) -> bool:
-    """Types [SENTENCE] into the translate box; True when a French-looking
-    result appears."""
-    nodes = device.dump()
-    box = next((n for n in nodes if n.cls.endswith("EditText")), None)
-    if box is None:
+def input_box(nodes: list[Node]) -> Node | None:
+    """The translate box (the first text field on screen)."""
+    return next((n for n in nodes if n.cls.endswith("EditText")), None)
+
+
+def translated(nodes: list[Node]) -> bool:
+    """Whether an English translation of [SENTENCE] is on screen (outside
+    the text field)."""
+    regex = re.compile(RESULT, re.IGNORECASE | re.DOTALL)
+    return any(
+        regex.fullmatch(n.label.strip())
+        for n in nodes
+        if n.label and not n.cls.endswith("EditText")
+    )
+
+
+def focus_box(device: Device) -> Node | None:
+    """Taps the translate box until it has the focus."""
+    for _ in range(3):
+        nodes = device.dump()
+        # A dialog over the screen (keyboard shortcuts, tips) closes first.
+        close = find(nodes, "Close|Dismiss|Got it|OK")
+        if close is not None and input_box(nodes) is None:
+            device.tap(close)
+            continue
+        box = input_box(nodes)
+        if box is None:
+            return None
+        if box.focused:
+            return box
+        device.tap(box)
+    return next(
+        (n for n in device.dump() if n.cls.endswith("EditText") and n.focused),
+        None,
+    )
+
+
+def translate(device: Device) -> str:
+    """Types [SENTENCE] into the translate box and follows the app's offers
+    ([OFFERS]) for up to 4 minutes. Returns how it got translated, or ""
+    when no translation appeared."""
+    if focus_box(device) is None:
         device.capture("no-input")
-        raise RuntimeError("the translate box was not found")
-    device.tap(box)
+        raise RuntimeError("the translate box could not be focused")
     device.adb("shell", "input", "text", SENTENCE.replace(" ", "%s"))
     time.sleep(2)
-    device.capture("typed")
-    # The privacy mode asks once before text leaves the phone.
-    allow = device.wait_for(r"(Allow|Send|Translate online|Continue).*", 10)
-    if allow is not None:
-        device.note(f"consent: tapping “{allow.label}”")
-        device.tap(allow)
-    result = device.wait_for(r".*(gare|Bonjour|où).*", 60)
-    device.capture("result")
-    return result is not None
+    nodes = device.capture("typed")
+    box = input_box(nodes)
+    typed = box.text if box else ""
+    device.note(f"translate box: “{typed}”")
+    if SENTENCE.split()[0] not in typed:
+        raise RuntimeError("the sentence did not reach the translate box")
+    route = "as typed"
+    taken: set[str] = set()
+    deadline = time.monotonic() + 240
+    while time.monotonic() < deadline:
+        nodes = device.dump()
+        if translated(nodes):
+            device.capture("translated")
+            return route
+        for pattern, name in OFFERS:
+            offer = find(nodes, pattern)
+            if offer is not None and pattern not in taken:
+                taken.add(pattern)
+                route = name
+                device.note(f"tapping “{offer.label}” ({name})")
+                device.tap(offer)
+                device.capture("offer")
+                break
+        else:
+            time.sleep(3)
+    device.capture("not-translated")
+    return ""
 
 
 def main(argv: list[str]) -> int:
@@ -229,7 +294,7 @@ def main(argv: list[str]) -> int:
     out.mkdir(parents=True, exist_ok=True)
     device = Device(out)
     failures: list[str] = []
-    translated = False
+    route = ""
     try:
         device.adb("logcat", "-c", check=False)
         device.adb("install", "-r", str(apk), timeout=600)
@@ -242,7 +307,7 @@ def main(argv: list[str]) -> int:
             walk_first_run(device)
             time.sleep(3)
             device.capture("translate-tab")
-            translated = translate(device)
+            route = translate(device)
     except (RuntimeError, subprocess.TimeoutExpired) as error:
         failures.append(str(error))
     crashes = device.crashes()
@@ -258,7 +323,8 @@ def main(argv: list[str]) -> int:
         "",
         f"- Started and walked through the first run: "
         f"{'no' if failures else 'yes'}",
-        f"- Translated “{SENTENCE}” online: {'yes' if translated else 'no'}",
+        f"- Translated “{SENTENCE}” into English: "
+        f"{f'yes ({route})' if route else 'no'}",
         "",
         "```text",
         *device.log,
