@@ -230,6 +230,13 @@ python3 tool/check_model_downloads.py
 python3 tool/check_public_instances.py
 ```
 
+CI's "Android emulator smoke test" job installs the x86_64 release APK on
+an Android 14 emulator without Google APIs and uses it like a new user:
+it opens Mozhi, accepts the first-run defaults, types a sentence and waits
+for the translation (`tool/android_smoke.py <apk> <out-dir>`, with `adb`
+and a running emulator or phone). It fails when Mozhi crashes or stops;
+the screenshots of each step are in the job's `android-smoke` artifact.
+
 Conventions:
 
 - Cubits are tested with `bloc_test`; dependencies are mocked with
