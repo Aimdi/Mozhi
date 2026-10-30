@@ -2736,5 +2736,9 @@
   "offlineDictionariesImportSubtitle": "Zainstaluj ręcznie pobrane pakiety słowników (pliki .mzd). Mozhi nie łączy się przy tym z internetem.",
   "offlineDictionariesImportTitleDone": "Zaimportowano słowniki",
   "offlineDictionariesImportDamaged": "Plik słownika {dictionary} jest uszkodzony lub pochodzi z innej wersji (niezgodna suma kontrolna)",
-  "offlineDictionariesImportUnmatched": "{count, plural, =1{1 plik nie pasuje do żadnego słownika} one{{count} plik nie pasuje do żadnego słownika} few{{count} pliki nie pasują do żadnego słownika} many{{count} plików nie pasuje do żadnego słownika} other{{count} pliku nie pasuje do żadnego słownika}}"
+  "offlineDictionariesImportUnmatched": "{count, plural, =1{1 plik nie pasuje do żadnego słownika} one{{count} plik nie pasuje do żadnego słownika} few{{count} pliki nie pasują do żadnego słownika} many{{count} plików nie pasuje do żadnego słownika} other{{count} pliku nie pasuje do żadnego słownika}}",
+  "onboardingServiceNoTranslation": "Nie tłumaczy",
+  "onboardingServiceNoneTranslates": "Serwery odpowiedziały, ale żaden nie przetłumaczył słowa testowego. Przetestuj ponownie później albo dodaj własną instancję poniżej.",
+  "onboardingServiceOwnNoTranslation": "Ta instancja odpowiada, ale nie tłumaczy za pomocą {engine}: {error}",
+  "onboardingServiceFindFastestTranslateHint": "Tłumaczy słowo „Hello” raz na każdym serwerze z listy, aby zmierzyć jego szybkość, a potem najpierw próbuje najszybszego. Twój tekst nie jest wysyłany."
 }

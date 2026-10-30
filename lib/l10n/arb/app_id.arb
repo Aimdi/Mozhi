@@ -2736,5 +2736,9 @@
   "offlineDictionariesImportSubtitle": "Instal paket kamus (file .mzd) yang Anda download secara manual. Untuk ini, Mozhi tidak terhubung ke internet.",
   "offlineDictionariesImportTitleDone": "Kamus diimpor",
   "offlineDictionariesImportDamaged": "File untuk {dictionary} rusak atau dari versi lain (checksum tidak cocok)",
-  "offlineDictionariesImportUnmatched": "{count, plural, =1{1 file tidak cocok dengan kamus mana pun} other{{count} file tidak cocok dengan kamus mana pun}}"
+  "offlineDictionariesImportUnmatched": "{count, plural, =1{1 file tidak cocok dengan kamus mana pun} other{{count} file tidak cocok dengan kamus mana pun}}",
+  "onboardingServiceNoTranslation": "Tidak menerjemahkan",
+  "onboardingServiceNoneTranslates": "Server merespons, tetapi tidak satu pun yang menerjemahkan kata uji. Uji lagi nanti, atau tambahkan instans Anda sendiri di bawah.",
+  "onboardingServiceOwnNoTranslation": "Instans ini merespons, tetapi tidak menerjemahkan dengan {engine}: {error}",
+  "onboardingServiceFindFastestTranslateHint": "Menerjemahkan kata “Hello” sekali di setiap server dalam daftar untuk mengukur kecepatannya, lalu mencoba yang tercepat lebih dulu. Teks Anda sama sekali tidak dikirim."
 }

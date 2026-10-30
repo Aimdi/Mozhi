@@ -2736,5 +2736,9 @@
   "offlineDictionariesImportSubtitle": "手動でダウンロードした辞書パック（.mzd ファイル）をインストールします。この操作で Mozhi がインターネットに接続することはありません。",
   "offlineDictionariesImportTitleDone": "辞書をインポートしました",
   "offlineDictionariesImportDamaged": "{dictionary}のファイルが破損しているか、別のバージョンのものです（チェックサムの不一致）",
-  "offlineDictionariesImportUnmatched": "{count, plural, =1{1 件のファイルがどの辞書にも一致しませんでした} other{{count} 件のファイルがどの辞書にも一致しませんでした}}"
+  "offlineDictionariesImportUnmatched": "{count, plural, =1{1 件のファイルがどの辞書にも一致しませんでした} other{{count} 件のファイルがどの辞書にも一致しませんでした}}",
+  "onboardingServiceNoTranslation": "翻訳不可",
+  "onboardingServiceNoneTranslates": "サーバーは応答しましたが、テスト用の単語を翻訳できたサーバーはありません。後で再テストするか、下で独自のインスタンスを追加してください。",
+  "onboardingServiceOwnNoTranslation": "このインスタンスは応答しますが、{engine} で翻訳できません: {error}",
+  "onboardingServiceFindFastestTranslateHint": "一覧のすべてのサーバーで「Hello」という単語を 1 回ずつ翻訳して速度を測定し、最も速いサーバーを最初に試します。入力したテキストは一切送信されません。"
 }

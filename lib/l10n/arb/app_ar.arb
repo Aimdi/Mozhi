@@ -2736,5 +2736,9 @@
   "offlineDictionariesImportSubtitle": "ثبّت حزم القواميس (ملفات .mzd) التي نزّلتها يدويًا. لا يتصل Mozhi بالإنترنت لهذا الغرض.",
   "offlineDictionariesImportTitleDone": "تم استيراد القواميس",
   "offlineDictionariesImportDamaged": "ملف {dictionary} تالف أو من إصدار آخر (عدم تطابق المجموع الاختباري)",
-  "offlineDictionariesImportUnmatched": "{count, plural, =1{ملف واحد لم يطابق أي قاموس} =2{ملفان لم يطابقا أي قاموس} few{{count} ملفات لم تطابق أي قاموس} many{{count} ملفًا لم يطابق أي قاموس} other{{count} ملف لم يطابق أي قاموس}}"
+  "offlineDictionariesImportUnmatched": "{count, plural, =1{ملف واحد لم يطابق أي قاموس} =2{ملفان لم يطابقا أي قاموس} few{{count} ملفات لم تطابق أي قاموس} many{{count} ملفًا لم يطابق أي قاموس} other{{count} ملف لم يطابق أي قاموس}}",
+  "onboardingServiceNoTranslation": "لا يترجم",
+  "onboardingServiceNoneTranslates": "استجابت الخوادم، لكن لم يترجم أيٌّ منها كلمة الاختبار. أعِد الاختبار لاحقًا، أو أضِف مثيلك الخاص أدناه.",
+  "onboardingServiceOwnNoTranslation": "يستجيب هذا المثيل، لكنه لا يترجم باستخدام {engine}: {error}",
+  "onboardingServiceFindFastestTranslateHint": "يترجم كلمة «Hello» مرة واحدة على كل خادم في القائمة لقياس سرعته، ثم يجرّب الأسرع أولًا. لن يُرسل أي جزء من نصك."
 }

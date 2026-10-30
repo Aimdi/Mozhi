@@ -2736,5 +2736,9 @@
   "offlineDictionariesImportSubtitle": "Installiere Wörterbuchpakete (.mzd-Dateien), die du manuell heruntergeladen hast. Mozhi geht dafür nicht online.",
   "offlineDictionariesImportTitleDone": "Wörterbücher importiert",
   "offlineDictionariesImportDamaged": "Die Datei für {dictionary} ist beschädigt oder gehört zu einer anderen Version (Prüfsumme stimmt nicht)",
-  "offlineDictionariesImportUnmatched": "{count, plural, =1{1 Datei passt zu keinem Wörterbuch} other{{count} Dateien passen zu keinem Wörterbuch}}"
+  "offlineDictionariesImportUnmatched": "{count, plural, =1{1 Datei passt zu keinem Wörterbuch} other{{count} Dateien passen zu keinem Wörterbuch}}",
+  "onboardingServiceNoTranslation": "Übersetzt nicht",
+  "onboardingServiceNoneTranslates": "Die Server haben geantwortet, aber keiner hat das Testwort übersetzt. Teste später erneut oder füge unten deine eigene Instanz hinzu.",
+  "onboardingServiceOwnNoTranslation": "Diese Instanz antwortet, übersetzt aber nicht mit {engine}: {error}",
+  "onboardingServiceFindFastestTranslateHint": "Übersetzt das Wort „Hello“ einmal auf jedem aufgeführten Server, um seine Geschwindigkeit zu messen, und probiert dann den schnellsten zuerst. Von deinem Text wird nichts gesendet."
 }

@@ -2736,5 +2736,9 @@
   "offlineDictionariesImportSubtitle": "Installeer woordenboekpakketten (.mzd-bestanden) die je handmatig hebt gedownload. Mozhi gaat hiervoor niet online.",
   "offlineDictionariesImportTitleDone": "Woordenboeken geïmporteerd",
   "offlineDictionariesImportDamaged": "Het bestand voor {dictionary} is beschadigd of van een andere versie (controlesom klopt niet)",
-  "offlineDictionariesImportUnmatched": "{count, plural, =1{1 bestand hoort bij geen enkel woordenboek} other{{count} bestanden horen bij geen enkel woordenboek}}"
+  "offlineDictionariesImportUnmatched": "{count, plural, =1{1 bestand hoort bij geen enkel woordenboek} other{{count} bestanden horen bij geen enkel woordenboek}}",
+  "onboardingServiceNoTranslation": "Vertaalt niet",
+  "onboardingServiceNoneTranslates": "De servers reageerden, maar geen enkele vertaalde het testwoord. Test later opnieuw, of voeg hieronder je eigen instantie toe.",
+  "onboardingServiceOwnNoTranslation": "Deze instantie reageert, maar vertaalt niet met {engine}: {error}",
+  "onboardingServiceFindFastestTranslateHint": "Vertaalt het woord ‘Hello’ één keer op elke server in de lijst om de snelheid te meten en probeert daarna eerst de snelste. Er wordt niets van je tekst verstuurd."
 }

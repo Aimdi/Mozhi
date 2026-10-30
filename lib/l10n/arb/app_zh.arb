@@ -2736,5 +2736,9 @@
   "offlineDictionariesImportSubtitle": "安装你手动下载的词典包（.mzd 文件）。Mozhi 不会为此联网。",
   "offlineDictionariesImportTitleDone": "词典已导入",
   "offlineDictionariesImportDamaged": "{dictionary}的文件已损坏或属于其他版本（校验和不匹配）",
-  "offlineDictionariesImportUnmatched": "{count, plural, =1{1 个文件与任何词典都不匹配} other{{count} 个文件与任何词典都不匹配}}"
+  "offlineDictionariesImportUnmatched": "{count, plural, =1{1 个文件与任何词典都不匹配} other{{count} 个文件与任何词典都不匹配}}",
+  "onboardingServiceNoTranslation": "无法翻译",
+  "onboardingServiceNoneTranslates": "服务器有响应，但没有一台翻译出测试词。请稍后重新测试，或在下方添加你自己的实例。",
+  "onboardingServiceOwnNoTranslation": "此实例有响应，但无法使用 {engine} 翻译：{error}",
+  "onboardingServiceFindFastestTranslateHint": "在列表中的每台服务器上各翻译一次“Hello”一词以测量速度，然后优先尝试最快的服务器。不会发送你的任何文本。"
 }

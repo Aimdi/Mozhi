@@ -2736,5 +2736,9 @@
   "offlineDictionariesImportSubtitle": "Cài đặt các gói từ điển (tệp .mzd) bạn đã tải xuống thủ công. Mozhi không kết nối mạng cho việc này.",
   "offlineDictionariesImportTitleDone": "Đã nhập từ điển",
   "offlineDictionariesImportDamaged": "Tệp của {dictionary} bị hỏng hoặc thuộc phiên bản khác (tổng kiểm tra không khớp)",
-  "offlineDictionariesImportUnmatched": "{count, plural, =1{1 tệp không khớp với từ điển nào} other{{count} tệp không khớp với từ điển nào}}"
+  "offlineDictionariesImportUnmatched": "{count, plural, =1{1 tệp không khớp với từ điển nào} other{{count} tệp không khớp với từ điển nào}}",
+  "onboardingServiceNoTranslation": "Không dịch được",
+  "onboardingServiceNoneTranslates": "Các máy chủ đã phản hồi nhưng không máy chủ nào dịch được từ dùng để kiểm tra. Hãy kiểm tra lại sau, hoặc thêm máy chủ của riêng bạn bên dưới.",
+  "onboardingServiceOwnNoTranslation": "Máy chủ này có phản hồi nhưng không dịch được bằng {engine}: {error}",
+  "onboardingServiceFindFastestTranslateHint": "Dịch từ “Hello” một lần trên mỗi máy chủ trong danh sách để đo tốc độ, sau đó thử máy chủ nhanh nhất trước. Không có văn bản nào của bạn được gửi đi."
 }

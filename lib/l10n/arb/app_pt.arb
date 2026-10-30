@@ -2736,5 +2736,9 @@
   "offlineDictionariesImportSubtitle": "Instale pacotes de dicionário (arquivos .mzd) que você baixou manualmente. O Mozhi não se conecta à internet para isso.",
   "offlineDictionariesImportTitleDone": "Dicionários importados",
   "offlineDictionariesImportDamaged": "O arquivo de {dictionary} está danificado ou é de outra versão (a soma de verificação não confere)",
-  "offlineDictionariesImportUnmatched": "{count, plural, =0{{count} arquivos não correspondem a nenhum dicionário} =1{1 arquivo não corresponde a nenhum dicionário} other{{count} arquivos não correspondem a nenhum dicionário}}"
+  "offlineDictionariesImportUnmatched": "{count, plural, =0{{count} arquivos não correspondem a nenhum dicionário} =1{1 arquivo não corresponde a nenhum dicionário} other{{count} arquivos não correspondem a nenhum dicionário}}",
+  "onboardingServiceNoTranslation": "Não traduz",
+  "onboardingServiceNoneTranslates": "Os servidores responderam, mas nenhum traduziu a palavra de teste. Teste novamente mais tarde ou adicione sua própria instância abaixo.",
+  "onboardingServiceOwnNoTranslation": "Esta instância responde, mas não traduz com {engine}: {error}",
+  "onboardingServiceFindFastestTranslateHint": "Traduz a palavra “Hello” uma vez em cada servidor da lista para medir a velocidade dele e depois tenta primeiro o mais rápido. Nada do seu texto é enviado."
 }

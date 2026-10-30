@@ -2736,5 +2736,9 @@
   "offlineDictionariesImportSubtitle": "Установите словарные пакеты (файлы .mzd), скачанные вручную. Mozhi не выходит для этого в интернет.",
   "offlineDictionariesImportTitleDone": "Словари импортированы",
   "offlineDictionariesImportDamaged": "Файл словаря «{dictionary}» повреждён или относится к другой версии (не совпадает контрольная сумма)",
-  "offlineDictionariesImportUnmatched": "{count, plural, =1{1 файл не подходит ни к одному словарю} one{{count} файл не подходит ни к одному словарю} few{{count} файла не подходят ни к одному словарю} many{{count} файлов не подходят ни к одному словарю} other{{count} файла не подходят ни к одному словарю}}"
+  "offlineDictionariesImportUnmatched": "{count, plural, =1{1 файл не подходит ни к одному словарю} one{{count} файл не подходит ни к одному словарю} few{{count} файла не подходят ни к одному словарю} many{{count} файлов не подходят ни к одному словарю} other{{count} файла не подходят ни к одному словарю}}",
+  "onboardingServiceNoTranslation": "Не переводит",
+  "onboardingServiceNoneTranslates": "Серверы ответили, но ни один не перевёл тестовое слово. Повторите проверку позже или добавьте свой сервер ниже.",
+  "onboardingServiceOwnNoTranslation": "Этот сервер отвечает, но не переводит с помощью {engine}: {error}",
+  "onboardingServiceFindFastestTranslateHint": "Один раз переводит слово «Hello» на каждом сервере из списка, чтобы измерить его скорость, а затем сначала пробует самый быстрый. Ваш текст не отправляется."
 }

@@ -2736,5 +2736,9 @@
   "offlineDictionariesImportSubtitle": "நீங்களே பதிவிறக்கிய அகராதித் தொகுப்புகளை (.mzd கோப்புகள்) நிறுவவும். இதற்காக Mozhi இணையத்துடன் இணையாது.",
   "offlineDictionariesImportTitleDone": "அகராதிகள் இறக்குமதிசெய்யப்பட்டன",
   "offlineDictionariesImportDamaged": "{dictionary}-க்கான கோப்பு சேதமடைந்துள்ளது அல்லது வேறு பதிப்பைச் சேர்ந்தது (செக்சம் பொருந்தவில்லை)",
-  "offlineDictionariesImportUnmatched": "{count, plural, =1{1 கோப்பு எந்த அகராதியுடனும் பொருந்தவில்லை} other{{count} கோப்புகள் எந்த அகராதியுடனும் பொருந்தவில்லை}}"
+  "offlineDictionariesImportUnmatched": "{count, plural, =1{1 கோப்பு எந்த அகராதியுடனும் பொருந்தவில்லை} other{{count} கோப்புகள் எந்த அகராதியுடனும் பொருந்தவில்லை}}",
+  "onboardingServiceNoTranslation": "மொழிபெயர்க்கவில்லை",
+  "onboardingServiceNoneTranslates": "சர்வர்கள் பதிலளித்தன, ஆனால் எதுவும் சோதனைச் சொல்லை மொழிபெயர்க்கவில்லை. பிறகு மீண்டும் சோதிக்கவும், அல்லது கீழே உங்கள் சொந்த இன்ஸ்டன்ஸைச் சேர்க்கவும்.",
+  "onboardingServiceOwnNoTranslation": "இந்த இன்ஸ்டன்ஸ் பதிலளிக்கிறது, ஆனால் {engine} மூலம் மொழிபெயர்க்கவில்லை: {error}",
+  "onboardingServiceFindFastestTranslateHint": "பட்டியலிலுள்ள ஒவ்வொரு சர்வரின் வேகத்தையும் அளக்க, அதில் “Hello” என்ற சொல்லை ஒருமுறை மொழிபெயர்த்து, மிக வேகமானதை முதலில் முயலும். உங்கள் உரை எதுவும் அனுப்பப்படாது."
 }
