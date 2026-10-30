@@ -233,6 +233,14 @@ class _InstancesViewState extends State<InstancesView> {
     context.read<SettingsCubit>().moveInstance(from, to > from ? to + 1 : to);
   }
 
+  TranslationRepository? _repository() {
+    try {
+      return context.read<TranslationRepository>();
+    } on ProviderNotFoundException {
+      return null;
+    }
+  }
+
   void _onAction(_InstanceAction action, int index, MozhiInstance instance) {
     final cubit = context.read<SettingsCubit>();
     switch (action) {
@@ -249,6 +257,10 @@ class _InstancesViewState extends State<InstancesView> {
         unawaited(_edit(index, instance));
       case _InstanceAction.prefer:
         cubit.preferInstance(instance.url);
+        // Also when it is first already: its recent failure is forgotten
+        // and requests start there again.
+        _repository()?.preferInstance(instance.url);
+        setState(() {});
       case _InstanceAction.moveUp:
         _move(index, index - 1);
       case _InstanceAction.moveDown:
@@ -346,7 +358,13 @@ class _InstancesViewState extends State<InstancesView> {
             onReorderItem: _move,
             itemBuilder: (context, index) {
               final instance = instances[index];
+              final active = _repository()?.activeInstance?.url;
               return _InstanceTile(
+                // First, yet requests start at another server (it failed
+                // recently, or a failover moved on): "Make preferred" puts
+                // it first again.
+                behindAnother:
+                    index == 0 && active != null && active != instance.url,
                 key: ValueKey(instance.url),
                 index: index,
                 count: instances.length,
@@ -518,8 +536,12 @@ class _InstanceTile extends StatelessWidget {
     required this.health,
     required this.proxyActive,
     required this.onAction,
+    this.behindAnother = false,
     super.key,
   });
+
+  /// The first instance, yet requests start at another one.
+  final bool behindAnother;
 
   final int index;
   final int count;
@@ -646,7 +668,7 @@ class _InstanceTile extends StatelessWidget {
                   ),
                   PopupMenuItem(
                     value: _InstanceAction.prefer,
-                    enabled: !preferred,
+                    enabled: !preferred || behindAnother,
                     child: Text(l10n.settingsInstancesMakePreferred),
                   ),
                   PopupMenuItem(

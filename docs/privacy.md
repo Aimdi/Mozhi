@@ -63,7 +63,11 @@ the destination and what it can see, and offers:
   page, a document, what the live camera or Transcribe have waiting), its
   requests. What the job doesn't use is withdrawn when it ends, is
   stopped or its screen closes, so it never lets a later, unrelated
-  request through without asking;
+  request through without asking. On the Translate screen that is the
+  translation that asked: when it doesn't use the **Once** (the device
+  translates the text after all because you downloaded the language
+  meanwhile, or you typed on or tapped Stop before it went out), the
+  **Once** is withdrawn and the next text is asked about again;
 - **Download** the pair for offline use instead, when the offline engine
   has it;
 - **Change privacy mode**.
@@ -72,10 +76,15 @@ For a Mozhi request the prompt also says when the text may go on to the
 other servers in your list if the first one doesn't answer (failover, in
 your order). A server where a translation failed recently (it was down,
 overloaded, or its engine failed upstream) is asked last for 12 hours,
-also after a restart, so the next request starts at one that worked; your
-consent covers every server of the list either way, and the app never
-sends anything just to check a server (see the table below). A server you
-move to the top of the list is asked first again. The app never moves text
+so the next request starts at one that worked; your consent covers every
+server of the list either way, and the app never sends anything just to
+check a server (see the table below). Only a failure the server answered
+with (an HTTP error, or an answer without a translation) is kept after a
+restart; a request that got no answer at all (no connection, a timeout),
+which is often your phone's own network, only counts until the app
+closes. A server you move to the top of the list, make preferred (also
+when it is first already), or pick under **Switch instance** or **Try
+next instance** is asked first again. The app never moves text
 to another back end by itself: an offline or Mozhi translation is never
 retried with an AI provider, a helper request (language detection, the AI
 model for extras, Reverso after Google for speech) is checked as its own destination, and when the
@@ -120,7 +129,7 @@ engines**) stays your choice.
 **Settings > Privacy & data > Hide personal data from online engines** (on by
 default) replaces e-mail addresses, phone numbers, IBANs (checked with their
 check digits), payment card numbers (checked with the Luhn algorithm) and IPv4
-addresses with placeholders before the text goes to a Mozhi instance, an AI
+and IPv6 addresses with placeholders before the text goes to a Mozhi instance, an AI
 provider or a DeepL or LibreTranslate service, and puts them back into the
 translation on the device. The result says how many items stayed on the
 device. Language detection and back-translation for the meaning check are
@@ -401,7 +410,7 @@ the fastest server** during setup.
 | History and favorites | App preferences, **encrypted with AES-256-GCM**; the key is in secure storage (Android Keystore) | Translations (text, translation, languages, engine, time) and dictionary look-ups (word, languages, AI model, detail level, a one-line summary of the entry, time). Up to 1,000 entries plus favorites. **Settings > Privacy & data > Delete history automatically** removes entries older than 1, 7 or 30 days (favorites are kept). |
 | Presets, glossaries, read-aloud settings, usage counters | App preferences | Usage counters are numbers only (requests, characters, estimated tokens per provider and month, for 13 months). |
 | Cached engine and language lists | App preferences | Lists only, keyed by instance address without any password. |
-| Mozhi servers that failed recently | App preferences | The server's address (without any user name or password) and the time its last translation failed, for at most 64 servers, each forgotten after 12 hours or when a translation there works. Only the outcome of translations you asked for (and of the setup's server test, **Find the fastest server**) counts: nothing is sent to test a server. On the device only: not synced, not in backups, not in pairing. **Delete all local data** forgets it. |
+| Mozhi servers that failed recently | App preferences | The server's address (without any user name or password) and the time its last translation failed, for at most 64 servers, each forgotten after 12 hours, when a translation there works, or when you make it preferred or pick it to try again. Only the outcome of translations you asked for (text and photos; not read-aloud or language detection) and of the setup's server test (**Find the fastest server**) counts: nothing is sent to test a server. Only failures the server answered with are stored; one without an answer (no connection, a timeout) is kept in memory until the app closes. On the device only: not synced, not in backups, not in pairing. **Delete all local data** forgets it. |
 | Sync setup | App preferences (server address, user name, folder, what to sync, the last sync's time and result, the sync file's ETag and a fingerprint of the synced data); secure storage (the app password and the key derived from your passphrase) | Never the passphrase. In the web app the app password and the key last as long as the tab. **Turn off sync** and **Delete all local data** forget all of it. |
 | Offline language models | App storage (`<app files>/bergamot`); in the web app the browser's private storage for the site (the Origin Private File System, folder `bergamot`), which no other site and no page script outside the app can read | About 50 MB to download and 73 MB on disk per language. Delete them under **Settings > Translation engines > Offline languages**; in the web app clearing the site's data deletes them too. |
 | The web app's own files (web app only) | The browser's Cache Storage for the site (`mozhi-shell:<path>:<version>`) | The build's files, so that the app opens with no network ([details](#the-web-app-with-no-network)); no personal data. **Settings > General > Keep the web app for offline use** off deletes them. |

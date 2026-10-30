@@ -21,9 +21,12 @@ String? currentInstanceUrl(
   return instances.firstOrNull?.url;
 }
 
-String? _activeInstanceUrl(BuildContext context) {
+String? _activeInstanceUrl(BuildContext context) =>
+    _repositoryOf(context)?.activeInstance?.url;
+
+TranslationRepository? _repositoryOf(BuildContext context) {
   try {
-    return context.read<TranslationRepository>().activeInstance?.url;
+    return context.read<TranslationRepository>();
   } on ProviderNotFoundException {
     return null;
   }
@@ -101,13 +104,18 @@ Future<String?> showInstanceSwitcher(BuildContext context) {
 
 /// [showInstanceSwitcher], then (an instance was picked) makes it the
 /// preferred one (`SettingsCubit.preferInstance`, which the app hands to
-/// the repository) and translates again.
+/// the repository) and translates again. The repository starts there and
+/// forgets the server's recent failure, also when it is first in the list
+/// already (`TranslationRepository.preferInstance`: the list then doesn't
+/// change).
 Future<void> switchInstanceAndRetry(BuildContext context) async {
   final settings = context.read<SettingsCubit>();
   final translate = context.read<TranslateCubit>();
+  final repository = _repositoryOf(context);
   final url = await showInstanceSwitcher(context);
   if (url == null) return;
   settings.preferInstance(url);
+  repository?.preferInstance(url);
   // The app applies the new order to the repository when the settings
   // stream delivers it (a microtask): retry after that.
   await Future<void>.delayed(Duration.zero);

@@ -38,7 +38,13 @@ in `-rc.N`).
 - **Backup passphrases with accented letters.** A passphrase typed with a
   keyboard that composes accents differently (for example "é" as one
   character or as "e" plus an accent) now opens the backup or sync file;
-  older backups still open with the passphrase as typed then.
+  older backups still open with the passphrase as typed then. A sync file
+  made before is moved to the new key the first time a device of this
+  version joins it; the other devices ask for the passphrase once, and a
+  device still on 0.1.0-rc.5 or older needs this update to open it.
+- **A one-time approval on the Translate screen** that the phone ended up
+  not needing (the language was downloaded meanwhile) is withdrawn, so a
+  later text is asked about again.
 - **Web app in Firefox and Safari:** offline language downloads no longer
   wait on Firefox's storage prompt, offline languages work in Safari 16
   and Chrome before 108, encrypted backups work without the browser's

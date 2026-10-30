@@ -222,6 +222,80 @@ void main() {
         expect(store.saved.single, isEmpty);
       });
 
+      group('a failure without an answer (persist: false)', () {
+        test('counts for this session and is never saved', () async {
+          final store = MemoryInstanceHealthStore();
+          final health = InstanceHealth(store: store, clock: clock)
+            ..markFailed(instanceA.url, persist: false);
+          expect(health.isCoolingDown(instanceA.url), isTrue);
+          expect(health.order([instanceA, instanceB]), [instanceB, instanceA]);
+          await health.saved;
+          expect(store.saves, 0);
+
+          // Another server's reported failure is saved without it.
+          health.markFailed(instanceB.url);
+          await health.saved;
+          expect(store.failures, {instanceB.url: now});
+        });
+
+        test('ends with the cool-down, an answer or forget', () async {
+          final health = InstanceHealth(
+            clock: clock,
+            coolDown: const Duration(hours: 1),
+          )..markFailed(instanceA.url, persist: false);
+          now = now.add(const Duration(hours: 1));
+          expect(health.isCoolingDown(instanceA.url), isFalse);
+
+          health
+            ..markFailed(instanceA.url, persist: false)
+            ..markWorked(instanceA.url);
+          expect(health.isCoolingDown(instanceA.url), isFalse);
+
+          health
+            ..markFailed(instanceA.url, persist: false)
+            ..forget();
+          expect(health.isCoolingDown(instanceA.url), isFalse);
+        });
+
+        test('leaves a reported failure as it is', () async {
+          final store = MemoryInstanceHealthStore();
+          final earlier = now;
+          final health = InstanceHealth(store: store, clock: clock)
+            ..markFailed(instanceA.url);
+          now = now.add(const Duration(minutes: 1));
+          health.markFailed(instanceA.url, persist: false);
+          await health.saved;
+          expect(health.failedAt(instanceA.url), earlier);
+          expect(store.failures, {instanceA.url: earlier});
+        });
+
+        test('is saved once the server reports one', () async {
+          final store = MemoryInstanceHealthStore();
+          final health = InstanceHealth(store: store, clock: clock)
+            ..markFailed(instanceA.url, persist: false)
+            ..markFailed(instanceA.url);
+          await health.saved;
+          expect(store.failures, {instanceA.url: now});
+        });
+
+        test('a stored failure that loads later is kept with the later '
+            'time', () async {
+          final store = _ScriptedStore()
+            ..pendingLoad = Completer<Map<String, DateTime>>();
+          final earlier = now.subtract(const Duration(hours: 1));
+          final health = InstanceHealth(store: store, clock: clock)
+            ..markFailed(instanceA.url, persist: false)
+            ..markFailed(instanceB.url, persist: false);
+          store.pendingLoad!.complete({instanceA.url: earlier});
+          await health.ready;
+          expect(health.failedAt(instanceA.url), now);
+          health.markFailed(instanceC.url);
+          await health.saved;
+          // A's stored failure stays stored; B's never is.
+          expect(store.saved.last, {instanceA.url: now, instanceC.url: now});
+        });
+      });
+
       test('ignores store failures', () async {
         final store = _ScriptedStore()
           ..loadError = StateError('locked')

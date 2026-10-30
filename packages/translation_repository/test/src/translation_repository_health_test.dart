@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi_api/mozhi_api.dart';
 import 'package:test/test.dart';
@@ -111,6 +113,107 @@ void main() {
     expect(repository.instanceHealth.isCoolingDown(instanceA.url), isFalse);
   });
 
+  test('a translation that got no answer counts for this session '
+      'only', () async {
+    whenTranslate(a()).thenThrow(const MozhiApiException('Connection reset'));
+    answers(b());
+    final first = await newRepository();
+    await first.translate(googleEngine, request).drain<void>();
+    expect(first.instanceHealth.isCoolingDown(instanceA.url), isTrue);
+    await first.instanceHealth.saved;
+    expect(store.failures, isEmpty);
+
+    // After a restart the user's first server is asked first again.
+    final second = await newRepository();
+    expect(second.activeInstance, instanceA);
+  });
+
+  test('preferInstance puts the first server first again', () async {
+    whenTranslate(a()).thenThrow(serverError());
+    answers(b());
+    final repository = await newRepository();
+    await repository.translate(googleEngine, request).drain<void>();
+    expect(repository.activeInstance, instanceB);
+
+    repository.preferInstance(instanceA.url);
+
+    expect(repository.activeInstance, instanceA);
+    expect(repository.instanceHealth.isCoolingDown(instanceA.url), isFalse);
+    await repository.instanceHealth.saved;
+    expect(store.failures, isEmpty);
+  });
+
+  test('read-aloud does not count', () async {
+    when(
+      () => a().textToSpeech(
+        engine: any(named: 'engine'),
+        language: any(named: 'language'),
+        text: any(named: 'text'),
+      ),
+    ).thenThrow(serverError());
+    when(
+      () => b().textToSpeech(
+        engine: any(named: 'engine'),
+        language: any(named: 'language'),
+        text: any(named: 'text'),
+      ),
+    ).thenAnswer((_) async => Uint8List.fromList([1, 2, 3]));
+    final repository = await newRepository();
+    await repository.textToSpeech(text: 'Hallo', languageCode: 'de');
+    expect(repository.instanceHealth.isCoolingDown(instanceA.url), isFalse);
+    expect(repository.instanceHealth.isCoolingDown(instanceB.url), isFalse);
+    await repository.instanceHealth.saved;
+    expect(store.saves, 0);
+  });
+
+  test('language detection does not count', () async {
+    whenTranslate(a()).thenThrow(serverError());
+    whenTranslate(b()).thenAnswer(
+      (_) async => const MozhiTranslation(
+        engine: 'google',
+        translatedText: 'Hello',
+        detectedLanguage: 'de',
+      ),
+    );
+    final repository = await newRepository();
+    final detected = await repository.detectLanguage('Hallo');
+    expect(detected.code, 'de');
+    expect(repository.instanceHealth.isCoolingDown(instanceA.url), isFalse);
+    await repository.instanceHealth.saved;
+    expect(store.saves, 0);
+  });
+
+  test('image translation counts like a translation', () async {
+    When<Future<MozhiImageTranslation>> whenImage(MockMozhiApiClient client) =>
+        when(
+          () => client.translateImage(
+            pngBytes: any(named: 'pngBytes'),
+            from: any(named: 'from'),
+            to: any(named: 'to'),
+            engine: any(named: 'engine'),
+            timeout: any(named: 'timeout'),
+          ),
+        );
+    whenImage(a()).thenThrow(serverError());
+    whenImage(b()).thenAnswer(
+      (_) async => const MozhiImageTranslation(
+        translatedImageBase64: '',
+        translatedText: 'Hello',
+      ),
+    );
+    final repository = await newRepository();
+    await repository.translateImage(
+      googleEngine,
+      Uint8List.fromList([137, 80, 78, 71]),
+      mimeType: 'image/png',
+      source: Language.auto,
+      target: english,
+    );
+    expect(repository.instanceHealth.isCoolingDown(instanceA.url), isTrue);
+    await repository.instanceHealth.saved;
+    expect(store.failures.keys, [instanceA.url]);
+  });
+
   group('pingInstance', () {
     test('a translation marks the server working', () async {
       store.failures = {instanceA.url: now};
@@ -139,7 +242,8 @@ void main() {
       expect(repository.instanceHealth.isCoolingDown(instanceB.url), isTrue);
     });
 
-    test('a network failure marks the server failed', () async {
+    test('a network failure marks the server failed for this session '
+        'only', () async {
       whenTranslate(a()).thenThrow(const MozhiApiException('refused'));
       final repository = await newRepository();
       await expectLater(
@@ -147,6 +251,19 @@ void main() {
         throwsA(isA<MozhiApiException>()),
       );
       expect(repository.instanceHealth.isCoolingDown(instanceA.url), isTrue);
+      await repository.instanceHealth.saved;
+      expect(store.failures, isEmpty);
+    });
+
+    test('a server that does not translate is remembered', () async {
+      whenTranslate(a()).thenThrow(serverError());
+      final repository = await newRepository();
+      await expectLater(
+        repository.pingInstance(instanceA),
+        throwsA(isA<InstanceDoesNotTranslateException>()),
+      );
+      await repository.instanceHealth.saved;
+      expect(store.failures.keys, [instanceA.url]);
     });
 
     test('a missing engine, a timeout or a bad request do not', () async {

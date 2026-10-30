@@ -438,6 +438,39 @@ void main() {
         );
       });
 
+      test('unlockKeyOf says when the key is of the passphrase as typed, '
+          'and a file written again with the NFC key opens with it', () async {
+        final old = await legacy(decomposed);
+        final typed = await _codec.unlockKeyOf(old, decomposed);
+        expect(typed.asTyped, isTrue);
+        expect(
+          typed.key,
+          await _codec.deriveKeyFor(old, decomposed, asTyped: true),
+        );
+
+        // Written again with the NFC key (sync does that once).
+        final snapshot = await _codec.decryptWithKey(old, typed.key);
+        final nfcKey = await _codec.deriveKey(
+          decomposed,
+          salt: BackupCodec.newSalt(),
+        );
+        final rekeyed = await _codec.encryptWithKey(snapshot, nfcKey);
+        for (final passphrase in [decomposed, composed]) {
+          final unlocked = await _codec.unlockKeyOf(rekeyed, passphrase);
+          expect(unlocked.asTyped, isFalse);
+          expect(unlocked.key, nfcKey);
+          expect(await _codec.decryptWithKey(rekeyed, unlocked.key), _snapshot);
+        }
+
+        // A passphrase already in NFC, and one that opens nothing.
+        final current = await _codec.encrypt(_snapshot, composed);
+        expect((await _codec.unlockKeyOf(current, composed)).asTyped, isFalse);
+        expect(
+          (await _codec.unlockKeyOf(old, 'Vie\u0323\u0302t')).asTyped,
+          isFalse,
+        );
+      });
+
       test('unlockKeyFor refuses what is not a backup', () async {
         await expectLater(
           _codec.unlockKeyFor(Uint8List(3), decomposed),

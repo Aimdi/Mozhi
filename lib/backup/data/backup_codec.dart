@@ -398,19 +398,33 @@ class BackupCodec {
   /// Throws [BackupFormatException] when [bytes] is not a backup, or (only
   /// checked when the two keys differ) when it opens but holds something
   /// else or a newer format.
-  Future<BackupKey> unlockKeyFor(Uint8List bytes, String passphrase) async {
+  Future<BackupKey> unlockKeyFor(Uint8List bytes, String passphrase) async =>
+      (await unlockKeyOf(bytes, passphrase)).key;
+
+  /// [unlockKeyFor], and whether the key is the one of the passphrase
+  /// exactly as typed (`asTyped`: [bytes] was made before passphrases were
+  /// normalised, and the NFC key does not open it). The NFC key is always
+  /// tried first, so a file written again with it (sync does that once,
+  /// see `SyncService`) opens with it from then on. Throws like
+  /// [unlockKeyFor].
+  Future<({BackupKey key, bool asTyped})> unlockKeyOf(
+    Uint8List bytes,
+    String passphrase,
+  ) async {
     final key = await deriveKeyFor(bytes, passphrase);
-    if (passphraseNfc(passphrase) == passphrase) return key;
+    if (passphraseNfc(passphrase) == passphrase) {
+      return (key: key, asTyped: false);
+    }
     try {
       await decryptWithKey(bytes, key);
-      return key;
+      return (key: key, asTyped: false);
     } on BackupPassphraseException {
       final typed = await deriveKeyFor(bytes, passphrase, asTyped: true);
       try {
         await decryptWithKey(bytes, typed);
-        return typed;
+        return (key: typed, asTyped: true);
       } on BackupPassphraseException {
-        return key;
+        return (key: key, asTyped: false);
       }
     }
   }

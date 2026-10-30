@@ -662,6 +662,36 @@ void main() {
         // The new order reaches the repository first (a zero delay).
         await tester.pump(Duration.zero);
         verify(() => harness.settings.preferInstance(second.url)).called(1);
+        verify(() => harness.repository.preferInstance(second.url)).called(1);
+        verify(harness.translate.translate).called(1);
+      });
+
+      testWidgets('tries the first server again after a failover moved on, '
+          'though it is first already', (tester) async {
+        const error = MozhiApiException('Connection refused');
+        const first = MozhiInstance(url: 'https://a.example');
+        const second = MozhiInstance(url: 'https://b.example');
+        final harness = failedWith(
+          error,
+          engine: deepl,
+          instances: const [first, second],
+        );
+        when(() => harness.settings.state)
+            .thenReturn(const AppSettings(instances: [first, second]));
+        when(() => harness.settings.preferInstance(any())).thenReturn(null);
+        // Requests start at the second: the first failed recently.
+        when(() => harness.repository.activeInstance).thenReturn(second);
+        await harness.pump(
+          tester,
+          child: TranslateErrorView(error: error, onRetry: () {}),
+        );
+
+        await tester.tap(
+          find.byKey(const Key('translate_error_next_instance')),
+        );
+        await tester.pump(Duration.zero);
+        // The list does not change; the repository forgets the failure.
+        verify(() => harness.repository.preferInstance(first.url)).called(1);
         verify(harness.translate.translate).called(1);
       });
 

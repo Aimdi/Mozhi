@@ -744,6 +744,114 @@ void main() {
         expect(healthy.active, instanceB);
       });
 
+      group('across launches', () {
+        late MemoryInstanceHealthStore store;
+
+        setUp(() {
+          store = MemoryInstanceHealthStore();
+          health = InstanceHealth(store: store, clock: () => now);
+          healthy = MozhiPool(
+            (uri) => clients.putIfAbsent(uri.toString(), newClient),
+            health: health,
+          )..update([instanceA, instanceB]);
+        });
+
+        test('remembers a failure the server reported', () async {
+          await visit({instanceA});
+          await health.saved;
+          expect(store.failures.keys, [instanceA.url]);
+        });
+
+        test('remembers a server that answered without translating', () async {
+          await visit(
+            {instanceA},
+            error: () => const InstanceDoesNotTranslateException(
+              'google returned no translation',
+              engine: 'google',
+            ),
+          );
+          await health.saved;
+          expect(store.failures.keys, [instanceA.url]);
+        });
+
+        test('keeps a request without an answer for this session only '
+            "(often the device's own connection)", () async {
+          await visit({
+            instanceA,
+          }, error: () => const MozhiApiException('Connection refused'));
+          await visit({instanceA}, error: () => TimeoutException('slow'));
+          await health.saved;
+          // This session asks B first ...
+          healthy.resetPreferred();
+          expect(healthy.active, instanceB);
+          expect(health.isCoolingDown(instanceA.url), isTrue);
+          // ... but nothing is saved: after a restart A is first again.
+          expect(store.failures, isEmpty);
+          expect(store.saves, 0);
+          final restarted = InstanceHealth(store: store, clock: () => now);
+          await restarted.ready;
+          expect(restarted.isCoolingDown(instanceA.url), isFalse);
+        });
+
+        test('no answer later does not drop a failure the server '
+            'reported', () async {
+          await visit({instanceA});
+          await health.saved;
+          final failedAt = store.failures[instanceA.url];
+          now = now.add(const Duration(minutes: 5));
+          await visit({
+            instanceA,
+          }, error: () => const MozhiApiException('Connection refused'));
+          await health.saved;
+          expect(store.failures[instanceA.url], failedAt);
+          expect(health.failedAt(instanceA.url), failedAt);
+        });
+
+        test('the server reporting a failure later saves it', () async {
+          await visit({
+            instanceA,
+          }, error: () => const MozhiApiException('Connection refused'));
+          // B is asked first now; both fail, A answers with an error.
+          expect(await visit({instanceA, instanceB}), [instanceB, instanceA]);
+          await health.saved;
+          expect(
+            store.failures.keys,
+            unorderedEquals([instanceA.url, instanceB.url]),
+          );
+        });
+      });
+
+      group('prefer', () {
+        test('forgets the failure of the first server and starts there, '
+            'also when it is first already', () async {
+          healthy.update([instanceA, instanceB, instanceC]);
+          await visit({instanceA});
+          expect(healthy.active, instanceB);
+          // "Make preferred" / "Try this server" on A, first in the list:
+          // the list itself does not change.
+          healthy.prefer(instanceA.url);
+          expect(health.isCoolingDown(instanceA.url), isFalse);
+          expect(healthy.active, instanceA);
+          expect(await visit({}), [instanceA]);
+        });
+
+        test('starts at another server the user picked', () async {
+          healthy.update([instanceA, instanceB, instanceC]);
+          await visit({instanceC});
+          healthy.prefer(instanceC.url);
+          expect(healthy.active, instanceC);
+          expect(health.isCoolingDown(instanceC.url), isFalse);
+        });
+
+        test('a server not in the list only loses its failure', () async {
+          healthy.update([instanceA, instanceB]);
+          health.markFailed(instanceC.url);
+          healthy.prefer(instanceC.url);
+          expect(health.isCoolingDown(instanceC.url), isFalse);
+          expect(healthy.active, instanceA);
+        });
+      });
+
       test('the first configuration forgets nothing', () async {
         health.markFailed(instanceA.url);
         healthy.update([instanceA, instanceB]);

@@ -787,7 +787,9 @@ class TranslateErrorView extends StatelessWidget {
         key: const Key('translate_error_next_instance'),
         label: l10n.translateErrorTryNextInstance,
         icon: Icons.dns_outlined,
-        onPressed: () => unawaited(_tryInstance(settings, cubit, next)),
+        onPressed: () => unawaited(
+          _tryInstance(settings, cubit, next, _repositoryOf(context)),
+        ),
       );
     }
     if (!failed.isAi && !failed.isMt) return null;
@@ -817,12 +819,17 @@ class TranslateErrorView extends StatelessWidget {
 
   /// Makes [url] the preferred instance and translates again once the app
   /// handed the new order to the repository (like `switchInstanceAndRetry`).
+  /// The [repository] starts there and forgets its recent failure, also
+  /// when it is first in the list already
+  /// (`TranslationRepository.preferInstance`).
   static Future<void> _tryInstance(
     SettingsCubit settings,
     TranslateCubit cubit,
     String url,
+    TranslationRepository? repository,
   ) async {
     settings.preferInstance(url);
+    repository?.preferInstance(url);
     // The app applies the new order to the repository when the settings
     // stream delivers it (a microtask): retry after that.
     await Future<void>.delayed(Duration.zero);

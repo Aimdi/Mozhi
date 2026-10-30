@@ -451,6 +451,60 @@ void main() {
         verify(() => settings.preferInstance(_slow.url)).called(1);
       });
 
+      PopupMenuItem<Object?> makePreferred(WidgetTester tester) =>
+          tester.widget<PopupMenuItem<Object?>>(
+            find.ancestor(
+              of: find.text('Make preferred'),
+              matching: find.byWidgetPredicate((w) => w is PopupMenuItem),
+            ),
+          );
+
+      testWidgets('the first instance asked first is preferred already', (
+        tester,
+      ) async {
+        await pump(tester);
+        await openMenu(tester, 0);
+        expect(makePreferred(tester).enabled, isFalse);
+      });
+
+      testWidgets('puts the first instance first again when requests start '
+          'at another (it failed recently)', (tester) async {
+        final repository = MockTranslationRepository();
+        when(() => repository.activeInstance).thenReturn(_slow);
+        tester.setScreenSize(const Size(800, 1600));
+        await tester.pumpView(
+          InstancesPage(checker: checker, catalog: const []),
+          settings: settings,
+          repository: repository,
+        );
+        await tester.pumpAndSettle();
+        await openMenu(tester, 0);
+        expect(makePreferred(tester).enabled, isTrue);
+
+        await tester.tap(find.text('Make preferred'));
+        await tester.pumpAndSettle();
+
+        verify(() => settings.preferInstance(_fast.url)).called(1);
+        verify(() => repository.preferInstance(_fast.url)).called(1);
+      });
+
+      testWidgets('tells the repository about another instance too', (
+        tester,
+      ) async {
+        final repository = MockTranslationRepository();
+        tester.setScreenSize(const Size(800, 1600));
+        await tester.pumpView(
+          InstancesPage(checker: checker, catalog: const []),
+          settings: settings,
+          repository: repository,
+        );
+        await tester.pumpAndSettle();
+        await openMenu(tester, 1);
+        await tester.tap(find.text('Make preferred'));
+        await tester.pumpAndSettle();
+        verify(() => repository.preferInstance(_slow.url)).called(1);
+      });
+
       testWidgets('moves an instance down', (tester) async {
         await pump(tester);
         await openMenu(tester, 0);

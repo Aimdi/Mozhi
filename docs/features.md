@@ -207,12 +207,26 @@ else works with a Mozhi instance alone.
   server (**Once** or **Always for** the pair), next to the download of
   the language it recognised. A one-line hint under the first such prompt
   says what each does (**Download** keeps your text on the phone, **Once**
-  sends only this text). Choosing **Offline (on-device)** in the engine
-  list keeps every text on the device.
+  sends only this text). **Once** is used by that text's translation
+  only: when the device translates it after all (you downloaded the
+  language meanwhile), or you type on before it went out, nothing is left
+  over, and the next text that needs Google is asked about again. Once
+  the language is downloaded (right there, or under **Manage languages**),
+  the prompt goes away and the text is translated on the device. The
+  history and usage name the engine that actually translated (Google, or
+  the device). Choosing **Offline (on-device)** in the engine list keeps
+  every text on the device.
 - **When the volunteer servers fail:** a Mozhi server where a translation
-  failed is asked last for 12 hours (also after a restart), so the next
+  or photo translation failed is asked last for 12 hours, so the next
   translation starts at one that worked; nothing is sent just to check a
-  server. When every server of your list failed for the engine, the error
+  server. Only an error the server itself answered with counts after a
+  restart: a request that got no answer at all (no connection, a
+  timeout), which is as often your phone's network as the server, only
+  counts until the app closes. Read-aloud and language detection don't
+  count. **Make preferred** (Mozhi instances), picking a server under
+  **Switch instance** or **Try next instance** asks that server first
+  again and forgets its failure, also when it is first in your list
+  already. When every server of your list failed for the engine, the error
   says so in plain words (**Volunteer servers unavailable**) and offers,
   in this order: **Translate on this device** (or the download of the
   language pair), **Try another engine** (opens the engine picker; the
