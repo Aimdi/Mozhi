@@ -2740,5 +2740,22 @@
   "onboardingServiceNoTranslation": "无法翻译",
   "onboardingServiceNoneTranslates": "服务器有响应，但没有一台翻译出测试词。请稍后重新测试，或在下方添加你自己的实例。",
   "onboardingServiceOwnNoTranslation": "此实例有响应，但无法使用 {engine} 翻译：{error}",
-  "onboardingServiceFindFastestTranslateHint": "在列表中的每台服务器上各翻译一次“Hello”一词以测量速度，然后优先尝试最快的服务器。不会发送你的任何文本。"
+  "onboardingServiceFindFastestTranslateHint": "在列表中的每台服务器上各翻译一次“Hello”一词以测量速度，然后优先尝试最快的服务器。不会发送你的任何文本。",
+  "translateEngineOnDeviceOnline": "设备端 + {engine}",
+  "translateEngineOnDeviceOnlineTooltip": "已下载该语言时在此设备上翻译；否则在将你的文本发送到 {engine} 前会先询问你。",
+  "translateEngineOnDeviceOnlineNote": "语言未下载时，发送到 {engine} 前会先询问",
+  "translateFirstUseHint": "“{download}”会将你的文本保留在此手机上。“{once}”只会将这段文本发送到{destination}。",
+  "onboardingLanguagesSuggestion": "{language}是你手机设置的语言之一。",
+  "onboardingLanguagesSuggestionUse": "从{language}翻译",
+  "onboardingLanguagesDownloadOnNext": "点按“下一步”后将下载勾选的语言。",
+  "onboardingLanguagesDownloadCheckbox": "点按“下一步”时下载{language}",
+  "translateErrorTitleAllServers": "志愿者服务器不可用",
+  "translateErrorAllServersFailed": "{count, plural, =1{志愿者服务器暂时无法使用 {engine} 翻译。} other{{count} 台志愿者服务器暂时都无法使用 {engine} 翻译。}}这些免费服务器由志愿者运营，有时会无法使用。",
+  "translateErrorTryAnotherEngine": "尝试其他引擎",
+  "translateErrorChooseAnotherServer": "选择其他服务器",
+  "translateErrorServersTried": "已尝试的服务器：{servers}。",
+  "conversationTurnPauseHintAny": "说话后静音达到此时长即结束本轮发言。",
+  "translateOfflineManageLanguages": "管理语言",
+  "translateOfflineDownloadingLanguage": "正在下载{language}… {percent}%",
+  "translateOfflineDownloadingLanguageStarted": "正在下载{language}…"
 }

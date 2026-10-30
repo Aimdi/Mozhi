@@ -2740,5 +2740,22 @@
   "onboardingServiceNoTranslation": "अनुवाद नहीं करता",
   "onboardingServiceNoneTranslates": "सर्वरों ने जवाब दिया, लेकिन किसी ने भी टेस्ट शब्द का अनुवाद नहीं किया। बाद में फिर से टेस्ट करें, या नीचे अपना इंस्टेंस जोड़ें।",
   "onboardingServiceOwnNoTranslation": "यह इंस्टेंस जवाब देता है, लेकिन {engine} से अनुवाद नहीं करता: {error}",
-  "onboardingServiceFindFastestTranslateHint": "सूची के हर सर्वर पर उसकी गति मापने के लिए “Hello” शब्द का एक बार अनुवाद करता है, फिर सबसे तेज़ सर्वर को पहले आज़माता है। आपका कोई भी टेक्स्ट नहीं भेजा जाता।"
+  "onboardingServiceFindFastestTranslateHint": "सूची के हर सर्वर पर उसकी गति मापने के लिए “Hello” शब्द का एक बार अनुवाद करता है, फिर सबसे तेज़ सर्वर को पहले आज़माता है। आपका कोई भी टेक्स्ट नहीं भेजा जाता।",
+  "translateEngineOnDeviceOnline": "डिवाइस पर + {engine}",
+  "translateEngineOnDeviceOnlineTooltip": "भाषा डाउनलोड होने पर इसी डिवाइस पर अनुवाद करता है। वरना आपका टेक्स्ट {engine} को भेजने से पहले पूछता है।",
+  "translateEngineOnDeviceOnlineNote": "भाषा डाउनलोड न होने पर {engine} को भेजने से पहले पूछता है",
+  "translateFirstUseHint": "“{download}” आपके टेक्स्ट को इसी फ़ोन पर रखता है। “{once}” सिर्फ़ यह टेक्स्ट {destination} को भेजता है।",
+  "onboardingLanguagesSuggestion": "{language} आपके फ़ोन की भाषाओं में से एक है।",
+  "onboardingLanguagesSuggestionUse": "{language} से अनुवाद करें",
+  "onboardingLanguagesDownloadOnNext": "चुनी गई भाषाएं “आगे” पर टैप करने पर डाउनलोड होंगी।",
+  "onboardingLanguagesDownloadCheckbox": "“आगे” पर टैप करने पर {language} डाउनलोड करें",
+  "translateErrorTitleAllServers": "स्वयंसेवकों के सर्वर उपलब्ध नहीं हैं",
+  "translateErrorAllServersFailed": "{count, plural, =1{स्वयंसेवकों का सर्वर अभी {engine} से अनुवाद नहीं कर सका।} other{स्वयंसेवकों के {count} सर्वरों में से कोई भी अभी {engine} से अनुवाद नहीं कर सका।}} ये मुफ़्त सर्वर स्वयंसेवक चलाते हैं और कभी-कभी बंद रहते हैं।",
+  "translateErrorTryAnotherEngine": "कोई दूसरा इंजन आज़माएं",
+  "translateErrorChooseAnotherServer": "कोई दूसरा सर्वर चुनें",
+  "translateErrorServersTried": "आज़माए गए सर्वर: {servers}।",
+  "conversationTurnPauseHintAny": "बोलने के बाद इतनी देर चुप्पी रहने पर बारी खत्म हो जाती है।",
+  "translateOfflineManageLanguages": "भाषाएं मैनेज करें",
+  "translateOfflineDownloadingLanguage": "{language} डाउनलोड हो रही है… {percent}%",
+  "translateOfflineDownloadingLanguageStarted": "{language} डाउनलोड हो रही है…"
 }

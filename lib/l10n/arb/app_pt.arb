@@ -2740,5 +2740,22 @@
   "onboardingServiceNoTranslation": "Não traduz",
   "onboardingServiceNoneTranslates": "Os servidores responderam, mas nenhum traduziu a palavra de teste. Teste novamente mais tarde ou adicione sua própria instância abaixo.",
   "onboardingServiceOwnNoTranslation": "Esta instância responde, mas não traduz com {engine}: {error}",
-  "onboardingServiceFindFastestTranslateHint": "Traduz a palavra “Hello” uma vez em cada servidor da lista para medir a velocidade dele e depois tenta primeiro o mais rápido. Nada do seu texto é enviado."
+  "onboardingServiceFindFastestTranslateHint": "Traduz a palavra “Hello” uma vez em cada servidor da lista para medir a velocidade dele e depois tenta primeiro o mais rápido. Nada do seu texto é enviado.",
+  "translateEngineOnDeviceOnline": "No dispositivo + {engine}",
+  "translateEngineOnDeviceOnlineTooltip": "Traduz neste dispositivo quando o idioma está baixado. Caso contrário, pergunta antes de enviar seu texto para {engine}.",
+  "translateEngineOnDeviceOnlineNote": "Pergunta antes de enviar para {engine} quando um idioma não está baixado",
+  "translateFirstUseHint": "“{download}” mantém seu texto neste celular. “{once}” envia só este texto para {destination}.",
+  "onboardingLanguagesSuggestion": "{language} é um dos idiomas do seu celular.",
+  "onboardingLanguagesSuggestionUse": "Traduzir de {language}",
+  "onboardingLanguagesDownloadOnNext": "Os idiomas marcados são baixados quando você toca em “Avançar”.",
+  "onboardingLanguagesDownloadCheckbox": "Baixar {language} quando você tocar em “Avançar”",
+  "translateErrorTitleAllServers": "Servidores voluntários indisponíveis",
+  "translateErrorAllServersFailed": "{count, plural, =1{O servidor voluntário não conseguiu traduzir com {engine} agora.} other{Nenhum dos {count} servidores voluntários conseguiu traduzir com {engine} agora.}} Esses servidores gratuitos são mantidos por voluntários e às vezes ficam fora do ar.",
+  "translateErrorTryAnotherEngine": "Tentar outro mecanismo",
+  "translateErrorChooseAnotherServer": "Escolher outro servidor",
+  "translateErrorServersTried": "Servidores tentados: {servers}.",
+  "conversationTurnPauseHintAny": "A vez termina após esse tempo de silêncio depois da fala.",
+  "translateOfflineManageLanguages": "Gerenciar idiomas",
+  "translateOfflineDownloadingLanguage": "Baixando {language}… {percent}%",
+  "translateOfflineDownloadingLanguageStarted": "Baixando {language}…"
 }

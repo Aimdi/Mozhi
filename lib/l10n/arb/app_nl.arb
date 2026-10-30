@@ -2740,5 +2740,22 @@
   "onboardingServiceNoTranslation": "Vertaalt niet",
   "onboardingServiceNoneTranslates": "De servers reageerden, maar geen enkele vertaalde het testwoord. Test later opnieuw, of voeg hieronder je eigen instantie toe.",
   "onboardingServiceOwnNoTranslation": "Deze instantie reageert, maar vertaalt niet met {engine}: {error}",
-  "onboardingServiceFindFastestTranslateHint": "Vertaalt het woord ‘Hello’ één keer op elke server in de lijst om de snelheid te meten en probeert daarna eerst de snelste. Er wordt niets van je tekst verstuurd."
+  "onboardingServiceFindFastestTranslateHint": "Vertaalt het woord ‘Hello’ één keer op elke server in de lijst om de snelheid te meten en probeert daarna eerst de snelste. Er wordt niets van je tekst verstuurd.",
+  "translateEngineOnDeviceOnline": "Op apparaat + {engine}",
+  "translateEngineOnDeviceOnlineTooltip": "Vertaalt op dit apparaat als de taal is gedownload. Anders wordt het eerst gevraagd voordat je tekst naar {engine} gaat.",
+  "translateEngineOnDeviceOnlineNote": "Vraagt het eerst voordat er iets naar {engine} gaat als een taal niet is gedownload",
+  "translateFirstUseHint": "‘{download}’ houdt je tekst op deze telefoon. ‘{once}’ stuurt alleen deze tekst naar {destination}.",
+  "onboardingLanguagesSuggestion": "{language} is een van de talen van je telefoon.",
+  "onboardingLanguagesSuggestionUse": "Vertalen uit {language}",
+  "onboardingLanguagesDownloadOnNext": "Aangevinkte talen worden gedownload als je op ‘Volgende’ tikt.",
+  "onboardingLanguagesDownloadCheckbox": "{language} downloaden als je op ‘Volgende’ tikt",
+  "translateErrorTitleAllServers": "Vrijwilligersservers niet beschikbaar",
+  "translateErrorAllServersFailed": "{count, plural, =1{De vrijwilligersserver kon nu niet vertalen met {engine}.} other{Geen van de {count} vrijwilligersservers kon nu vertalen met {engine}.}} Deze gratis servers worden door vrijwilligers beheerd en liggen soms eruit.",
+  "translateErrorTryAnotherEngine": "Andere engine proberen",
+  "translateErrorChooseAnotherServer": "Andere server kiezen",
+  "translateErrorServersTried": "Geprobeerde servers: {servers}.",
+  "conversationTurnPauseHintAny": "Een beurt eindigt na zoveel stilte na spraak.",
+  "translateOfflineManageLanguages": "Talen beheren",
+  "translateOfflineDownloadingLanguage": "{language} downloaden… {percent}%",
+  "translateOfflineDownloadingLanguageStarted": "{language} downloaden…"
 }

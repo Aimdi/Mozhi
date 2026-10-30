@@ -2740,5 +2740,22 @@
   "onboardingServiceNoTranslation": "Non traduce",
   "onboardingServiceNoneTranslates": "I server hanno risposto, ma nessuno ha tradotto la parola di prova. Riprova il test più tardi, oppure aggiungi la tua istanza qui sotto.",
   "onboardingServiceOwnNoTranslation": "Questa istanza risponde, ma non traduce con {engine}: {error}",
-  "onboardingServiceFindFastestTranslateHint": "Traduce una volta la parola “Hello” su ogni server dell’elenco per misurarne la velocità, poi prova per primo il più veloce. Nessuna parte del tuo testo viene inviata."
+  "onboardingServiceFindFastestTranslateHint": "Traduce una volta la parola “Hello” su ogni server dell’elenco per misurarne la velocità, poi prova per primo il più veloce. Nessuna parte del tuo testo viene inviata.",
+  "translateEngineOnDeviceOnline": "Sul dispositivo + {engine}",
+  "translateEngineOnDeviceOnlineTooltip": "Traduce su questo dispositivo se la lingua è scaricata. Altrimenti chiede prima di inviare il tuo testo a {engine}.",
+  "translateEngineOnDeviceOnlineNote": "Chiede prima di inviare a {engine} se una lingua non è scaricata",
+  "translateFirstUseHint": "“{download}” tiene il tuo testo su questo telefono. “{once}” condivide solo questo testo con {destination}.",
+  "onboardingLanguagesSuggestion": "{language} è una delle lingue del tuo telefono.",
+  "onboardingLanguagesSuggestionUse": "Traduci da {language}",
+  "onboardingLanguagesDownloadOnNext": "Le lingue selezionate vengono scaricate quando tocchi “Avanti”.",
+  "onboardingLanguagesDownloadCheckbox": "Scarica {language} quando tocchi “Avanti”",
+  "translateErrorTitleAllServers": "Server dei volontari non disponibili",
+  "translateErrorAllServersFailed": "{count, plural, =1{Il server dei volontari non è riuscito a tradurre con {engine} in questo momento.} other{Nessuno dei {count} server dei volontari è riuscito a tradurre con {engine} in questo momento.}} Questi server gratuiti sono gestiti da volontari e a volte sono fuori servizio.",
+  "translateErrorTryAnotherEngine": "Prova un altro motore",
+  "translateErrorChooseAnotherServer": "Scegli un altro server",
+  "translateErrorServersTried": "Server provati: {servers}.",
+  "conversationTurnPauseHintAny": "Un turno finisce dopo questo tempo di silenzio successivo al parlato.",
+  "translateOfflineManageLanguages": "Gestisci lingue",
+  "translateOfflineDownloadingLanguage": "Download in corso: {language}… {percent}%",
+  "translateOfflineDownloadingLanguageStarted": "Download in corso: {language}…"
 }

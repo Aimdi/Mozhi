@@ -2740,5 +2740,22 @@
   "onboardingServiceNoTranslation": "Çeviri yapmıyor",
   "onboardingServiceNoneTranslates": "Sunucular yanıt verdi ancak hiçbiri test sözcüğünü çevirmedi. Daha sonra yeniden test edin veya aşağıdan kendi sunucunuzu ekleyin.",
   "onboardingServiceOwnNoTranslation": "Bu sunucu yanıt veriyor ancak {engine} ile çeviri yapmıyor: {error}",
-  "onboardingServiceFindFastestTranslateHint": "Hızını ölçmek için listedeki her sunucuda “Hello” sözcüğünü bir kez çevirir, ardından önce en hızlısını dener. Metninizin hiçbir kısmı gönderilmez."
+  "onboardingServiceFindFastestTranslateHint": "Hızını ölçmek için listedeki her sunucuda “Hello” sözcüğünü bir kez çevirir, ardından önce en hızlısını dener. Metninizin hiçbir kısmı gönderilmez.",
+  "translateEngineOnDeviceOnline": "Cihazda + {engine}",
+  "translateEngineOnDeviceOnlineTooltip": "Dil indirilmişse bu cihazda çevirir. Aksi halde metninizi {engine} hizmetine göndermeden önce sorar.",
+  "translateEngineOnDeviceOnlineNote": "Dil indirilmemişse {engine} hizmetine göndermeden önce sorar",
+  "translateFirstUseHint": "“{download}” metninizi bu telefonda tutar. “{once}” yalnızca bu metni şuraya gönderir: {destination}.",
+  "onboardingLanguagesSuggestion": "{language}, telefonunuzun dillerinden biri.",
+  "onboardingLanguagesSuggestionUse": "{language} dilinden çevir",
+  "onboardingLanguagesDownloadOnNext": "İşaretli diller, “İleri” düğmesine dokunduğunuzda indirilir.",
+  "onboardingLanguagesDownloadCheckbox": "“İleri” düğmesine dokunduğunuzda {language} dilini indir",
+  "translateErrorTitleAllServers": "Gönüllü sunucuları kullanılamıyor",
+  "translateErrorAllServersFailed": "{count, plural, =1{Gönüllü sunucusu şu anda {engine} ile çeviri yapamadı.} other{{count} gönüllü sunucusunun hiçbiri şu anda {engine} ile çeviri yapamadı.}} Bu ücretsiz sunucuları gönüllüler çalıştırır ve bazen çalışmazlar.",
+  "translateErrorTryAnotherEngine": "Başka bir motor dene",
+  "translateErrorChooseAnotherServer": "Başka bir sunucu seç",
+  "translateErrorServersTried": "Denenen sunucular: {servers}.",
+  "conversationTurnPauseHintAny": "Konuşmanın ardından bu kadar sessizlik olursa sıra biter.",
+  "translateOfflineManageLanguages": "Dilleri yönet",
+  "translateOfflineDownloadingLanguage": "{language} indiriliyor… %{percent}",
+  "translateOfflineDownloadingLanguageStarted": "{language} indiriliyor…"
 }

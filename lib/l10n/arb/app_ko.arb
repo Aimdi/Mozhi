@@ -2740,5 +2740,22 @@
   "onboardingServiceNoTranslation": "번역 불가",
   "onboardingServiceNoneTranslates": "서버가 응답했지만 테스트 단어를 번역한 서버가 없습니다. 나중에 다시 테스트하거나, 아래에서 직접 인스턴스를 추가하세요.",
   "onboardingServiceOwnNoTranslation": "이 인스턴스는 응답하지만 {engine}(으)로 번역하지 못합니다: {error}",
-  "onboardingServiceFindFastestTranslateHint": "목록의 모든 서버에서 ‘Hello’라는 단어를 한 번씩 번역해 속도를 측정한 뒤, 가장 빠른 서버를 먼저 시도합니다. 사용자의 텍스트는 전혀 전송되지 않습니다."
+  "onboardingServiceFindFastestTranslateHint": "목록의 모든 서버에서 ‘Hello’라는 단어를 한 번씩 번역해 속도를 측정한 뒤, 가장 빠른 서버를 먼저 시도합니다. 사용자의 텍스트는 전혀 전송되지 않습니다.",
+  "translateEngineOnDeviceOnline": "기기 내 + {engine}",
+  "translateEngineOnDeviceOnlineTooltip": "언어가 다운로드되어 있으면 이 기기에서 번역합니다. 그렇지 않으면 텍스트를 {engine}에 보내기 전에 묻습니다.",
+  "translateEngineOnDeviceOnlineNote": "언어가 다운로드되지 않았으면 {engine}에 보내기 전에 묻습니다",
+  "translateFirstUseHint": "‘{download}’ 버튼은 텍스트를 이 휴대전화에 그대로 둡니다. ‘{once}’ 버튼은 이 텍스트만 {destination}에 보냅니다.",
+  "onboardingLanguagesSuggestion": "{language}은(는) 휴대전화에 설정된 언어 중 하나입니다.",
+  "onboardingLanguagesSuggestionUse": "{language}에서 번역",
+  "onboardingLanguagesDownloadOnNext": "선택한 언어는 ‘다음’을 탭하면 다운로드됩니다.",
+  "onboardingLanguagesDownloadCheckbox": "‘다음’을 탭하면 {language} 다운로드",
+  "translateErrorTitleAllServers": "자원봉사 서버를 사용할 수 없음",
+  "translateErrorAllServersFailed": "{count, plural, =1{자원봉사 서버가 지금은 {engine}(으)로 번역하지 못했습니다.} other{자원봉사 서버 {count}개 모두 지금은 {engine}(으)로 번역하지 못했습니다.}} 이 무료 서버는 자원봉사자가 운영하며 가끔 작동하지 않습니다.",
+  "translateErrorTryAnotherEngine": "다른 엔진 시도",
+  "translateErrorChooseAnotherServer": "다른 서버 선택",
+  "translateErrorServersTried": "시도한 서버: {servers}.",
+  "conversationTurnPauseHintAny": "말한 뒤 이만큼 침묵이 이어지면 차례가 끝납니다.",
+  "translateOfflineManageLanguages": "언어 관리",
+  "translateOfflineDownloadingLanguage": "{language} 다운로드 중… {percent}%",
+  "translateOfflineDownloadingLanguageStarted": "{language} 다운로드 중…"
 }

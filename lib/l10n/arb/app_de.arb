@@ -2740,5 +2740,22 @@
   "onboardingServiceNoTranslation": "Übersetzt nicht",
   "onboardingServiceNoneTranslates": "Die Server haben geantwortet, aber keiner hat das Testwort übersetzt. Teste später erneut oder füge unten deine eigene Instanz hinzu.",
   "onboardingServiceOwnNoTranslation": "Diese Instanz antwortet, übersetzt aber nicht mit {engine}: {error}",
-  "onboardingServiceFindFastestTranslateHint": "Übersetzt das Wort „Hello“ einmal auf jedem aufgeführten Server, um seine Geschwindigkeit zu messen, und probiert dann den schnellsten zuerst. Von deinem Text wird nichts gesendet."
+  "onboardingServiceFindFastestTranslateHint": "Übersetzt das Wort „Hello“ einmal auf jedem aufgeführten Server, um seine Geschwindigkeit zu messen, und probiert dann den schnellsten zuerst. Von deinem Text wird nichts gesendet.",
+  "translateEngineOnDeviceOnline": "Auf dem Gerät + {engine}",
+  "translateEngineOnDeviceOnlineTooltip": "Übersetzt auf diesem Gerät, wenn die Sprache heruntergeladen ist. Andernfalls fragt Mozhi, bevor dein Text an {engine} gesendet wird.",
+  "translateEngineOnDeviceOnlineNote": "Fragt vor dem Senden an {engine}, wenn eine Sprache nicht heruntergeladen ist",
+  "translateFirstUseHint": "„{download}“ behält deinen Text auf diesem Smartphone. Bei „{once}“ erhält {destination} nur diesen Text.",
+  "onboardingLanguagesSuggestion": "{language} ist eine der Sprachen deines Smartphones.",
+  "onboardingLanguagesSuggestionUse": "Aus {language} übersetzen",
+  "onboardingLanguagesDownloadOnNext": "Ausgewählte Sprachen werden heruntergeladen, wenn du auf „Weiter“ tippst.",
+  "onboardingLanguagesDownloadCheckbox": "{language} herunterladen, wenn du auf „Weiter“ tippst",
+  "translateErrorTitleAllServers": "Freiwilligen-Server nicht verfügbar",
+  "translateErrorAllServersFailed": "{count, plural, =1{Der Freiwilligen-Server konnte gerade nicht mit {engine} übersetzen.} other{Keiner der {count} Freiwilligen-Server konnte gerade mit {engine} übersetzen.}} Diese kostenlosen Server werden von Freiwilligen betrieben und fallen manchmal aus.",
+  "translateErrorTryAnotherEngine": "Andere Engine versuchen",
+  "translateErrorChooseAnotherServer": "Anderen Server wählen",
+  "translateErrorServersTried": "Versuchte Server: {servers}.",
+  "conversationTurnPauseHintAny": "Ein Redebeitrag endet, wenn nach dem Sprechen so lange Stille herrscht.",
+  "translateOfflineManageLanguages": "Sprachen verwalten",
+  "translateOfflineDownloadingLanguage": "{language} wird heruntergeladen… {percent} %",
+  "translateOfflineDownloadingLanguageStarted": "{language} wird heruntergeladen…"
 }

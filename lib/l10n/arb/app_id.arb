@@ -2740,5 +2740,22 @@
   "onboardingServiceNoTranslation": "Tidak menerjemahkan",
   "onboardingServiceNoneTranslates": "Server merespons, tetapi tidak satu pun yang menerjemahkan kata uji. Uji lagi nanti, atau tambahkan instans Anda sendiri di bawah.",
   "onboardingServiceOwnNoTranslation": "Instans ini merespons, tetapi tidak menerjemahkan dengan {engine}: {error}",
-  "onboardingServiceFindFastestTranslateHint": "Menerjemahkan kata “Hello” sekali di setiap server dalam daftar untuk mengukur kecepatannya, lalu mencoba yang tercepat lebih dulu. Teks Anda sama sekali tidak dikirim."
+  "onboardingServiceFindFastestTranslateHint": "Menerjemahkan kata “Hello” sekali di setiap server dalam daftar untuk mengukur kecepatannya, lalu mencoba yang tercepat lebih dulu. Teks Anda sama sekali tidak dikirim.",
+  "translateEngineOnDeviceOnline": "Di perangkat + {engine}",
+  "translateEngineOnDeviceOnlineTooltip": "Menerjemahkan di perangkat ini jika bahasanya sudah didownload. Jika belum, bertanya dulu sebelum mengirim teks Anda ke {engine}.",
+  "translateEngineOnDeviceOnlineNote": "Bertanya dulu sebelum mengirim ke {engine} jika bahasa belum didownload",
+  "translateFirstUseHint": "“{download}” menjaga teks Anda tetap di ponsel ini. “{once}” hanya mengirim teks ini ke {destination}.",
+  "onboardingLanguagesSuggestion": "{language} adalah salah satu bahasa di ponsel Anda.",
+  "onboardingLanguagesSuggestionUse": "Terjemahkan dari {language}",
+  "onboardingLanguagesDownloadOnNext": "Bahasa yang dicentang akan didownload saat Anda mengetuk “Berikutnya”.",
+  "onboardingLanguagesDownloadCheckbox": "Download {language} saat Anda mengetuk “Berikutnya”",
+  "translateErrorTitleAllServers": "Server relawan tidak tersedia",
+  "translateErrorAllServersFailed": "{count, plural, =1{Server relawan tidak dapat menerjemahkan dengan {engine} saat ini.} other{Tidak satu pun dari {count} server relawan dapat menerjemahkan dengan {engine} saat ini.}} Server gratis ini dikelola relawan dan terkadang tidak aktif.",
+  "translateErrorTryAnotherEngine": "Coba mesin lain",
+  "translateErrorChooseAnotherServer": "Pilih server lain",
+  "translateErrorServersTried": "Server yang dicoba: {servers}.",
+  "conversationTurnPauseHintAny": "Giliran berakhir jika hening selama ini setelah berbicara.",
+  "translateOfflineManageLanguages": "Kelola bahasa",
+  "translateOfflineDownloadingLanguage": "Mendownload {language}… {percent}%",
+  "translateOfflineDownloadingLanguageStarted": "Mendownload {language}…"
 }

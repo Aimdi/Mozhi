@@ -2740,5 +2740,22 @@
   "onboardingServiceNoTranslation": "Не перекладає",
   "onboardingServiceNoneTranslates": "Сервери відповіли, але жоден не переклав тестове слово. Повторіть перевірку пізніше або додайте власний сервер нижче.",
   "onboardingServiceOwnNoTranslation": "Цей сервер відповідає, але не перекладає за допомогою {engine}: {error}",
-  "onboardingServiceFindFastestTranslateHint": "Один раз перекладає слово «Hello» на кожному сервері зі списку, щоб виміряти його швидкість, а потім спершу пробує найшвидший. Ваш текст не надсилається."
+  "onboardingServiceFindFastestTranslateHint": "Один раз перекладає слово «Hello» на кожному сервері зі списку, щоб виміряти його швидкість, а потім спершу пробує найшвидший. Ваш текст не надсилається.",
+  "translateEngineOnDeviceOnline": "На пристрої + {engine}",
+  "translateEngineOnDeviceOnlineTooltip": "Перекладає на цьому пристрої, якщо мову завантажено. Інакше запитує, перш ніж надіслати ваш текст до {engine}.",
+  "translateEngineOnDeviceOnlineNote": "Запитує перед надсиланням до {engine}, якщо мову не завантажено",
+  "translateFirstUseHint": "«{download}» залишає ваш текст на цьому телефоні. «{once}» надсилає на {destination} лише цей текст.",
+  "onboardingLanguagesSuggestion": "{language} — одна з мов вашого телефона.",
+  "onboardingLanguagesSuggestionUse": "Перекласти з мови «{language}»",
+  "onboardingLanguagesDownloadOnNext": "Позначені мови завантажаться, коли ви торкнетеся «Далі».",
+  "onboardingLanguagesDownloadCheckbox": "Завантажити мову «{language}», коли ви торкнетеся «Далі»",
+  "translateErrorTitleAllServers": "Волонтерські сервери недоступні",
+  "translateErrorAllServersFailed": "{count, plural, =1{Волонтерському серверу зараз не вдалося перекласти текст за допомогою {engine}.} one{Жодному з {count} волонтерського сервера зараз не вдалося перекласти текст за допомогою {engine}.} few{Жодному з {count} волонтерських серверів зараз не вдалося перекласти текст за допомогою {engine}.} many{Жодному з {count} волонтерських серверів зараз не вдалося перекласти текст за допомогою {engine}.} other{Жодному з {count} волонтерських серверів зараз не вдалося перекласти текст за допомогою {engine}.}} Ці безкоштовні сервери підтримують волонтери, і часом вони не працюють.",
+  "translateErrorTryAnotherEngine": "Спробувати інший сервіс",
+  "translateErrorChooseAnotherServer": "Вибрати інший сервер",
+  "translateErrorServersTried": "Випробувані сервери: {servers}.",
+  "conversationTurnPauseHintAny": "Репліка завершується, якщо після мовлення настає така пауза.",
+  "translateOfflineManageLanguages": "Керувати мовами",
+  "translateOfflineDownloadingLanguage": "Завантаження мови «{language}»… {percent}%",
+  "translateOfflineDownloadingLanguageStarted": "Завантаження мови «{language}»…"
 }

@@ -2740,5 +2740,22 @@
   "onboardingServiceNoTranslation": "மொழிபெயர்க்கவில்லை",
   "onboardingServiceNoneTranslates": "சர்வர்கள் பதிலளித்தன, ஆனால் எதுவும் சோதனைச் சொல்லை மொழிபெயர்க்கவில்லை. பிறகு மீண்டும் சோதிக்கவும், அல்லது கீழே உங்கள் சொந்த இன்ஸ்டன்ஸைச் சேர்க்கவும்.",
   "onboardingServiceOwnNoTranslation": "இந்த இன்ஸ்டன்ஸ் பதிலளிக்கிறது, ஆனால் {engine} மூலம் மொழிபெயர்க்கவில்லை: {error}",
-  "onboardingServiceFindFastestTranslateHint": "பட்டியலிலுள்ள ஒவ்வொரு சர்வரின் வேகத்தையும் அளக்க, அதில் “Hello” என்ற சொல்லை ஒருமுறை மொழிபெயர்த்து, மிக வேகமானதை முதலில் முயலும். உங்கள் உரை எதுவும் அனுப்பப்படாது."
+  "onboardingServiceFindFastestTranslateHint": "பட்டியலிலுள்ள ஒவ்வொரு சர்வரின் வேகத்தையும் அளக்க, அதில் “Hello” என்ற சொல்லை ஒருமுறை மொழிபெயர்த்து, மிக வேகமானதை முதலில் முயலும். உங்கள் உரை எதுவும் அனுப்பப்படாது.",
+  "translateEngineOnDeviceOnline": "சாதனத்தில் + {engine}",
+  "translateEngineOnDeviceOnlineTooltip": "மொழி பதிவிறக்கப்பட்டிருந்தால் இந்தச் சாதனத்திலேயே மொழிபெயர்க்கும். இல்லையெனில், உங்கள் உரையை {engine}-க்கு அனுப்பும் முன் கேட்கும்.",
+  "translateEngineOnDeviceOnlineNote": "மொழி பதிவிறக்கப்படாதபோது, {engine}-க்கு அனுப்பும் முன் கேட்கும்",
+  "translateFirstUseHint": "“{download}” உங்கள் உரையை இந்த ஃபோனிலேயே வைத்திருக்கும். “{once}” இந்த உரையை மட்டும் {destination}-க்கு அனுப்பும்.",
+  "onboardingLanguagesSuggestion": "{language} உங்கள் ஃபோனின் மொழிகளில் ஒன்று.",
+  "onboardingLanguagesSuggestionUse": "{language} மொழியிலிருந்து மொழிபெயர்",
+  "onboardingLanguagesDownloadOnNext": "தேர்வுசெய்த மொழிகள், “அடுத்து” என்பதைத் தட்டும்போது பதிவிறக்கப்படும்.",
+  "onboardingLanguagesDownloadCheckbox": "“அடுத்து” என்பதைத் தட்டும்போது {language} மொழியைப் பதிவிறக்கு",
+  "translateErrorTitleAllServers": "தன்னார்வலர் சர்வர்கள் கிடைக்கவில்லை",
+  "translateErrorAllServersFailed": "{count, plural, =1{தன்னார்வலர் சர்வரால் இப்போது {engine} மூலம் மொழிபெயர்க்க முடியவில்லை.} other{{count} தன்னார்வலர் சர்வர்களில் எதனாலும் இப்போது {engine} மூலம் மொழிபெயர்க்க முடியவில்லை.}} இந்த இலவச சர்வர்களைத் தன்னார்வலர்கள் இயக்குகிறார்கள்; சில நேரங்களில் அவை இயங்காது.",
+  "translateErrorTryAnotherEngine": "வேறொரு இன்ஜினை முயல்",
+  "translateErrorChooseAnotherServer": "வேறொரு சர்வரைத் தேர்வுசெய்",
+  "translateErrorServersTried": "முயன்ற சர்வர்கள்: {servers}.",
+  "conversationTurnPauseHintAny": "பேசிய பிறகு இவ்வளவு நேரம் அமைதி நிலவினால் ஒருவரின் முறை முடியும்.",
+  "translateOfflineManageLanguages": "மொழிகளை நிர்வகி",
+  "translateOfflineDownloadingLanguage": "{language} பதிவிறக்கப்படுகிறது… {percent}%",
+  "translateOfflineDownloadingLanguageStarted": "{language} பதிவிறக்கப்படுகிறது…"
 }

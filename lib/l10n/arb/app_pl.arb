@@ -2740,5 +2740,22 @@
   "onboardingServiceNoTranslation": "Nie tłumaczy",
   "onboardingServiceNoneTranslates": "Serwery odpowiedziały, ale żaden nie przetłumaczył słowa testowego. Przetestuj ponownie później albo dodaj własną instancję poniżej.",
   "onboardingServiceOwnNoTranslation": "Ta instancja odpowiada, ale nie tłumaczy za pomocą {engine}: {error}",
-  "onboardingServiceFindFastestTranslateHint": "Tłumaczy słowo „Hello” raz na każdym serwerze z listy, aby zmierzyć jego szybkość, a potem najpierw próbuje najszybszego. Twój tekst nie jest wysyłany."
+  "onboardingServiceFindFastestTranslateHint": "Tłumaczy słowo „Hello” raz na każdym serwerze z listy, aby zmierzyć jego szybkość, a potem najpierw próbuje najszybszego. Twój tekst nie jest wysyłany.",
+  "translateEngineOnDeviceOnline": "Na urządzeniu + {engine}",
+  "translateEngineOnDeviceOnlineTooltip": "Tłumaczy na tym urządzeniu, gdy język jest pobrany. W przeciwnym razie pyta przed wysłaniem Twojego tekstu do {engine}.",
+  "translateEngineOnDeviceOnlineNote": "Pyta przed wysłaniem do {engine}, gdy język nie jest pobrany",
+  "translateFirstUseHint": "„{download}” zachowuje Twój tekst na tym telefonie. „{once}” wysyła tylko ten tekst do: {destination}.",
+  "onboardingLanguagesSuggestion": "{language} to jeden z języków Twojego telefonu.",
+  "onboardingLanguagesSuggestionUse": "Tłumacz z języka: {language}",
+  "onboardingLanguagesDownloadOnNext": "Zaznaczone języki zostaną pobrane po dotknięciu „Dalej”.",
+  "onboardingLanguagesDownloadCheckbox": "Pobierz język {language} po dotknięciu „Dalej”",
+  "translateErrorTitleAllServers": "Serwery wolontariuszy niedostępne",
+  "translateErrorAllServersFailed": "{count, plural, =1{Serwer wolontariuszy nie mógł teraz przetłumaczyć tekstu za pomocą {engine}.} one{Żaden z {count} serwerów wolontariuszy nie mógł teraz przetłumaczyć tekstu za pomocą {engine}.} few{Żaden z {count} serwerów wolontariuszy nie mógł teraz przetłumaczyć tekstu za pomocą {engine}.} many{Żaden z {count} serwerów wolontariuszy nie mógł teraz przetłumaczyć tekstu za pomocą {engine}.} other{Żaden z {count} serwerów wolontariuszy nie mógł teraz przetłumaczyć tekstu za pomocą {engine}.}} Te bezpłatne serwery prowadzą wolontariusze i czasem nie działają.",
+  "translateErrorTryAnotherEngine": "Wypróbuj inny silnik",
+  "translateErrorChooseAnotherServer": "Wybierz inny serwer",
+  "translateErrorServersTried": "Wypróbowane serwery: {servers}.",
+  "conversationTurnPauseHintAny": "Wypowiedź kończy się, gdy po mowie zapada tak długa cisza.",
+  "translateOfflineManageLanguages": "Zarządzaj językami",
+  "translateOfflineDownloadingLanguage": "Pobieranie języka: {language}… {percent}%",
+  "translateOfflineDownloadingLanguageStarted": "Pobieranie języka: {language}…"
 }
