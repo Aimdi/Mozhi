@@ -50,8 +50,13 @@ class MemoryInstanceHealthStore implements InstanceHealthStore {
 /// What is remembered is the server's address (without any user name or
 /// password) and the time of its last failure, kept on the device through
 /// the [InstanceHealthStore] (at most [maxEntries], none older than
-/// [coolDown]). The store loads in the background; until it has, [order]
-/// uses what this session saw.
+/// [coolDown]). Only failures the server itself reported are kept there (an
+/// HTTP error status, or an answer without a translation): a request that
+/// got no answer at all (`markFailed(persist: false)`: no connection, a
+/// timeout) is as often the device's own connection as the server, so it
+/// only counts for this session (in memory, same [coolDown]) and is never
+/// saved. The store loads in the background; until it has, [order] uses
+/// what this session saw.
 class InstanceHealth {
   /// [clock] defaults to [DateTime.now].
   new({
@@ -72,6 +77,10 @@ class InstanceHealth {
   final InstanceHealthStore? _store;
   final DateTime Function() _clock;
   final Map<String, DateTime> _failures = {};
+
+  /// The keys of [_failures] that count for this session only (see
+  /// [markFailed]): never saved.
+  final Set<String> _sessionOnly = {};
 
   /// Servers marked (or forgotten) before the store answered: what was
   /// stored for them is older.
@@ -99,15 +108,36 @@ class InstanceHealth {
     for (final MapEntry(:key, :value) in stored.entries) {
       final url = keyOf(key);
       if (url.isEmpty || _touched.contains(url)) continue;
-      if (_isRecent(value, now)) _failures[url] = value;
+      if (!_isRecent(value, now)) continue;
+      // A failure of this session that only counted in memory: the stored
+      // one (the server's own answer) is kept, with the later time.
+      final session = _failures[url];
+      _failures[url] = session != null && session.isAfter(value)
+          ? session
+          : value;
+      _sessionOnly.remove(url);
     }
   }
 
   /// A request failed at [url] in a way another server might not repeat.
-  void markFailed(String url) {
+  ///
+  /// [persist] false: the request got no answer from the server (a network
+  /// error, the client's timeout), which is often the device's own
+  /// connection rather than the server. The failure then only counts for
+  /// this session: it is kept in memory and never saved, so it is gone
+  /// after a restart. A failure the server reported that still counts is
+  /// left as it is.
+  void markFailed(String url, {bool persist = true}) {
     final key = keyOf(url);
     if (key.isEmpty) return;
+    if (!persist) {
+      if (!_sessionOnly.contains(key) && failedAt(key) != null) return;
+      _sessionOnly.add(key);
+      _failures[key] = _clock();
+      return;
+    }
     _touched.add(key);
+    _sessionOnly.remove(key);
     _failures[key] = _clock();
     _save();
   }
@@ -122,12 +152,16 @@ class InstanceHealth {
       _clearedAll = true;
       final had = _failures.isNotEmpty;
       _failures.clear();
+      _sessionOnly.clear();
       // Also when nothing is in memory yet: the store may still hold some.
       if (had || _store != null) _save();
       return;
     }
     final key = keyOf(url);
     _touched.add(key);
+    _sessionOnly.remove(key);
+    // Saved also for a failure of this session only: the store may hold an
+    // older one of the server that has not loaded yet.
     if (_failures.remove(key) != null) _save();
   }
 
@@ -173,13 +207,20 @@ class InstanceHealth {
     });
   }
 
-  /// The failures worth keeping: recent ones, at most [maxEntries], the
-  /// latest first.
+  /// The failures worth keeping: recent ones the servers reported (not
+  /// those of [_sessionOnly]), at most [maxEntries], the latest first.
   Map<String, DateTime> _snapshot() {
     final now = _clock();
-    _failures.removeWhere((_, failedAt) => !_isRecent(failedAt, now));
-    final entries = _failures.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
+    _failures.removeWhere((key, failedAt) {
+      if (_isRecent(failedAt, now)) return false;
+      _sessionOnly.remove(key);
+      return true;
+    });
+    final entries =
+        _failures.entries
+            .where((entry) => !_sessionOnly.contains(entry.key))
+            .toList()
+          ..sort((a, b) => b.value.compareTo(a.value));
     return {
       for (final entry in entries.take(maxEntries)) entry.key: entry.value,
     };

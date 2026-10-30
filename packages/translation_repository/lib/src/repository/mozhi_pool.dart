@@ -113,6 +113,17 @@ class MozhiPool {
     return changed;
   }
 
+  /// The user chose [url] to be asked first ("Make preferred", a server
+  /// picked to retry with): the [InstanceHealth] forgets its failure and
+  /// requests start there (when it is configured), also when it is first
+  /// in the list already, which [update] cannot tell from no change at all.
+  /// The settings normally move it to the front as well ([update]).
+  void prefer(String url) {
+    _health?.forget(url);
+    final instance = _instances.firstWhereOrNull((i) => i.url == url);
+    if (instance != null) _preferred = instance;
+  }
+
   /// Forgets the instance a failover picked, so the next request starts at
   /// the first configured instance again (with [forgetHealth], also every
   /// failure the [InstanceHealth] remembers).
@@ -143,7 +154,10 @@ class MozhiPool {
   ///
   /// Unless [recordHealth] is false, the [InstanceHealth] learns from each
   /// attempt: a failure that is failed over (see [canFailOver]) marks the
-  /// instance failed, an answer marks it working. Input errors, cancelled
+  /// instance failed, an answer marks it working. Only a failure the
+  /// server reported ([answeredBy]) is remembered across launches; one that
+  /// got no answer (no connection, a timeout: often the device's own
+  /// network) counts for this session only. Input errors, cancelled
   /// requests and, with `failOverOnTimeout: false`, timeouts never count:
   /// the server may have the text already, and counting the timeout would
   /// send a retry of the same text to another operator. Pass
@@ -182,12 +196,14 @@ class MozhiPool {
         if (!canFailOver(error, failOverOnTimeout: failOverOnTimeout)) {
           Error.throwWithStackTrace(sanitized, stackTrace);
         }
-        if (recordHealth) _health?.markFailed(instance.url);
+        if (recordHealth) {
+          _health?.markFailed(instance.url, persist: answeredBy(error));
+        }
         lastError = sanitized;
         lastStackTrace = stackTrace;
       } on TimeoutException catch (error, stackTrace) {
         if (!failOverOnTimeout) rethrow;
-        if (recordHealth) _health?.markFailed(instance.url);
+        if (recordHealth) _health?.markFailed(instance.url, persist: false);
         lastError = error;
         lastStackTrace = stackTrace;
       }
@@ -240,6 +256,13 @@ class MozhiPool {
     }
     _clients.clear();
   }
+
+  /// Whether [error] is the server's own answer: an HTTP status, or an
+  /// [InstanceDoesNotTranslateException] (it answered without translating).
+  /// Not a network error or the client's timeout, which say as much about
+  /// the device's connection as about the server.
+  static bool answeredBy(MozhiApiException error) =>
+      error.statusCode != null || error is InstanceDoesNotTranslateException;
 
   /// Whether another instance might answer the request that failed with
   /// [error]: `MozhiApiException.isRetryable`, except Mozhi's input errors

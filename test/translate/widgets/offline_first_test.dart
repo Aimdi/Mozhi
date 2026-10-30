@@ -231,6 +231,9 @@ void main() {
       await tester.tap(find.byKey(const Key('translate_offline_download')));
       await tester.pumpAndSettle();
       verifyNever(() => harness.router.push<void>(AppRoutes.offline));
+      // The prompt to send the text online goes: no "Once" is left for a
+      // text the device translates.
+      verify(harness.translate.dismissConsent).called(1);
       // The on-device engine is selected: the same text again, on the
       // device (no consent needed, nothing sent).
       verify(harness.translate.translate).called(1);
@@ -238,8 +241,8 @@ void main() {
       verifyNever(() => harness.translate.selectEngine(any()));
     });
 
-    testWidgets('after Manage languages it offers the device once the '
-        'language is there', (tester) async {
+    testWidgets('after Manage languages, with the language there, it puts '
+        'the prompt away and translates on the device', (tester) async {
       final harness = harnessFor(_onDevice(consent: _routed()));
       final translator = FakeOfflineTranslator();
       final pushed = Completer<void>();
@@ -259,12 +262,81 @@ void main() {
       pushed.complete();
       await tester.pumpAndSettle();
 
+      verify(harness.translate.dismissConsent).called(1);
+      verify(harness.translate.translate).called(1);
+      verifyNever(harness.translate.retryAfterConsent);
+      verifyNever(() => harness.translate.selectEngine(any()));
+      verifyNever(() => harness.repository.allowOnce(any()));
+
+      // The double keeps its state: the device is offered.
       final use = find.byKey(const Key('translate_offline_use'));
       expect(use, findsOneWidget);
       await tester.tap(use);
       await tester.pump();
       verify(harness.translate.translate).called(1);
-      verifyNever(() => harness.translate.selectEngine(any()));
+    });
+
+    testWidgets('after Manage languages without the language the prompt '
+        'stays', (tester) async {
+      final harness = harnessFor(_onDevice(consent: _routed()));
+      final pushed = Completer<void>();
+      when(() => harness.router.push<void>(AppRoutes.offline))
+          .thenAnswer((_) => pushed.future);
+      await harness.pump(
+        tester,
+        child: const OutputCard(),
+        offline: FakeOfflineTranslator(),
+      );
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('translate_offline_manage')));
+      await tester.pump();
+      pushed.complete();
+      await tester.pumpAndSettle();
+
+      verifyNever(harness.translate.dismissConsent);
+      verifyNever(harness.translate.translate);
+      expect(find.byKey(const Key('translate_consent_prompt')), findsOneWidget);
+    });
+
+    testWidgets('after Manage languages a prompt for an engine the user '
+        'chose stays next to the device offer', (tester) async {
+      const intoGerman = ConsentRequiredException(
+        kind: ConsentKind.pair,
+        destination: PublicInstanceDestination(
+          'mozhi.example',
+          engine: 'google',
+        ),
+        engineId: 'mozhi:google',
+        source: 'auto',
+        target: 'de',
+      );
+      final harness = harnessFor(
+        readyState(target: german, input: 'Hello everyone').copyWith(
+          engines: [google, _offline],
+          consent: () => const ConsentRequest(exception: intoGerman, id: 1),
+        ),
+      );
+      final translator = FakeOfflineTranslator();
+      final pushed = Completer<void>();
+      when(() => harness.router.push<void>(AppRoutes.offline))
+          .thenAnswer((_) => pushed.future);
+      await harness.pump(
+        tester,
+        child: const OutputCard(),
+        offline: translator,
+      );
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('translate_offline_manage')));
+      await tester.pump();
+      translator.downloaded.add('de');
+      pushed.complete();
+      await tester.pumpAndSettle();
+
+      // Google is the user's engine: "Once" sends this text there.
+      verifyNever(harness.translate.dismissConsent);
+      verifyNever(harness.translate.translate);
+      expect(find.byKey(const Key('translate_consent_prompt')), findsOneWidget);
+      expect(find.byKey(const Key('translate_offline_use')), findsOneWidget);
     });
   });
 

@@ -295,6 +295,14 @@ class TranslationRepository {
   /// Which Mozhi servers failed recently (they are tried last).
   InstanceHealth get instanceHealth => _mozhi.health!;
 
+  /// The user chose the Mozhi server [url] to be asked first (made it the
+  /// preferred one, or picked it to try again): its recent failure is
+  /// forgotten ([instanceHealth]) and the next request starts there, also
+  /// when it is first in their list already (the list then does not change,
+  /// so [updateConfiguration] can't tell). Does nothing else for a server
+  /// that is not in the list.
+  void preferInstance(String url) => _mozhi.prefer(url);
+
   /// Whether the on-device engine is available (an [OfflineTranslator] was
   /// injected and is available on this platform).
   bool get hasOfflineEngine => _offline?.isAvailable ?? false;
@@ -3289,6 +3297,8 @@ class TranslationRepository {
       ),
       failOverOnTimeout: false,
       allow: _mozhiFailoverAllowed,
+      // Only translations decide which server is asked first.
+      recordHealth: false,
     );
     final code = normalizeDetected(translation.detectedLanguage);
     if (code == null) {
@@ -3330,6 +3340,8 @@ class TranslationRepository {
       ),
       failOverOnTimeout: false,
       allow: _mozhiFailoverAllowed,
+      // Read-aloud says nothing about translating there.
+      recordHealth: false,
     );
     try {
       return await speak(engine);
@@ -3499,6 +3511,9 @@ class TranslationRepository {
         return (translation, image, instance);
       },
       failOverOnTimeout: false,
+      // A photo translation is a translation: its outcome counts for the
+      // server order like a text's (recordHealth; the privacy guide says
+      // so).
       allow: (instance) =>
           _mozhiFailoverAllowed(instance) && attempts++ < maxImageInstances,
     );
@@ -3580,7 +3595,8 @@ class TranslationRepository {
   /// The outcome tells [instanceHealth] about the instance: a translation
   /// marks it working, a failure another instance might not repeat marks
   /// it failed (not a timeout, and not one that only says the instance
-  /// doesn't offer [engine]).
+  /// doesn't offer [engine]; one without an answer from the server, such
+  /// as no connection, only for this session).
   Future<Duration> pingInstance(
     MozhiInstance instance, {
     String engine = 'google',
@@ -3594,7 +3610,11 @@ class TranslationRepository {
       rethrow;
     } on MozhiApiException catch (error) {
       if (MozhiPool.canFailOver(error, failOverOnTimeout: false)) {
-        instanceHealth.markFailed(instance.url);
+        // No answer at all: for this session only (see InstanceHealth).
+        instanceHealth.markFailed(
+          instance.url,
+          persist: MozhiPool.answeredBy(error),
+        );
       }
       rethrow;
     }
