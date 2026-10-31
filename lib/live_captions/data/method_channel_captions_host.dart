@@ -10,9 +10,10 @@ import 'package:mozhi/platform/android_device.dart';
 const liveCaptionsMinSdk = 29;
 
 /// [CaptionsHost] over `LiveCaptionsPlugin.kt`: the method channel
-/// [channelName] (`start`, `show`, `stop`) and the event channels
-/// [audioChannelName] (float blocks) and [eventsChannelName] (the bar's
-/// taps and the capture's end, lock and unlock).
+/// [channelName] (`start`, `show`, `stop`, `consumeStartToken`) and the
+/// event channels [audioChannelName] (float blocks) and
+/// [eventsChannelName] (the bar's taps and the capture's end, lock and
+/// unlock).
 ///
 /// Supported on Android (`isAndroid`, default [runsOnAndroid]) from API
 /// level [liveCaptionsMinSdk] ([sdkInt], see [platformCaptionsHost]); off
@@ -90,6 +91,20 @@ class MethodChannelCaptionsHost implements CaptionsHost {
   @override
   Future<void> stop() => _call('stop');
 
+  /// False off Android and for any platform error.
+  @override
+  Future<bool> consumeStartToken(String token) async {
+    if (!isSupported) return false;
+    try {
+      return await _channel.invokeMethod<bool>('consumeStartToken', token) ??
+          false;
+    } on MissingPluginException {
+      return false;
+    } on PlatformException {
+      return false;
+    }
+  }
+
   Future<void> _call(String method, [Object? arguments]) async {
     if (!isSupported) return;
     try {
@@ -136,6 +151,9 @@ class UnsupportedCaptionsHost implements CaptionsHost {
 
   @override
   Future<void> stop() async {}
+
+  @override
+  Future<bool> consumeStartToken(String token) async => false;
 }
 
 /// The captions host of this platform: [MethodChannelCaptionsHost] on

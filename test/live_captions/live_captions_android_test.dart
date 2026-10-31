@@ -145,6 +145,49 @@ void main() {
       expect(service, contains('Build.VERSION_CODES.Q'));
     });
 
+    test("the tile's start request carries a random single-use token", () {
+      final tile = _code(_read('$_kotlin/LiveCaptionsTileService.kt'));
+      final plugin = _code(_read(_plugin));
+      // Not a guessable clock value: a SecureRandom token of this process.
+      expect(tile, isNot(contains('SystemClock')));
+      expect(
+        tile,
+        contains(
+          'appendQueryParameter(START_PARAMETER, '
+          'LiveCaptions.newStartToken())',
+        ),
+      );
+      expect(plugin, contains('SecureRandom()'));
+      expect(plugin, contains('MessageDigest.isEqual('));
+      expect(plugin, contains('if (matches) startToken = null'));
+      // Dart asks for it over the captions channel.
+      expect(plugin, contains('"consumeStartToken" ->'));
+      expect(
+        plugin,
+        contains('LiveCaptions.consumeStartToken(call.arguments as? String)'),
+      );
+    });
+
+    test('the tile asks for the phone to be unlocked to stop as to start', () {
+      final tile = _code(_read('$_kotlin/LiveCaptionsTileService.kt'));
+      expect(
+        tile,
+        contains(
+          'val action = if (LiveCaptions.isRunning) ::stopCaptions '
+          'else ::openStartFlow',
+        ),
+      );
+      expect(
+        tile,
+        contains('if (isLocked) unlockAndRun(action) else action()'),
+      );
+      // Stopped only from there.
+      expect('stopFromTile()'.allMatches(tile), hasLength(1));
+      final stop = tile.indexOf('private fun stopCaptions()');
+      expect(stop, greaterThan(tile.indexOf('unlockAndRun(action)')));
+      expect(tile.indexOf('stopFromTile()'), greaterThan(stop));
+    });
+
     test('the consent is asked every time, then the service starts', () {
       final plugin = _code(_read(_plugin));
       expect(plugin, contains('createScreenCaptureIntent'));

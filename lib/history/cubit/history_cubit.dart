@@ -135,10 +135,12 @@ class HistoryCubit extends Cubit<HistoryState> {
   }
 
   /// Keeps non-favourite entries for at most [maxAge] (null: forever) from
-  /// now on, and deletes the ones that are already older.
+  /// now on, and deletes the ones that are already older. While the app is
+  /// locked ([forgetForLock]) the history is not read for it: the reload
+  /// after the unlock deletes them ([load] applies [maxAge]).
   Future<void> applyRetention(Duration? maxAge) async {
     _maxAge = maxAge;
-    if (maxAge == null) return;
+    if (maxAge == null || _forgotten) return;
     await _run(() => _repository.prune(maxAge));
   }
 

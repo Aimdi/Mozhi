@@ -137,6 +137,34 @@ void main() {
     await host.stop();
   });
 
+  group('consumeStartToken', () {
+    test('asks the platform with the token', () async {
+      answer = (call) => call.arguments == 'tile-token';
+      final host = build();
+      expect(await host.consumeStartToken('tile-token'), isTrue);
+      expect(await host.consumeStartToken('forged'), isFalse);
+      expect(calls.map((call) => call.method), [
+        'consumeStartToken',
+        'consumeStartToken',
+      ]);
+      expect(calls.first.arguments, 'tile-token');
+    });
+
+    test('is false for no answer, errors and without the platform', () async {
+      final host = build();
+      expect(await host.consumeStartToken('t'), isFalse);
+      answer = (_) => throw PlatformException(code: 'boom');
+      expect(await host.consumeStartToken('t'), isFalse);
+      messenger.setMockMethodCallHandler(channel, null);
+      expect(await host.consumeStartToken('t'), isFalse);
+    });
+
+    test('is false where captions do not run, without asking', () async {
+      expect(await build(sdkInt: 28).consumeStartToken('t'), isFalse);
+      expect(calls, isEmpty);
+    });
+  });
+
   test('audio arrives as float blocks; other blocks are dropped', () async {
     messenger.setMockStreamHandler(
       audioChannel,
@@ -195,6 +223,7 @@ void main() {
       );
       await host.show(const CaptionLine());
       await host.stop();
+      expect(await host.consumeStartToken('t'), isFalse);
       expect(await host.audio.isEmpty, isTrue);
       expect(await host.events.isEmpty, isTrue);
     });

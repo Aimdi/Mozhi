@@ -213,6 +213,65 @@ void main() {
       expect(arabic.isOnlyOne(1), isTrue);
       expect(arabic.isOnlyOne(0), isFalse);
     });
+
+    /// `nplurals=2; plural=…;` with an expression of [tokens] tokens (odd):
+    /// `n != 1 + 0 + 0 …`.
+    String rule(int tokens) =>
+        'nplurals=2; plural=n != 1${' + 0' * ((tokens - 3) ~/ 2)};';
+
+    test('refuses a plural rule of more than maxTokens tokens', () {
+      expect(PluralForms.maxTokens, 256);
+      final longest = PluralForms.parse(rule(255));
+      expect(longest, isNotNull);
+      expect(longest!.isOnlyOne(0), isTrue);
+      expect(PluralForms.parse(rule(257)), isNull);
+      // A huge one is refused without reading all of it.
+      expect(PluralForms.parse(rule(2000001)), isNull);
+    });
+
+    String entry(int i) =>
+        '\nmsgid "%d day $i"\nmsgid_plural "%d days $i"\n'
+        'msgstr[0] ""\nmsgstr[1] ""\n';
+
+    String catalogue(String pluralForms, {int entries = 1}) =>
+        'msgid ""\n'
+        'msgstr ""\n'
+        '"Plural-Forms: $pluralForms\\n"\n'
+        '${List.generate(entries, entry).join()}';
+
+    test('a header rule that is too long counts as unusable', () {
+      final tooLong = parsePo(
+        catalogue(rule(257)),
+        targetLanguage: 'ru',
+      ).render(['⟨1⟩ день', '⟨1⟩ дней']);
+      final invalid = parsePo(
+        catalogue('nplurals=2; plural=n +;'),
+        targetLanguage: 'ru',
+      ).render(['⟨1⟩ день', '⟨1⟩ дней']);
+      expect(tooLong, contains(gettextPluralForms('ru')));
+      expect(tooLong, isNot(contains('+ 0')));
+      expect(
+        tooLong.substring(tooLong.indexOf('\n\nmsgid')),
+        invalid.substring(invalid.indexOf('\n\nmsgid')),
+      );
+    });
+
+    test('many plural entries with the longest rule are written quickly', () {
+      const entries = 2000;
+      final watch = Stopwatch()..start();
+      final document = parsePo(catalogue(rule(255), entries: entries));
+      final output = document.render([
+        for (var i = 0; i < entries; i++) ...['⟨1⟩ Tag $i', '⟨1⟩ Tage $i'],
+      ]);
+      watch.stop();
+      expect(
+        output,
+        contains('msgstr[0] "%d Tag 1999"\nmsgstr[1] "%d Tage 1999"'),
+      );
+      // The rule is evaluated for a thousand numbers once, not per entry
+      // (that took tens of seconds).
+      expect(watch.elapsed, lessThan(const Duration(seconds: 5)));
+    });
   });
 
   group('Android plurals', () {

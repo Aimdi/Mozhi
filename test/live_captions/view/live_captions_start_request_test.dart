@@ -116,6 +116,7 @@ void main() {
   testWidgets('a start request starts the captions once per token', (
     tester,
   ) async {
+    host.startTokens.addAll(['tile-1', 'tile-2']);
     await pumpRouter(tester);
     await go(tester, '/transcribe/captions?start=tile-1');
 
@@ -137,6 +138,32 @@ void main() {
     expect(host.starts, 2);
   });
 
+  testWidgets('a token the tile did not make only opens the screen', (
+    tester,
+  ) async {
+    host.startTokens.add('tile-1');
+    await pumpRouter(tester);
+    // Another app's link (MainActivity is exported): a guessed token.
+    await go(tester, '/transcribe/captions?start=1');
+
+    expect(find.byType(LiveCaptionsView), findsOneWidget);
+    expect(host.consumedTokens, ['1']);
+    expect(host.starts, 0);
+    expect(cubitOf(tester).state.status, LiveCaptionsStatus.idle);
+  });
+
+  testWidgets('a used-up token does not start again in a new process', (
+    tester,
+  ) async {
+    // The platform says no (used already): nothing starts, though this
+    // page has not seen the token yet.
+    await pumpRouter(tester);
+    await go(tester, '/transcribe/captions?start=used-token');
+
+    expect(host.consumedTokens, ['used-token']);
+    expect(host.starts, 0);
+  });
+
   testWidgets('opened without one, nothing starts', (tester) async {
     await pumpRouter(tester);
     await go(tester, '/transcribe/captions');
@@ -151,5 +178,6 @@ void main() {
     await go(tester, '/transcribe/captions?start=');
 
     expect(host.starts, 0);
+    expect(host.consumedTokens, isEmpty);
   });
 }

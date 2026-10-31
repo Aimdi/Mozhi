@@ -6,7 +6,6 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
-import android.os.SystemClock
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
 
@@ -16,12 +15,16 @@ import android.service.quicksettings.TileService
  * - Off, a tap collapses the shade and opens Mozhi's live captions screen
  *   with a start request ([startIntent]: `mozhi://transcribe/captions?start=<token>`,
  *   which [MainActivity] hands to the router as
- *   `/transcribe/captions?start=<token>`). The screen starts the captions as
+ *   `/transcribe/captions?start=<token>`). The token is a random one of
+ *   this process ([LiveCaptions.newStartToken]): the screen starts the
+ *   captions only for it ([LiveCaptions.consumeStartToken], once), so the
+ *   same link from another app only opens the screen. It starts them as
  *   its Start button does, so the microphone permission and the system's
  *   capture consent are asked as always: nothing starts silently. On a
  *   locked phone the PIN, pattern or password comes first, and Mozhi's own
  *   app lock asks before the screen opens.
- * - On, a tap stops the captions, as the caption bar's Stop does.
+ * - On, a tap stops the captions, as the caption bar's Stop does (on a
+ *   locked phone, once it is unlocked).
  *
  * The tile reads the service's state each time the shade shows it, and the
  * service asks for an update when it starts and ends ([requestUpdate]).
@@ -36,17 +39,16 @@ class LiveCaptionsTileService : TileService() {
     override fun onClick() {
         super.onClick()
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
-        val service = LiveCaptions.service
-        if (service != null && service.isCapturing) {
-            service.stopFromTile()
-            update()
-            return
-        }
-        if (isLocked) {
-            unlockAndRun { openStartFlow() }
-        } else {
-            openStartFlow()
-        }
+        val action = if (LiveCaptions.isRunning) ::stopCaptions else ::openStartFlow
+        // On a locked phone the PIN, pattern or password comes first, for
+        // stopping as for starting.
+        if (isLocked) unlockAndRun(action) else action()
+    }
+
+    private fun stopCaptions() {
+        // The captions may have ended while the phone was being unlocked.
+        LiveCaptions.service?.takeIf { it.isCapturing }?.stopFromTile()
+        update()
     }
 
     private fun update() {
@@ -90,15 +92,17 @@ class LiveCaptionsTileService : TileService() {
 
         /**
          * Opens [MainActivity] at the live captions screen with a start
-         * request. Each one has a new token, so the screen starts the
-         * captions once per tap (also when it is open already).
+         * request. Each one has a new random token
+         * ([LiveCaptions.newStartToken]), so the screen starts the captions
+         * once per tap (also when it is open already), and only for the
+         * tile's last tap.
          */
         fun startIntent(context: Context): Intent =
             Intent(context, MainActivity::class.java)
                 .setAction(Intent.ACTION_VIEW)
                 .setData(
                     Uri.parse(START_LINK).buildUpon()
-                        .appendQueryParameter(START_PARAMETER, SystemClock.elapsedRealtime().toString())
+                        .appendQueryParameter(START_PARAMETER, LiveCaptions.newStartToken())
                         .build(),
                 )
                 .addFlags(

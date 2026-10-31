@@ -93,6 +93,28 @@ void main() {
       expect(cubit.state.entries, isEmpty);
     });
 
+    test('does not read the history for the retention until the unlock, '
+        'which applies it', () async {
+      const maxAge = Duration(days: 30);
+      when(() => repository.load(maxAge: maxAge))
+          .thenAnswer((_) async => [two]);
+      final cubit = HistoryCubit(repository: repository);
+      addTearDown(cubit.close);
+      // Held from the start: a cold start behind the lock.
+      await cubit.forgetForLock();
+
+      await cubit.applyRetention(maxAge);
+      await cubit.load();
+
+      verifyNever(() => repository.prune(any()));
+      verifyNever(() => repository.load(maxAge: any(named: 'maxAge')));
+
+      await cubit.reloadAfterLock();
+
+      verify(() => repository.load(maxAge: maxAge)).called(1);
+      expect(cubit.state.entries, [two]);
+    });
+
     test('reports a repository that fails', () async {
       final cubit = await loaded();
       when(() => repository.forgetCache()).thenThrow(StateError('broken'));

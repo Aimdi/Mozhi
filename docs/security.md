@@ -153,7 +153,9 @@ pick ones you trust, or self-host them ([guide](self-hosting-mozhi.md)).
     once more without you asking.
   - **History:** its decrypted entries leave memory (the cubit's list and
     the repository's copy); the encrypted history stays on disk and is
-    read again after the unlock. What is saved while locked (a running
+    read again after the unlock. At a start with the lock on it isn't
+    read (decrypted) at all until the first unlock; the retention clean-up
+    waits for the unlock too. What is saved while locked (a running
     Transcribe, a document) is written to disk without coming back into
     memory.
   - **Conversation:** kept, hidden like the translate screen: leaving the
@@ -221,10 +223,16 @@ pick ones you trust, or self-host them ([guide](self-hosting-mozhi.md)).
   before a caption shows again.
   The **Live captions** Quick Settings tile stops running captions, or
   opens the captions screen with a start request
-  (`mozhi://transcribe/captions?start=…`): on a locked phone the screen
-  lock comes first, then Mozhi's app lock, then the microphone permission
-  and Android's capture dialog, as with **Start captions**; another app
-  that sends the same link gets only those dialogs too.
+  (`mozhi://transcribe/captions?start=<token>`): on a locked phone the
+  screen lock comes first, for stopping as for starting; a start then
+  goes through Mozhi's app lock, the microphone permission and Android's
+  capture dialog, as with **Start captions**. The token is random (32
+  bytes from `SecureRandom`), made for each tap and kept only in the
+  app's process; the screen starts the captions only after the platform
+  side confirmed it is the tile's latest token, which uses it up
+  (`consumeStartToken`). The main activity is exported, so another app
+  can send the same link, but with any other `start` value it only opens
+  the captions screen: nothing starts and no dialog opens.
 - **Clipboard:** on Android 13+ copies are marked sensitive
   (`EXTRA_IS_SENSITIVE`), so the system's preview and keyboard suggestions
   don't show them.
@@ -608,6 +616,19 @@ Settings tile, launcher shortcuts and widget, and links (`mozhi://…`,
   Free-text options (context, glossary, instructions) and unknown target
   languages are ignored, because they would end up in later AI prompts.
 - Dictionary, Proofread and web page links send nothing until you ask.
+- A `mozhi://` link opens the screen its host names. Dart's `Uri` reads
+  `\` as `/`, decodes `%2e` and resolves `.` and `..`, so a path could
+  otherwise climb to another screen
+  (`mozhi://translate/..\transcribe/captions`): the main activity opens
+  `/` instead for a link whose host isn't a plain name or whose path has
+  a backslash, a `.` or `..` segment, or a percent-encoded dot, slash or
+  backslash (`%2e`, `%2f`, `%5c`, any case). The router, for a
+  `mozhi://` link that reaches it unchanged, opens `/` for a host the
+  manifest's link filter doesn't list and drops dot segments and
+  segments with a slash or backslash. Explicit intents to the exported
+  main activity can still name any screen, so what a screen does on
+  arrival is limited as listed here (the live captions start request
+  needs the tile's token, see App lock).
 - Replacing the selected text in the other app (PROCESS_TEXT) needs a tap
   on **Replace**, and Android only accepts the answer for a writable
   selection request that is still current.

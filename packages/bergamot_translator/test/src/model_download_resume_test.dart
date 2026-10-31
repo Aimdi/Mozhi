@@ -275,6 +275,10 @@ void main() {
       ('for another end', 'bytes 700-%size/%size'),
       ('for another size', 'bytes 700-%end/99999'),
       ('that is not a byte range', 'pages 700-%end/%size'),
+      (
+        'with a number too large for an int',
+        'bytes 99999999999999999999-%end/%size',
+      ),
     ]) {
       test('starts over on a 206 $name', () async {
         writePart(first(), length: 700);

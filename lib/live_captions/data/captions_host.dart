@@ -150,4 +150,10 @@ abstract interface class CaptionsHost {
 
   /// Stops capturing and removes the caption bar.
   Future<void> stop();
+
+  /// Whether [token] is the start request the Quick Settings tile made
+  /// last (`LiveCaptionsTileService.kt`); true only once per token. A
+  /// start request (`?start=<token>`) starts the captions only then: any
+  /// other app can open the same link.
+  Future<bool> consumeStartToken(String token);
 }

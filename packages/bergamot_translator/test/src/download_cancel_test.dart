@@ -255,5 +255,12 @@ void main() {
         isFalse,
       );
     });
+
+    test('rejects numbers too large for an int without throwing', () {
+      const huge = '99999999999999999999';
+      expect(resumesAt(response('bytes $huge-99/100'), 10, 100), isFalse);
+      expect(resumesAt(response('bytes 10-$huge/100'), 10, 100), isFalse);
+      expect(resumesAt(response('bytes 10-99/$huge'), 10, 100), isFalse);
+    });
   });
 }

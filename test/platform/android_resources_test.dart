@@ -392,6 +392,36 @@ void main() {
       }
     });
 
+    test("deep links: the filter opens exactly the router's screens", () {
+      final filter = RegExp(
+        '<intent-filter>((?:(?!</intent-filter>).)*?'
+        'android:scheme="mozhi".*?)</intent-filter>',
+        dotAll: true,
+      ).firstMatch(_uncommented(manifest))![1]!;
+      final hosts = {for (final data in _tags(filter, 'data')) ?data['host']};
+      expect(hosts, AppRoutes.deepLinkHosts);
+    });
+
+    test('deep links: MainActivity opens / for a path that could leave its '
+        'screen', () {
+      final source = _read(_mainActivity);
+      // The route of a link is only built from a plain host and a safe
+      // path; the rest opens DEFAULT_ROUTE.
+      expect(
+        source,
+        contains(
+          'if (!DEEP_LINK_HOST.matches(host) || isUnsafeDeepLinkPath(path)) '
+          'return DEFAULT_ROUTE',
+        ),
+      );
+      expect(source, contains('Regex("[a-z0-9_-]*")'));
+      // Backslashes, encoded dots, slashes and backslashes in any case, and
+      // dot segments (Dart's Uri.parse resolves all of them).
+      expect(source, contains(r"path.contains('\\')"));
+      expect(source, contains('Regex("%(2e|2f|5c)", RegexOption.IGNORE_CASE)'));
+      expect(source, contains('it == "." || it == ".."'));
+    });
+
     test('keeps the data on the device and refuses platform cleartext', () {
       final application = _tags(manifest, 'application').single;
       expect(application['allowBackup'], 'false');

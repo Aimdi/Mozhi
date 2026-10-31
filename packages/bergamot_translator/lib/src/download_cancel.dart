@@ -196,7 +196,8 @@ final class _Shared<T> {
 /// Whether [response] (a `206 Partial Content`) holds the rest of a file
 /// of [size] bytes from byte [start] on: its `Content-Range` says so
 /// (`bytes <start>-<size - 1>/<size>`, or `/*` for an unknown size) and
-/// its length, when given, agrees.
+/// its length, when given, agrees. False for numbers too large for an
+/// `int`: the caller then asks for the whole file.
 @internal
 bool resumesAt(http.BaseResponse response, int start, int size) {
   final range = _contentRange.firstMatch(
@@ -205,9 +206,9 @@ bool resumesAt(http.BaseResponse response, int start, int size) {
   if (range == null) return false;
   final total = range.group(3)!;
   final length = response.contentLength;
-  return int.parse(range.group(1)!) == start &&
-      int.parse(range.group(2)!) == size - 1 &&
-      (total == '*' || int.parse(total) == size) &&
+  return int.tryParse(range.group(1)!) == start &&
+      int.tryParse(range.group(2)!) == size - 1 &&
+      (total == '*' || int.tryParse(total) == size) &&
       (length == null || length == size - start);
 }
 

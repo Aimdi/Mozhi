@@ -159,6 +159,10 @@ class _PoParser {
       }
     }
 
+    // Once per document, not per plural entry: it evaluates the rule for
+    // a thousand numbers.
+    final singularOnlyOne = forms != null && forms.isOnlyOne(forms.formFor(1));
+
     final nodes = NodeList();
     var line = 0;
     for (final entry in entries) {
@@ -167,7 +171,12 @@ class _PoParser {
         ..addAll(
           identical(entry, header)
               ? [TextNode(joinLines(lines, entry.start, entry.end))]
-              : _entry(entry, retranslate: retranslate, forms: forms),
+              : _entry(
+                  entry,
+                  retranslate: retranslate,
+                  forms: forms,
+                  singularOnlyOne: singularOnlyOne,
+                ),
         );
       line = entry.end;
     }
@@ -363,6 +372,7 @@ class _PoParser {
     _Entry entry, {
     required bool retranslate,
     required PluralForms? forms,
+    required bool singularOnlyOne,
   }) {
     final whole = [TextNode(joinLines(lines, entry.start, entry.end))];
     final msgstrs = entry.msgstrs.toList();
@@ -441,7 +451,7 @@ class _PoParser {
       // number.
       final singularForm =
           forms == null ||
-              forms.isOnlyOne(one) ||
+              singularOnlyOne ||
               _tokens(
                 plural.value.toString(),
                 pattern,

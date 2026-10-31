@@ -45,7 +45,9 @@ import 'package:translation_repository/translation_repository.dart';
 /// Quick Settings tile, `LiveCaptionsTileService.kt`), the captions start
 /// as with Start, once the screen found out that they can run: the
 /// microphone permission and the system's capture consent are asked as
-/// always. Each token starts them once per app process.
+/// always. Only the tile's own token starts them, once
+/// ([CaptionsHost.consumeStartToken]): any other `start` value (the same
+/// link from another app) only opens the screen.
 class LiveCaptionsPage extends StatefulWidget {
   const new({
     this.host,
@@ -151,6 +153,7 @@ class _LiveCaptionsPageState extends State<LiveCaptionsPage> {
         },
         child: _StartOnRequest(
           token: startRequest,
+          host: host,
           child: LiveCaptionsView(
             files: widget.files,
             share: widget.share,
@@ -546,11 +549,13 @@ class _MenuButton extends StatelessWidget {
 }
 
 /// Starts the captions for a new start request [token] of the page's
-/// location ([LiveCaptionsPage.startParameter]).
+/// location ([LiveCaptionsPage.startParameter]) when [host] knows it as the
+/// tile's ([CaptionsHost.consumeStartToken]).
 class _StartOnRequest extends StatefulWidget {
-  const new({required this.token, required this.child});
+  const new({required this.token, required this.host, required this.child});
 
   final String? token;
+  final CaptionsHost host;
   final Widget child;
 
   @override
@@ -573,9 +578,13 @@ class _StartOnRequestState extends State<_StartOnRequest> {
   void _handle() {
     final token = widget.token;
     if (token == null || !_handledStarts.add(token)) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) unawaited(context.read<LiveCaptionsCubit>().requestStart());
-    });
+    unawaited(_startFor(token));
+  }
+
+  Future<void> _startFor(String token) async {
+    // Not the tile's: the screen only opens.
+    if (!await widget.host.consumeStartToken(token) || !mounted) return;
+    unawaited(context.read<LiveCaptionsCubit>().requestStart());
   }
 
   @override

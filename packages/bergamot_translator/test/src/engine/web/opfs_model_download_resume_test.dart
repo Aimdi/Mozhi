@@ -167,6 +167,15 @@ void main() {
       expect(rangesOf(first()), ['bytes=700-', null]);
     });
 
+    test('starts over on a 206 with a number too large for an int', () async {
+      writePart(first(), first().gz.sublist(0, 700));
+      server.contentRange = (start, size) =>
+          'bytes $start-${size - 1}/99999999999999999999';
+      await manager.install(ende.catalog);
+      await expectInstalled();
+      expect(rangesOf(first()), ['bytes=700-', null]);
+    });
+
     test('starts over when a resumed file fails the checks', () async {
       writePart(first(), List.filled(700, 7));
       await manager.install(ende.catalog);
