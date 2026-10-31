@@ -2791,5 +2791,13 @@
   "voiceBrowserNoticeContinue": "Konuşma tanımayı kullan",
   "voiceErrorUnavailableBrowser": "Bu tarayıcıda konuşma tanıma yok. Chrome, Edge veya Safari'yi deneyin ya da yazarak girin.",
   "offlineDirectionIntoOnly": "Yalnızca {language} diline",
-  "offlineDirectionFromOnly": "Yalnızca {language} dilinden"
+  "offlineDirectionFromOnly": "Yalnızca {language} dilinden",
+  "settingsStyle": "Stil",
+  "settingsStyleSubtitle": "Terminal, neredeyse siyah zeminde sabit genişlikli yazı ve keskin köşeler sunar; Klasik yuvarlak köşelidir, Loş veya Işıklar kapalı seçenekleriyle",
+  "settingsStyleTerminal": "Terminal",
+  "settingsStyleClassic": "Klasik",
+  "settingsStyleKeywords": "terminal, klasik, görünüm, yazı tipi, font, sabit genişlikli, eş aralıklı, classic, monospace, monospaced, JetBrains Mono",
+  "settingsThemeTerminalSubtitle": "Terminal stilinde Sistem koyu demektir; Açık kâğıt görünümü verir",
+  "settingsColorAmber": "Kehribar",
+  "settingsColorCyan": "Siyan"
 }

@@ -112,8 +112,8 @@ class BackupWarningCard extends StatelessWidget {
     return Card.filled(
       margin: EdgeInsets.zero,
       color: colors.errorContainer,
-      shape: const RoundedRectangleBorder(
-        borderRadius: AppRadius.cardBorderRadius,
+      shape: RoundedRectangleBorder(
+        borderRadius: AppLook.of(context).cardRadius,
       ),
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.md),

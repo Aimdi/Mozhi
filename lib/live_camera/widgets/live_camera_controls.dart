@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/widgets/language_pair_bar.dart';
 import 'package:mozhi/image_translate/widgets/image_translate_labels.dart';
 import 'package:mozhi/l10n/l10n.dart';
@@ -145,7 +146,7 @@ class LiveCameraBottomBar extends StatelessWidget {
           DecoratedBox(
             decoration: BoxDecoration(
               color: Colors.black54,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: AppLook.of(context).menuRadius,
             ),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -308,7 +309,9 @@ class _ZoomButton extends StatelessWidget {
         key: const Key('live_camera_zoom'),
         onPressed: onPressed,
         style: TextButton.styleFrom(
-          shape: const CircleBorder(),
+          shape: AppLook.of(context).isTerminal
+              ? const RoundedRectangleBorder()
+              : const CircleBorder(),
           minimumSize: const Size.square(48),
           backgroundColor: Colors.black54,
           foregroundColor: Colors.white,

@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart' show AppLook;
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/widgets/translate_layout.dart';
@@ -134,7 +135,7 @@ class TranslateMoreToggle extends StatelessWidget {
                 minimumSize: const Size(48, 48),
                 padding: const EdgeInsetsDirectional.only(start: 12, end: 8),
                 foregroundColor: color,
-                shape: const StadiumBorder(),
+                shape: AppLook.of(context).control,
               ),
               onPressed: controller.toggle,
               child: Row(

@@ -505,9 +505,7 @@ class _PairTag extends StatelessWidget {
         child: DecoratedBox(
           decoration: BoxDecoration(
             border: Border.all(color: palette.hairline),
-            borderRadius: const BorderRadius.all(
-              Radius.circular(AppRadius.badge),
-            ),
+            borderRadius: AppLook.of(context).badgeRadius,
           ),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),

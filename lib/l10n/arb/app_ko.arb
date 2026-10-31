@@ -2791,5 +2791,13 @@
   "voiceBrowserNoticeContinue": "음성 인식 사용",
   "voiceErrorUnavailableBrowser": "이 브라우저에는 음성 인식이 없습니다. Chrome, Edge 또는 Safari를 사용해 보거나 직접 입력하세요.",
   "offlineDirectionIntoOnly": "{language}(으)로만 번역",
-  "offlineDirectionFromOnly": "{language}에서만 번역"
+  "offlineDirectionFromOnly": "{language}에서만 번역",
+  "settingsStyle": "스타일",
+  "settingsStyleSubtitle": "터미널은 거의 검은 바탕에 고정폭 글꼴과 각진 모서리, 클래식은 둥근 모서리에 어둡게 또는 완전 검정을 사용합니다",
+  "settingsStyleTerminal": "터미널",
+  "settingsStyleClassic": "클래식",
+  "settingsStyleKeywords": "터미널, 클래식, 모양, 외관, 글꼴, 폰트, 고정폭, terminal, classic, monospace, monospaced, JetBrains Mono",
+  "settingsThemeTerminalSubtitle": "터미널 스타일에서는 시스템이 다크를 뜻하고, 라이트는 종이 같은 모양이 됩니다",
+  "settingsColorAmber": "호박색",
+  "settingsColorCyan": "시안"
 }

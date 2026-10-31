@@ -34,6 +34,115 @@ abstract final class AppRadius {
   );
 }
 
+/// The font family of the terminal look (JetBrains Mono, bundled under
+/// `assets/fonts/jetbrains_mono`, SIL Open Font License 1.1). Scripts it
+/// lacks (Arabic, Devanagari, CJK, Tamil …) fall back to the system fonts.
+const String kTerminalFontFamily = 'JetBrainsMono';
+
+/// The look of the current theme ([AppSettings.style]), registered on
+/// every theme by [buildAppTheme]: the corner radii, the shape of
+/// controls and whether the screens use the terminal layout. Read it with
+/// [AppLook.of] instead of [AppRadius] where a shape is drawn, so the
+/// terminal look stays square.
+@immutable
+class AppLook extends ThemeExtension<AppLook> {
+  const new({
+    required this.style,
+    required this.badge,
+    required this.menu,
+    required this.field,
+    required this.card,
+    required this.sheet,
+  });
+
+  /// The rounded look ([AppRadius]).
+  static const classic = AppLook(
+    style: AppStyle.classic,
+    badge: AppRadius.badge,
+    menu: AppRadius.menu,
+    field: AppRadius.field,
+    card: AppRadius.card,
+    sheet: AppRadius.sheet,
+  );
+
+  /// The terminal look: square corners everywhere.
+  static const terminal = AppLook(
+    style: AppStyle.terminal,
+    badge: 0,
+    menu: 0,
+    field: 0,
+    card: 0,
+    sheet: 0,
+  );
+
+  /// The look of [style].
+  static AppLook forStyle(AppStyle style) => switch (style) {
+    AppStyle.terminal => terminal,
+    AppStyle.classic => classic,
+  };
+
+  /// The look of [context]'s theme ([classic] when none is registered).
+  static AppLook of(BuildContext context) =>
+      Theme.of(context).extension<AppLook>() ?? classic;
+
+  final AppStyle style;
+
+  /// Corner radii, as [AppRadius] (all 0 in the terminal look).
+  final double badge;
+  final double menu;
+  final double field;
+  final double card;
+  final double sheet;
+
+  /// Whether the screens use the terminal layout and decorations.
+  bool get isTerminal => style == AppStyle.terminal;
+
+  /// The shape of buttons, chips and other controls: a pill
+  /// ([StadiumBorder]), or a square box in the terminal look.
+  OutlinedBorder get control =>
+      isTerminal ? const RoundedRectangleBorder() : const StadiumBorder();
+
+  /// [badge] as a [BorderRadius].
+  BorderRadius get badgeRadius => BorderRadius.circular(badge);
+
+  /// [menu] as a [BorderRadius].
+  BorderRadius get menuRadius => BorderRadius.circular(menu);
+
+  /// [field] as a [BorderRadius].
+  BorderRadius get fieldRadius => BorderRadius.circular(field);
+
+  /// [card] as a [BorderRadius].
+  BorderRadius get cardRadius => BorderRadius.circular(card);
+
+  /// [sheet] as a [BorderRadius].
+  BorderRadius get sheetRadius => BorderRadius.circular(sheet);
+
+  /// A radius for a control drawn by hand: [pill] (a pill's half
+  /// height) in the classic look, 0 in the terminal look.
+  double controlRadius(double pill) => isTerminal ? 0 : pill;
+
+  @override
+  AppLook copyWith({
+    AppStyle? style,
+    double? badge,
+    double? menu,
+    double? field,
+    double? card,
+    double? sheet,
+  }) => AppLook(
+    style: style ?? this.style,
+    badge: badge ?? this.badge,
+    menu: menu ?? this.menu,
+    field: field ?? this.field,
+    card: card ?? this.card,
+    sheet: sheet ?? this.sheet,
+  );
+
+  @override
+  AppLook lerp(AppLook? other, double t) =>
+      t < 0.5 || other == null ? this : other;
+}
+
 /// Corner radius used by flat cards (a hairline box, no fill).
 const double kCardRadius = AppRadius.card;
 
@@ -129,6 +238,37 @@ class AppTones {
     controlOutline: Color(0xFF616C77),
   );
 
+  /// The terminal look, dark (the default): near-black with warm
+  /// off-white text, like a terminal emulator.
+  static const terminalDark = AppTones(
+    surface: Color(0xFF0B0B0B),
+    subtle: Color(0xFF0F0F0E),
+    // The panels of the terminal look (the input box, menus, dialogs).
+    raised: Color(0xFF141412),
+    raisedHigh: Color(0xFF1C1B18),
+    raisedHighest: Color(0xFF24231F),
+    text: Color(0xFFE8E2D0),
+    secondaryText: Color(0xFFA39A86),
+    // The boxes' 1 px borders and the dashed bar edges.
+    hairline: Color(0xFF3A372F),
+    // Lighter than the borders: 3:1 for the outlines of controls.
+    controlOutline: Color(0xFF736D5C),
+  );
+
+  /// The terminal look's light "paper" variant (an explicit Light theme
+  /// mode only).
+  static const terminalPaper = AppTones(
+    surface: Color(0xFFF4F1E8),
+    subtle: Color(0xFFF0EDE3),
+    raised: Color(0xFFECE8DC),
+    raisedHigh: Color(0xFFE4DFD1),
+    raisedHighest: Color(0xFFDCD6C6),
+    text: Color(0xFF1C1A16),
+    secondaryText: Color(0xFF5E574A),
+    hairline: Color(0xFFB9B2A2),
+    controlOutline: Color(0xFF7F7866),
+  );
+
   /// Page background.
   final Color surface;
 
@@ -162,6 +302,11 @@ class AppTones {
     return lightsOut ? AppTones.lightsOut : dim;
   }
 
+  /// The terminal look's tones for [brightness]: [terminalDark] or
+  /// [terminalPaper].
+  static AppTones terminal(Brightness brightness) =>
+      brightness == Brightness.light ? terminalPaper : terminalDark;
+
   /// The [AppPalette] registered on themes with these tones.
   AppPalette get palette => AppPalette(
     hairline: hairline,
@@ -185,11 +330,28 @@ class AppThemes {
   /// is on and one was reported. Surfaces are always neutral; the dark
   /// theme is "Lights out" (black) with [AppSettings.pureBlack] (the
   /// default), else "Dim".
+  ///
+  /// The terminal look ([AppStyle.terminal], the default) ignores all of
+  /// these: it is [AppTones.terminalDark] (and [AppTones.terminalPaper]
+  /// for the light theme) with [AppSettings.terminalAccent], in JetBrains
+  /// Mono with square corners ([AppLook.terminal]).
   factory fromSettings(
     AppSettings settings, {
     ColorScheme? lightDynamic,
     ColorScheme? darkDynamic,
   }) {
+    if (settings.style == AppStyle.terminal) {
+      final accent = Color(settings.terminalAccent);
+      ThemeData terminal(Brightness brightness) => buildAppTheme(
+        terminalColorScheme(brightness: brightness, accent: accent),
+        palette: AppTones.terminal(brightness).palette,
+        look: AppLook.terminal,
+      );
+      return AppThemes(
+        light: terminal(Brightness.light),
+        dark: terminal(Brightness.dark),
+      );
+    }
     final seed = Color(settings.seedColor);
     return AppThemes(
       light: buildAppTheme(
@@ -320,21 +482,103 @@ ColorScheme appColorScheme({
   );
 }
 
-/// The [AppTones] of [scheme]'s look (light, Dim or Lights out).
-AppTones _tonesOf(ColorScheme scheme) => AppTones.of(
-  scheme.brightness,
-  lightsOut: scheme.surface.toARGB32() == 0xFF000000,
-);
+/// The near-black text of the terminal look's accent-filled controls
+/// (the "run" button, the selected tab), where it reads.
+const Color kTerminalInk = Color(0xFF0B0B0B);
 
-/// The [AppPalette] matching [scheme]'s look (light, Dim or Lights out).
+/// The color scheme of the terminal look for [brightness]
+/// ([AppTones.terminal]) with [accent] (one of [kTerminalAccents]).
+///
+/// The accent is darkened (paper) or lightened (dark) only as far as
+/// needed to read as text on every panel (≥ [kTextContrast]); the four
+/// terminal accents are used as they are on the dark background.
+/// `onPrimary` is [kTerminalInk] where it reads on the accent, else white.
+ColorScheme terminalColorScheme({
+  required Brightness brightness,
+  required Color accent,
+}) {
+  final dark = brightness == Brightness.dark;
+  final tones = AppTones.terminal(brightness);
+  final base = ColorScheme.fromSeed(seedColor: accent, brightness: brightness);
+  // Against the darkest (paper) or lightest (dark) panel text sits on, so
+  // the accent reads as text on all of them.
+  final primary = accentWithContrast(
+    accent,
+    tones.raisedHigh,
+    minContrast: kTextContrast,
+    darken: !dark,
+  );
+  final onPrimary = [kTerminalInk, Colors.white].firstWhere(
+    (c) => _contrast(c, primary) >= kTextContrast,
+    orElse: () => Colors.black,
+  );
+  return base.copyWith(
+    primary: primary,
+    onPrimary: onPrimary,
+    // The terminal look has no tinted containers: the filled accent.
+    primaryContainer: primary,
+    onPrimaryContainer: onPrimary,
+    secondary: tones.secondaryText,
+    onSecondary: tones.surface,
+    secondaryContainer: tones.raisedHigh,
+    onSecondaryContainer: tones.text,
+    surface: tones.surface,
+    onSurface: tones.text,
+    onSurfaceVariant: tones.secondaryText,
+    surfaceDim: dark ? tones.surface : tones.raisedHigh,
+    surfaceBright: dark ? tones.raised : tones.surface,
+    surfaceContainerLowest: tones.surface,
+    surfaceContainerLow: tones.subtle,
+    surfaceContainer: tones.raised,
+    surfaceContainerHigh: tones.raisedHigh,
+    surfaceContainerHighest: tones.raisedHighest,
+    outline: tones.controlOutline,
+    outlineVariant: tones.hairline,
+    inverseSurface: tones.text,
+    onInverseSurface: tones.surface,
+    inversePrimary: accentWithContrast(
+      accent,
+      tones.text,
+      minContrast: kTextContrast,
+      darken: dark,
+    ),
+    surfaceTint: Colors.transparent,
+    shadow: Colors.black,
+    scrim: Colors.black,
+  );
+}
+
+/// The [AppTones] of [scheme]'s look (light, Dim, Lights out or one of
+/// the terminal looks).
+AppTones _tonesOf(ColorScheme scheme) {
+  final surface = scheme.surface.toARGB32();
+  if (surface == AppTones.terminalDark.surface.toARGB32()) {
+    return AppTones.terminalDark;
+  }
+  if (surface == AppTones.terminalPaper.surface.toARGB32()) {
+    return AppTones.terminalPaper;
+  }
+  return AppTones.of(scheme.brightness, lightsOut: surface == 0xFF000000);
+}
+
+/// The [AppPalette] matching [scheme]'s look (light, Dim, Lights out or
+/// terminal).
 AppPalette appPalette(ColorScheme scheme) => _tonesOf(scheme).palette;
 
 /// Material 3 theme with Mozhi's X-inspired component styling for
 /// [scheme]: flat neutral surfaces, hairlines, pill buttons and bold type.
 ///
 /// Registers [palette] (default: [appPalette] of [scheme]).
-ThemeData buildAppTheme(ColorScheme scheme, {AppPalette? palette}) {
+///
+/// Registers [look] too (default: [AppLook.classic]); the terminal look's
+/// component styling is built from it.
+ThemeData buildAppTheme(
+  ColorScheme scheme, {
+  AppPalette? palette,
+  AppLook look = AppLook.classic,
+}) {
   final pal = palette ?? appPalette(scheme);
+  if (look.isTerminal) return _terminalTheme(scheme, pal, look);
   final base = ThemeData(
     useMaterial3: true,
     colorScheme: scheme,
@@ -381,7 +625,7 @@ ThemeData buildAppTheme(ColorScheme scheme, {AppPalette? palette}) {
   );
 
   return base.copyWith(
-    extensions: [pal],
+    extensions: [pal, look],
     textTheme: textTheme,
     scaffoldBackgroundColor: scheme.surface,
     canvasColor: scheme.surface,
@@ -770,5 +1014,551 @@ TextTheme _textTheme(TextTheme base) {
     bodyMedium: base.bodyMedium?.copyWith(fontSize: 15, height: 1.4),
     bodySmall: base.bodySmall?.copyWith(height: 1.4),
     labelLarge: base.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+  );
+}
+
+/// Sizes (logical pixels) of the terminal look's text theme (JetBrains
+/// Mono): smaller than [AppTypeScale], as monospaced glyphs are wider,
+/// after the design's 22 px titles, 13–14 px body text and 12 px labels.
+abstract final class TerminalTypeScale {
+  /// `headlineLarge`.
+  static const double headlineLarge = 28;
+
+  /// `headlineMedium`: the greetings of empty screens.
+  static const double headlineMedium = 24;
+
+  /// `headlineSmall`: page titles (app bars, the translate title).
+  static const double headlineSmall = 22;
+
+  /// `titleLarge`: section headings.
+  static const double titleLarge = 18;
+
+  /// `titleMedium`: sub-headings and emphasised values.
+  static const double titleMedium = 15;
+
+  /// `titleSmall`: the labels of controls such as the language bar.
+  static const double titleSmall = 14;
+
+  /// `bodyLarge`: list titles, the input text of fields.
+  static const double bodyLarge = 15;
+
+  /// `bodyMedium`: body text.
+  static const double bodyMedium = 14;
+
+  /// `bodySmall`.
+  static const double bodySmall = 12;
+
+  /// `labelLarge`: buttons.
+  static const double labelLarge = 13;
+
+  /// `labelMedium`: small labels (navigation, `stdin`).
+  static const double labelMedium = 12;
+
+  /// `labelSmall`.
+  static const double labelSmall = 11;
+}
+
+/// The terminal look's text theme: [base] (already in
+/// [kTerminalFontFamily]) at [TerminalTypeScale]'s sizes, bold headings
+/// and no letter spacing (a monospaced font needs none).
+TextTheme _terminalTextTheme(TextTheme base) {
+  TextStyle? style(
+    TextStyle? style,
+    double size,
+    FontWeight weight, [
+    double? height,
+  ]) => style?.copyWith(
+    fontFamily: kTerminalFontFamily,
+    fontSize: size,
+    fontWeight: weight,
+    letterSpacing: 0,
+    height: height,
+  );
+  const heading = FontWeight.w800;
+  return base.copyWith(
+    displayLarge: style(base.displayLarge, 48, heading, 1.15),
+    displayMedium: style(base.displayMedium, 40, heading, 1.15),
+    displaySmall: style(base.displaySmall, 34, heading, 1.2),
+    headlineLarge: style(
+      base.headlineLarge,
+      TerminalTypeScale.headlineLarge,
+      heading,
+      1.25,
+    ),
+    headlineMedium: style(
+      base.headlineMedium,
+      TerminalTypeScale.headlineMedium,
+      heading,
+      1.25,
+    ),
+    headlineSmall: style(
+      base.headlineSmall,
+      TerminalTypeScale.headlineSmall,
+      heading,
+      1.3,
+    ),
+    titleLarge: style(
+      base.titleLarge,
+      TerminalTypeScale.titleLarge,
+      heading,
+      1.3,
+    ),
+    titleMedium: style(
+      base.titleMedium,
+      TerminalTypeScale.titleMedium,
+      FontWeight.w700,
+      1.4,
+    ),
+    titleSmall: style(
+      base.titleSmall,
+      TerminalTypeScale.titleSmall,
+      FontWeight.w700,
+      1.4,
+    ),
+    bodyLarge: style(
+      base.bodyLarge,
+      TerminalTypeScale.bodyLarge,
+      FontWeight.w400,
+      1.45,
+    ),
+    bodyMedium: style(
+      base.bodyMedium,
+      TerminalTypeScale.bodyMedium,
+      FontWeight.w400,
+      1.45,
+    ),
+    bodySmall: style(
+      base.bodySmall,
+      TerminalTypeScale.bodySmall,
+      FontWeight.w400,
+      1.4,
+    ),
+    labelLarge: style(
+      base.labelLarge,
+      TerminalTypeScale.labelLarge,
+      FontWeight.w700,
+      1.4,
+    ),
+    labelMedium: style(
+      base.labelMedium,
+      TerminalTypeScale.labelMedium,
+      FontWeight.w500,
+      1.35,
+    ),
+    labelSmall: style(
+      base.labelSmall,
+      TerminalTypeScale.labelSmall,
+      FontWeight.w500,
+      1.35,
+    ),
+  );
+}
+
+/// [buildAppTheme] for [AppLook.terminal]: JetBrains Mono, square corners
+/// on every component, 1 px borders instead of elevation, accent-filled
+/// primary actions with [ColorScheme.onPrimary] text (weight 800).
+ThemeData _terminalTheme(ColorScheme scheme, AppPalette pal, AppLook look) {
+  final base = ThemeData(
+    useMaterial3: true,
+    colorScheme: scheme,
+    brightness: scheme.brightness,
+    fontFamily: kTerminalFontFamily,
+  );
+  final textTheme = _terminalTextTheme(base.textTheme);
+  const square = RoundedRectangleBorder();
+  // Boxes and separators: the design's 1 px borders.
+  final border = BorderSide(color: pal.hairline);
+  // Interactive outlines: 3:1 (WCAG 1.4.11).
+  final controlSide = BorderSide(color: scheme.outline);
+  final inputBorder = OutlineInputBorder(
+    borderRadius: BorderRadius.zero,
+    borderSide: controlSide,
+  );
+  final buttonText = textTheme.labelLarge?.copyWith(
+    fontWeight: FontWeight.w700,
+  );
+  final filledText = textTheme.labelLarge?.copyWith(
+    fontWeight: FontWeight.w800,
+  );
+  final selectedTint = Color.alphaBlend(
+    scheme.primary.withValues(alpha: 0.16),
+    scheme.surface,
+  );
+  final boxShape = RoundedRectangleBorder(side: border);
+  Color? overlay(Set<WidgetState> states, Color color) =>
+      states.contains(WidgetState.pressed) ||
+          states.contains(WidgetState.hovered) ||
+          states.contains(WidgetState.focused)
+      ? color.withValues(alpha: 0.12)
+      : null;
+  // The accent block: the "run" button, FABs and other primary actions.
+  final accentButton = ButtonStyle(
+    textStyle: WidgetStatePropertyAll(filledText),
+    minimumSize: const WidgetStatePropertyAll(Size(64, 44)),
+    padding: const WidgetStatePropertyAll(
+      EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+    ),
+    shape: const WidgetStatePropertyAll(square),
+    elevation: const WidgetStatePropertyAll(0),
+    shadowColor: const WidgetStatePropertyAll(Colors.transparent),
+    surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
+    backgroundColor: WidgetStateProperty.resolveWith(
+      (states) => states.contains(WidgetState.disabled)
+          ? scheme.onSurface.withValues(alpha: 0.12)
+          : scheme.primary,
+    ),
+    foregroundColor: WidgetStateProperty.resolveWith(
+      (states) => states.contains(WidgetState.disabled)
+          ? scheme.onSurface.withValues(alpha: 0.38)
+          : scheme.onPrimary,
+    ),
+    iconColor: WidgetStateProperty.resolveWith(
+      (states) => states.contains(WidgetState.disabled)
+          ? scheme.onSurface.withValues(alpha: 0.38)
+          : scheme.onPrimary,
+    ),
+    overlayColor: WidgetStateProperty.resolveWith(
+      (states) => overlay(states, scheme.onPrimary),
+    ),
+  );
+
+  return base.copyWith(
+    extensions: [pal, look],
+    textTheme: textTheme,
+    scaffoldBackgroundColor: scheme.surface,
+    canvasColor: scheme.surface,
+    dividerColor: pal.hairline,
+    textSelectionTheme: TextSelectionThemeData(
+      cursorColor: scheme.primary,
+      selectionColor: scheme.primary.withValues(alpha: 0.35),
+      selectionHandleColor: scheme.primary,
+    ),
+    appBarTheme: AppBarThemeData(
+      backgroundColor: scheme.surface,
+      foregroundColor: scheme.onSurface,
+      surfaceTintColor: Colors.transparent,
+      shadowColor: Colors.transparent,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      centerTitle: false,
+      toolbarHeight: 60,
+      shape: Border(bottom: border),
+      titleTextStyle: textTheme.headlineSmall?.copyWith(
+        color: scheme.onSurface,
+      ),
+    ),
+    cardTheme: CardThemeData(
+      elevation: 0,
+      margin: EdgeInsets.zero,
+      color: scheme.surface,
+      surfaceTintColor: Colors.transparent,
+      shadowColor: Colors.transparent,
+      clipBehavior: Clip.antiAlias,
+      shape: boxShape,
+    ),
+    inputDecorationTheme: InputDecorationThemeData(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+      border: inputBorder,
+      enabledBorder: inputBorder,
+      disabledBorder: inputBorder.copyWith(borderSide: border),
+      focusedBorder: inputBorder.copyWith(
+        borderSide: BorderSide(color: scheme.primary, width: 2),
+      ),
+      errorBorder: inputBorder.copyWith(
+        borderSide: BorderSide(color: scheme.error),
+      ),
+      focusedErrorBorder: inputBorder.copyWith(
+        borderSide: BorderSide(color: scheme.error, width: 2),
+      ),
+      hintStyle: TextStyle(color: pal.secondaryText),
+    ),
+    chipTheme: ChipThemeData(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      labelPadding: const EdgeInsets.symmetric(horizontal: 6),
+      labelStyle: textTheme.labelLarge?.copyWith(color: scheme.onSurface),
+      backgroundColor: Colors.transparent,
+      side: WidgetStateBorderSide.resolveWith(
+        (states) => BorderSide(
+          color: states.contains(WidgetState.selected)
+              ? scheme.primary
+              : scheme.outline,
+        ),
+      ),
+      shape: square,
+      selectedColor: selectedTint,
+      checkmarkColor: scheme.primary,
+      iconTheme: IconThemeData(color: scheme.primary, size: 18),
+      elevation: 0,
+      pressElevation: 0,
+      // Selection is not conveyed by colour alone (WCAG 1.4.1).
+      showCheckmark: true,
+    ),
+    filledButtonTheme: FilledButtonThemeData(style: accentButton),
+    elevatedButtonTheme: ElevatedButtonThemeData(style: accentButton),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        textStyle: buttonText,
+        minimumSize: const Size(64, 44),
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+        shape: square,
+        foregroundColor: scheme.onSurface,
+        iconColor: scheme.onSurface,
+        side: controlSide,
+      ),
+    ),
+    textButtonTheme: TextButtonThemeData(
+      style: TextButton.styleFrom(
+        textStyle: buttonText,
+        minimumSize: const Size(48, 44),
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+        shape: square,
+      ),
+    ),
+    iconButtonTheme: IconButtonThemeData(
+      style: IconButton.styleFrom(shape: square),
+    ),
+    menuButtonTheme: MenuButtonThemeData(
+      style: MenuItemButton.styleFrom(shape: square),
+    ),
+    segmentedButtonTheme: SegmentedButtonThemeData(
+      style: SegmentedButton.styleFrom(
+        textStyle: buttonText,
+        // The selected segment is an accent block (with a check mark).
+        selectedBackgroundColor: scheme.primary,
+        selectedForegroundColor: scheme.onPrimary,
+        foregroundColor: scheme.onSurface,
+        side: controlSide,
+        shape: square,
+      ),
+    ),
+    toggleButtonsTheme: ToggleButtonsThemeData(
+      borderRadius: BorderRadius.zero,
+      borderColor: scheme.outline,
+      selectedBorderColor: scheme.primary,
+      selectedColor: scheme.onPrimary,
+      fillColor: scheme.primary,
+      color: scheme.onSurface,
+    ),
+    checkboxTheme: CheckboxThemeData(
+      shape: square,
+      side: BorderSide(color: scheme.outline, width: 2),
+    ),
+    floatingActionButtonTheme: FloatingActionButtonThemeData(
+      shape: square,
+      backgroundColor: scheme.primary,
+      foregroundColor: scheme.onPrimary,
+      elevation: 0,
+      focusElevation: 0,
+      hoverElevation: 0,
+      highlightElevation: 0,
+      disabledElevation: 0,
+      extendedTextStyle: filledText,
+    ),
+    tabBarTheme: TabBarThemeData(
+      labelColor: scheme.onSurface,
+      unselectedLabelColor: pal.secondaryText,
+      labelStyle: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+      unselectedLabelStyle: textTheme.titleSmall?.copyWith(
+        fontWeight: FontWeight.w500,
+      ),
+      indicatorSize: TabBarIndicatorSize.label,
+      indicator: UnderlineTabIndicator(
+        borderSide: BorderSide(color: scheme.primary, width: 3),
+        borderRadius: BorderRadius.zero,
+      ),
+      dividerColor: pal.hairline,
+      dividerHeight: 1,
+    ),
+    expansionTileTheme: const ExpansionTileThemeData(
+      shape: square,
+      collapsedShape: square,
+    ),
+    menuTheme: MenuThemeData(
+      style: MenuStyle(
+        backgroundColor: WidgetStatePropertyAll(scheme.surfaceContainer),
+        surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
+        shadowColor: const WidgetStatePropertyAll(Colors.transparent),
+        elevation: const WidgetStatePropertyAll(0),
+        side: WidgetStatePropertyAll(border),
+        shape: WidgetStatePropertyAll(boxShape),
+      ),
+    ),
+    dropdownMenuTheme: DropdownMenuThemeData(
+      menuStyle: MenuStyle(
+        backgroundColor: WidgetStatePropertyAll(scheme.surfaceContainer),
+        surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
+        shadowColor: const WidgetStatePropertyAll(Colors.transparent),
+        elevation: const WidgetStatePropertyAll(0),
+        side: WidgetStatePropertyAll(border),
+        shape: WidgetStatePropertyAll(boxShape),
+      ),
+    ),
+    popupMenuTheme: PopupMenuThemeData(
+      color: scheme.surfaceContainer,
+      surfaceTintColor: Colors.transparent,
+      shadowColor: Colors.transparent,
+      elevation: 0,
+      shape: boxShape,
+    ),
+    listTileTheme: ListTileThemeData(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+      iconColor: pal.secondaryText,
+      shape: square,
+      titleTextStyle: textTheme.bodyLarge?.copyWith(
+        color: scheme.onSurface,
+        fontWeight: FontWeight.w500,
+      ),
+      subtitleTextStyle: textTheme.bodyMedium?.copyWith(
+        color: pal.secondaryText,
+      ),
+    ),
+    // Material's switch track is always rounded; the terminal colours: an
+    // accent track with a dark thumb when on, an outlined one when off.
+    switchTheme: SwitchThemeData(
+      thumbColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.disabled)) {
+          return scheme.onSurface.withValues(alpha: 0.38);
+        }
+        return states.contains(WidgetState.selected)
+            ? scheme.onPrimary
+            : scheme.outline;
+      }),
+      trackColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.disabled)) {
+          return scheme.onSurface.withValues(alpha: 0.12);
+        }
+        return states.contains(WidgetState.selected)
+            ? scheme.primary
+            : scheme.surface;
+      }),
+      trackOutlineColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.focused)) return scheme.onSurface;
+        if (states.contains(WidgetState.disabled)) return pal.hairline;
+        return states.contains(WidgetState.selected)
+            ? scheme.primary
+            : scheme.outline;
+      }),
+      trackOutlineWidth: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.focused) ? 2 : 1,
+      ),
+      thumbIcon: const WidgetStatePropertyAll(null),
+    ),
+    navigationBarTheme: NavigationBarThemeData(
+      // The shell draws the terminal tabs (`1:<tab>` labels, the selected
+      // one on an accent block); these match them for any other bar.
+      backgroundColor: scheme.surface,
+      indicatorColor: scheme.primary,
+      indicatorShape: square,
+      surfaceTintColor: Colors.transparent,
+      shadowColor: Colors.transparent,
+      elevation: 0,
+      height: kNavigationBarHeight,
+      labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+      labelPadding: const EdgeInsets.only(top: 2),
+      iconTheme: WidgetStateProperty.resolveWith(
+        (states) => IconThemeData(
+          size: 22,
+          color: states.contains(WidgetState.selected)
+              ? scheme.onPrimary
+              : pal.secondaryText,
+        ),
+      ),
+      labelTextStyle: WidgetStateProperty.resolveWith(
+        (states) => textTheme.labelMedium?.copyWith(
+          color: states.contains(WidgetState.selected)
+              ? scheme.onSurface
+              : pal.secondaryText,
+          fontWeight: states.contains(WidgetState.selected)
+              ? FontWeight.w700
+              : FontWeight.w500,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ),
+    ),
+    navigationRailTheme: NavigationRailThemeData(
+      backgroundColor: scheme.surface,
+      elevation: 0,
+      useIndicator: true,
+      indicatorColor: scheme.primary,
+      indicatorShape: square,
+      labelType: NavigationRailLabelType.all,
+      groupAlignment: -1,
+      selectedIconTheme: IconThemeData(color: scheme.onPrimary, size: 22),
+      unselectedIconTheme: IconThemeData(color: pal.secondaryText, size: 22),
+      selectedLabelTextStyle: textTheme.labelMedium?.copyWith(
+        fontWeight: FontWeight.w700,
+        color: scheme.onSurface,
+      ),
+      unselectedLabelTextStyle: textTheme.labelMedium?.copyWith(
+        fontWeight: FontWeight.w500,
+        color: pal.secondaryText,
+      ),
+    ),
+    navigationDrawerTheme: NavigationDrawerThemeData(
+      backgroundColor: scheme.surface,
+      surfaceTintColor: Colors.transparent,
+      shadowColor: Colors.transparent,
+      elevation: 0,
+      indicatorColor: scheme.primary,
+      indicatorShape: square,
+    ),
+    drawerTheme: DrawerThemeData(
+      backgroundColor: scheme.surface,
+      surfaceTintColor: Colors.transparent,
+      shadowColor: Colors.transparent,
+      elevation: 0,
+      shape: square,
+      endShape: square,
+    ),
+    snackBarTheme: SnackBarThemeData(
+      behavior: SnackBarBehavior.floating,
+      shape: square,
+      elevation: 0,
+      backgroundColor: scheme.inverseSurface,
+      contentTextStyle: textTheme.bodyMedium?.copyWith(
+        color: scheme.onInverseSurface,
+      ),
+      actionTextColor: scheme.inversePrimary,
+    ),
+    bottomSheetTheme: BottomSheetThemeData(
+      showDragHandle: true,
+      backgroundColor: scheme.surface,
+      modalBackgroundColor: scheme.surface,
+      surfaceTintColor: Colors.transparent,
+      shadowColor: Colors.transparent,
+      elevation: 0,
+      modalElevation: 0,
+      dragHandleColor: scheme.outline,
+      // Square top corners; the border keeps the sheet apart from the
+      // dimmed page behind it.
+      shape: boxShape,
+    ),
+    dialogTheme: DialogThemeData(
+      backgroundColor: scheme.surfaceContainer,
+      surfaceTintColor: Colors.transparent,
+      shadowColor: Colors.transparent,
+      elevation: 0,
+      shape: boxShape,
+      titleTextStyle: textTheme.titleLarge?.copyWith(color: scheme.onSurface),
+    ),
+    dividerTheme: DividerThemeData(color: pal.hairline, space: 1, thickness: 1),
+    progressIndicatorTheme: ProgressIndicatorThemeData(
+      color: scheme.primary,
+      linearTrackColor: pal.hairline,
+      circularTrackColor: Colors.transparent,
+    ),
+    searchBarTheme: SearchBarThemeData(
+      elevation: const WidgetStatePropertyAll(0),
+      backgroundColor: WidgetStatePropertyAll(scheme.surfaceContainer),
+      surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
+      shadowColor: const WidgetStatePropertyAll(Colors.transparent),
+      side: WidgetStatePropertyAll(controlSide),
+      shape: const WidgetStatePropertyAll(square),
+    ),
+    tooltipTheme: TooltipThemeData(
+      waitDuration: const Duration(milliseconds: 500),
+      decoration: BoxDecoration(color: scheme.inverseSurface),
+      textStyle: textTheme.bodySmall?.copyWith(color: scheme.onInverseSurface),
+    ),
   );
 }

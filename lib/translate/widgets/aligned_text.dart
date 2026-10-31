@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart' show AppLook;
 import 'package:mozhi/core/widgets/focus_ring.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/widgets/status_announcer.dart';
@@ -322,8 +323,10 @@ class _AlignedTextState extends State<AlignedText> {
       // The app's keyboard focus ring (it is not an ink well).
       child: FocusRing(
         key: const Key('translate_aligned_text_focus'),
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(4)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(
+            Radius.circular(AppLook.of(context).controlRadius(4)),
+          ),
         ),
         child: Focus(
           focusNode: _focusNode,

@@ -63,6 +63,19 @@ enum AppLockTimeout {
       (name is String ? values.asNameMap()[name] : null) ?? off;
 }
 
+/// The app's look ([AppSettings.style]): [terminal] (the default) is a
+/// monospaced, square-cornered command-line look on near-black with an
+/// amber (or green, cyan, pink) accent; [classic] is the rounded look with
+/// pill buttons, Dim or Lights out.
+enum AppStyle {
+  terminal,
+  classic;
+
+  /// The style whose id ([name]) is [id], or null for anything else.
+  static AppStyle? fromId(Object? id) =>
+      id is String ? values.asNameMap()[id] : null;
+}
+
 /// The four tabs of the app, in their default order.
 ///
 /// [name] is the tab's stable id, stored in [AppSettings.tabOrder]; [index]
@@ -127,6 +140,8 @@ class AppSettings extends Equatable {
     this.highlightSpokenWord = true,
     this.offlineAppShell = true,
     this.fallbackToDuckDuckGo = false,
+    this.style = AppStyle.terminal,
+    this.terminalAccent = kTerminalAmber,
   });
 
   /// Tolerant counterpart of [toJson]: missing or invalid fields fall back to
@@ -222,6 +237,11 @@ class AppSettings extends Equatable {
           _bool(json['offlineAppShell']) ?? defaults.offlineAppShell,
       fallbackToDuckDuckGo:
           _bool(json['fallbackToDuckDuckGo']) ?? defaults.fallbackToDuckDuckGo,
+      style: AppStyle.fromId(json['style']) ?? defaults.style,
+      terminalAccent: switch (_int(json['terminalAccent'])) {
+        final int accent when kTerminalAccents.contains(accent) => accent,
+        _ => defaults.terminalAccent,
+      },
     );
   }
 
@@ -430,6 +450,22 @@ class AppSettings extends Equatable {
   /// in Offline first a "Once" given for Google does not cover it).
   final bool fallbackToDuckDuckGo;
 
+  /// The app's look; [AppStyle.terminal] by default.
+  final AppStyle style;
+
+  /// The accent of the terminal look (ARGB, one of [kTerminalAccents]:
+  /// amber, the default, green, cyan or pink). The classic look uses
+  /// [seedColor] (or Material You) instead.
+  final int terminalAccent;
+
+  /// The theme mode the app uses: [themeMode], except that the terminal
+  /// look is dark when it follows the system (it has a light, paper
+  /// variant for an explicit "Light").
+  ThemeMode get effectiveThemeMode =>
+      style == AppStyle.terminal && themeMode == ThemeMode.system
+      ? ThemeMode.dark
+      : themeMode;
+
   /// The quality mode a start of the app begins in when [rememberQuality]
   /// is off: [QualityMode.fast] when a fast engine is chosen, else
   /// [QualityMode.off] (the usual engine).
@@ -492,6 +528,8 @@ class AppSettings extends Equatable {
     bool? highlightSpokenWord,
     bool? offlineAppShell,
     bool? fallbackToDuckDuckGo,
+    AppStyle? style,
+    int? terminalAccent,
   }) {
     return AppSettings(
       themeMode: themeMode ?? this.themeMode,
@@ -540,6 +578,8 @@ class AppSettings extends Equatable {
       highlightSpokenWord: highlightSpokenWord ?? this.highlightSpokenWord,
       offlineAppShell: offlineAppShell ?? this.offlineAppShell,
       fallbackToDuckDuckGo: fallbackToDuckDuckGo ?? this.fallbackToDuckDuckGo,
+      style: style ?? this.style,
+      terminalAccent: terminalAccent ?? this.terminalAccent,
     );
   }
 
@@ -608,6 +648,8 @@ class AppSettings extends Equatable {
       'highlightSpokenWord': highlightSpokenWord,
       'offlineAppShell': offlineAppShell,
       'fallbackToDuckDuckGo': fallbackToDuckDuckGo,
+      'style': style.name,
+      'terminalAccent': terminalAccent,
     };
   }
 
@@ -658,8 +700,22 @@ class AppSettings extends Equatable {
     highlightSpokenWord,
     offlineAppShell,
     fallbackToDuckDuckGo,
+    style,
+    terminalAccent,
   ];
 }
+
+/// The default accent of the terminal look (ARGB amber).
+const int kTerminalAmber = 0xFFFFB000;
+
+/// The accents of the terminal look (ARGB): amber (the default), green,
+/// cyan and pink.
+const List<int> kTerminalAccents = [
+  kTerminalAmber,
+  0xFF39FF88,
+  0xFF7DD3FC,
+  0xFFFF6B9A,
+];
 
 bool? _bool(Object? value) => value is bool ? value : null;
 

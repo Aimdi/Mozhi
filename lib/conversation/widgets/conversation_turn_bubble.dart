@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/conversation/cubit/conversation_cubit.dart';
 import 'package:mozhi/conversation/models/conversation_turn.dart';
 import 'package:mozhi/conversation/widgets/conversation_listen_button.dart';
@@ -164,12 +165,16 @@ class ConversationTurnBubble extends StatelessWidget {
       formatConversationTime(context, turn.createdAt),
       ?turn.engineName,
     ].join(' · ');
-    // Rounded, with a smaller corner toward the speaker.
+    // Rounded, with a smaller corner toward the speaker (square in the
+    // terminal look).
+    final look = AppLook.of(context);
+    final round = Radius.circular(look.controlRadius(20));
+    final tip = Radius.circular(look.controlRadius(4));
     final radius = BorderRadiusDirectional.only(
-      topStart: const Radius.circular(20),
-      topEnd: const Radius.circular(20),
-      bottomStart: Radius.circular(alignEnd ? 20 : 4),
-      bottomEnd: Radius.circular(alignEnd ? 4 : 20),
+      topStart: round,
+      topEnd: round,
+      bottomStart: alignEnd ? round : tip,
+      bottomEnd: alignEnd ? tip : round,
     );
     final speaker = turn.source.isAuto ? turn.target : turn.source;
     final avatar = LanguageAvatar(

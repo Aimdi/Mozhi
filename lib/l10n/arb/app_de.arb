@@ -2791,5 +2791,13 @@
   "voiceBrowserNoticeContinue": "Spracherkennung nutzen",
   "voiceErrorUnavailableBrowser": "Dieser Browser hat keine Spracherkennung. Probiere Chrome, Edge oder Safari oder tippe stattdessen.",
   "offlineDirectionIntoOnly": "Nur nach {language}",
-  "offlineDirectionFromOnly": "Nur aus {language}"
+  "offlineDirectionFromOnly": "Nur aus {language}",
+  "settingsStyle": "Stil",
+  "settingsStyleSubtitle": "Terminal nutzt Festbreitenschrift und eckige Formen auf fast schwarzem Grund; Klassisch ist abgerundet, mit Gedimmt oder Licht aus",
+  "settingsStyleTerminal": "Terminal",
+  "settingsStyleClassic": "Klassisch",
+  "settingsStyleKeywords": "Terminal, klassisch, Aussehen, Optik, Schrift, Schriftart, Festbreitenschrift, nichtproportional, classic, monospace, monospaced, JetBrains Mono",
+  "settingsThemeTerminalSubtitle": "Im Stil Terminal bedeutet System dunkel; Hell ergibt die Papieroptik",
+  "settingsColorAmber": "Bernstein",
+  "settingsColorCyan": "Cyan"
 }

@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/widgets/consent_prompt.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
@@ -175,7 +176,9 @@ class _Translation extends StatelessWidget {
             child: LinearProgressIndicator(
               key: const Key('quick_translate_streaming'),
               semanticsLabel: l10n.translateTranslating,
-              borderRadius: const BorderRadius.all(Radius.circular(4)),
+              borderRadius: BorderRadius.circular(
+                AppLook.of(context).controlRadius(4),
+              ),
             ),
           ),
         // Offline only, the "On device" chip is next to the target already.
@@ -211,7 +214,9 @@ class _Progress extends StatelessWidget {
           LinearProgressIndicator(
             key: const Key('quick_translate_progress'),
             semanticsLabel: label,
-            borderRadius: const BorderRadius.all(Radius.circular(4)),
+            borderRadius: BorderRadius.circular(
+              AppLook.of(context).controlRadius(4),
+            ),
           ),
           const SizedBox(height: 12),
           ExcludeSemantics(

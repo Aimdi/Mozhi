@@ -98,6 +98,19 @@ void main() {
         direction: TextDirection.ltr,
       );
       expect(moved.shouldRepaint(painter), isTrue);
+      // Square outlines (the terminal look) repaint too.
+      final square = LiveOverlayPainter(
+        labels: labels,
+        reading: const [Rect.fromLTWH(10, 10, 40, 20)],
+        frameSize: _frame,
+        previewRect: const Rect.fromLTWH(0, 0, 450, 800),
+        hintOf: (original) => original,
+        direction: TextDirection.ltr,
+        readingRadius: 0,
+      );
+      expect(square.shouldRepaint(moved), isTrue);
+      expect(square.readingRadius, 0);
+      expect(moved.readingRadius, 4);
       for (final label in labels) {
         label.dispose();
       }

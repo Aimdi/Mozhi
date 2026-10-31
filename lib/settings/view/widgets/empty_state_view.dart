@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 
 /// Tone of an [EmptyStateView]'s illustration.
@@ -70,7 +71,9 @@ class EmptyStateView extends StatelessWidget {
                     child: DecoratedBox(
                       decoration: BoxDecoration(
                         color: background,
-                        shape: BoxShape.circle,
+                        shape: AppLook.of(context).isTerminal
+                            ? BoxShape.rectangle
+                            : BoxShape.circle,
                       ),
                       child: Icon(icon, size: circle / 2, color: foreground),
                     ),

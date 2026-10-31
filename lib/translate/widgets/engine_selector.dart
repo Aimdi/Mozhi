@@ -14,6 +14,7 @@ import 'package:mozhi/on_device_ai/data/on_device_models.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/widgets/quality_toggle.dart';
+import 'package:mozhi/translate/widgets/terminal_chrome.dart';
 import 'package:mozhi/translate/widgets/translate_layout.dart'
     show isOfflineEngineId;
 import 'package:translation_repository/translation_repository.dart';
@@ -48,6 +49,17 @@ class EngineSelectorButton extends StatelessWidget {
             ? l10n.translateEngineOnDeviceOnline(online.name)
             : engine?.name ?? l10n.translateEngineSheetTitle;
         final secondary = state.hasQualityModes;
+        if (AppLook.of(context).isTerminal) {
+          return _terminal(
+            context,
+            state: state,
+            name: name,
+            secondary: secondary,
+            tooltip: online != null
+                ? l10n.translateEngineOnDeviceOnlineTooltip(online.name)
+                : l10n.translateEngineSelectorTooltip,
+          );
+        }
         return Tooltip(
           message: online != null
               ? l10n.translateEngineOnDeviceOnlineTooltip(online.name)
@@ -59,9 +71,8 @@ class EngineSelectorButton extends StatelessWidget {
             style: TextButton.styleFrom(
               minimumSize: const Size(48, 48),
               padding: const EdgeInsetsDirectional.only(start: 12, end: 8),
-              shape: StadiumBorder(
-                side: BorderSide(color: theme.colorScheme.outline),
-              ),
+              shape: AppLook.of(context).control
+                  .copyWith(side: BorderSide(color: theme.colorScheme.outline)),
               backgroundColor: Colors.transparent,
               foregroundColor: theme.colorScheme.onSurface,
             ),
@@ -106,6 +117,60 @@ class EngineSelectorButton extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+
+  /// The terminal look's selector: `● <engine>` and a chevron, no outline
+  /// (the accent dot is decoration; the name, tooltip and action are the
+  /// same).
+  Widget _terminal(
+    BuildContext context, {
+    required TranslateState state,
+    required String name,
+    required bool secondary,
+    required String tooltip,
+  }) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final muted = AppPalette.of(context).secondaryText;
+    final style = theme.textTheme.labelLarge?.copyWith(
+      fontSize: 13,
+      fontWeight: FontWeight.w500,
+      color: secondary ? muted : scheme.onSurface,
+    );
+    return Tooltip(
+      message: tooltip,
+      child: TextButton(
+        key: const Key('translate_engine_selector'),
+        style: TextButton.styleFrom(
+          minimumSize: const Size(48, 48),
+          padding: const EdgeInsetsDirectional.only(start: 4, end: 4),
+          shape: const RoundedRectangleBorder(),
+          backgroundColor: Colors.transparent,
+          foregroundColor: scheme.onSurface,
+        ),
+        onPressed: state.engines.isEmpty
+            ? null
+            : () => unawaited(showEngineSheet(context)),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TerminalGlyphDot(color: secondary ? muted : scheme.primary),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                name,
+                key: const Key('translate_engine_selector_name'),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: style,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Icon(Icons.expand_more, size: 16, color: muted),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -642,7 +707,7 @@ class PrivacyBadge extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: background,
-        borderRadius: const BorderRadius.all(Radius.circular(AppRadius.badge)),
+        borderRadius: AppLook.of(context).badgeRadius,
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/conversation/cubit/conversation_cubit.dart';
 import 'package:mozhi/conversation/models/conversation_turn.dart';
 import 'package:mozhi/conversation/widgets/conversation_language_picker.dart';
@@ -62,7 +63,7 @@ class ConversationLanguageButton extends StatelessWidget {
           style: OutlinedButton.styleFrom(
             foregroundColor: Theme.of(context).colorScheme.onSurface,
             side: BorderSide(color: colors.accent),
-            shape: const StadiumBorder(),
+            shape: AppLook.of(context).control,
             minimumSize: const Size(48, 48),
             padding: const EdgeInsetsDirectional.only(start: 8, end: 12),
             textStyle: const TextStyle(fontWeight: FontWeight.w700),
@@ -122,7 +123,7 @@ class ConversationLanguagePill extends StatelessWidget {
     return DecoratedBox(
       key: const Key('conversation_language_pill'),
       decoration: ShapeDecoration(
-        shape: StadiumBorder(
+        shape: AppLook.of(context).control.copyWith(
           side: BorderSide(color: Theme.of(context).colorScheme.outline),
         ),
       ),
@@ -161,6 +162,7 @@ class _PillLanguage extends StatelessWidget {
     final inSession = turn != null;
     final active = turn ?? false;
     final colors = ConversationSideColors.of(context, side);
+    final shape = AppLook.of(context).control;
     final pick = l10n.conversationChangeLanguage(language.name);
     final label = inSession
         ? l10n.conversationSessionSpeakNext(language.name)
@@ -182,12 +184,12 @@ class _PillLanguage extends StatelessWidget {
           type: MaterialType.transparency,
           child: Ink(
             decoration: ShapeDecoration(
-              shape: const StadiumBorder(),
+              shape: shape,
               color: active ? colors.container : null,
             ),
             child: InkWell(
               key: Key('conversation_language_${side.name}'),
-              customBorder: const StadiumBorder(),
+              customBorder: shape,
               onTap: inSession ? speakNext : openPicker,
               onLongPress: inSession ? openPicker : null,
               child: ConstrainedBox(

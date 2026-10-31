@@ -143,7 +143,7 @@ class _NoMethods extends StatelessWidget {
       key: const Key('image_translate_no_methods'),
       decoration: BoxDecoration(
         border: Border.all(color: palette.hairline),
-        borderRadius: AppRadius.cardBorderRadius,
+        borderRadius: AppLook.of(context).cardRadius,
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),

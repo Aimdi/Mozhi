@@ -291,7 +291,7 @@ class _ProviderTile extends StatelessWidget {
         color: colors.surface,
         clipBehavior: Clip.antiAlias,
         shape: RoundedRectangleBorder(
-          borderRadius: AppRadius.cardBorderRadius,
+          borderRadius: AppLook.of(context).cardRadius,
           side: BorderSide(color: Theme.of(context).colorScheme.outline),
         ),
         child: InkWell(
@@ -380,7 +380,9 @@ class _EmptyState extends StatelessWidget {
           DecoratedBox(
             decoration: BoxDecoration(
               color: colors.primaryContainer,
-              shape: BoxShape.circle,
+              shape: AppLook.of(context).isTerminal
+                  ? BoxShape.rectangle
+                  : BoxShape.circle,
             ),
             child: Padding(
               padding: const EdgeInsets.all(20),

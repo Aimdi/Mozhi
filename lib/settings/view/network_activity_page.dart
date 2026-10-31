@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/network/network_session.dart';
 import 'package:mozhi/core/privacy/egress/egress.dart';
 import 'package:mozhi/core/widgets/consent_prompt.dart' show upstreamEngineName;
@@ -401,7 +402,9 @@ class _Headline extends StatelessWidget {
                 child: DecoratedBox(
                   decoration: BoxDecoration(
                     color: background,
-                    shape: BoxShape.circle,
+                    shape: AppLook.of(context).isTerminal
+                        ? BoxShape.rectangle
+                        : BoxShape.circle,
                   ),
                   child: Icon(icon, size: 28, color: foreground),
                 ),

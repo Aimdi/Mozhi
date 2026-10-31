@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/conversation/widgets/conversation_session_mic.dart';
 import 'package:mozhi/conversation/widgets/conversation_session_status.dart';
 import 'package:mozhi/l10n/l10n.dart';
@@ -110,7 +111,7 @@ class ConversationBetaBadge extends StatelessWidget {
       key: const Key('conversation_beta_badge'),
       decoration: ShapeDecoration(
         color: scheme.tertiaryContainer,
-        shape: const StadiumBorder(),
+        shape: AppLook.of(context).control,
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),

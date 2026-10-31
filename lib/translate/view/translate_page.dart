@@ -4,9 +4,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart' show AppLook;
 import 'package:mozhi/app/view/top_level_actions.dart';
 import 'package:mozhi/core/widgets/composer_card.dart';
 import 'package:mozhi/core/widgets/fold_aware_split.dart';
+import 'package:mozhi/core/widgets/terminal_rule.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
@@ -446,17 +448,21 @@ class _TranslateScaffoldState extends State<_TranslateScaffold> {
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
+    final terminal = AppLook.of(context).isTerminal;
     return LayoutBuilder(
       builder: (context, constraints) {
         final chipInHero = _chipInHero ??= ValueNotifier(
-          translateComposerIsIdle(context.read<TranslateCubit>().state) &&
+          !terminal &&
+              translateComposerIsIdle(context.read<TranslateCubit>().state) &&
               constraints.maxWidth < TranslateLayout.wideBreakpoint &&
               FoldAwareSplit.featureDirectionOf(context) == null,
         );
         return Scaffold(
           appBar: _TranslateAppBar(
-            showTitle: width >= TranslateLayout.compactBreakpoint,
+            // The terminal look names the screen in its header instead.
+            showTitle: !terminal && width >= TranslateLayout.compactBreakpoint,
             chipInHero: chipInHero,
+            terminal: terminal,
           ),
           body: BlocBuilder<TranslateCubit, TranslateState>(
             buildWhen: (previous, current) =>
@@ -503,10 +509,30 @@ class _TranslateScaffoldState extends State<_TranslateScaffold> {
   }
 }
 
+/// The translate screen's app bar. In the terminal look ([terminal]) it
+/// is [terminalHeight] high with a dashed rule under it ([TerminalRule]),
+/// the engine selector (`● <engine>`) at the start and no title (the
+/// screen's header names it).
 class _TranslateAppBar extends StatelessWidget implements PreferredSizeWidget {
-  const new({required this.showTitle, required this.chipInHero});
+  const new({
+    required this.showTitle,
+    required this.chipInHero,
+    this.terminal = false,
+  });
 
   final bool showTitle;
+
+  /// Whether the bar takes the terminal look.
+  final bool terminal;
+
+  /// Height of the terminal look's bar (without its rule).
+  static const double terminalHeight = 60;
+
+  /// The terminal look's dashed rule under the bar.
+  static const _rule = PreferredSize(
+    preferredSize: Size.fromHeight(TerminalRule.thickness),
+    child: TerminalRule(),
+  );
 
   /// Whether the body's greeting holds the quality chip (the toggle here
   /// is left out then).
@@ -516,7 +542,9 @@ class _TranslateAppBar extends StatelessWidget implements PreferredSizeWidget {
   static const _maxTitleShare = 0.4;
 
   @override
-  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
+  Size get preferredSize => Size.fromHeight(
+    terminal ? terminalHeight + TerminalRule.thickness : kToolbarHeight,
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -526,6 +554,8 @@ class _TranslateAppBar extends StatelessWidget implements PreferredSizeWidget {
     );
     if (noEngines) {
       return AppBar(
+        toolbarHeight: terminal ? terminalHeight : null,
+        bottom: terminal ? _rule : null,
         title: Text(l10n.translateTitle),
         actions: const [
           TopLevelActions(),
@@ -547,7 +577,13 @@ class _TranslateAppBar extends StatelessWidget implements PreferredSizeWidget {
       builder: (context, chipInHero, _) {
         final toggle = hasQualityModes && !chipInHero;
         return AppBar(
-          titleSpacing: showTitle ? null : 8,
+          toolbarHeight: terminal ? terminalHeight : null,
+          bottom: terminal ? _rule : null,
+          titleSpacing: terminal
+              ? 12
+              : showTitle
+              ? null
+              : 8,
           title: LayoutBuilder(
             builder: (context, constraints) {
               final layout = QualityToggle.layoutFor(
@@ -659,7 +695,8 @@ class _InputThread extends StatelessWidget {
       key: const Key('translate_input_thread'),
       code: code,
       connector: joined,
-      showAvatar: avatar && !compact,
+      // The terminal look's boxes go without avatars.
+      showAvatar: avatar && !compact && !AppLook.of(context).isTerminal,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -715,7 +752,16 @@ class _OutputSectionState extends State<_OutputSection> {
     final compareMode = context.select<TranslateCubit, bool>(
       (cubit) => cubit.state.compareMode,
     );
-    if (compareMode) return const ComparePanel();
+    final terminal = AppLook.of(context).isTerminal;
+    if (compareMode) {
+      return terminal
+          ? const TerminalPanel(
+              key: Key('translate_terminal_stdout'),
+              label: 'stdout',
+              child: ComparePanel(),
+            )
+          : const ComparePanel();
+    }
     final threaded = context.select<TranslateCubit, bool>(
       (cubit) => outputJoinsThread(cubit.state),
     );
@@ -730,14 +776,23 @@ class _OutputSectionState extends State<_OutputSection> {
     );
     final more = TranslateMoreScope.maybeOf(context);
     final expanded = hasOutput && (more?.expanded ?? false);
-    final output = OutputCard(meaningButtonFocusNode: _meaningButton);
+    final card = OutputCard(meaningButtonFocusNode: _meaningButton);
+    // The terminal look's `stdout` box, while there is something in it.
+    final output = terminal
+        ? TerminalPanel(
+            key: const Key('translate_terminal_stdout'),
+            label: 'stdout',
+            show: !outputEmpty,
+            child: card,
+          )
+        : card;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (widget.memory) const TranslationMemoryCard(),
         // Typing waits for Enter while the phone is hot or saving battery.
         const OnDeviceAiStrainNote(),
-        if (threaded && widget.avatar)
+        if (threaded && widget.avatar && !terminal)
           TranslateThreadRow(
             key: const Key('translate_output_thread'),
             code: targetCode,
@@ -745,7 +800,7 @@ class _OutputSectionState extends State<_OutputSection> {
             child: output,
           )
         else ...[
-          if (widget.separated && !outputEmpty) const Hairline(),
+          if (widget.separated && !outputEmpty && !terminal) const Hairline(),
           output,
         ],
         MeaningCheckPanel(
@@ -910,6 +965,10 @@ class _TranslateBodyState extends State<_TranslateBody> {
         wide: widget.wide,
         focusNode: widget.focusNode,
       );
+    } else if (AppLook.of(context).isTerminal) {
+      // The quality toggle stays in the top bar.
+      widget.onChipInHeroChanged(false);
+      body = _TerminalLayout(wide: widget.wide, focusNode: widget.focusNode);
     } else if (widget.wide) {
       widget.onChipInHeroChanged(false);
       body = _PanesLayout(focusNode: widget.focusNode);
@@ -939,6 +998,150 @@ class _TranslateBodyState extends State<_TranslateBody> {
       );
     }
     return FocusTraversalGroup(policy: OrderedTraversalPolicy(), child: body);
+  }
+}
+
+/// [_TranslateBody] in the terminal look ([AppLook.isTerminal]) without a
+/// hinge or fold, one scrolling column from top to bottom: the header
+/// ([TranslateTerminalHeader]: `// <greeting>` and the title), the
+/// language box ([LanguageBar], or from [TranslateLayout.wideBreakpoint]
+/// the [LanguagePaneHeader]), the active options, the `stdin` box
+/// ([InputCard]) and, once there is something to show, the `stdout` box
+/// with the translation ([_OutputSection]). While the input is empty the
+/// newest translations follow ([TranslateHistoryTail]), then the
+/// "Paste and translate" and on-device AI offers of the empty screen.
+///
+/// From [TranslateLayout.wideBreakpoint] ([wide]) the input and the
+/// translation are side by side under the language box (the `stdout` box
+/// always shows there, with a quiet "Translation" while empty).
+///
+/// Nothing moves when the field takes the focus; the keyboard visits the
+/// input, the language controls, then the translation ([_FocusOrder]).
+class _TerminalLayout extends StatelessWidget {
+  const new({required this.wide, required this.focusNode});
+
+  final bool wide;
+  final FocusNode focusNode;
+
+  /// Space above the language box and between the boxes (the mock's).
+  static const double headerGap = 18;
+  static const double boxGap = 12;
+  static const double tailGap = 22;
+
+  @override
+  Widget build(BuildContext context) {
+    final idle = context.select<TranslateCubit, bool>(
+      (cubit) => translateComposerIsIdle(cubit.state),
+    );
+    final inputEmpty = context.select<TranslateCubit, bool>(
+      (cubit) => cubit.state.input.isEmpty,
+    );
+    final outputEmpty = context.select<TranslateCubit, bool>(
+      (cubit) =>
+          !cubit.state.compareMode && translateOutputIsEmpty(cubit.state),
+    );
+    final width = MediaQuery.sizeOf(context).width;
+    final header = TranslateTerminalHeader(
+      greet: idle,
+      // Where the classic app bar names the screen.
+      announceTitle: width >= TranslateLayout.compactBreakpoint,
+    );
+    final input = _ordered(
+      _FocusOrder.input,
+      _SwapFade(
+        child: InputCard(
+          focusNode: focusNode,
+          minLines: wide && !inputEmpty ? _PanesLayout.lines : 3,
+        ),
+      ),
+    );
+    final empty = [
+      if (inputEmpty) ...[
+        const SizedBox(height: tailGap),
+        _ordered(_FocusOrder.hero, const TranslateHistoryTail()),
+      ],
+      if (idle) ...[const TranslatePasteOffer(), const OnDeviceAiOffer()],
+    ];
+    final output = _ordered(
+      _FocusOrder.output,
+      _SwapFade(
+        child: _OutputSection(memory: wide, separated: false, avatar: false),
+      ),
+    );
+    final Widget panes;
+    if (wide) {
+      panes = Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              key: const Key('translate_input_pane'),
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [input, ...empty],
+            ),
+          ),
+          const SizedBox(width: TranslateLayout.gutter),
+          Expanded(
+            child: Column(
+              key: const Key('translate_output_pane'),
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (outputEmpty)
+                  const TerminalPanel(
+                    label: 'stdout',
+                    child: _OutputPlaceholder(),
+                  ),
+                output,
+              ],
+            ),
+          ),
+        ],
+      );
+    } else {
+      panes = Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          input,
+          const TranslationMemoryCard(),
+          SizedBox(height: outputEmpty ? 0 : boxGap),
+          output,
+          ...empty,
+        ],
+      );
+    }
+    final side = wide ? ComposerLayout.wideSide : TranslateLayout.gutter;
+    return SingleChildScrollView(
+      key: Key(wide ? 'translate_wide_layout' : 'translate_narrow_layout'),
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+      padding: EdgeInsets.fromLTRB(side, 24, side, 32),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: wide
+                ? TranslateLayout.maxWideWidth
+                : TranslateLayout.maxColumnWidth,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              header,
+              const SizedBox(height: headerGap),
+              // A tap on the languages is not a tap outside the input.
+              TapRegion(
+                groupId: InputCard.tapGroup,
+                child: _ordered(
+                  _FocusOrder.languages,
+                  wide ? const LanguagePaneHeader() : const LanguageBar(),
+                ),
+              ),
+              _ordered(_FocusOrder.activeOptions, const ActiveOptionsBar()),
+              const SizedBox(height: boxGap),
+              panes,
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 

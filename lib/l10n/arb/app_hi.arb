@@ -2791,5 +2791,13 @@
   "voiceBrowserNoticeContinue": "बोली पहचान इस्तेमाल करें",
   "voiceErrorUnavailableBrowser": "इस ब्राउज़र में बोली पहचान नहीं है। Chrome, Edge या Safari आज़माएं, या टाइप करें।",
   "offlineDirectionIntoOnly": "सिर्फ़ {language} में",
-  "offlineDirectionFromOnly": "सिर्फ़ {language} से"
+  "offlineDirectionFromOnly": "सिर्फ़ {language} से",
+  "settingsStyle": "शैली",
+  "settingsStyleSubtitle": "टर्मिनल लगभग काले रंग पर मोनोस्पेस फ़ॉन्ट और चौकोर कोनों वाला है; क्लासिक गोल कोनों वाला है, धुंधला या लाइट्स बंद के साथ",
+  "settingsStyleTerminal": "टर्मिनल",
+  "settingsStyleClassic": "क्लासिक",
+  "settingsStyleKeywords": "टर्मिनल, क्लासिक, शैली, दिखावट, लुक, फ़ॉन्ट, मोनोस्पेस, terminal, classic, monospace, monospaced, JetBrains Mono",
+  "settingsThemeTerminalSubtitle": "टर्मिनल शैली में सिस्टम का मतलब डार्क है; लाइट से काग़ज़ जैसा रूप मिलता है",
+  "settingsColorAmber": "एम्बर",
+  "settingsColorCyan": "आसमानी"
 }

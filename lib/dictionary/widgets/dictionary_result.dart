@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/widgets/composer_card.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/dictionary/cubit/dictionary_cubit.dart';
@@ -40,6 +41,7 @@ class DictionaryEngineMessage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final look = AppLook.of(context);
     final hasEngine = context.select<DictionaryCubit, bool>(
       (cubit) => cubit.state.hasEngine || cubit.state.hasOfflineDictionaries,
     );
@@ -68,7 +70,7 @@ class DictionaryEngineMessage extends StatelessWidget {
         title: l10n.dictionaryEnginesErrorTitle,
         body: l10n.dictionaryEnginesErrorBody,
         action: FilledButton.icon(
-          style: FilledButton.styleFrom(shape: const StadiumBorder()),
+          style: FilledButton.styleFrom(shape: look.control),
           onPressed: () => unawaited(
             context.read<TranslateCubit>().loadEngines(refresh: true),
           ),
@@ -89,7 +91,7 @@ class DictionaryEngineMessage extends StatelessWidget {
             DictionaryGetPacksButton(packs: packs),
             OutlinedButton.icon(
               key: const Key('dictionary_set_up_providers'),
-              style: OutlinedButton.styleFrom(shape: const StadiumBorder()),
+              style: OutlinedButton.styleFrom(shape: look.control),
               onPressed: addProvider,
               icon: const Icon(Icons.add),
               label: Text(l10n.dictionaryNoEngineAction),
@@ -104,7 +106,7 @@ class DictionaryEngineMessage extends StatelessWidget {
         body: l10n.dictionaryNoEngineBody,
         action: FilledButton.icon(
           key: const Key('dictionary_set_up_providers'),
-          style: FilledButton.styleFrom(shape: const StadiumBorder()),
+          style: FilledButton.styleFrom(shape: look.control),
           onPressed: addProvider,
           icon: const Icon(Icons.add),
           label: Text(l10n.dictionaryNoEngineAction),
@@ -404,7 +406,9 @@ class _LoadingEntry extends StatelessWidget {
                 child: LinearProgressIndicator(
                   key: const Key('dictionary_loading'),
                   semanticsLabel: context.l10n.dictionaryLoading,
-                  borderRadius: const BorderRadius.all(Radius.circular(2)),
+                  borderRadius: BorderRadius.circular(
+                    AppLook.of(context).controlRadius(2),
+                  ),
                 ),
               ),
             ),

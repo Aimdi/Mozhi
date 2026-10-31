@@ -6,17 +6,24 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/router.dart' show AppRoutes;
+import 'package:mozhi/app/theme.dart' show AppLook;
 import 'package:mozhi/core/privacy/ime_learning.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
+import 'package:mozhi/image_translate/view/image_translate_page.dart';
 import 'package:mozhi/image_translate/widgets/image_translate_button.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
+import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/widgets/alignment_highlight.dart';
+import 'package:mozhi/translate/widgets/go_button.dart';
 import 'package:mozhi/translate/widgets/language_text.dart';
 import 'package:mozhi/translate/widgets/listen_button.dart';
 import 'package:mozhi/translate/widgets/meaning_check_panel.dart';
+import 'package:mozhi/translate/widgets/options_sheet.dart' show OptionsButton;
 import 'package:mozhi/translate/widgets/status_announcer.dart';
+import 'package:mozhi/translate/widgets/terminal_chrome.dart';
 import 'package:mozhi/translate/widgets/translate_layout.dart';
 import 'package:mozhi/usage/usage.dart' show TokenEstimateLabel;
 import 'package:mozhi/voice/voice.dart'
@@ -139,6 +146,16 @@ SpeechInputService? _speechInputServiceOf(BuildContext context) {
 /// selected word or short phrase ([inputLookUpMenuItem]); in the web app
 /// the field shows that menu instead of the browser's
 /// ([WebFieldContextMenu]). Taps keep placing the cursor.
+///
+/// In the terminal look ([AppLook.isTerminal]) it is the `stdin` box
+/// ([TerminalPanel]): the accent `>` prompt before the borderless field
+/// (`<` in right-to-left layouts), "type or paste text_" as its
+/// placeholder (hidden from screen readers, like the empty composer's),
+/// and below it the tools as small framed buttons: `cam` (image
+/// translation), `doc` (document translation), voice input, listen, paste
+/// (while empty), the translation options, the count and clear; then the
+/// accent-filled `run ⏎` ([TranslateGoButton]). [compact] changes nothing
+/// there. Same keys, names, tooltips and actions as the classic tools.
 class InputCard extends StatefulWidget {
   const new({
     this.minLines = 4,
@@ -467,6 +484,291 @@ class _InputCardState extends State<InputCard> {
     return KeyEventResult.handled;
   }
 
+  /// The terminal look's input text: 18 dp (16 for long texts), 1.45
+  /// line height.
+  static TextStyle? _terminalTextStyle(
+    BuildContext context, [
+    int length = 0,
+  ]) => Theme.of(context).textTheme.bodyLarge?.copyWith(
+    fontSize: length > TranslateLayout.longTextLength ? 16 : 18,
+    fontWeight: FontWeight.w500,
+    height: 1.45,
+    letterSpacing: 0,
+  );
+
+  /// The terminal look's `stdin` box (see [InputCard]).
+  Widget _terminalCard(
+    BuildContext context,
+    TranslateState state,
+    AppSettings settings,
+  ) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final palette = AppPalette.of(context);
+    final input = state.input;
+    final transliteration = state.result?.sourceTransliteration ?? '';
+    final router = GoRouter.maybeOf(context);
+    final rtl = Directionality.of(context) == TextDirection.rtl;
+    final hint = translateComposerHintParts(l10n);
+    final placeholder = '${hint.before}${hint.link}${hint.after}'
+        .trim()
+        .toLowerCase();
+    final speech = _speechInputServiceOf(context);
+    Widget framed(Widget child) => TerminalFrame(child: child);
+    return TapRegion(
+      groupId: _tapGroup,
+      onTapOutside: _onTapOutside,
+      onTapInside: _webMenu.onPointerDown,
+      onTapUpInside: _webMenu.onPointerUp,
+      child: TerminalPanel(
+        key: const Key('translate_input_card'),
+        label: 'stdin',
+        child: IconButtonTheme(
+          data: IconButtonThemeData(
+            style: IconButton.styleFrom(
+              foregroundColor: scheme.onSurface,
+              disabledForegroundColor: palette.secondaryText,
+              shape: const RoundedRectangleBorder(),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TerminalGlyph(
+                    rtl ? '<' : '>',
+                    key: const Key('translate_terminal_prompt'),
+                    style: TerminalStyles.prompt(context),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    // The field stays the first child, so it keeps its
+                    // state when the placeholder comes and goes.
+                    child: Stack(
+                      children: [
+                        _field(context, state, settings, terminal: true),
+                        ValueListenableBuilder<TextEditingValue>(
+                          valueListenable: _controller,
+                          builder: (context, value, _) =>
+                              value.text.isEmpty && !value.composing.isValid
+                              ? IgnorePointer(
+                                  child: ExcludeSemantics(
+                                    child: Text(
+                                      '${placeholder}_',
+                                      key: const Key(
+                                        'translate_terminal_placeholder',
+                                      ),
+                                      style: _terminalTextStyle(
+                                        context,
+                                      )?.copyWith(color: palette.secondaryText),
+                                    ),
+                                  ),
+                                )
+                              : const SizedBox.shrink(),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              if (state.inputTruncated)
+                _TruncatedNotice(limit: truncatedInputLimit(state)),
+              if (settings.showTransliteration &&
+                  transliteration.trim().isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    transliteration,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: palette.secondaryText,
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 8),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(
+                    child: Wrap(
+                      key: const Key('translate_input_toolbar'),
+                      spacing: 2,
+                      runSpacing: 2,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        if (router != null) ...[
+                          TerminalTextButton(
+                            key: const Key('translate_hero_camera'),
+                            text: 'cam',
+                            label: l10n.translateHeroCamera,
+                            onPressed: () => unawaited(
+                              router.push<void>(
+                                ImageTranslatePage.locationFor(),
+                              ),
+                            ),
+                          ),
+                          TerminalTextButton(
+                            key: const Key('translate_hero_document'),
+                            text: 'doc',
+                            label: l10n.translateHeroDocument,
+                            onPressed: () => unawaited(
+                              router.push<void>(AppRoutes.documents),
+                            ),
+                          ),
+                        ],
+                        if (speech != null)
+                          framed(
+                            VoiceInputButton.standalone(
+                              key: const Key('translate_voice_input'),
+                              service: speech,
+                              // `auto` uses the device's recognition
+                              // language.
+                              languageCode: state.source.code,
+                              onResult: _onVoiceResult,
+                              onListeningChanged: _onListeningChanged,
+                            ),
+                          ),
+                        framed(
+                          ListenButton(
+                            id: 'source',
+                            text: input,
+                            languageCode: state.effectiveSourceCode,
+                          ),
+                        ),
+                        if (input.isEmpty)
+                          framed(
+                            IconButton(
+                              key: const Key('translate_paste_button'),
+                              tooltip: l10n.translatePaste,
+                              icon: const Icon(Icons.content_paste),
+                              onPressed: () => unawaited(_paste()),
+                            ),
+                          ),
+                        framed(const OptionsButton()),
+                        if (input.isNotEmpty)
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Flexible(
+                                child: _CharacterCounter(
+                                  text: input,
+                                  showTokens: state.isAiEngine,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              framed(
+                                IconButton(
+                                  key: const Key('translate_clear_button'),
+                                  tooltip: l10n.commonClear,
+                                  icon: const Icon(Icons.close),
+                                  onPressed: _clear,
+                                ),
+                              ),
+                            ],
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const TranslateGoButton(),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// The source text field (also the terminal look's, [terminal]: no
+  /// hint of its own, the terminal's text style).
+  Widget _field(
+    BuildContext context,
+    TranslateState state,
+    AppSettings settings, {
+    required bool terminal,
+  }) {
+    final l10n = context.l10n;
+    final palette = AppPalette.of(context);
+    final input = state.input;
+    return Focus(
+      canRequestFocus: false,
+      skipTraversal: true,
+      onKeyEvent: _onKeyEvent,
+      // The hint disappears once there is text, so
+      // name the field explicitly for screen readers.
+      child: Semantics(
+        label: l10n.translateInputLabel,
+        child: Actions(
+          actions: _pasteActions,
+          child: TextField(
+            key: const Key('translate_input_field'),
+            controller: _controller,
+            focusNode: _focusNode,
+            groupId: _tapGroup,
+            contextMenuBuilder: _contextMenu,
+            enableIMEPersonalizedLearning: imeLearningAllowed(context),
+            onChanged: _onChanged,
+            maxLength: TranslateCubit.maxInputLength,
+            inputFormatters: [
+              _LengthOverflowFormatter(
+                TranslateCubit.maxInputLength,
+                onOverflow: (text) => _overflow = text,
+              ),
+            ],
+            // The toolbar shows its own count.
+            buildCounter: (
+              context, {
+              required currentLength,
+              required isFocused,
+              required maxLength,
+            }) => null,
+            keyboardType: TextInputType.multiline,
+            textInputAction: settings.multilineInput
+                ? TextInputAction.newline
+                : TextInputAction.go,
+            onSubmitted: settings.multilineInput ? null : _onSubmitted,
+            // Translating keeps the keyboard open,
+            // like the go button.
+            onEditingComplete: settings.multilineInput ? null : () {},
+            textDirection: inputTextDirection(state),
+            minLines: widget.minLines,
+            maxLines: null,
+            style: terminal
+                ? _terminalTextStyle(context, input.length)
+                : TranslateLayout.textStyle(context, input.length),
+            decoration: InputDecoration(
+              // The empty composer has its own
+              // placeholder with a link
+              // ([_PastePrompt]).
+              hintText: terminal || widget.compact
+                  ? null
+                  : l10n.translateInputHint,
+              hintStyle: TranslateLayout.textStyle(
+                context,
+                0,
+              )?.copyWith(color: palette.secondaryText),
+              border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+              filled: false,
+              isDense: true,
+              contentPadding: terminal
+                  ? EdgeInsets.zero
+                  : const EdgeInsetsDirectional.only(
+                      top: 14,
+                      bottom: 8,
+                      end: 8,
+                    ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
@@ -482,6 +784,9 @@ class _InputCardState extends State<InputCard> {
           previous.meaningStatus != current.meaningStatus,
       listener: (context, state) => _syncState(state),
       builder: (context, state) {
+        if (AppLook.of(context).isTerminal) {
+          return _terminalCard(context, state, settings);
+        }
         final input = state.input;
         final transliteration = state.result?.sourceTransliteration ?? '';
         final accent = theme.colorScheme.primary;
@@ -518,85 +823,7 @@ class _InputCardState extends State<InputCard> {
                         // state when the placeholder comes and goes.
                         child: Stack(
                           children: [
-                            Focus(
-                              canRequestFocus: false,
-                              skipTraversal: true,
-                              onKeyEvent: _onKeyEvent,
-                              // The hint disappears once there is text, so
-                              // name the field explicitly for screen readers.
-                              child: Semantics(
-                                label: l10n.translateInputLabel,
-                                child: Actions(
-                                  actions: _pasteActions,
-                                  child: TextField(
-                                    key: const Key('translate_input_field'),
-                                    controller: _controller,
-                                    focusNode: _focusNode,
-                                    groupId: _tapGroup,
-                                    contextMenuBuilder: _contextMenu,
-                                    enableIMEPersonalizedLearning:
-                                        imeLearningAllowed(context),
-                                    onChanged: _onChanged,
-                                    maxLength: TranslateCubit.maxInputLength,
-                                    inputFormatters: [
-                                      _LengthOverflowFormatter(
-                                        TranslateCubit.maxInputLength,
-                                        onOverflow: (text) => _overflow = text,
-                                      ),
-                                    ],
-                                    // The toolbar shows its own count.
-                                    buildCounter: (
-                                      context, {
-                                      required currentLength,
-                                      required isFocused,
-                                      required maxLength,
-                                    }) => null,
-                                    keyboardType: TextInputType.multiline,
-                                    textInputAction: settings.multilineInput
-                                        ? TextInputAction.newline
-                                        : TextInputAction.go,
-                                    onSubmitted: settings.multilineInput
-                                        ? null
-                                        : _onSubmitted,
-                                    // Translating keeps the keyboard open,
-                                    // like the go button.
-                                    onEditingComplete: settings.multilineInput
-                                        ? null
-                                        : () {},
-                                    textDirection: inputTextDirection(state),
-                                    minLines: widget.minLines,
-                                    maxLines: null,
-                                    style: TranslateLayout.textStyle(
-                                      context,
-                                      input.length,
-                                    ),
-                                    decoration: InputDecoration(
-                                      // The empty composer has its own
-                                      // placeholder with a link
-                                      // ([_PastePrompt]).
-                                      hintText: widget.compact
-                                          ? null
-                                          : l10n.translateInputHint,
-                                      hintStyle: TranslateLayout.textStyle(
-                                        context,
-                                        0,
-                                      )?.copyWith(color: palette.secondaryText),
-                                      border: InputBorder.none,
-                                      enabledBorder: InputBorder.none,
-                                      focusedBorder: InputBorder.none,
-                                      filled: false,
-                                      isDense: true,
-                                      contentPadding:
-                                          const EdgeInsetsDirectional.only(
-                                            top: 14,
-                                            bottom: 8,
-                                            end: 8,
-                                          ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
+                            _field(context, state, settings, terminal: false),
                             ValueListenableBuilder<TextEditingValue>(
                               valueListenable: _controller,
                               builder: (context, value, _) =>
@@ -896,7 +1123,7 @@ class _PasteLinkState extends State<_PasteLink> {
       child: InkWell(
         focusNode: _focusNode,
         canRequestFocus: widget.primary,
-        customBorder: const StadiumBorder(),
+        customBorder: AppLook.of(context).control,
         onTap: () => widget.onPaste(_focusNode.hasPrimaryFocus),
       ),
     );

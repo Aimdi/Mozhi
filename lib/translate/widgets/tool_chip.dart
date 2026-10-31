@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart' show AppLook;
 import 'package:mozhi/translate/widgets/translate_layout.dart';
 
 /// A labelled on/off tool under the translation ("Check meaning",
@@ -123,8 +124,10 @@ class TranslateToolRow extends StatelessWidget {
           minLeadingWidth: 24,
           horizontalTitleGap: 12,
           contentPadding: const EdgeInsetsDirectional.only(start: 8, end: 8),
-          shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.all(Radius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.all(
+              Radius.circular(AppLook.of(context).controlRadius(12)),
+            ),
           ),
           selected: on,
           enabled: onPressed != null,

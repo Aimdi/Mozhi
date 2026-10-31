@@ -409,7 +409,7 @@ class _Header extends StatelessWidget {
           color: colors.surface,
           shape: RoundedRectangleBorder(
             side: BorderSide(color: Theme.of(context).colorScheme.outline),
-            borderRadius: AppRadius.cardBorderRadius,
+            borderRadius: AppLook.of(context).cardRadius,
           ),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
@@ -571,7 +571,7 @@ class _InstanceTile extends StatelessWidget {
         margin: EdgeInsets.zero,
         color: colors.surface,
         shape: RoundedRectangleBorder(
-          borderRadius: AppRadius.cardBorderRadius,
+          borderRadius: AppLook.of(context).cardRadius,
           side: preferred
               ? BorderSide(color: colors.primary, width: 2)
               : BorderSide(color: colors.outline),

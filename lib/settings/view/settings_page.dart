@@ -443,8 +443,8 @@ class _CategoryTile extends StatelessWidget {
       selected: selected,
       selectedTileColor: theme.colorScheme.primary.withValues(alpha: 0.08),
       shape: wide
-          ? const RoundedRectangleBorder(
-              borderRadius: BorderRadius.all(Radius.circular(AppRadius.badge)),
+          ? RoundedRectangleBorder(
+              borderRadius: AppLook.of(context).badgeRadius,
             )
           : null,
       onTap: onTap,

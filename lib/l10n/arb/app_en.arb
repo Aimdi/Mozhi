@@ -14062,5 +14062,37 @@
         "type": "String"
       }
     }
+  },
+  "settingsStyle": "Style",
+  "@settingsStyle": {
+    "description": "settingsStyle"
+  },
+  "settingsStyleSubtitle": "Terminal is monospaced and square on near-black; Classic is rounded, with Dim or Lights out",
+  "@settingsStyleSubtitle": {
+    "description": "settingsStyleSubtitle"
+  },
+  "settingsStyleTerminal": "Terminal",
+  "@settingsStyleTerminal": {
+    "description": "settingsStyleTerminal"
+  },
+  "settingsStyleClassic": "Classic",
+  "@settingsStyleClassic": {
+    "description": "settingsStyleClassic"
+  },
+  "settingsStyleKeywords": "terminal, classic, look, font, monospace, monospaced, JetBrains Mono",
+  "@settingsStyleKeywords": {
+    "description": "settingsStyleKeywords"
+  },
+  "settingsThemeTerminalSubtitle": "In the Terminal style, System means dark; Light gives the paper look",
+  "@settingsThemeTerminalSubtitle": {
+    "description": "settingsThemeTerminalSubtitle"
+  },
+  "settingsColorAmber": "Amber",
+  "@settingsColorAmber": {
+    "description": "settingsColorAmber"
+  },
+  "settingsColorCyan": "Cyan",
+  "@settingsColorCyan": {
+    "description": "settingsColorCyan"
   }
 }

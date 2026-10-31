@@ -389,7 +389,7 @@ class _UnavailableBanner extends StatelessWidget {
       child: DecoratedBox(
         decoration: BoxDecoration(
           border: Border.all(color: palette.hairline),
-          borderRadius: AppRadius.cardBorderRadius,
+          borderRadius: AppLook.of(context).cardRadius,
         ),
         child: Padding(
           padding: const EdgeInsets.all(16),

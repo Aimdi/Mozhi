@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart' show AppLook;
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/widgets/translate_layout.dart';
 
@@ -129,7 +130,9 @@ class _SkeletonBoxState extends State<SkeletonBox>
         width: widget.width,
         decoration: BoxDecoration(
           color: color,
-          borderRadius: BorderRadius.circular(widget.radius),
+          borderRadius: BorderRadius.circular(
+            AppLook.of(context).controlRadius(widget.radius),
+          ),
         ),
       ),
     );

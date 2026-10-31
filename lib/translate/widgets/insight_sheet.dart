@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/gestures.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart' show AppLook;
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
@@ -95,7 +96,7 @@ class InsightSheet extends StatelessWidget {
             // An outlined pill, like an X topic (the controls' outline).
             DecoratedBox(
               decoration: ShapeDecoration(
-                shape: StadiumBorder(
+                shape: AppLook.of(context).control.copyWith(
                   side: BorderSide(color: theme.colorScheme.outline),
                 ),
               ),

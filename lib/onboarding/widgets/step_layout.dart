@@ -203,7 +203,7 @@ class OnboardingNote extends StatelessWidget {
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: background ?? colors.surface,
-          borderRadius: AppRadius.cardBorderRadius,
+          borderRadius: AppLook.of(context).cardRadius,
           border: background == null
               ? Border.all(color: AppPalette.of(context).hairline)
               : null,
