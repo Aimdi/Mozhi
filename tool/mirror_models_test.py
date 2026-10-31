@@ -619,13 +619,15 @@ class MirrorModelsTest(unittest.TestCase):
         args = mirror.parser().parse_args(["out"])
         files = mirror.select(args, catalogs)
         kinds = {file.kind for file in files}
-        # The on-device AI catalogue is empty until CI resolves it.
-        self.assertLessEqual({"bergamot", "whisper", "tesseract"}, kinds)
-        self.assertLessEqual(kinds, {"bergamot", "whisper", "tesseract", "llm"})
+        # The on-device AI catalogue is empty until CI resolves it; the
+        # dictionary packs are those of the latest dictionary-packs release.
+        self.assertLessEqual({"bergamot", "whisper", "tesseract", "dictionary"}, kinds)
+        self.assertLessEqual(kinds, set(mirror.KINDS))
         self.assertTrue(all(file.url.startswith("https://") for file in files))
         paths = {file.path for file in files}
         self.assertIn("whisper/ggml-base.bin", paths)
         self.assertIn("tesseract/deu.traineddata", paths)
+        self.assertIn("dictionary/de.mzd", paths)
         self.assertTrue(
             any(path.startswith("bergamot/en-de/") for path in paths), paths
         )
