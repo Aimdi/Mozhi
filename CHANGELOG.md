@@ -5,6 +5,18 @@ in `-rc.N`).
 
 ## 0.1.0-rc.9
 
+### Added
+
+- **If Google fails, use DuckDuckGo** (Settings > Translation engines,
+  off by default): when Google fails on every volunteer server, the text
+  is translated with DuckDuckGo (whose translations come from Microsoft
+  Translator) through the same servers. It goes through the same privacy
+  checks as picking DuckDuckGo (a "Once" given for Google doesn't cover
+  it), never runs in Offline only, and the result, the destination chip,
+  the history and Network activity name DuckDuckGo. The "Volunteer
+  servers unavailable" error offers it with one tap, and says when Google
+  is limiting the servers' requests.
+
 ### Fixed
 
 - **Text shared to Mozhi from a launcher or shell** reaches the window

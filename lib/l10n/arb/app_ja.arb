@@ -2767,5 +2767,11 @@
   "onboardingLanguagesSuggestionPicked": "先ほど{language}を選択しました。",
   "offlineManualMirrorNote": "リンク先は Mozhi のダウンロード元であるモデルのダウンロード元 {host} です。ファイルがない場合は、公開元のリンクを使ってください。",
   "offlineManualPublisherLink": "公開元のリンク（ミラーにファイルがない場合）",
-  "offlineManualCopyPublisherLink": "{file} の公開元のリンクをコピー"
+  "offlineManualCopyPublisherLink": "{file} の公開元のリンクをコピー",
+  "settingsFallbackDuckDuckGo": "Google が失敗したら DuckDuckGo を使う",
+  "settingsFallbackDuckDuckGoSubtitle": "Google がすべてのボランティアのサーバーで失敗した場合、テキストは同じサーバー経由で DuckDuckGo の翻訳に送られます。DuckDuckGo の翻訳は Microsoft Translator によるものです。",
+  "translateFallbackAllServers": "{engine} がすべてのサーバーで失敗したため、{fallback} で翻訳しました。",
+  "translateErrorAllServersRateLimited": "現在、{engine} がボランティアのサーバーからのリクエストを制限しています。通常はしばらくすると解消します。",
+  "translateErrorUseDuckDuckGo": "Google が失敗したら DuckDuckGo を使う",
+  "settingsNetworkEngine": "エンジン: {engine}"
 }

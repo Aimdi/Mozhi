@@ -308,6 +308,12 @@ List<SettingsSearchEntry> settingsSearchIndex(
       ],
     ),
     entry(engines, EngineAnchors.instances, l10n.settingsInstancesTitle),
+    entry(
+      engines,
+      EngineAnchors.duckDuckGoFallback,
+      l10n.settingsFallbackDuckDuckGo,
+      subtitle: l10n.settingsFallbackDuckDuckGoSubtitle,
+    ),
     entry(engines, EngineAnchors.services, l10n.settingsMtServicesTitle),
     entry(
       engines,

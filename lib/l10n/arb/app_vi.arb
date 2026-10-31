@@ -2767,5 +2767,11 @@
   "onboardingLanguagesSuggestionPicked": "Trước đó bạn đã chọn {language}.",
   "offlineManualMirrorNote": "Các liên kết dẫn đến nguồn mô hình của bạn, {host}, nơi Mozhi tải xuống. Nếu thiếu tệp ở đó, hãy dùng liên kết của nhà phát hành.",
   "offlineManualPublisherLink": "Liên kết của nhà phát hành, nếu máy chủ nhân bản không có tệp",
-  "offlineManualCopyPublisherLink": "Sao chép liên kết của nhà phát hành tới {file}"
+  "offlineManualCopyPublisherLink": "Sao chép liên kết của nhà phát hành tới {file}",
+  "settingsFallbackDuckDuckGo": "Nếu Google lỗi, dùng DuckDuckGo",
+  "settingsFallbackDuckDuckGoSubtitle": "Khi Google lỗi trên mọi máy chủ tình nguyện, văn bản của bạn được gửi tới trình dịch của DuckDuckGo qua chính các máy chủ đó. Bản dịch của DuckDuckGo đến từ Microsoft Translator.",
+  "translateFallbackAllServers": "{engine} lỗi trên mọi máy chủ nên {fallback} đã dịch nội dung này.",
+  "translateErrorAllServersRateLimited": "{engine} hiện đang giới hạn yêu cầu từ các máy chủ tình nguyện. Tình trạng này thường hết sau một lúc.",
+  "translateErrorUseDuckDuckGo": "Dùng DuckDuckGo khi Google lỗi",
+  "settingsNetworkEngine": "Công cụ: {engine}"
 }

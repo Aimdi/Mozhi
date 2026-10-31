@@ -6,7 +6,8 @@ import 'package:translation_repository/translation_repository.dart';
 
 /// What the checks after a finished translation have to say, as quiet
 /// lines under it: the fallback note ([TranslateState.fallback]: "Google
-/// returned the original text. Translated on this device."), how many items
+/// returned the original text. Translated on this device.", "Google failed
+/// on every server, so DuckDuckGo translated this."), how many items
 /// of personal data stayed on the device
 /// ([TranslationResult.maskedPersonalData]) and one line per warning
 /// ([TranslationResult.warnings]: lost placeholders, links or numbers,
@@ -53,12 +54,16 @@ class TranslationNotes extends StatelessWidget {
       l10n.translateWarningPersonalDataLost,
   };
 
-  /// "Google returned the original text. Translated on this device."
+  /// "Google returned the original text. Translated on this device.", or
+  /// "Google failed on every server, so DuckDuckGo translated this."
   static String fallbackText(
     AppLocalizations l10n,
     TranslationFallback fallback,
   ) {
     final engine = fallback.fromEngineName;
+    if (fallback.allServersFailed) {
+      return l10n.translateFallbackAllServers(engine, fallback.engineName);
+    }
     final reason = switch (fallback.reason) {
       TranslationWarningKind.wrongLanguage =>
         l10n.translateFallbackWrongLanguage(engine),
@@ -87,6 +92,8 @@ class TranslationNotes extends StatelessWidget {
           key: const Key('translate_note_fallback'),
           icon: fallback.onDevice
               ? Icons.offline_bolt_outlined
+              : fallback.allServersFailed
+              ? Icons.alt_route
               : Icons.swap_horiz,
           text: fallbackText(l10n, fallback),
         ),

@@ -2767,5 +2767,11 @@
   "onboardingLanguagesSuggestionPicked": "Je koos eerder {language}.",
   "offlineManualMirrorNote": "De links gaan naar je modelbron, {host}, waar Mozhi van downloadt. Ontbreekt daar een bestand, gebruik dan de link van de uitgever.",
   "offlineManualPublisherLink": "Link van de uitgever, als de mirror het bestand niet heeft",
-  "offlineManualCopyPublisherLink": "Link van de uitgever naar {file} kopiëren"
+  "offlineManualCopyPublisherLink": "Link van de uitgever naar {file} kopiëren",
+  "settingsFallbackDuckDuckGo": "Als Google faalt, DuckDuckGo gebruiken",
+  "settingsFallbackDuckDuckGoSubtitle": "Als Google op alle vrijwilligersservers faalt, wordt je tekst via dezelfde servers naar de vertaler van DuckDuckGo gestuurd. De vertalingen van DuckDuckGo komen van Microsoft Translator.",
+  "translateFallbackAllServers": "{engine} faalde op alle servers, dus {fallback} heeft dit vertaald.",
+  "translateErrorAllServersRateLimited": "{engine} beperkt nu de verzoeken van de vrijwilligersservers. Dat gaat meestal na een tijdje over.",
+  "translateErrorUseDuckDuckGo": "DuckDuckGo gebruiken als Google faalt",
+  "settingsNetworkEngine": "Engine: {engine}"
 }

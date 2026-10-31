@@ -19,6 +19,7 @@ abstract final class EngineAnchors {
   static const onDeviceAi = 'engines_on_device_ai';
   static const modelSource = 'model_source';
   static const instances = 'instances';
+  static const duckDuckGoFallback = 'duckduckgo_fallback';
   static const services = 'mt_services';
   static const quality = 'quality_modes';
   static const rememberQuality = 'remember_quality';
@@ -27,7 +28,8 @@ abstract final class EngineAnchors {
 
 /// The Translation engines settings: the offline languages (where the
 /// platform runs them) and on-device AI (where it runs), the online
-/// engines (Mozhi instances, machine translation services such as DeepL
+/// engines (Mozhi instances, whether DuckDuckGo may take over when Google
+/// fails on every one of them, machine translation services such as DeepL
 /// and LibreTranslate) and how they translate (quality modes, remembering
 /// the last one, instant translation).
 class EngineSettings extends StatelessWidget {
@@ -107,6 +109,21 @@ class EngineSettings extends StatelessWidget {
                 ),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => context.push(AppRoutes.instances),
+              ),
+            ),
+            // The user's permission to send text to another engine, for
+            // this one case (off by default).
+            SettingsAnchor(
+              id: EngineAnchors.duckDuckGoFallback,
+              child: SwitchListTile(
+                key: const Key('settings_duckduckgo_fallback'),
+                secondary: const SettingsIcon(Icons.alt_route),
+                title: Text(l10n.settingsFallbackDuckDuckGo),
+                subtitle: Text(l10n.settingsFallbackDuckDuckGoSubtitle),
+                isThreeLine: true,
+                value: settings.fallbackToDuckDuckGo,
+                onChanged: (value) =>
+                    cubit.setFallbackToDuckDuckGo(enabled: value),
               ),
             ),
             SettingsAnchor(

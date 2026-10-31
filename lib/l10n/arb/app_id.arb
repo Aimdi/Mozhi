@@ -2767,5 +2767,11 @@
   "onboardingLanguagesSuggestionPicked": "Anda memilih {language} sebelumnya.",
   "offlineManualMirrorNote": "Tautan ini mengarah ke sumber model Anda, {host}, tempat Mozhi mengunduh. Jika file tidak ada di sana, gunakan tautan penerbitnya.",
   "offlineManualPublisherLink": "Tautan penerbit, jika mirror tidak memiliki file ini",
-  "offlineManualCopyPublisherLink": "Salin tautan penerbit ke {file}"
+  "offlineManualCopyPublisherLink": "Salin tautan penerbit ke {file}",
+  "settingsFallbackDuckDuckGo": "Jika Google gagal, gunakan DuckDuckGo",
+  "settingsFallbackDuckDuckGoSubtitle": "Saat Google gagal di semua server relawan, teks Anda dikirim ke penerjemah DuckDuckGo melalui server yang sama. Terjemahan DuckDuckGo berasal dari Microsoft Translator.",
+  "translateFallbackAllServers": "{engine} gagal di semua server, jadi {fallback} menerjemahkan ini.",
+  "translateErrorAllServersRateLimited": "{engine} sedang membatasi permintaan dari server relawan. Biasanya ini pulih setelah beberapa saat.",
+  "translateErrorUseDuckDuckGo": "Gunakan DuckDuckGo saat Google gagal",
+  "settingsNetworkEngine": "Mesin: {engine}"
 }

@@ -398,4 +398,84 @@ void main() {
     EgressRecordingClient(inner, ledger: ledger, closesInner: false).close();
     expect(inner.closed, isFalse);
   });
+
+  group('engineOf', () {
+    EgressRecordingClient recording() => EgressRecordingClient(
+      MockClient((request) async => http.Response('{}', 200)),
+      ledger: ledger,
+    );
+
+    test("records the Mozhi engine of a translation's form body", () async {
+      await recording().post(
+        Uri.parse('https://mozhi.example/api/translate'),
+        body: {
+          'engine': 'duckduckgo',
+          'from': 'de',
+          'to': 'en',
+          'text': 'secret words',
+        },
+      );
+      final entry = single();
+      expect(entry.engine, 'duckduckgo');
+      expect(entry.purpose, EgressPurpose.translation);
+      expect('${entry.toMap()}', isNot(contains('secret')));
+    });
+
+    test('records the engine of a query (text-to-speech)', () async {
+      await recording().get(
+        Uri.parse(
+          'https://mozhi.example/api/tts?engine=Google&lang=en&text=hi',
+        ),
+      );
+      expect(single().engine, 'google');
+    });
+
+    test('records the engine of a multipart body (photos)', () async {
+      final request =
+          http.MultipartRequest(
+              'POST',
+              Uri.parse('https://mozhi.example/api/image'),
+            )
+            ..fields['engine'] = 'google'
+            ..files.add(http.MultipartFile.fromBytes('image', [1, 2, 3]));
+      await (await recording().send(request)).stream.drain<void>();
+      expect(single().engine, 'google');
+    });
+
+    test('records several engines', () async {
+      await recording().post(
+        Uri.parse('https://mozhi.example/api/translate'),
+        body: {'engine': 'google,deepl', 'text': 'x'},
+      );
+      expect(single().engine, 'google,deepl');
+    });
+
+    test('records nothing for requests without content', () async {
+      await recording().get(
+        Uri.parse('https://mozhi.example/api/source_languages?engine=google'),
+      );
+      expect(single().purpose, EgressPurpose.catalog);
+      expect(single().engine, isNull);
+    });
+
+    test('records nothing that is not a plain engine id', () async {
+      await recording().post(
+        Uri.parse('https://mozhi.example/api/translate'),
+        body: {'engine': 'my secret text', 'text': 'x'},
+      );
+      await recording().post(
+        Uri.parse('https://mozhi.example/api/translate'),
+        body: 'engine=google',
+      );
+      await recording().post(
+        Uri.parse('https://mozhi.example/api/translate'),
+        body: jsonEncode({'engine': 'google'}),
+        headers: {'content-type': 'application/json'},
+      );
+      expect(
+        [for (final entry in ledger.entries) entry.engine],
+        [null, null, null],
+      );
+    });
+  });
 }

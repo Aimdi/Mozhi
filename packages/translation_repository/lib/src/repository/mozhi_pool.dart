@@ -168,7 +168,8 @@ class MozhiPool {
   /// Throws a `MozhiApiException` when no instance is configured, and the
   /// last failover-eligible error when every instance failed; with
   /// [engine], that error wrapped in an [AllInstancesFailedException]
-  /// naming [engine] and the instances tried.
+  /// naming [engine], the instances tried and each one's failure
+  /// (`AllInstancesFailedException.failures`).
   Future<T> run<T>(
     MozhiAction<T> action, {
     bool failOverOnTimeout = true,
@@ -178,6 +179,7 @@ class MozhiPool {
   }) async {
     final tried = <String>{};
     final attempted = <MozhiInstance>[];
+    final failures = <Object>[];
     Object? lastError;
     StackTrace? lastStackTrace;
     while (true) {
@@ -201,11 +203,13 @@ class MozhiPool {
         }
         lastError = sanitized;
         lastStackTrace = stackTrace;
+        failures.add(sanitized);
       } on TimeoutException catch (error, stackTrace) {
         if (!failOverOnTimeout) rethrow;
         if (recordHealth) _health?.markFailed(instance.url, persist: false);
         lastError = error;
         lastStackTrace = stackTrace;
+        failures.add(error);
       }
     }
     if (lastError != null) {
@@ -216,6 +220,7 @@ class MozhiPool {
                 lastError,
                 engine: engine,
                 instances: attempted,
+                failures: failures,
               ),
         lastStackTrace!,
       );

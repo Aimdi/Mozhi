@@ -11,6 +11,7 @@ import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/offline/data/bergamot_model_details.dart'
     show offlineModelDetailsOf;
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
+import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/widgets/engine_selector.dart'
     show showEngineSheet;
@@ -129,6 +130,13 @@ TranslateErrorInfo describeTranslateError(
     LlmApiException(:final int statusCode) => TranslateErrorInfo(
       l10n.translateErrorProvider('$statusCode'),
     ),
+    // The engine is limiting the servers' requests (Google answering them
+    // with 429): say that, in plain words, never the server's own text.
+    AllInstancesFailedException(rateLimited: true, :final engine) =>
+      TranslateErrorInfo(
+        l10n.translateErrorAllServersRateLimited(engine.name),
+        fix: TranslateErrorFix.instances,
+      ),
     // Every server failed: say so in plain words (never "HTTP 500").
     AllInstancesFailedException(:final instances, :final engine) =>
       TranslateErrorInfo(
@@ -457,13 +465,20 @@ String? nextInstanceUrl(String? current, List<MozhiInstance> instances) {
 /// ([AllInstancesFailedException]; [describeTranslateError] is shared with
 /// the other features that ask the servers, such as image translation),
 /// the message says the volunteer servers failed (also when they failed to
-/// detect the source language: then it asks for the language), and the
+/// detect the source language: then it asks for the language), or, when
+/// the engine is limiting their requests
+/// ([AllInstancesFailedException.rateLimited]), that it is ("Google is
+/// limiting requests from the volunteer servers right now."), and the
 /// Translate screen's own error offers, in this order:
 /// "Translate on this device" (or the download of the pair, see
-/// [OfflinePairOffer]), "Try another engine" (the engine picker,
-/// [showEngineSheet]: the engine is never switched on its own, another
-/// engine sends the text somewhere else) and "Choose another server" (the
-/// instance settings), then Retry.
+/// [OfflinePairOffer]), "Use DuckDuckGo when Google fails" (for Google
+/// while that fallback is off and could take over,
+/// `TranslateCubit.duckDuckGoFallbackApplies`: it turns the fallback on
+/// and translates with DuckDuckGo, `TranslateCubit
+/// .useDuckDuckGoWhenGoogleFails`), "Try another engine" (the engine
+/// picker, [showEngineSheet]: the engine is never switched on its own,
+/// another engine sends the text somewhere else) and "Choose another
+/// server" (the instance settings), then Retry.
 ///
 /// Missing offline models are offered as "Download German (25 MB)" (the
 /// size when the device's offline engine knows it): for the Translate
@@ -562,6 +577,9 @@ class TranslateErrorView extends StatelessWidget {
         ? _anotherEngine(context)
         : null;
     final anotherServer = allFailed && !offline;
+    final useDuckDuckGo = allFailed && !offline
+        ? _useDuckDuckGo(context)
+        : null;
     // Every fix is pushed above the tabs, so back returns here.
     final (fixLabel, fixRoute) = switch (info.fix) {
       _ when info.offlineModels => (
@@ -690,6 +708,7 @@ class TranslateErrorView extends StatelessWidget {
         if (retry != null ||
             chooseSource != null ||
             alternative != null ||
+            useDuckDuckGo != null ||
             anotherEngine != null ||
             anotherServer ||
             showFix ||
@@ -729,6 +748,13 @@ class TranslateErrorView extends StatelessWidget {
                   onPressed: alternative.onPressed,
                   icon: Icon(alternative.icon),
                   label: Text(alternative.label),
+                ),
+              if (useDuckDuckGo != null)
+                TextButton.icon(
+                  key: const Key('translate_error_use_duckduckgo'),
+                  onPressed: useDuckDuckGo,
+                  icon: const Icon(Icons.alt_route),
+                  label: Text(l10n.translateErrorUseDuckDuckGo),
                 ),
               if (anotherEngine != null)
                 TextButton.icon(
@@ -823,6 +849,41 @@ class TranslateErrorView extends StatelessWidget {
       icon: Icons.translate,
       onPressed: () => unawaited(cubit.selectEngine(engine)),
     );
+  }
+
+  /// "Use DuckDuckGo when Google fails" for the Translate screen's own
+  /// translation that failed with Google on every server, while that
+  /// fallback is off and could take over
+  /// (`TranslateCubit.duckDuckGoFallbackApplies` with it on), else null.
+  /// The tap is the user's permission: it turns the fallback on and
+  /// translates with DuckDuckGo (`TranslateCubit
+  /// .useDuckDuckGoWhenGoogleFails`).
+  VoidCallback? _useDuckDuckGo(BuildContext context) {
+    final error = this.error;
+    final cubit = _translateOf(context);
+    if (error is! AllInstancesFailedException || cubit == null) return null;
+    final AppSettings settings;
+    try {
+      settings = context.read<SettingsCubit>().state;
+    } on ProviderNotFoundException {
+      return null;
+    }
+    if (settings.fallbackToDuckDuckGo) return null;
+    PrivacyMode? mode;
+    try {
+      mode = _repositoryOf(context)?.privacyMode;
+    } on Object {
+      // A repository test double without privacy settings.
+      mode = null;
+    }
+    final applies = TranslateCubit.duckDuckGoFallbackApplies(
+      error,
+      engine: error.engine,
+      settings: settings.copyWith(fallbackToDuckDuckGo: true),
+      privacyMode: mode,
+    );
+    if (!applies) return null;
+    return () => unawaited(cubit.useDuckDuckGoWhenGoogleFails());
   }
 
   /// Opens the engine picker when the Translate screen has another engine

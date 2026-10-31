@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'dart:ui' show PlatformDispatcher;
 
 import 'package:bloc/bloc.dart';
+import 'package:mozhi/core/network/network_policy.dart' show NetworkPolicyError;
 import 'package:mozhi/core/on_device_ai_engine.dart';
 import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/history/data/translation_memory.dart';
@@ -111,6 +112,19 @@ typedef _Languages = ({List<Language> sources, List<Language> targets});
 ///   original text. Translated on this device."); when none is, the
 ///   suspect result is shown with its warnings. The suspect result is
 ///   shown (unfinished) while the fallback runs.
+/// * DuckDuckGo when Google fails (opt-in, `AppSettings
+///   .fallbackToDuckDuckGo`; see [duckDuckGoFallbackApplies]): a
+///   translation with Mozhi's Google engine that failed on every volunteer
+///   server ([AllInstancesFailedException]) is tried once more with Mozhi's
+///   DuckDuckGo engine through the same servers (the pool's failover
+///   included), main and extra targets alike. The request goes through
+///   the repository's consent check like any DuckDuckGo request: a "Once"
+///   given for Google does not cover it, so [TranslateState.consent] may
+///   ask, naming DuckDuckGo, and the retry after consent goes straight to
+///   DuckDuckGo. The result, its history entry, its destination chip and
+///   the network log name DuckDuckGo, and [TranslateState.fallback] says
+///   why ("Google failed on every server, so DuckDuckGo translated
+///   this."). [useDuckDuckGoWhenGoogleFails] turns it on from the error.
 /// * Offline first with the on-device engine the app picked by itself (no
 ///   engine chosen, see [onlineFallbackOf]): text the device can't
 ///   translate (its language is not downloaded) goes to the default online
@@ -240,6 +254,9 @@ class TranslateCubit extends Cubit<TranslateState> {
 
   static const _english = Language(code: 'en', name: 'English');
   static const _defaultEngineId = 'mozhi:google';
+
+  /// The engine of the DuckDuckGo fallback ([duckDuckGoFallbackApplies]).
+  static const duckDuckGoEngineId = 'mozhi:duckduckgo';
 
   /// Smart-swap targets tried after the user's own languages.
   static const _popularTargets = [
@@ -1867,6 +1884,31 @@ class TranslateCubit extends Cubit<TranslateState> {
     return _translate(userAsked: true);
   }
 
+  /// "Use DuckDuckGo when Google fails" on the error of a translation that
+  /// failed with Google on every volunteer server: turns the fallback on
+  /// (`AppSettings.fallbackToDuckDuckGo`) and translates the input with
+  /// DuckDuckGo right away, as the fallback does from now on (Google, which
+  /// just failed on every server, is not asked again; the request goes
+  /// through the privacy checks like any DuckDuckGo request, so it may ask
+  /// for consent first). After any other error it only turns the fallback
+  /// on and translates again.
+  Future<void> useDuckDuckGoWhenGoogleFails() {
+    _settings.setFallbackToDuckDuckGo(enabled: true);
+    _debounceTimer?.cancel();
+    if (state.compareMode) return runCompare();
+    final error = state.error;
+    if (error is AllInstancesFailedException &&
+        duckDuckGoFallbackApplies(
+          error,
+          engine: error.engine,
+          settings: _settings.state.copyWith(fallbackToDuckDuckGo: true),
+          privacyMode: _privacyMode,
+        )) {
+      return _translate(userAsked: true, googleFailed: error);
+    }
+    return _translate(userAsked: true);
+  }
+
   /// Stops what is translating the input (the go button while it runs): a
   /// pending instant translation, the main translation in flight (the text
   /// streamed so far stays, unfinished, and the status goes back to idle)
@@ -1988,6 +2030,7 @@ class TranslateCubit extends Cubit<TranslateState> {
     bool external = false,
     bool extraTargets = true,
     bool userAsked = false,
+    AllInstancesFailedException? googleFailed,
   }) {
     final main = _translateMain(
       engine: engine,
@@ -1997,14 +2040,17 @@ class TranslateCubit extends Cubit<TranslateState> {
       auto: auto,
       external: external,
       userAsked: userAsked,
-      // After consent: the same translation, now asked for by the user.
-      retry: () => _translate(
+      googleFailed: googleFailed,
+      // After consent: the same translation, now asked for by the user
+      // (straight with DuckDuckGo when Google had failed on every server).
+      retry: ({googleFailed}) => _translate(
         engine: engine,
         options: options,
         text: text,
         smartSwap: smartSwap,
         extraTargets: extraTargets,
         userAsked: true,
+        googleFailed: googleFailed,
       ),
     );
     final selected = engine ?? state.engine;
@@ -2033,9 +2079,15 @@ class TranslateCubit extends Cubit<TranslateState> {
   /// The main translation of [_translate]. When the privacy settings stop
   /// it ([ConsentRequiredException]), [TranslateState.consent] asks for
   /// consent instead of reporting an error, and [retry] runs once it is
-  /// given ([retryAfterConsent]).
+  /// given ([retryAfterConsent]); when they stopped the DuckDuckGo fallback,
+  /// with the Google failure as `googleFailed`.
+  ///
+  /// With [googleFailed] (Google just failed on every server for this
+  /// text), DuckDuckGo translates right away, as the fallback would
+  /// ([_withDuckDuckGoFallback]); Google is not asked again.
   Future<void> _translateMain({
-    required Future<void> Function() retry,
+    required Future<void> Function({AllInstancesFailedException? googleFailed})
+    retry,
     TranslationEngine? engine,
     TranslationOptions? options,
     String? text,
@@ -2043,6 +2095,7 @@ class TranslateCubit extends Cubit<TranslateState> {
     bool auto = false,
     bool external = false,
     bool userAsked = false,
+    AllInstancesFailedException? googleFailed,
   }) {
     final selected = engine ?? state.engine;
     final input = text ?? state.input;
@@ -2073,11 +2126,18 @@ class TranslateCubit extends Cubit<TranslateState> {
     // The online engine that translated then: usage and a fallback notice
     // name it, not the on-device engine.
     TranslationEngine? routedTo;
+    // Google's failure on every server when DuckDuckGo took over.
+    AllInstancesFailedException? switchedAfter;
 
     void fail(Object error) {
       _translation = null;
       if (error is ConsentRequiredException) {
-        _consentRetry = retry;
+        final failed = switchedAfter;
+        // The DuckDuckGo fallback waits for consent: the retry goes
+        // straight there (Google just failed on every server).
+        _consentRetry = failed == null
+            ? retry
+            : () => retry(googleFailed: failed);
         emit(
           state.copyWith(
             status: TranslateStatus.idle,
@@ -2114,19 +2174,46 @@ class TranslateCubit extends Cubit<TranslateState> {
 
     final Stream<TranslationResult> stream;
     TranslationFallback? fallback;
+    void switchedToDuckDuckGo(
+      TranslationEngine duckDuckGo,
+      AllInstancesFailedException failure,
+    ) {
+      routedTo = duckDuckGo;
+      switchedAfter = failure;
+      fallback = TranslationFallback(
+        fromEngineName: failure.engine.name,
+        engineName: duckDuckGo.name,
+        onDevice: false,
+        allServersFailed: true,
+      );
+    }
+
     try {
+      final Stream<TranslationResult> results;
+      if (googleFailed != null) {
+        final duckDuckGo = _duckDuckGoEngine();
+        switchedToDuckDuckGo(duckDuckGo, googleFailed);
+        results = _repository.translate(duckDuckGo, request);
+      } else {
+        results = _withDuckDuckGoFallback(
+          request,
+          _onDeviceThenOnline(
+            selected,
+            request,
+            onRouted: (source, online) {
+              fromOnDevice = true;
+              onDeviceSource = source;
+              routedTo = online;
+            },
+          ),
+          translatedBy: () => routedTo ?? selected,
+          onSwitch: switchedToDuckDuckGo,
+        );
+      }
       stream = _withFallback(
         selected,
         request,
-        _onDeviceThenOnline(
-          selected,
-          request,
-          onRouted: (source, online) {
-            fromOnDevice = true;
-            onDeviceSource = source;
-            routedTo = online;
-          },
-        ),
+        results,
         onFallback: (value) => fallback = value,
         translatedBy: () => routedTo ?? selected,
       );
@@ -2361,6 +2448,131 @@ class TranslateCubit extends Cubit<TranslateState> {
               return fail(error, stackTrace);
             }
             subscription = remote.listen(
+              controller.add,
+              onError: fail,
+              onDone: () => unawaited(controller.close()),
+              cancelOnError: true,
+            );
+          },
+          onDone: () => unawaited(controller.close()),
+          cancelOnError: true,
+        );
+      },
+      onPause: () => subscription?.pause(),
+      onResume: () => subscription?.resume(),
+      onCancel: () => subscription?.cancel(),
+    );
+    return controller.stream;
+  }
+
+  /// Whether the DuckDuckGo fallback (`AppSettings.fallbackToDuckDuckGo`)
+  /// takes over after [error] of a text translation by [engine], with
+  /// [settings] and the repository's [privacyMode]: all of these hold.
+  ///
+  /// * The user turned the fallback on (it is off by default).
+  /// * [engine] is Mozhi's Google engine (not DuckDuckGo already, nor any
+  ///   other engine), and [error] is an [AllInstancesFailedException] for
+  ///   it: every volunteer server the request was allowed to go to failed.
+  /// * At least one server answered (`AllInstancesFailedException
+  ///   .serverAnswered`: Google failed behind it). When none could be
+  ///   reached, DuckDuckGo would not get through the same servers either.
+  /// * The failure was not the network policy refusing the request
+  ///   ([NetworkPolicyError]: plain `http` to a public server, a missing
+  ///   proxy); a consent refusal is a [ConsentRequiredException], never
+  ///   this.
+  /// * Neither the settings nor the repository are in
+  ///   [PrivacyMode.offlineOnly].
+  ///
+  /// The DuckDuckGo request still goes through the repository's privacy
+  /// checks like any other.
+  static bool duckDuckGoFallbackApplies(
+    Object error, {
+    required TranslationEngine engine,
+    required AppSettings settings,
+    PrivacyMode? privacyMode,
+  }) {
+    if (!settings.fallbackToDuckDuckGo ||
+        settings.privacyMode == PrivacyMode.offlineOnly ||
+        privacyMode == PrivacyMode.offlineOnly ||
+        !_isGoogle(engine) ||
+        error is! AllInstancesFailedException ||
+        !_isGoogle(error.engine) ||
+        !error.serverAnswered) {
+      return false;
+    }
+    return NetworkPolicyError.of(error.cause ?? error) == null;
+  }
+
+  /// Whether [engine] is Mozhi's Google engine.
+  static bool _isGoogle(TranslationEngine engine) =>
+      engine.isMozhi &&
+      (engine.mozhiEngine ?? engine.id.substring(engine.id.indexOf(':') + 1))
+              .toLowerCase() ==
+          'google';
+
+  /// The repository's privacy mode (null for a test double without one).
+  PrivacyMode? get _privacyMode {
+    try {
+      return _repository.privacyMode;
+    } on Object {
+      return null;
+    }
+  }
+
+  /// Mozhi's DuckDuckGo engine, as the active instance lists it (or as it
+  /// would, when the lists are not loaded or it is not listed).
+  TranslationEngine _duckDuckGoEngine() =>
+      _engineIn(state.engines, duckDuckGoEngineId) ??
+      TranslationEngine.mozhi('duckduckgo', 'DuckDuckGo');
+
+  /// [results], a text translation of [request] by [translatedBy] (asked
+  /// when it fails), with the DuckDuckGo fallback: when they fail and
+  /// [duckDuckGoFallbackApplies], [onSwitch] gets the DuckDuckGo engine and
+  /// Google's failure, and the events of DuckDuckGo's translation of
+  /// [request] follow (once: its errors, a consent refusal included, are
+  /// forwarded). Other errors are forwarded as they are.
+  Stream<TranslationResult> _withDuckDuckGoFallback(
+    TranslationRequest request,
+    Stream<TranslationResult> results, {
+    required TranslationEngine Function() translatedBy,
+    void Function(
+      TranslationEngine duckDuckGo,
+      AllInstancesFailedException failure,
+    )?
+    onSwitch,
+  }) {
+    late final StreamController<TranslationResult> controller;
+    StreamSubscription<TranslationResult>? subscription;
+    void fail(Object error, [StackTrace? stackTrace]) {
+      if (controller.isClosed) return;
+      controller.addError(error, stackTrace);
+      unawaited(controller.close());
+    }
+
+    controller = StreamController<TranslationResult>(
+      onListen: () {
+        subscription = results.listen(
+          controller.add,
+          onError: (Object error, StackTrace stackTrace) {
+            // Read now: the user may have changed the setting meanwhile.
+            if (error is! AllInstancesFailedException ||
+                !duckDuckGoFallbackApplies(
+                  error,
+                  engine: translatedBy(),
+                  settings: _settings.state,
+                  privacyMode: _privacyMode,
+                )) {
+              return fail(error, stackTrace);
+            }
+            final duckDuckGo = _duckDuckGoEngine();
+            final Stream<TranslationResult> retried;
+            try {
+              retried = _repository.translate(duckDuckGo, request);
+            } on Object catch (error, stackTrace) {
+              return fail(error, stackTrace);
+            }
+            onSwitch?.call(duckDuckGo, error);
+            subscription = retried.listen(
               controller.add,
               onError: fail,
               onDone: () => unawaited(controller.close()),
@@ -3836,7 +4048,11 @@ class TranslateCubit extends Cubit<TranslateState> {
 
     final Stream<TranslationResult> stream;
     try {
-      stream = _repository.translate(engine, request);
+      stream = _withDuckDuckGoFallback(
+        request,
+        _repository.translate(engine, request),
+        translatedBy: () => engine,
+      );
     } on Object catch (error) {
       fail(error);
       return done.future;

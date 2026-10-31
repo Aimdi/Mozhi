@@ -2767,5 +2767,11 @@
   "onboardingLanguagesSuggestionPicked": "Daha önce {language} dilini seçtiniz.",
   "offlineManualMirrorNote": "Bağlantılar, Mozhi'nin indirdiği model kaynağınıza ({host}) gider. Orada bir dosya yoksa yayıncının bağlantısını kullanın.",
   "offlineManualPublisherLink": "Yayıncının bağlantısı (yansıda dosya yoksa)",
-  "offlineManualCopyPublisherLink": "{file} için yayıncının bağlantısını kopyala"
+  "offlineManualCopyPublisherLink": "{file} için yayıncının bağlantısını kopyala",
+  "settingsFallbackDuckDuckGo": "Google başarısız olursa DuckDuckGo'yu kullan",
+  "settingsFallbackDuckDuckGoSubtitle": "Google tüm gönüllü sunucularında başarısız olursa metniniz aynı sunucular üzerinden DuckDuckGo'nun çevirmenine gönderilir. DuckDuckGo'nun çevirileri Microsoft Translator'dan gelir.",
+  "translateFallbackAllServers": "{engine} tüm sunucularda başarısız oldu, bu yüzden bunu {fallback} çevirdi.",
+  "translateErrorAllServersRateLimited": "{engine} şu anda gönüllü sunucularından gelen istekleri sınırlıyor. Bu genellikle bir süre sonra geçer.",
+  "translateErrorUseDuckDuckGo": "Google başarısız olursa DuckDuckGo'yu kullan",
+  "settingsNetworkEngine": "Motor: {engine}"
 }

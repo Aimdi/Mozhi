@@ -2767,5 +2767,11 @@
   "onboardingLanguagesSuggestionPicked": "आपने पहले {language} चुनी थी।",
   "offlineManualMirrorNote": "ये लिंक आपके मॉडल स्रोत {host} पर ले जाते हैं, जहाँ से Mozhi डाउनलोड करता है। अगर वहाँ कोई फ़ाइल न हो, तो प्रकाशक का लिंक इस्तेमाल करें।",
   "offlineManualPublisherLink": "प्रकाशक का लिंक, अगर मिरर पर फ़ाइल न हो",
-  "offlineManualCopyPublisherLink": "{file} का प्रकाशक वाला लिंक कॉपी करें"
+  "offlineManualCopyPublisherLink": "{file} का प्रकाशक वाला लिंक कॉपी करें",
+  "settingsFallbackDuckDuckGo": "Google विफल हो तो DuckDuckGo इस्तेमाल करें",
+  "settingsFallbackDuckDuckGoSubtitle": "जब Google स्वयंसेवकों के हर सर्वर पर विफल हो जाता है, तो आपका टेक्स्ट उन्हीं सर्वरों से DuckDuckGo के अनुवादक को भेजा जाता है। DuckDuckGo के अनुवाद Microsoft Translator से आते हैं।",
+  "translateFallbackAllServers": "{engine} हर सर्वर पर विफल रहा, इसलिए {fallback} ने इसका अनुवाद किया।",
+  "translateErrorAllServersRateLimited": "{engine} अभी स्वयंसेवकों के सर्वरों से आने वाले अनुरोध सीमित कर रहा है। यह आमतौर पर कुछ देर में ठीक हो जाता है।",
+  "translateErrorUseDuckDuckGo": "Google विफल हो तो DuckDuckGo इस्तेमाल करें",
+  "settingsNetworkEngine": "इंजन: {engine}"
 }

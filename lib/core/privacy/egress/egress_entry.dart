@@ -145,7 +145,8 @@ enum EgressFailure {
 }
 
 /// One request the app made: when, to whom, why, how much and how it
-/// ended, but never what (no body, path, query or headers).
+/// ended, but never what (no body, path, query or headers; only the name
+/// of the translation [engine] a Mozhi server was asked to use).
 class EgressEntry extends Equatable {
   const new({
     required this.id,
@@ -162,6 +163,7 @@ class EgressEntry extends Equatable {
     this.failure,
     this.duration,
     this.redirectedTo,
+    this.engine,
   });
 
   /// Increasing within a ledger (0 for entries relayed from elsewhere
@@ -203,6 +205,13 @@ class EgressEntry extends Equatable {
   /// another one.
   final String? redirectedTo;
 
+  /// The translation engine the request asked its server to use, for
+  /// requests that carry content: Mozhi's `engine` (`google`,
+  /// `duckduckgo`, comma-separated for several), so the log tells which
+  /// company behind a volunteer server got the text. Null when the request
+  /// named none. An engine id, never the user's text.
+  final String? engine;
+
   /// Whether the user's text or photo may have reached [destination].
   bool get carriedContent =>
       outcome.mayHaveLeftDevice && purpose.carriesContent;
@@ -232,6 +241,7 @@ class EgressEntry extends Equatable {
     failure: failure ?? this.failure,
     duration: duration ?? this.duration,
     redirectedTo: redirectedTo ?? this.redirectedTo,
+    engine: engine,
   );
 
   /// Plain values only, for handing the entry to another engine of this
@@ -253,6 +263,7 @@ class EgressEntry extends Equatable {
     'failure': failure?.name,
     'duration': duration?.inMicroseconds,
     'redirectedTo': redirectedTo,
+    'engine': engine,
   };
 
   /// The entry of [toMap], with id 0; null for anything malformed.
@@ -290,6 +301,7 @@ class EgressEntry extends Equatable {
     final statusCode = value['statusCode'];
     final duration = value['duration'];
     final redirectedTo = value['redirectedTo'];
+    final engine = value['engine'];
     return EgressEntry(
       id: 0,
       startedAt: DateTime.fromMicrosecondsSinceEpoch(startedAt),
@@ -310,6 +322,7 @@ class EgressEntry extends Equatable {
       failure: pick(EgressFailure.values, value['failure']),
       duration: duration is int ? Duration(microseconds: duration) : null,
       redirectedTo: redirectedTo is String ? redirectedTo : null,
+      engine: engine is String ? engine : null,
     );
   }
 
@@ -329,5 +342,6 @@ class EgressEntry extends Equatable {
     failure,
     duration,
     redirectedTo,
+    engine,
   ];
 }

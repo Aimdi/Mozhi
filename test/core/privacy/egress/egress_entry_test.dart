@@ -133,6 +133,31 @@ void main() {
       expect(EgressEntry.fromMap(map), entry.copyWith(id: 0));
     });
 
+    test('carries the engine through copyWith, toMap and fromMap', () {
+      final entry = EgressEntry(
+        id: 1,
+        startedAt: DateTime(2026),
+        method: 'POST',
+        scheme: 'https',
+        destination: const EgressDestination(
+          kind: EgressDestinationKind.publicServer,
+          host: 'mozhi.example',
+        ),
+        purpose: EgressPurpose.translation,
+        engine: 'duckduckgo',
+      );
+      expect(
+        entry.copyWith(outcome: EgressOutcome.succeeded).engine,
+        'duckduckgo',
+      );
+      expect(EgressEntry.fromMap(entry.toMap())?.engine, 'duckduckgo');
+      expect(
+        EgressEntry.fromMap({...entry.toMap(), 'engine': 3})?.engine,
+        isNull,
+      );
+      expect(entry, isNot(EgressEntry.fromMap({...entry.toMap(), 'id': 1})));
+    });
+
     test('fromMap fills in optional values and rejects malformed maps', () {
       final minimal = {
         'startedAt': 0,

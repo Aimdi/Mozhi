@@ -13,7 +13,9 @@ import 'package:mozhi/core/privacy/egress/egress_ledger.dart';
 ///
 /// The request and the answer pass through unchanged (except for the
 /// [purposeHeader], which is removed); only the answer's bytes are counted
-/// on their way. Bodies, paths, queries and headers are never recorded.
+/// on their way. Bodies, paths, queries and headers are never recorded,
+/// except the name of the translation engine a request that carries
+/// content asks its server to use ([engineOf]).
 class EgressRecordingClient extends http.BaseClient {
   new(
     this._inner, {
@@ -61,6 +63,7 @@ class EgressRecordingClient extends http.BaseClient {
       purpose: why,
       viaProxy: _viaProxy(destination.host),
       bytesSent: bytesSentOf(request),
+      engine: engineOf(request, why),
     );
     final stopwatch = Stopwatch()..start();
     final http.StreamedResponse response;
@@ -180,6 +183,41 @@ class EgressRecordingClient extends http.BaseClient {
     final target = url.path.length + (url.hasQuery ? url.query.length + 1 : 0);
     return body + target;
   }
+
+  /// The translation engine [request] (of [purpose]) asks its server to
+  /// use: Mozhi's `engine` field (`google`, `duckduckgo`, or several
+  /// separated by commas) in its form or multipart body or its query, in
+  /// lower case. Null for requests that carry no content
+  /// ([EgressPurpose.carriesContent]), without the field, or when the value
+  /// is not a plain engine id. Only that one field is read: never the
+  /// text.
+  static String? engineOf(http.BaseRequest request, EgressPurpose purpose) {
+    if (!purpose.carriesContent) return null;
+    String? value;
+    try {
+      value = request.url.queryParameters['engine'];
+      if (value == null) {
+        if (request is http.MultipartRequest) {
+          value = request.fields['engine'];
+        } else if (request is http.Request &&
+            (request.headers['content-type'] ?? '').toLowerCase().startsWith(
+              'application/x-www-form-urlencoded',
+            )) {
+          value = request.bodyFields['engine'];
+        }
+      }
+    } on Object {
+      // A malformed query or body: no engine to tell.
+      return null;
+    }
+    final engine = value?.trim().toLowerCase();
+    if (engine == null || !_engineIds.hasMatch(engine)) return null;
+    return engine;
+  }
+
+  static final _engineIds = RegExp(
+    r'^[a-z0-9_-]{1,32}(?:,[a-z0-9_-]{1,32}){0,15}$',
+  );
 
   static const _methods = {
     'GET',

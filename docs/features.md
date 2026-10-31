@@ -235,7 +235,30 @@ else works with a Mozhi instance alone.
   language pair), **Try another engine** (opens the engine picker; the
   engine never changes on its own, since another engine sends your text
   somewhere else) and **Choose another server** (the Mozhi instance
-  settings), then **Retry**. **Details** lists the servers tried.
+  settings), then **Retry**. **Details** lists the servers tried. When the
+  servers report that the engine is limiting their requests (Google
+  answering them with "too many requests"), the message says so instead:
+  **Google is limiting requests from the volunteer servers right now.** For
+  Google, the error also offers **Use DuckDuckGo when Google fails**,
+  which turns on the setting below and translates the text with
+  DuckDuckGo right away.
+- **If Google fails, use DuckDuckGo** (off by default, **Settings >
+  Translation engines**, under the Mozhi instances): when a translation
+  with Google fails on every volunteer server, Mozhi tries once more with
+  the DuckDuckGo engine through the same servers (in your order, with the
+  same failover). DuckDuckGo's translations come from Microsoft
+  Translator. It applies to the Translate screen's translation and its
+  extra target languages, only when Google was the engine in use, never in
+  **Offline only**, never after a privacy or network rule refused the
+  request, and not when none of the servers could be reached. The
+  DuckDuckGo request is checked like any other: in **Offline first** a
+  language pair you allowed with **Always for** covers it, but a **Once**
+  you gave for Google does not, so Mozhi asks again, naming DuckDuckGo
+  (its **Once** goes straight to DuckDuckGo; Google isn't asked again).
+  The result says **Google failed on every server, so DuckDuckGo
+  translated this.**; the engine name, the destination chip ("DuckDuckGo
+  via …"), the history entry and **Network activity** name DuckDuckGo.
+  Without the setting, the engine never changes on its own.
 - **More languages at once:** **Also translate into…** in **Tools** adds up
   to four more target languages; see
   [Extra target languages](#extra-target-languages).

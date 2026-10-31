@@ -145,9 +145,67 @@ void main() {
         'Google returned the original text. Translated with DeepL.',
       );
     });
+
+    test('says when DuckDuckGo took over from Google', () {
+      expect(
+        TranslationNotes.fallbackText(
+          l10n,
+          const TranslationFallback(
+            fromEngineName: 'Google',
+            engineName: 'DuckDuckGo',
+            onDevice: false,
+            allServersFailed: true,
+          ),
+        ),
+        'Google failed on every server, so DuckDuckGo translated this.',
+      );
+    });
   });
 
   group('OutputCard', () {
+    testWidgets('names DuckDuckGo when it took over from Google', (
+      tester,
+    ) async {
+      final state = withResult(
+        const TranslationResult(
+          engineId: 'mozhi:duckduckgo',
+          engineName: 'DuckDuckGo',
+          text: 'Bonjour le monde',
+          destination: PublicInstanceDestination(
+            'mozhi.example',
+            engine: 'duckduckgo',
+          ),
+        ),
+        fallback: const TranslationFallback(
+          fromEngineName: 'Google',
+          engineName: 'DuckDuckGo',
+          onDevice: false,
+          allServersFailed: true,
+        ),
+      );
+      final harness = TranslateHarness(state: state);
+      await harness.pump(tester, child: const OutputCard());
+      expect(
+        find.text(
+          'Google failed on every server, so DuckDuckGo translated this.',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .widget<Text>(find.byKey(const Key('translate_output_footer')))
+            .data,
+        contains('DuckDuckGo'),
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('translate_output_destination')),
+          matching: find.textContaining('DuckDuckGo via mozhi.example'),
+        ),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('shows the notes of a finished translation', (tester) async {
       final state = withResult(helloResult.copyWith(maskedPersonalData: 1));
       final harness = TranslateHarness(state: state);
