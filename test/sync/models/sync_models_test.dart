@@ -41,8 +41,15 @@ void main() {
         excludedSections: {'presets', 'glossaries'},
         includeSecrets: true,
         wifiOnly: true,
+        joinedAt: DateTime.utc(2026, 10, 20, 9, 30),
       );
       expect(SyncConfig.tryParse(custom.toJson()), custom);
+      expect(custom.toJson()['joinedAt'], '2026-10-20T09:30:00.000Z');
+      expect(config.toJson().containsKey('joinedAt'), isFalse);
+      expect(
+        SyncConfig.tryParse({...config.toJson(), 'joinedAt': 'soon'}),
+        config,
+      );
       expect(custom.toJson()['excludedSections'], ['glossaries', 'presets']);
       expect(
         SyncConfig.tryParse({'server': 'https://a.example', 'username': 'u'}),

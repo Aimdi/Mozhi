@@ -102,10 +102,12 @@ typedef ConversationTimerFactory = Timer Function(
 ///   another way (a server down), the next [retry] of the same turn may use
 ///   that approval once more, so the user is not asked again for the same
 ///   text going to the same place: only for the same text, engine and
-///   destination, only while no other translation runs, and only once. It
-///   is withdrawn (`TranslationRepository.revokeOnce`) as soon as that
-///   retry ends or another translation starts, so it never lets other text
-///   through.
+///   destination, only while no other translation runs, only once, and
+///   only within `TranslationRepository.consentOnceLifetime` of the retry
+///   it was given for (as long as the approval itself lasts; a retry later
+///   asks again). It is withdrawn (`TranslationRepository.revokeOnce`) as
+///   soon as that retry ends or another translation starts, so it never
+///   lets other text through.
 /// * The cubit owns the recogniser and disposes it in [close].
 class ConversationCubit extends Cubit<ConversationState> {
   new({
@@ -413,6 +415,7 @@ class ConversationCubit extends Cubit<ConversationState> {
     };
     // Used at most once more, by this retry.
     final kept = _onceConsents.remove(turnId);
+    final givenAt = _clock();
     final engine = _engine();
     final reset = _updateTurn(
       turnId,
@@ -475,21 +478,26 @@ class ConversationCubit extends Cubit<ConversationState> {
         consent: asked,
         engineId: engine.id,
         text: reset.original,
+        givenAt: givenAt,
       );
     });
   }
 
   /// Whether the approval [kept] for [turn] may be used again for its
   /// retry with [engine]: the same text and engine, the same destination
-  /// as when the user gave it (e.g. not another Mozhi instance), and no
-  /// other translation running that could take it first.
+  /// as when the user gave it (e.g. not another Mozhi instance), no other
+  /// translation running that could take it first, and less than
+  /// [TranslationRepository.consentOnceLifetime] since it was given.
   bool _mayReuse(
     _OnceConsent kept,
     ConversationTurn turn,
     TranslationEngine engine,
   ) {
     final consent = kept.consent;
+    final age = _clock().difference(kept.givenAt);
     if (consent.kind == ConsentKind.offlineOnly ||
+        age.isNegative ||
+        age >= TranslationRepository.consentOnceLifetime ||
         _jobs.isNotEmpty ||
         turn.original != kept.text ||
         engine.id != kept.engineId) {
@@ -1386,11 +1394,15 @@ class _OnceConsent {
     required this.consent,
     required this.engineId,
     required this.text,
+    required this.givenAt,
   });
 
   final ConsentRequiredException consent;
   final String engineId;
   final String text;
+
+  /// When the user gave it (the retry it was given for started).
+  final DateTime givenAt;
 }
 
 /// A translation in flight.

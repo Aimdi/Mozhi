@@ -47,15 +47,16 @@ gaps that matter:
 - **Continuity:** no encrypted backup or sync, favorites aren't a
   phrasebook, no learning tools (all closed in wave 4).
 
-## Done: waves 1 to 9
+## Done: waves 1 to 10
 
 Wave 1 (trust, speed and transparency), wave 2 (feel like the best app),
 wave 3 (offline everywhere), wave 4 (continuity and learning), wave 5
 (offline AI), wave 6 (translate everything, anywhere), wave 7 (live and
-in place), wave 8 (works everywhere, the first time) and wave 9 (in your
-control) are built; the [changelog](../CHANGELOG.md) lists what changed
-(0.1.0-rc.3 for wave 5, 0.1.0-rc.4 for wave 6, 0.1.0-rc.5 for wave 7,
-0.1.0-rc.6 for wave 8 and 0.1.0-rc.7 for wave 9).
+in place), wave 8 (works everywhere, the first time), wave 9 (in your
+control) and wave 10 (works every time) are built; the
+[changelog](../CHANGELOG.md) lists what changed (0.1.0-rc.3 for wave 5,
+0.1.0-rc.4 for wave 6, 0.1.0-rc.5 for wave 7, 0.1.0-rc.6 for wave 8,
+0.1.0-rc.7 for wave 9 and 0.1.0-rc.8 for wave 10).
 Wave 3
 brought offline translation to the web app (Bergamot and CLD2 as
 WebAssembly in a worker, models in the browser's private storage), a model
@@ -150,6 +151,14 @@ biometrics; documents keep their plural forms, sheet names, comments and
 alt text; words typed in the input can be looked up; Android 15 reads a
 PDF's own text layer; live captions have a Quick Settings tile, and
 `mozhi://` links can no longer reach screens they don't name.
+
+Wave 10 closed what made the app fail or surprise in daily use: every
+download can be cancelled and every server failure retried; sync settles
+retention, races, ties and provider ids the same way on every device;
+pairing keeps the screen responsive and gets through floods; Tailscale
+Funnel names are public again; and CI's emulator run now also translates
+with Offline only (checking the app sent nothing), a photo, a text file,
+and cancels a download.
 
 Carried over to later waves:
 

@@ -221,6 +221,10 @@ void main() {
             lookups.add(host);
             return const ['100.101.102.103'];
           },
+          // On the tailnet: names are looked up.
+          interfaces: () async => const [
+            (name: 'tun0', addresses: ['fd7a:115c:a1e0::1']),
+          ],
         );
         addTearDown(() => TailnetResolver.instance = previous);
         addTearDown(TailnetHosts.forget);

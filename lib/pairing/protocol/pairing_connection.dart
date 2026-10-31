@@ -28,10 +28,16 @@ const pairingHandshakeTimeout = Duration(seconds: 10);
 ///   it); [connection] then completes with its channel, and the listener
 ///   closes the others and stops listening.
 /// * Handshakes started (connections taken on) are limited per minute:
-///   [maxHandshakesPerMinute] in all and [maxAddressHandshakesPerMinute]
-///   from one address. A connection beyond them is closed at once and not
-///   counted, so the limits only hold back a flood while it lasts, and the
-///   work a flood makes the phone do (a key agreement each) stays small.
+///   [maxAddressHandshakesPerMinute] from one address, and
+///   [maxHandshakesPerMinute] in all for addresses that started one in
+///   that minute already. A connection beyond them is closed at once and
+///   not counted (neither from its address nor in all), so the limits only
+///   hold back a flood while it lasts, and the work a flood makes the
+///   phone do (a key agreement each) stays small. The first connection
+///   of an address that started none in the last minute is always taken
+///   on (the limits then count it): a flood from a few addresses that
+///   uses up the budget in all cannot keep the real phone out, and one
+///   from many addresses gets one key agreement per address and minute.
 /// * Up to [maxPending] connections set up at once, at most
 ///   [maxPendingPerAddress] from one address: a further one from that
 ///   address closes its oldest one (a device that opens many loses its
@@ -136,7 +142,8 @@ class PairingListener {
   /// Connections that may set up at once from one address.
   final int maxPendingPerAddress;
 
-  /// Handshakes started per minute, in all.
+  /// Handshakes started per minute, in all, by addresses that started one
+  /// in that minute already (an address's first is always taken on).
   final int maxHandshakesPerMinute;
 
   /// Handshakes started per minute from one address.
@@ -182,9 +189,11 @@ class PairingListener {
     final now = _now();
     final since = now.subtract(const Duration(minutes: 1));
     _started.removeWhere((start) => !start.$1.isAfter(since));
-    if (_started.length >= maxHandshakesPerMinute ||
-        _started.where((start) => start.$2 == from).length >=
-            maxAddressHandshakesPerMinute) {
+    final fromHere = _started.where((start) => start.$2 == from).length;
+    // Refused ones count nowhere; an address's first in the minute always
+    // gets in.
+    if (fromHere >= maxAddressHandshakesPerMinute ||
+        (fromHere > 0 && _started.length >= maxHandshakesPerMinute)) {
       socket.destroy();
       return;
     }
@@ -338,8 +347,21 @@ class _Pending {
 
 /// How long the sending phone waits before it tries again when the
 /// receiver closed the connection before answering (it was busy with
-/// other connections, see [PairingListener]): once after each delay.
-const pairingRetryDelays = [Duration(seconds: 1), Duration(seconds: 2)];
+/// other connections, see [PairingListener]): once after each delay, then
+/// every [pairingRetryInterval].
+const pairingRetryDelays = [
+  Duration(seconds: 1),
+  Duration(seconds: 2),
+  Duration(seconds: 4),
+  Duration(seconds: 8),
+];
+
+/// How often the sending phone tries again after [pairingRetryDelays].
+const pairingRetryInterval = Duration(seconds: 10);
+
+/// How long the sending phone goes on trying: as long as a code works
+/// (the receiver's `PairingListener.bind` default validity).
+const pairingRetryWindow = Duration(minutes: 5);
 
 /// The sending phone's side: connects to the receiver of [code] and sets
 /// up the encrypted channel (see [PairingListener]).
@@ -351,30 +373,76 @@ const pairingRetryDelays = [Duration(seconds: 1), Duration(seconds: 2)];
 /// ([PairingTimeoutException]): a receiver that does not take the code
 /// closes the connection ([PairingClosedException]). A receiver that
 /// closes the connection before it sent its key (one that is busy with a
-/// flood of connections) is tried again after each of [retryDelays]; one
-/// that closed it later (a wrong code) is not.
+/// flood of connections) is tried again after each of [retryDelays], then
+/// every [retryInterval] (null: no more), as long as the next try starts
+/// within [retryFor] of the first (the code has expired by then); one that
+/// closed it later (a wrong code) is not.
+///
+/// When [cancel] completes (the user gave up), the tries stop: the call
+/// fails at once with [PairingClosedException], and a connection still
+/// being set up is closed.
 Future<PairingChannel> connectPairing(
   PairingCode code, {
   PairingAddressPolicy policy = const PairingAddressPolicy(),
   Duration connectTimeout = pairingHandshakeTimeout,
   Duration handshakeTimeout = pairingHandshakeTimeout,
   List<Duration> retryDelays = pairingRetryDelays,
+  Duration? retryInterval = pairingRetryInterval,
+  Duration retryFor = pairingRetryWindow,
+  Future<void>? cancel,
 }) async {
   final address = InternetAddress.fromRawAddress(code.address);
   if (!policy.allows(address)) throw const PairingAddressException();
-  for (var attempt = 0; ; attempt++) {
-    try {
-      return await _connectOnce(
-        code,
-        address,
-        connectTimeout: connectTimeout,
-        handshakeTimeout: handshakeTimeout,
-      );
-    } on _Refused catch (refused) {
-      if (attempt >= retryDelays.length) throw refused.error;
-      await Future<void>.delayed(retryDelays[attempt]);
+  final stopped = Completer<void>();
+  unawaited(
+    cancel?.then(
+      (_) {
+        if (!stopped.isCompleted) stopped.complete();
+      },
+      onError: (Object _) {
+        if (!stopped.isCompleted) stopped.complete();
+      },
+    ),
+  );
+  final elapsed = Stopwatch()..start();
+  final tries = () async {
+    for (var attempt = 0; ; attempt++) {
+      try {
+        return await _connectOnce(
+          code,
+          address,
+          connectTimeout: connectTimeout,
+          handshakeTimeout: handshakeTimeout,
+          stopped: stopped,
+        );
+      } on _Refused catch (refused) {
+        final delay = attempt < retryDelays.length
+            ? retryDelays[attempt]
+            : retryInterval;
+        if (stopped.isCompleted ||
+            delay == null ||
+            elapsed.elapsed + delay > retryFor) {
+          throw refused.error;
+        }
+        await Future.any([Future<void>.delayed(delay), stopped.future]);
+        if (stopped.isCompleted) throw refused.error;
+      }
     }
-  }
+  }();
+  if (cancel == null) return await tries;
+  return await Future.any([
+    tries,
+    stopped.future.then<PairingChannel>(
+      (_) => throw const PairingClosedException('Cancelled'),
+    ),
+  ]).whenComplete(() {
+    // Whatever the tries still bring is nobody's.
+    if (stopped.isCompleted) {
+      unawaited(
+        tries.then((channel) => channel.destroy(), onError: (Object _) {}),
+      );
+    }
+  });
 }
 
 /// `ECONNRESET` (Linux, so Android).
@@ -392,6 +460,7 @@ Future<PairingChannel> _connectOnce(
   InternetAddress address, {
   required Duration connectTimeout,
   required Duration handshakeTimeout,
+  required Completer<void> stopped,
 }) async {
   final Socket socket;
   try {
@@ -406,9 +475,21 @@ Future<PairingChannel> _connectOnce(
     // coverage:ignore-end
     throw PairingUnreachableException(error.message);
   }
+  if (stopped.isCompleted) {
+    socket.destroy();
+    throw const PairingClosedException('Cancelled');
+  }
   socket.setOption(SocketOption.tcpNoDelay, true);
   final input = PairingByteReader(socket);
   var expired = false;
+  var connected = false;
+  unawaited(
+    stopped.future.then((_) {
+      if (connected) return;
+      socket.destroy();
+      unawaited(input.cancel());
+    }),
+  );
   // The second write goes out once the receiver's key came.
   var writes = 0;
   final deadline = Timer(handshakeTimeout, () {
@@ -439,6 +520,7 @@ Future<PairingChannel> _connectOnce(
         expected: const {'hello'},
       ),
     );
+    connected = true;
     return opened;
   } on Object catch (error) {
     channel?.destroy();

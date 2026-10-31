@@ -59,6 +59,77 @@ void main() {
       expect(DataDestination.isPrivateHost('example.org'), isFalse);
     });
 
+    test('a record is fresh for ttl, and keeps its verdict after', () {
+      const host = 'nas.tail123.ts.net';
+      final at = DateTime.utc(2026, 10, 31, 12);
+      expect(TailnetHosts.isFresh(host), isFalse);
+
+      TailnetHosts.record(host, ['100.64.0.1'], at: at);
+      expect(TailnetHosts.ttl, const Duration(seconds: 60));
+      expect(TailnetHosts.isFresh(host, now: at), isTrue);
+      expect(
+        TailnetHosts.isFresh(host, now: at.add(const Duration(seconds: 59))),
+        isTrue,
+      );
+      expect(
+        TailnetHosts.isFresh(host, now: at.add(TailnetHosts.ttl)),
+        isFalse,
+      );
+      // A clock that went back does not make it fresh forever.
+      expect(
+        TailnetHosts.isFresh(
+          host,
+          now: at.subtract(const Duration(seconds: 1)),
+        ),
+        isFalse,
+      );
+      expect(
+        TailnetHosts.isFresh(
+          host,
+          now: at.add(const Duration(seconds: 5)),
+          maxAge: const Duration(seconds: 5),
+        ),
+        isFalse,
+      );
+      // The app looks it up again; until then the verdict stands.
+      expect(TailnetHosts.isPrivate(host), isTrue);
+      // Now.
+      TailnetHosts.record(host, ['100.64.0.1']);
+      expect(TailnetHosts.isFresh(host), isTrue);
+    });
+
+    test('addressesOf gives the checked addresses of a private name', () {
+      const host = 'nas.tail123.ts.net';
+      expect(TailnetHosts.addressesOf(host), isEmpty);
+      TailnetHosts.record(host, [' 100.64.0.1', 'fd7a:115c:a1e0::1']);
+      expect(TailnetHosts.addressesOf('NAS.tail123.ts.net.'), [
+        '100.64.0.1',
+        'fd7a:115c:a1e0::1',
+      ]);
+      TailnetHosts.record(host, ['100.64.0.1', '203.0.113.5']);
+      expect(TailnetHosts.addressesOf(host), isEmpty);
+    });
+
+    test('isTailscaleUla: only fd7a:115c:a1e0::/48', () {
+      for (final address in [
+        'fd7a:115c:a1e0::1',
+        '[FD7A:115C:A1E0:AB12::1]',
+        'fd7a:115c:a1e0::1%tun0',
+      ]) {
+        expect(TailnetHosts.isTailscaleUla(address), isTrue, reason: address);
+      }
+      for (final address in [
+        '100.64.0.1',
+        '::ffff:100.64.1.2',
+        'fd7a:115c:a1e1::1',
+        'fd00::1',
+        'nas.tail123.ts.net',
+        '',
+      ]) {
+        expect(TailnetHosts.isTailscaleUla(address), isFalse, reason: address);
+      }
+    });
+
     test('isTailscaleAddress', () {
       for (final address in [
         '100.64.0.0',

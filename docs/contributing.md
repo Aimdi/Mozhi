@@ -236,11 +236,24 @@ it opens Mozhi, accepts the first-run defaults, types a French sentence
 and follows what the app offers, downloading French for offline use first
 and else allowing the text to be sent once
 (`tool/android_smoke.py <apk> <out-dir>`, with `adb` and a fresh
-emulator: it refuses a device where Mozhi is already installed, and it
-clears the device log). It fails when Mozhi crashes or stops or the
+emulator). It fails when Mozhi crashes or stops or the
 sentence can't be typed; the job summary says whether and how it got translated,
 the log lists the text on screen at each step and the screenshots are in
 the job's `android-smoke` artifact.
+
+It is meant for an emulator and refuses to start (exit 2):
+
+- on a device that isn't one (`getprop ro.kernel.qemu` or `ro.boot.qemu`
+  must be `1`), unless you pass `--allow-real-device` (CI never does);
+- when `pm list packages --user all` fails, or lists Mozhi for any user
+  (the run would start from that device's own data).
+
+It leaves the device as it found it, apart from Mozhi itself, which stays
+installed: it never clears the device log (it reads only what was written
+since it started, `logcat -t`), the store screenshots put an earlier `wm
+size` override back instead of resetting it, and at the end it deletes the
+image and the document it pushed, their MediaStore entries where the
+shell may, and its `uiautomator` dump.
 
 After the store screenshots it runs four more flows. Each is a step of its
 own and fails the job when it does not work:

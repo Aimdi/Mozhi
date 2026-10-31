@@ -126,9 +126,12 @@ asks for.
 **Limits and timeouts.** Only private IPv4 addresses (10/8, 172.16/12,
 192.168/16) on both ends; anything else is closed at once (the sender
 refuses a code for another address before connecting). One connection per
-code: once one has set up, the others are closed. At most 30 key
-agreements start a minute in all and 6 per address; a connection beyond
-that is closed at once and not counted. Up to eight set up at a time, two
+code: once one has set up, the others are closed. At most 6 key
+agreements start a minute per address, and 30 in all for addresses that
+started one in that minute already; a connection beyond that is closed at
+once and counted nowhere. An address's first connection in a minute is
+always taken on, so a flood from a few addresses that uses up the 30
+can't shut out the real phone. Up to eight set up at a time, two
 per address (a third from one address closes its own oldest), so a
 connection that stalls can't keep the real phone out; when a ninth
 arrives, the oldest connection of the address with the most of them is
@@ -136,7 +139,9 @@ closed, but only one that had 2 seconds: otherwise the new one is closed.
 So a flood from many addresses can't push out a phone in the middle of
 its key agreement, and holds pairing back only while it lasts. A sender
 whose connection is closed before the receiver's key arrives (turned away)
-tries again after 1 and 2 seconds; one closed later (a wrong code) doesn't.
+tries again after 1, 2, 4 and 8 seconds, then every 10 seconds, until the
+code has expired (five minutes) or you tap **Cancel**; one closed later (a
+wrong code) stops at once.
 The key agreement and both `hello`s must complete within 10 seconds in
 all, on both phones. Only a first encrypted frame that doesn't decrypt proves a
 wrong code; timeouts and malformed handshakes prove nothing (anybody can

@@ -280,21 +280,67 @@ pick ones you trust, or self-host them ([guide](self-hosting-mozhi.md)).
   uses.
 - **Tailscale names** (`*.ts.net`) are not private by name: a Tailscale
   Funnel name resolves to Tailscale's public relays, which anyone on the
-  internet reaches. A `.ts.net` host counts as private (direct connection
-  around the proxy, plain `http` allowed, shown and asked about as your
-  own server) only once a lookup (`TailnetResolver`, before each backend
-  request and connection to it and for the configured servers at start)
-  returned addresses that are all Tailscale's (`100.64.0.0/10`,
-  `fd7a:115c:a1e0::/48`); until then, and for any other answer or a failed
-  lookup, it is a public server. The lookup uses the system's resolver,
-  not the proxy, which therefore learns the name (as it would without a
-  proxy). The connection itself resolves the name again, so a resolver
-  that answers differently the second time could route it differently;
-  only Tailscale's DNS answers for `ts.net`. A redirect from a public server
-  to any `.ts.net` name is refused without a lookup. Settings accept
-  `http://` for a `.ts.net` name that wasn't looked up yet (it may be on
-  the tailnet); its requests are refused unless it is. The web app can't
-  look names up: there every `.ts.net` name is public.
+  internet reaches, and once Tailscale is off the network's own resolver
+  answers for `ts.net` with whatever address it likes. A `.ts.net` host
+  counts as private (direct connection around the proxy, plain `http`
+  allowed, shown and asked about as your own server) only while all of
+  this holds (`TailnetResolver`, `lib/core/network/tailnet_resolver.dart`):
+
+  - **The phone is on its tailnet.** It has a Tailscale interface: an
+    address in `fd7a:115c:a1e0::/48` (Tailscale's own IPv6 range, which
+    carriers don't use; on Android Tailscale's interface is a `tun`), or
+    an interface named `tailscale…` with an address in `100.64.0.0/10`. A
+    `100.64.0.0/10` address on any other interface doesn't count: that is
+    also the range mobile carriers use for CGNAT. This is checked again
+    for every request, the answer reused for at most 2 seconds. Without a
+    Tailscale interface no `.ts.net` name is looked up for this check and
+    every one is public (a request resolves it like any public name, or
+    the proxy does); whenever the phone's Tailscale addresses change (Tailscale
+    turned on or off, another tailnet) every earlier answer is forgotten.
+  - **A recent lookup returned only Tailscale's addresses**
+    (`100.64.0.0/10`, `fd7a:115c:a1e0::/48`). An answer is used for 60
+    seconds, then the name is looked up again before the next request; a
+    failed or slow (over 5 seconds) lookup, or any other answer, makes the
+    name public.
+
+  The lookups run before every backend request and in the connection
+  factory of every connection, and for the configured servers at start.
+  The connection then goes to **the very address that was checked**
+  instead of resolving the name a second time (an `fd7a:` address first
+  when the phone has one): with a connection factory, `dart:io` uses the
+  socket the app returns as it is and adds no TLS of its own, so for
+  `https` the app opens the connection to that address and runs TLS with
+  the name itself (SNI and the certificate check use the name, never the
+  address); the `Host` header always carries the name. A private name
+  without a checked address fails to connect rather than being resolved.
+  The lookup uses the system's resolver (Tailscale's MagicDNS while
+  Tailscale is on), not the proxy, which therefore learns the name (as it
+  would without a proxy). A redirect from a public server to any `.ts.net`
+  name is refused without a lookup. Settings accept `http://` for a
+  `.ts.net` name that wasn't looked up yet (it may be on the tailnet); its
+  requests are refused unless it is. The web app does no lookups (a
+  browser can't see the interfaces or resolve names): there every
+  `.ts.net` name is public. **Offline only** looks nothing up.
+
+  What remains: the interface check is a few seconds old at most, so a
+  request in the seconds right after Tailscale is turned off may still be
+  sent directly (and over plain `http`, if the server uses it) to the
+  checked `100.64.0.0/10` or `fd7a:` address, which the network then routes,
+  a hostile network included. A connection to the checked address that is
+  kept open (idle connections stay open for 90 seconds) may be reused after
+  a later check found Tailscale off; for plain `http` the network policy
+  refuses the request first, so only `https` connections, whose certificate
+  was checked for the name, are reused that way. The translation screen and
+  the consent prompts use the last answer, so text may be sent without the
+  consent a public server needs when, between two lookups, a name stopped
+  leading to the tailnet; the request itself is then checked again (`https`
+  only, through the proxy when there is one, the certificate checked for the
+  name). A tailnet answer is trusted only because the phone has a Tailscale
+  interface: while Tailscale is on, its client routes `100.64.0.0/10` and
+  `fd7a:115c:a1e0::/48` into its tunnel, so the checked address leads into
+  your tailnet even when a resolver other than MagicDNS gave it. A server
+  entered by its `100.64.0.0/10` address rather than a name is treated as
+  your network without these checks.
 - **Headers:** requests carry `User-Agent: Mozhi`, no cookies and no
   `Referer`; the web app's page sets `referrer` to `no-referrer`.
 - **Certificates:** the app never disables certificate checks. Release
@@ -489,9 +535,13 @@ or malicious. What protects you:
   can't keep the real phone out; a newer one pushes out the oldest only
   after it had 2 seconds, so a flood from many addresses can't push out a
   phone in the middle of its key agreement (which takes well under a
-  second). At most 30 key agreements are started a minute in all and 6
-  per address; connections beyond that are closed at once, so a flood
-  makes the phone do little work. Every frame's length is checked before
+  second). At most 6 key agreements are started a minute per address and
+  30 in all for addresses that started one in that minute already;
+  connections beyond that are closed at once and counted nowhere, so a
+  flood makes the phone do little work (one key agreement per address and
+  minute beyond the 30). An address's first connection in a minute is
+  always taken on, so a few addresses can't use up the minute for the
+  real phone. Every frame's length is checked before
   it is read (256 KiB at most), with one deadline for the key agreement
   and `hello` (10 seconds in all), timeouts between frames (30 seconds)
   and for the people deciding (10 minutes).
@@ -501,10 +551,12 @@ or malicious. What protects you:
   Someone with the code can still connect first: the real sender is then
   turned away and has no number to show, so the receiving phone's
   question gets a no (make a new code). Devices that keep opening
-  connections, from one address or many, can hold pairing back while they
-  do, by using up the minute's key agreements (the sending phone tries
-  twice more within 3 seconds when it is turned away before the key
-  agreement); once they stop, pairing works again within a minute.
+  connections from many addresses can hold pairing back while they do, by
+  keeping every place taken (the sending phone tries again after 1, 2, 4
+  and 8 seconds, then every 10 seconds, for as long as the code works or
+  until you cancel, when it is turned away before the key agreement; a
+  wrong code stops it at once); once they stop, pairing works again
+  within a minute.
   Anyone who floods or jams the network can delay it too.
 
 ## Web page translator

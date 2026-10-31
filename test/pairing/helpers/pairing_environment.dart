@@ -36,7 +36,8 @@ class TestPairingEnvironment {
         listeners.add(listener);
         return listener;
       },
-      connect: (code) => connectPairing(code, policy: loopbackPolicy),
+      connect: (code, {cancel}) =>
+          connectPairing(code, policy: loopbackPolicy, cancel: cancel),
       keepScreenOn: ({required enabled}) async => screen.add(enabled),
       timeouts: timeouts,
       codeValidity: codeValidity,

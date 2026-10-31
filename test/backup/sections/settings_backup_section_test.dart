@@ -605,6 +605,41 @@ void main() {
         ]);
       });
 
+      test('adds a provider at a Tailscale name turned off, whether or not '
+          'it was looked up', () async {
+        addTearDown(TailnetHosts.forget);
+        TailnetHosts.record('pc.tail1234.ts.net', ['100.101.102.103']);
+        TailnetHosts.record('funnel.tail1234.ts.net', ['203.0.113.5']);
+        await section.restore(
+          throughJson({
+            'settings': AppSettings(
+              providers: [
+                // Not looked up yet: public now, the tailnet's later.
+                _provider('new', baseUrl: 'https://x.tail1234.ts.net/v1'),
+                _provider('pc', baseUrl: 'http://pc.tail1234.ts.net:11434'),
+                _provider(
+                  'funnel',
+                  baseUrl: 'https://funnel.tail1234.ts.net/v1',
+                ),
+                _provider('bare', baseUrl: 'x.tail1234.ts.net:11434'),
+              ],
+            ).toJson(),
+          }),
+          version: 1,
+          mode: BackupRestoreMode.merge,
+        );
+
+        final merged = await repository.load();
+        expect(merged.providers.map((p) => (p.id, p.enabled)), [
+          ('a', true),
+          ('b', true),
+          ('new', false),
+          ('pc', false),
+          ('funnel', false),
+          ('bare', false),
+        ]);
+      });
+
       test('adds a provider the backup repeats once', () async {
         await section.restore(
           throughJson({
@@ -839,6 +874,17 @@ void main() {
       (_provider('a', baseUrl: 'http://10.0.0.2:1234/v1'), false),
       (_provider('a', baseUrl: 'mybox.local:11434'), false),
       (_provider('a', baseUrl: 'http://abc.onion/v1'), false),
+      // Public until looked up, the tailnet's afterwards.
+      (_provider('a', baseUrl: 'https://x.tail1234.ts.net/v1'), false),
+      (_provider('a', baseUrl: 'X.TAIL1234.TS.NET.:11434'), false),
+      (
+        _provider(
+          'a',
+          baseUrl: 'https://x.tail1234.ts.net',
+          service: MtService.deepl,
+        ),
+        true,
+      ),
       (
         _provider(
           'a',

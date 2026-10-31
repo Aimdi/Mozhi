@@ -170,9 +170,11 @@ class RedirectRefusedException extends http.ClientException {
 /// [http.BaseResponseWithUrl] with that hop's URL.
 ///
 /// A Tailscale `.ts.net` name is private only when it resolves to
-/// Tailscale's addresses ([TailnetHosts]): it is looked up
+/// Tailscale's addresses ([TailnetHosts]) while the device has a Tailscale
+/// interface: it is checked and, after [TailnetHosts.ttl], looked up again
 /// ([TailnetResolver.resolve], or the client's own lookup) before the
-/// [policy] is applied to it. A redirect from a public server to any
+/// [policy] is applied to it, and the connection goes to the address that
+/// was checked (`routeConnections`). A redirect from a public server to any
 /// `.ts.net` name is refused without a lookup.
 ///
 /// Other requests (POST, `followRedirects: false`, which the backend

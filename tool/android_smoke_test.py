@@ -205,22 +205,91 @@ class ParseArgsTest(unittest.TestCase):
         ):
             self.assertIsNone(smoke.parse_args(argv), argv)
 
-    def test_main_refuses_a_device_where_mozhi_is_installed(self):
+    def refused(self, answers, *extra):
+        """main's exit code, what it printed and the adb calls it made on a
+        device answering [answers] (argument prefix -> output, or an
+        exception to raise)."""
         calls = []
 
         def adb(self, *args, check=True, timeout=120):
             calls.append(args)
-            if args[:3] == ("shell", "pm", "list"):
-                return f"package:{smoke.PACKAGE}\n"
+            for prefix, answer in answers.items():
+                if args[: len(prefix)] == prefix:
+                    if isinstance(answer, Exception):
+                        raise answer
+                    return answer
             return ""
 
         with tempfile.TemporaryDirectory() as tmp, mock.patch.object(
             smoke.Device, "adb", adb
         ), redirect_stdout(io.StringIO()) as out:
-            self.assertEqual(smoke.main(["app.apk", tmp]), 2)
-        self.assertIn("already installed", out.getvalue())
+            code = smoke.main(["app.apk", tmp, *extra])
         self.assertFalse(any(c[:1] == ("install",) for c in calls))
         self.assertFalse(any(c[:2] == ("logcat", "-c") for c in calls))
+        return code, out.getvalue(), calls
+
+    EMULATOR = {("shell", "getprop", "ro.boot.qemu"): "1\n"}
+
+    def test_main_refuses_a_device_where_mozhi_is_installed(self):
+        code, out, calls = self.refused({
+            **self.EMULATOR,
+            ("shell", "pm", "list"):
+                f"package:{smoke.PACKAGE} uid:10123\npackage:com.other\n",
+        })
+        self.assertEqual(code, 2)
+        self.assertIn("already installed", out)
+        # For every user, not only the first.
+        self.assertIn(
+            ("shell", "pm", "list", "packages", "--user", "all", smoke.PACKAGE),
+            calls,
+        )
+
+    def test_main_refuses_when_it_cannot_list_the_packages(self):
+        code, out, _ = self.refused({
+            **self.EMULATOR,
+            ("shell", "pm", "list"): RuntimeError("adb shell pm list: Unknown option"),
+        })
+        self.assertEqual(code, 2)
+        self.assertIn("can't tell whether Mozhi is installed", out)
+
+    def test_main_refuses_a_real_device_unless_allowed(self):
+        code, out, _ = self.refused({("shell", "getprop"): "0\n"})
+        self.assertEqual(code, 2)
+        self.assertIn("not an emulator", out)
+        self.assertIn("--allow-real-device", out)
+
+        # Allowed, the other checks still apply.
+        code, out, calls = self.refused(
+            {("shell", "pm", "list"): f"package:{smoke.PACKAGE}\n"},
+            "--allow-real-device",
+        )
+        self.assertEqual(code, 2)
+        self.assertIn("already installed", out)
+        self.assertFalse(any(c[:2] == ("shell", "getprop") for c in calls))
+
+    def test_main_refuses_without_a_device(self):
+        code, out, _ = self.refused({
+            ("shell", "getprop"): RuntimeError("adb: no devices/emulators found"),
+        })
+        self.assertEqual(code, 2)
+        self.assertIn("no devices", out)
+
+    def test_device_checks(self):
+        self.assertTrue(smoke.is_emulator("1\n", ""))
+        self.assertTrue(smoke.is_emulator("", "1"))
+        self.assertFalse(smoke.is_emulator("", ""))
+        self.assertFalse(smoke.is_emulator("0", "10"))
+        self.assertEqual(
+            smoke.installed_packages("package:a.b uid:1\npackage:\nnoise\n package:c\n"),
+            {"a.b", "c"},
+        )
+        self.assertEqual(
+            smoke.size_override("Physical size: 1080x2400\nOverride size: 720x1280\n"),
+            "720x1280",
+        )
+        self.assertIsNone(smoke.size_override("Physical size: 1080x2400\n"))
+        self.assertEqual(smoke.log_start("1730000000\n"), "1730000000.000")
+        self.assertIsNone(smoke.log_start("date: bad format"))
 
     def test_main_prints_the_usage_for_wrong_arguments(self):
         out = io.StringIO()
@@ -282,10 +351,18 @@ class StoreHelpersTest(unittest.TestCase):
 
 
 class FakeDevice(smoke.Device):
-    """Answers adb like an emulator, records the commands."""
+    """Answers adb like an emulator, records the commands. [last] is the
+    one made last."""
+
+    last: "FakeDevice | None" = None
+    # What the next one answers (set before main makes it).
+    qemu = ("", "1")
+    packages = "package:com.android.settings\n"
+    size = "Physical size: 1080x2400\n"
 
     def __init__(self, out: Path) -> None:
         super().__init__(out)
+        FakeDevice.last = self
         self.calls: list[tuple[str, ...]] = []
         self.raw = raw_screen(4, 8)
         self.png = b""
@@ -297,6 +374,16 @@ class FakeDevice(smoke.Device):
         self.calls.append(args)
         if self.fail_on is not None and args[: len(self.fail_on)] == self.fail_on:
             raise RuntimeError("adb failed")
+        if args == ("shell", "getprop", "ro.kernel.qemu"):
+            return self.qemu[0] + "\n"
+        if args == ("shell", "getprop", "ro.boot.qemu"):
+            return self.qemu[1] + "\n"
+        if args[:3] == ("shell", "pm", "list"):
+            return self.packages
+        if args == ("shell", "date", "+%s"):
+            return "1730000000\n"
+        if args == ("shell", "wm", "size"):
+            return self.size
         if args[:4] == ("shell", "cmd", "uimode", "night") and len(args) == 4:
             return "Night mode: no\n"
         if args[:3] == ("shell", "dumpsys", "input_method"):
@@ -368,6 +455,14 @@ class StoreScreenshotsTest(unittest.TestCase):
         )
         self.assertIn("exit", calls[-3])
         self.assertTrue(any("clock" in c for c in calls))
+
+    def test_puts_back_an_earlier_screen_size_override(self):
+        self.device.size = "Physical size: 1080x2400\nOverride size: 720x1280\n"
+
+        smoke.store_screenshots(self.device, self.folder)
+
+        self.assertIn(("shell", "wm", "size", "720x1280"), self.device.calls)
+        self.assertNotIn(("shell", "wm", "size", "reset"), self.device.calls)
 
     def test_puts_everything_back_when_adb_fails(self):
         self.device.fail_on = ("shell", "cmd", "uimode", "night", "yes")
@@ -445,6 +540,35 @@ class MainTest(unittest.TestCase):
         with contextlib.redirect_stdout(io.StringIO()):
             code = smoke.main(["app.apk", str(self.root / "smoke"), *extra])
         return code, (self.root / "smoke" / "summary.md").read_text(encoding="utf-8")
+
+    def test_reads_the_log_since_it_started_and_never_clears_it(self):
+        code, _ = self.run_main()
+
+        self.assertEqual(code, 0)
+        calls = FakeDevice.last.calls
+        self.assertFalse(any(c[:2] == ("logcat", "-c") for c in calls))
+        self.assertIn(("logcat", "-t", "1730000000.000"), calls)
+        self.assertFalse(any(c == ("logcat", "-d") for c in calls))
+        # The date is read before the app is installed.
+        self.assertLess(calls.index(("shell", "date", "+%s")),
+                        next(i for i, c in enumerate(calls) if c[0] == "install"))
+
+    def test_cleans_up_after_the_flows(self):
+        def image(device):
+            device.pushed.append(("/sdcard/Pictures/mozhi-smoke-sign.png",
+                                  "content://media/external/images/media/42"))
+            return "the house"
+
+        with mock.patch.object(smoke, "flow_image", image):
+            code, _ = self.run_main()
+
+        self.assertEqual(code, 0)
+        calls = FakeDevice.last.calls
+        self.assertIn(("shell", "content", "delete", "--uri",
+                       "content://media/external/images/media/42"), calls)
+        self.assertIn(("shell", "rm", "-f", "/sdcard/Pictures/mozhi-smoke-sign.png"),
+                      calls)
+        self.assertIn(("shell", "rm", "-f", smoke.UI_DUMP), calls)
 
     def test_the_default_run_takes_no_store_screenshots(self):
         code, summary = self.run_main()
@@ -1224,6 +1348,48 @@ class SharedFileFlowsTest(ClockTestCase):
                                lambda *a, **k: "Error: Activity not started"):
             with self.assertRaisesRegex(smoke.StepFailed, "got the file through none"):
                 smoke.flow_image(d)
+
+    def test_pushed_files_are_recorded_and_cleaned_up(self):
+        smoke.push_shared_file(
+            self.device, smoke.IMAGE_ASSET, smoke.IMAGE_REMOTE, "images/media"
+        )
+        self.device.on_adb[2] = (("shell", "content", "query"), None,
+                                 "No result found.\n")
+        smoke.push_shared_file(
+            self.device, Path(self.tmp.name) / "doc.txt",
+            f"Download/{smoke.DOCUMENT_NAME}", "downloads",
+        )
+        self.assertEqual(self.device.pushed, [
+            ("/sdcard/Pictures/mozhi-smoke-sign.png",
+             "content://media/external/images/media/42"),
+            (f"/sdcard/Download/{smoke.DOCUMENT_NAME}", None),
+        ])
+        self.device.calls.clear()
+
+        smoke.clean_up(self.device)
+
+        calls = self.device.calls
+        self.assertEqual(
+            [c for c in calls if c[:3] == ("shell", "content", "delete")],
+            [("shell", "content", "delete", "--uri",
+              "content://media/external/images/media/42")],
+        )
+        self.assertIn(("shell", "rm", "-f", "/sdcard/Pictures/mozhi-smoke-sign.png"),
+                      calls)
+        self.assertIn(("shell", "rm", "-f", f"/sdcard/Download/{smoke.DOCUMENT_NAME}"),
+                      calls)
+        rescans = [c for c in calls if c[:3] == ("shell", "am", "broadcast")]
+        self.assertEqual(len(rescans), 2)
+        self.assertEqual(self.device.pushed, [])
+
+    def test_clean_up_never_fails(self):
+        self.device.pushed.append(("/sdcard/a.png", "content://media/x/1"))
+        self.device.fail_on = ("shell", "rm")
+
+        smoke.clean_up(self.device)
+
+        self.assertTrue(any("clean up /sdcard/a.png: adb failed" in line
+                            for line in self.device.log))
 
     def test_push_without_a_mediastore_row_shares_the_document_uri(self):
         self.device.on_adb[2] = (("shell", "content", "query"), None,

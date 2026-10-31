@@ -233,6 +233,11 @@ void main() {
         ...device.prefs.values.values,
       ], everyElement(isNot(contains('correct horse'))));
       expect(device.prefs.values, contains(SyncStore.configKey));
+      // When this device joined the folder, kept with the setup.
+      expect(state.config!.joinedAt, DateTime.utc(2026, 10, 22, 12));
+      final again = device.restart();
+      await again.load();
+      expect(again.state.config!.joinedAt, DateTime.utc(2026, 10, 22, 12));
     });
 
     test('a second device joins with the same passphrase', () async {

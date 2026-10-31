@@ -31,12 +31,14 @@ void main() {
   late List<Stream<TranslationResult> Function()> answers;
   late List<String> grants;
   TranslationEngine? engine;
+  late DateTime now;
 
   setUp(() {
     repository = MockTranslationRepository();
     speech = MockSpeechService();
     speaking = stubSpeech(speech);
     engine = deepl;
+    now = sentAt;
     answers = [];
     // What the repository saw: allowOnce and revokeOnce, in order.
     grants = [];
@@ -62,7 +64,7 @@ void main() {
     engine: () => engine,
     languageA: english,
     languageB: spanish,
-    clock: () => sentAt,
+    clock: () => now,
   );
 
   Stream<TranslationResult> Function() fails(Object error) =>
@@ -113,6 +115,36 @@ void main() {
 
       expect(cubit.state.turns.single.error, _consent);
       verify(() => repository.allowOnce(any())).called(1);
+    });
+
+    test('is not used once the approval would have expired', () async {
+      final cubit = await failedAfterConsent();
+      now = now.add(TranslationRepository.consentOnceLifetime);
+      answers = [fails(_consent)];
+
+      await cubit.retry(0);
+
+      verifyNever(() => repository.allowOnce(any()));
+      expect(cubit.state.turns.single.error, _consent);
+    });
+
+    test('is used until then', () async {
+      final cubit = await failedAfterConsent();
+      now = now.add(
+        TranslationRepository.consentOnceLifetime - const Duration(seconds: 1),
+      );
+
+      await cubit.retry(0);
+
+      verify(() => repository.allowOnce(_consent)).called(1);
+      expect(cubit.state.turns.single.isComplete, isTrue);
+    });
+
+    test('is not used when the clock went back', () async {
+      final cubit = await failedAfterConsent();
+      now = now.subtract(const Duration(minutes: 1));
+      await cubit.retry(0);
+      verifyNever(() => repository.allowOnce(any()));
     });
 
     test('is not used for another engine', () async {

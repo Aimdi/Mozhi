@@ -256,17 +256,47 @@ void main() {
       await accepted;
     });
 
-    test('closing while connecting hangs up', () async {
+    test('closing while connecting stops connecting', () async {
       final cubit = build(initialCode: listener.code.text);
       final connecting = cubit.connect();
       await cubit.close();
       await connecting;
-      final channel = await listener.connection;
-      channels.add(channel);
-      await expectLater(
-        channel.receive(timeout: const Duration(seconds: 5)),
-        throwsA(isA<PairingClosedException>()),
-      );
+      // The receiving phone gets nobody, and still takes another.
+      final other = build(initialCode: listener.code.text);
+      await other.connect();
+      expect(other.state.step, PairingSendStep.confirm);
+      channels.add(await listener.connection);
+    });
+
+    group('a phone that keeps turning it away', () {
+      late ServerSocket busy;
+
+      setUp(() async {
+        busy = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0)
+          ..listen((socket) => socket.destroy());
+      });
+
+      tearDown(() => busy.close());
+
+      test('is tried until the user cancels, back to the code', () async {
+        final code = PairingCode(
+          address: const [127, 0, 0, 1],
+          port: busy.port,
+          secret: List.filled(8, 1),
+        ).text;
+        final cubit = build(initialCode: code);
+        final connecting = cubit.connect();
+        await Future<void>.delayed(const Duration(milliseconds: 200));
+        expect(cubit.state.step, PairingSendStep.connecting);
+
+        cubit.cancelConnect();
+        expect(cubit.state, PairingSendState(input: code));
+        await connecting;
+        expect(cubit.state, PairingSendState(input: code));
+        // Only while connecting.
+        cubit.cancelConnect();
+        expect(cubit.state, PairingSendState(input: code));
+      });
     });
 
     test('reports a phone that cannot be reached', () async {

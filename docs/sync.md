@@ -15,6 +15,7 @@ only ever stores a file it can't read.
 - [When it syncs](#when-it-syncs)
 - [How it works](#how-it-works)
 - [Delete history automatically on several devices](#delete-history-automatically-on-several-devices)
+- [Clear history on several devices](#clear-history-on-several-devices)
 - [What the server sees](#what-the-server-sees)
 - [Change or forget the passphrase](#change-or-forget-the-passphrase)
 - [Turn sync off](#turn-sync-off)
@@ -186,8 +187,12 @@ device that keeps history for less time:
 
 So devices with different settings write the same file, and stop writing
 it once they agree. A new device that keeps history longer gets the older
-entries from the file. Deleting entries yourself, or **Clear history**,
-still reaches every device.
+entries from the file. Deleting entries yourself still reaches every
+device, and so does **Clear history** (see
+[below](#clear-history-on-several-devices)). A note dated more than a day
+ahead of a device's clock (from a device whose clock is wrong) is ignored,
+and one ahead by less counts as written today, so no note keeps history in
+the file for ever.
 
 Mozhi chose this over making the shortest setting delete everywhere: a
 deletion record for each entry that expired would delete it on the
@@ -196,6 +201,62 @@ to keep it. Devices on an older version of Mozhi write no notes and drop
 the others' notes when they write the file, so until every device is
 updated the older entries may go on being added to and dropped from the
 file (as before), without being deleted from any device.
+
+## Clear history on several devices
+
+**Clear history** deletes what this device holds, and the sync file also
+records when it ran (and whether it kept the favorites). The devices of
+the sync folder then delete the entries that clear covers, including
+those this device never had, such as entries older than its **Delete
+history automatically** setting that a tablet keeping everything still
+holds:
+
+- the entries created and last changed before the clear (starring or
+  un-starring an entry changes it);
+- with **Keep favorites**, only those that are not favorites.
+
+An entry created, starred or un-starred on any device after the clear is
+kept, as is one you import or bring back afterwards. The device that
+cleared no longer writes the file's older entries back for the others,
+and leaves a [deletion record](backup.md) for each of them (as does every
+device that finds one), so they are deleted even on a device that syncs
+only later (deletion records are kept for 180 days).
+
+**A clear never deletes a device's own history from before it started
+syncing with the folder.** Each device notes when it was set up for the
+folder (set up again for another server, account or folder, it notes the
+new time; changing or entering the passphrase again keeps it). The first
+time it merges the sync file after that, everything it held counts as
+changed at that moment, which is later than any clear made before. From
+then on it applies every clear the file records, also an older one that
+reaches the folder only now (from a device that cleared without
+syncing), but such a clear only takes the folder's entries, never the
+joining device's. A clear made on a device before it was set up for the
+folder stays with that device and never reaches the file. Devices set up
+before this version noted no time: they count as having synced with the
+folder all along, so every clear applies to them.
+
+Backups and data sent [phone to phone](pairing.md) also carry the record,
+but restoring them never deletes anything by it: with **Merge with my
+data** this device's entries all stay, and with **Replace my data** the
+device gets the backup's entries. An entry they bring in that a clear on
+this device covers counts as changed then, so that clear doesn't take it
+either.
+
+The record stays as long as the sync file and the devices keep it (it is
+two dates, so it doesn't grow): with the rules above it never reaches
+what a device had before it joined, so it needs no expiry.
+
+The time comes from the clock of the device that cleared: a clear dated
+more than a day ahead of a device's clock is ignored there, and one ahead
+by less counts as now. A device whose clock is behind may lose an entry
+it makes right after the clear, within the time its clock is behind.
+
+A device on 0.1.0-rc.7 or earlier doesn't know the record: it deletes the
+entries the file held through the deletion records, while the ones only
+it had come back into the file until an updated device deletes them there
+(at its next sync). It drops the record from the file when it writes it,
+so until it is updated the file may change at every sync.
 
 ## What the server sees
 

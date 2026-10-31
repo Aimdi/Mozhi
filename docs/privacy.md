@@ -647,18 +647,29 @@ In the web app, clearing the site's data does the same.
   encrypted handshake, it's closed at once rather than left open until the
   server hangs up.
 - **Tailscale names** (`*.ts.net`): a name counts as your own network only
-  when it leads to a device on your tailnet (an address in
-  `100.64.0.0/10` or `fd7a:115c:a1e0::/48`). The Android app looks the name
-  up with the phone's resolver (Tailscale's MagicDNS when Tailscale is on)
-  before the first request to it, never through the proxy, so that resolver
-  learns the name. A Tailscale **Funnel** name leads to Tailscale's public
-  relays, which anyone on the internet reaches: it's treated as a public
-  server, so it goes through your proxy, needs `https`, is asked about like
-  any public server and is shown as one. So is a name that can't be looked
-  up (no network, or the lookup takes more than 5 seconds; it's looked up
-  again next time) and every `.ts.net` name in the web app, which can't
-  look names up. A public server can never redirect a download to a
-  `.ts.net` name.
+  while the phone is on its tailnet (it has a Tailscale interface, with an
+  address in Tailscale's `fd7a:115c:a1e0::/48` range) and the name leads to
+  a device there (an address in `100.64.0.0/10` or `fd7a:115c:a1e0::/48`).
+  Without Tailscale the Android app doesn't look `.ts.net` names up to
+  check them, and every one is treated as a public server (its requests
+  resolve it as they would any public server's name, or your proxy does).
+  With it, the app looks the
+  name up with the phone's resolver (Tailscale's MagicDNS) before the first
+  request to it and again once that answer is a minute old, never through
+  the proxy, so that resolver learns the name; the connection then goes to
+  the address it checked, never to a second answer. When Tailscale is
+  turned on or off (checked again before every request, at most a few
+  seconds old), every earlier answer is forgotten. A Tailscale **Funnel**
+  name leads to Tailscale's public relays, which anyone on the internet
+  reaches: it's treated as a public server, so it goes through your proxy,
+  needs `https`, is asked about like any public server and is shown as
+  one. So is a name that can't be looked up (no network, or the lookup
+  takes more than 5 seconds; it's looked up again next time) and every
+  `.ts.net` name in the web app, which can't look names up. In **Offline
+  only** nothing is looked up. A public server can never redirect a
+  download to a `.ts.net` name. In the few seconds right after you turn
+  Tailscale off, a request may still go directly to the address checked
+  before; see [Security](security.md) for the details.
 - **Little to identify the app.** Requests send `User-Agent: Mozhi`
   (no version, no device details), no cookies (there is no cookie jar) and
   no `Referer`. The web page translator sends a desktop browser

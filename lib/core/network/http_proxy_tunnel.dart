@@ -7,9 +7,11 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:mozhi/core/network/http_client_factory.dart';
 import 'package:mozhi/core/network/tailnet_resolver.dart';
+import 'package:translation_repository/translation_repository.dart';
 
-/// Routes [client]'s connections through the HTTP proxy at [proxy], except
-/// connections to hosts for which [bypass] is true, which are direct.
+/// Opens every connection of [client] (a `dart:io` client): through the
+/// HTTP proxy at [proxy] when there is one, except connections to hosts
+/// for which [bypass] is true, which are direct.
 ///
 /// Every tunnel is opened here, in the client's connection factory, so the
 /// client's `connectionTimeout` covers all of it: the connection to the
@@ -24,45 +26,136 @@ import 'package:mozhi/core/network/tailnet_resolver.dart';
 /// proxy-style requests (`GET http://…`), which Tor's HTTP tunnel port
 /// refuses.
 ///
-/// Host names are resolved by the proxy, never locally, except Tailscale
-/// `.ts.net` names: [resolveHost] (default: [TailnetResolver.instance]'s
-/// [TailnetResolver.resolve]) looks them up first, so that [bypass] knows
-/// whether one leads to a tailnet (direct) or is a public Funnel address
-/// (through the proxy). [context] is the TLS trust of `https` connections
-/// (default: the system's; tests).
+/// With a connection factory, `dart:io` uses the socket it returns as it
+/// is (`findProxy` answers `DIRECT`) and adds no TLS of its own, so an
+/// `https` connection is a [SecureSocket] secured here, with the URL's host
+/// for SNI and the certificate check (the `Host` header always comes from
+/// the URL).
+///
+/// Host names are resolved by the proxy, or without one by the system,
+/// except Tailscale `.ts.net` names: [resolveHost] (default:
+/// [TailnetResolver.instance]'s [TailnetResolver.resolve]) looks them up
+/// first, so that [bypass] knows whether one leads to a tailnet (direct)
+/// or is a public Funnel address (through the proxy). A name on the
+/// tailnet ([TailnetHosts.isPrivate]) is connected to at the address that
+/// lookup checked ([checkedAddress], default:
+/// [TailnetResolver.instance]'s [TailnetResolver.connectAddress]), never
+/// resolved again: another answer the second time (the network's resolver
+/// once Tailscale is off) cannot move the connection elsewhere. Without
+/// such an address the connection fails. [context] is the TLS trust of
+/// `https` connections (default: the system's; tests).
+///
+/// [connectAddress], [connectRawAddress] and [secure] open those
+/// connections to a checked address (tests).
+void routeConnections(
+  HttpClient client, {
+  required bool Function(String host) bypass,
+  ProxyAddress? proxy,
+  SecurityContext? context,
+  Future<void> Function(String host)? resolveHost,
+  String? Function(String host)? checkedAddress,
+  @visibleForTesting AddressConnect connectAddress = Socket.startConnect,
+  @visibleForTesting
+  RawAddressConnect connectRawAddress = startRawAddressConnect,
+  @visibleForTesting SecureRawSocket secure = RawSecureSocket.secure,
+}) {
+  client
+    // The connections are the factory's: dart:io connects "directly" to
+    // what it returns and adds no TLS of its own.
+    ..findProxy = ((_) => 'DIRECT')
+    ..connectionFactory = (uri, _, _) async {
+      final host = uri.host;
+      await (resolveHost ?? TailnetResolver.instance.resolve)(host);
+      final isSecure = uri.isScheme('https');
+      if (TailnetHosts.isPrivate(host)) {
+        final checked =
+            (checkedAddress ?? TailnetResolver.instance.connectAddress)(host);
+        final address = checked == null
+            ? null
+            : InternetAddress.tryParse(checked);
+        if (address == null) {
+          throw const SocketException(
+            'No checked Tailscale address to connect to',
+          );
+        }
+        return isSecure
+            ? await connectSecureAddress(
+                address,
+                host,
+                uri.port,
+                context: context,
+                connect: connectRawAddress,
+                secure: secure,
+              )
+            : await connectAddress(address, uri.port);
+      }
+      if (proxy == null || bypass(host)) {
+        return isSecure
+            ? await SecureSocket.startConnect(host, uri.port, context: context)
+            : await Socket.startConnect(host, uri.port);
+      }
+      return isSecure
+          ? await connectSecureTunnel(proxy, host, uri.port, context: context)
+          : await connectTunnel(proxy, host, uri.port);
+    };
+}
+
+/// [routeConnections] with [proxy].
 void routeThroughProxy(
   HttpClient client,
   ProxyAddress proxy, {
   required bool Function(String host) bypass,
   SecurityContext? context,
   Future<void> Function(String host)? resolveHost,
-}) {
-  client
-    // The tunnels are the connection factory's: dart:io connects "directly"
-    // to what it returns and adds no TLS of its own.
-    ..findProxy = ((_) => 'DIRECT')
-    ..connectionFactory = (uri, _, _) async {
-      await (resolveHost ?? TailnetResolver.instance.resolve)(uri.host);
-      final secure = uri.isScheme('https');
-      if (bypass(uri.host)) {
-        return secure
-            ? await SecureSocket.startConnect(
-                uri.host,
-                uri.port,
-                context: context,
-              )
-            : await Socket.startConnect(uri.host, uri.port);
-      }
-      return secure
-          ? await connectSecureTunnel(
-              proxy,
-              uri.host,
-              uri.port,
-              context: context,
-            )
-          : await connectTunnel(proxy, uri.host, uri.port);
-    };
+}) => routeConnections(
+  client,
+  proxy: proxy,
+  bypass: bypass,
+  context: context,
+  resolveHost: resolveHost,
+);
+
+/// Starts a connection to [address]:[port] ([Socket.startConnect]).
+typedef AddressConnect = Future<ConnectionTask<Socket>> Function(
+  InternetAddress address,
+  int port,
+);
+
+/// Starts a raw connection to [address]:[port] ([startRawAddressConnect]).
+typedef RawAddressConnect =
+    Future<({Future<RawSocket> socket, void Function() cancel})> Function(
+      InternetAddress address,
+      int port,
+    );
+
+/// [RawSocket.startConnect] to an address, as a [RawAddressConnect].
+Future<({Future<RawSocket> socket, void Function() cancel})>
+startRawAddressConnect(InternetAddress address, int port) async {
+  final task = await RawSocket.startConnect(address, port);
+  return (socket: task.socket, cancel: task.cancel);
 }
+
+/// Opens a connection to [address]:[port] and runs TLS with [host] on it:
+/// [host] is the name sent for SNI and the one the server's certificate
+/// must be valid for, whatever the address. The task's socket completes
+/// once the handshake is done (a `HandshakeException` when TLS fails).
+/// Cancelling the task closes the connection at once, also in the middle
+/// of the handshake (as for [connectSecureTunnel]).
+///
+/// [connect] opens the connection and [secure] runs TLS on it (tests);
+/// [context] is the TLS trust (default: the system's).
+Future<ConnectionTask<Socket>> connectSecureAddress(
+  InternetAddress address,
+  String host,
+  int port, {
+  SecurityContext? context,
+  @visibleForTesting RawAddressConnect connect = startRawAddressConnect,
+  @visibleForTesting SecureRawSocket secure = RawSecureSocket.secure,
+}) async => _securedConnection(
+  await connect(address, port),
+  (socket) async =>
+      _SecureTunnelSocket(await secure(socket, host: host, context: context)),
+);
 
 /// The `host:port` of a `CONNECT` request, with brackets around IPv6.
 String connectAuthority(String host, int port) =>
@@ -126,8 +219,25 @@ Future<ConnectionTask<Socket>> connectSecureTunnel(
   @visibleForTesting SecureRawSocket secure = RawSecureSocket.secure,
 }) async {
   final task = await connect(proxy.host, proxy.port);
+  return _securedConnection(
+    task,
+    (socket) =>
+        openSecureTunnel(socket, host, port, context: context, secure: secure),
+  );
+}
+
+/// The task of a TLS connection on the raw connection of [task], once
+/// [handshake] secured it. Cancelling it closes the raw connection at once,
+/// also in the middle of the handshake: `dart:io` cannot close a [Socket]
+/// that TLS took over until the server hangs up, so the connection is held
+/// as a [RawSocket] until [handshake] is done. The task's socket then
+/// fails with a [SocketException].
+ConnectionTask<Socket> _securedConnection(
+  ({Future<RawSocket> socket, void Function() cancel}) task,
+  Future<SecureSocket> Function(RawSocket socket) handshake,
+) {
   var cancelled = false;
-  // The connection until the tunnel is handed over.
+  // The connection until the secured socket is handed over.
   RawSocket? connection;
   final aborted = Completer<Socket>();
   const cancellation = SocketException('Connection attempt cancelled');
@@ -139,28 +249,22 @@ Future<ConnectionTask<Socket>> connectSecureTunnel(
       throw cancellation;
     }
     connection = socket;
-    final Socket tunnel;
+    final Socket secured;
     try {
-      tunnel = await openSecureTunnel(
-        socket,
-        host,
-        port,
-        context: context,
-        secure: secure,
-      );
+      secured = await handshake(socket);
     } finally {
       connection = null;
     }
     if (cancelled) {
-      tunnel.destroy();
+      secured.destroy();
       throw cancellation;
     }
-    return tunnel;
+    return secured;
   }
 
   return ConnectionTask.fromSocket(
-    // The first to finish: the tunnel, or the cancellation (the attempt
-    // may never end on its own once its connection is closed).
+    // The first to finish: the connection, or the cancellation (the
+    // attempt may never end on its own once its connection is closed).
     Future.any([open(), aborted.future]),
     () {
       if (cancelled) return;
@@ -483,8 +587,9 @@ class _TunnelSocket extends Stream<Uint8List> implements Socket {
   void setRawOption(RawSocketOption option) => _socket.setRawOption(option);
 }
 
-/// A [SecureSocket] over the [RawSecureSocket] of a tunnel
-/// ([openSecureTunnel]): `dart:io` has no public way to wrap one, so this
+/// A [SecureSocket] over a [RawSecureSocket] (of a tunnel,
+/// [openSecureTunnel], or of a connection to a checked address,
+/// [connectSecureAddress]): `dart:io` has no public way to wrap one, so this
 /// does what its own sockets do. Reads go to the listener (and stop while
 /// it pauses), writes are queued until the connection takes them.
 class _SecureTunnelSocket extends Stream<Uint8List> implements SecureSocket {

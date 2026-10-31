@@ -32,6 +32,9 @@ class PairingSendCubit extends Cubit<PairingSendState> {
   final PairingSendPurpose _purpose;
   PairingSender? _sender;
 
+  /// Completed to stop the [connect] under way.
+  Completer<void>? _connecting;
+
   /// The code as the user types it.
   void setInput(String input) =>
       emit(state.copyWith(input: input, invalidCode: false));
@@ -45,19 +48,34 @@ class PairingSendCubit extends Cubit<PairingSendState> {
       return;
     }
     emit(state.copyWith(step: PairingSendStep.connecting));
+    final cancel = _connecting = Completer<void>();
     final PairingChannel channel;
     try {
-      channel = await _environment.connect(code);
+      channel = await _environment.connect(code, cancel: cancel.future);
     } on Object catch (error) {
-      if (!isClosed) _fail(PairingFailure.of(error, connecting: true));
+      if (!isClosed && !cancel.isCompleted) {
+        _fail(PairingFailure.of(error, connecting: true));
+      }
       return;
+    } finally {
+      if (identical(_connecting, cancel)) _connecting = null;
     }
-    if (isClosed) {
+    if (isClosed || cancel.isCompleted) {
       channel.destroy();
       return;
     }
     _sender = PairingSender(channel, timeouts: _environment.timeouts);
     emit(state.copyWith(step: PairingSendStep.confirm, sas: channel.sas));
+  }
+
+  /// Stops [connect] (it tries again for as long as the code works when
+  /// the other phone is busy) and goes back to the code.
+  void cancelConnect() {
+    final cancel = _connecting;
+    if (cancel == null || state.step != PairingSendStep.connecting) return;
+    _connecting = null;
+    cancel.complete();
+    emit(PairingSendState(input: state.input));
   }
 
   /// The user compared the numbers: when they [match], lists what can be
@@ -175,6 +193,9 @@ class PairingSendCubit extends Cubit<PairingSendState> {
 
   @override
   Future<void> close() async {
+    final connecting = _connecting;
+    _connecting = null;
+    if (connecting != null && !connecting.isCompleted) connecting.complete();
     final sender = _sender;
     _sender = null;
     if (sender != null) await sender.cancel();

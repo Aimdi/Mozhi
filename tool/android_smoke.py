@@ -59,6 +59,20 @@ labels of the moment it failed (<n>-<flow>-failed.png/.xml):
 leave a flow out (to look into a flaky one without hiding the others; CI
 runs them all). They run after the store screenshots, which keep showing
 the app as a new user's first translation leaves it.
+
+It is meant for a fresh emulator and refuses (exit 2) to run anywhere
+else: unless `getprop ro.kernel.qemu` or `ro.boot.qemu` is 1 (an
+emulator), when `pm list packages --user all` fails, or when Mozhi is
+installed already for any user (the run would start from that device's
+own data). On a real phone it still changes things, so it takes
+
+  --allow-real-device
+
+to run there (CI never needs it). Either way it leaves the device as it
+found it: it reads only the log written since it started (it never clears
+it), puts back an earlier screen size override, and deletes the image and
+the document it pushed (and their MediaStore entries, where the shell may)
+and its accessibility dumps. Mozhi itself stays installed.
 """
 
 from __future__ import annotations
@@ -555,11 +569,52 @@ def am_failed(output: str) -> bool:
     return bool(re.search(r"\bError\b|Exception\b", output))
 
 
+# Where uiautomator dumps the screen (deleted at the end).
+UI_DUMP = "/sdcard/ui.xml"
+
+
+def is_emulator(kernel_qemu: str, boot_qemu: str) -> bool:
+    """Whether `getprop ro.kernel.qemu` / `ro.boot.qemu` say the device is
+    an emulator (either is "1")."""
+    return "1" in (kernel_qemu.strip(), boot_qemu.strip())
+
+
+def installed_packages(output: str) -> set[str]:
+    """The package names `pm list packages` [output] lists ("package:a.b",
+    possibly with " uid:…" after it)."""
+    names = set()
+    for line in output.splitlines():
+        line = line.strip()
+        if line.startswith("package:"):
+            name, *_ = line[len("package:"):].split() or [""]
+            if name:
+                names.add(name)
+    return names
+
+
+def size_override(output: str) -> str | None:
+    """The override of `wm size` [output] ("Override size: 720x1280"), or
+    None when the screen has its physical size."""
+    match = re.search(r"Override size:\s*(\d+x\d+)", output)
+    return match.group(1) if match else None
+
+
+def log_start(output: str) -> str | None:
+    """`logcat -t` time (seconds since the epoch, "1730000000.000") from
+    `date +%s` [output], or None when that is not a number."""
+    value = output.strip()
+    return f"{value}.000" if value.isdigit() else None
+
+
 class Device:
     def __init__(self, out: Path) -> None:
         self.out = out
         self.step = 0
         self.log: list[str] = []
+        # Where the run's log starts (`logcat -t`); None: the whole log.
+        self.log_since: str | None = None
+        # What the run pushed: (path on the device, MediaStore uri or None).
+        self.pushed: list[tuple[str, str | None]] = []
 
     def adb(self, *args: str, check: bool = True, timeout: int = 120) -> str:
         result = subprocess.run(
@@ -605,8 +660,8 @@ class Device:
 
     def dump(self) -> list[Node]:
         for _ in range(3):
-            self.adb("shell", "uiautomator", "dump", "/sdcard/ui.xml", check=False)
-            xml = self.adb("shell", "cat", "/sdcard/ui.xml", check=False)
+            self.adb("shell", "uiautomator", "dump", UI_DUMP, check=False)
+            xml = self.adb("shell", "cat", UI_DUMP, check=False)
             nodes = parse_nodes(xml)
             if nodes:
                 return nodes
@@ -618,8 +673,8 @@ class Device:
         self.step += 1
         stem = f"{self.step:02d}-{name}"
         (self.out / f"{stem}.png").write_bytes(self.screencap())
-        self.adb("shell", "uiautomator", "dump", "/sdcard/ui.xml", check=False)
-        xml = self.adb("shell", "cat", "/sdcard/ui.xml", check=False)
+        self.adb("shell", "uiautomator", "dump", UI_DUMP, check=False)
+        xml = self.adb("shell", "cat", UI_DUMP, check=False)
         (self.out / f"{stem}.xml").write_text(xml, encoding="utf-8")
         nodes = parse_nodes(xml)
         labels = [n.label for n in nodes if n.label]
@@ -643,8 +698,14 @@ class Device:
     def alive(self) -> bool:
         return bool(self.adb("shell", "pidof", PACKAGE, check=False).strip())
 
+    def logcat(self) -> str:
+        """The log since the run started ([log_since]; all of it when that
+        is unknown), read without clearing it."""
+        since = ("-t", self.log_since) if self.log_since else ("-d",)
+        return self.adb("logcat", *since, check=False, timeout=60)
+
     def crashes(self) -> list[str]:
-        return crash_lines(self.adb("logcat", "-d", check=False, timeout=60))
+        return crash_lines(self.logcat())
 
     def screencap(self, raw: bool = False) -> bytes:
         """The screen as a PNG, or with [raw] in screencap's raw format."""
@@ -840,8 +901,8 @@ def show_screen(device: Device, link: str) -> None:
 
 def store_screenshots(device: Device, folder: Path) -> list[str]:
     """Saves [STORE_SCREENS] in both [STORE_THEMES] into [folder]; returns
-    the screenshots that are missing. Puts the screen size, the theme and
-    the status bar back, whatever happens."""
+    the screenshots that are missing. Puts the screen size (an earlier
+    override too), the theme and the status bar back, whatever happens."""
     folder.mkdir(parents=True, exist_ok=True)
     missing: list[str] = []
     theme_before = night_mode(
@@ -850,6 +911,7 @@ def store_screenshots(device: Device, folder: Path) -> list[str]:
     demo_before = device.adb(
         "shell", "settings", "get", "global", "sysui_demo_allowed", check=False
     ).strip()
+    size_before = size_override(device.adb("shell", "wm", "size", check=False))
     try:
         device.adb("shell", "wm", "size", "x".join(map(str, STORE_SIZE)), check=False)
         device.adb(
@@ -884,7 +946,9 @@ def store_screenshots(device: Device, folder: Path) -> list[str]:
             "shell", "am", "broadcast", "-a", "com.android.systemui.demo",
             "-e", "command", "exit", check=False,
         )
-        device.adb("shell", "wm", "size", "reset", check=False)
+        device.adb(
+            "shell", "wm", "size", size_before or "reset", check=False
+        )
         if demo_before in ("", "null"):
             device.adb(
                 "shell", "settings", "delete", "global", "sysui_demo_allowed",
@@ -1223,7 +1287,43 @@ def push_shared_file(device: Device, local: Path, path: str, collection: str) ->
                 break
             time.sleep(2)
     device.note(f"{name}: MediaStore id {identifier}")
+    device.pushed.append((
+        remote,
+        None if identifier is None
+        else f"content://media/external/{collection}/{identifier}",
+    ))
     return stream_uris(identifier, collection, path)
+
+
+def clean_up(device: Device) -> None:
+    """Deletes what the run left on the device: the files it pushed
+    ([push_shared_file]) with their MediaStore entries (best effort: the
+    shell may not be allowed to), and the accessibility dump. Never
+    fails."""
+    for remote, uri in device.pushed:
+        try:
+            if uri is not None:
+                output = device.adb(
+                    "shell", "content", "delete", "--uri", uri, check=False,
+                    timeout=30,
+                ).strip()
+                if output:
+                    device.note(f"clean up {uri}: {one_line(output)[:200]}")
+            device.adb("shell", "rm", "-f", remote, check=False, timeout=30)
+            # Drops a MediaStore entry left for the file now gone.
+            device.adb(
+                "shell", "am", "broadcast", "-a",
+                "android.intent.action.MEDIA_SCANNER_SCAN_FILE", "-d",
+                f"file://{remote}", check=False, timeout=30,
+            )
+            device.note(f"clean up: deleted {remote}")
+        except (RuntimeError, subprocess.TimeoutExpired) as error:
+            device.note(f"clean up {remote}: {error}")
+    device.pushed.clear()
+    try:
+        device.adb("shell", "rm", "-f", UI_DUMP, check=False, timeout=30)
+    except (RuntimeError, subprocess.TimeoutExpired):
+        pass
 
 
 def share_file(
@@ -1498,6 +1598,38 @@ def run_flows(device: Device, skip: set[str]) -> list[FlowResult]:
     return results
 
 
+def take_flag(argv: list[str], flag: str) -> tuple[list[str], bool]:
+    """[argv] without [flag], and whether it held it."""
+    rest = [arg for arg in argv if arg != flag]
+    return rest, len(rest) != len(argv)
+
+
+def device_problem(device: Device, allow_real_device: bool) -> str | None:
+    """Why the smoke test must not run on the device (see the docstring),
+    or None. Raises RuntimeError when adb fails."""
+    if not allow_real_device:
+        kernel = device.adb("shell", "getprop", "ro.kernel.qemu", check=False)
+        boot = device.adb("shell", "getprop", "ro.boot.qemu", check=False)
+        if not is_emulator(kernel, boot):
+            return (
+                "this is not an emulator (ro.kernel.qemu and ro.boot.qemu are "
+                "not 1): run the smoke test on a fresh emulator, or pass "
+                "--allow-real-device to run it on this phone anyway."
+            )
+    try:
+        listed = device.adb(
+            "shell", "pm", "list", "packages", "--user", "all", PACKAGE
+        )
+    except RuntimeError as error:
+        return f"can't tell whether Mozhi is installed ({error})."
+    if PACKAGE in installed_packages(listed):
+        return (
+            f"{PACKAGE} is already installed on this device: run the smoke "
+            "test on a fresh emulator (it would use this device's own data)."
+        )
+    return None
+
+
 def split_skips(argv: list[str]) -> tuple[list[str], set[str]] | None:
     """Takes the --skip-<flow> flags out of [argv]: (the other arguments,
     the flows to skip), or None for a --skip- flag of no flow."""
@@ -1551,6 +1683,7 @@ def flow_lines(results: list[FlowResult], ran: bool) -> list[str]:
 
 
 def main(argv: list[str]) -> int:
+    argv, allow_real_device = take_flag(argv, "--allow-real-device")
     split = split_skips(argv)
     parsed = parse_args(split[0]) if split is not None else None
     if split is None or parsed is None:
@@ -1564,20 +1697,19 @@ def main(argv: list[str]) -> int:
     missing_shots: list[str] = []
     shots_taken = False
     route = ""
-    # Meant for a fresh emulator: on a phone where Mozhi is installed, the
-    # run would start from that phone's own data (history, servers) and the
-    # log would hold other apps' lines, so it refuses.
-    installed = device.adb(
-        "shell", "pm", "list", "packages", PACKAGE, check=False
-    )
-    if f"package:{PACKAGE}" in installed.split():
-        print(
-            f"{PACKAGE} is already installed on this device: run the smoke "
-            "test on a fresh emulator (it would use this device's own data)."
-        )
+    # Meant for a fresh emulator (see the docstring).
+    try:
+        problem = device_problem(device, allow_real_device)
+    except (RuntimeError, subprocess.TimeoutExpired) as error:
+        problem = f"adb failed: {error}"
+    if problem is not None:
+        print(f"Refusing to run: {problem}")
         return 2
     try:
-        device.adb("logcat", "-c", check=False)
+        # The log from now on, without clearing the device's.
+        device.log_since = log_start(
+            device.adb("shell", "date", "+%s", check=False)
+        )
         device.adb("install", str(apk), timeout=600)
         device.adb("shell", "am", "start", "-W", "-n", ACTIVITY)
         first = device.wait_for(r".+", 90)
@@ -1600,7 +1732,10 @@ def main(argv: list[str]) -> int:
         except (RuntimeError, subprocess.TimeoutExpired) as error:
             missing_shots = [f"store screenshots stopped: {error}"]
     flows_ran = not failures
-    flow_results = run_flows(device, skip) if flows_ran else []
+    try:
+        flow_results = run_flows(device, skip) if flows_ran else []
+    finally:
+        clean_up(device)
     flow_failures = [
         f"{r.title} ({r.name}) failed: {r.detail}"
         for r in flow_results
@@ -1617,9 +1752,7 @@ def main(argv: list[str]) -> int:
         if shots_taken
         else "not taken"
     )
-    (out / "logcat.txt").write_text(
-        device.adb("logcat", "-d", check=False, timeout=60), encoding="utf-8"
-    )
+    (out / "logcat.txt").write_text(device.logcat(), encoding="utf-8")
     summary = [
         "### Android emulator smoke test",
         "",

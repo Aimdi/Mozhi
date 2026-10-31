@@ -81,20 +81,61 @@ class _GatedStore extends MemoryStore {
   }
 }
 
+/// The history as the previous version synced it: without the record of
+/// clears (left out when it merges, dropped when it writes), and written to
+/// the file as it is (no retention records).
+class _PreviousHistorySection implements BackupSection {
+  new(this._section);
+
+  final HistoryBackupSection _section;
+
+  @override
+  String get id => _section.id;
+
+  @override
+  int get version => _section.version;
+
+  @override
+  Future<Object?> export({required bool includeSecrets}) async =>
+      _withoutClears(await _section.export(includeSecrets: includeSecrets));
+
+  @override
+  Future<void> restore(
+    Object? data, {
+    required int version,
+    required BackupRestoreMode mode,
+  }) => _section.restore(_withoutClears(data), version: version, mode: mode);
+
+  static Object? _withoutClears(Object? data) =>
+      data is Map ? ({...data}..remove('cleared')) : data;
+}
+
 /// One device: the app's own sections (history, presets, glossaries,
-/// settings) over its preferences, as the app wires them.
+/// settings) over its preferences, as the app wires them; with
+/// `previousVersion` only the history, as the previous version syncs it.
 class _Device {
-  new({MemoryStore? prefs, SyncConfig? config})
-    : prefs = prefs ?? MemoryStore(),
-      config = config ?? _everything {
+  new({
+    MemoryStore? prefs,
+    SyncConfig? config,
+    bool previousVersion = false,
+    DateTime Function()? clock,
+  }) : prefs = prefs ?? MemoryStore(),
+       config = config ?? _everything {
     settings = SettingsRepository(prefs: this.prefs, secrets: MemoryStore());
-    history = HistoryRepository(store: this.prefs, keyStore: MemoryStore());
-    registry = createAppBackupRegistry(
-      settings: settings,
-      history: history,
-      preferences: this.prefs,
-      appVersion: () async => '1.0.0+1',
+    history = HistoryRepository(
+      store: this.prefs,
+      keyStore: MemoryStore(),
+      clock: clock,
     );
+    registry = previousVersion
+        ? (BackupRegistry(appVersion: () async => '1.0.0+1')
+            ..register(_PreviousHistorySection(HistoryBackupSection(history))))
+        : createAppBackupRegistry(
+            settings: settings,
+            history: history,
+            preferences: this.prefs,
+            appVersion: () async => '1.0.0+1',
+          );
     engine = SyncEngine(registry: registry, codec: testCodec);
   }
 
@@ -290,6 +331,181 @@ void main() {
       expect(await forever.historyIds(), isEmpty);
       expect(await week.historyIds(), isEmpty);
       expect(await _fileHistoryIds(server, key), isEmpty);
+    });
+  });
+
+  group('Clear history', () {
+    test('reaches what only devices that keep history longer have, and '
+        'this device stops writing it back', () async {
+      final server = _server();
+      final week = _Device(config: _historyOnly);
+      final forever = _Device(config: _historyOnly);
+      await week.keepHistory(HistoryRetention.week);
+      await forever.history.replaceAll([
+        _entry('fresh', const Duration(hours: 1)),
+        _entry('old', const Duration(days: 20)),
+      ]);
+      await _rounds([forever, week], server, key);
+      expect(await week.historyIds(), {'fresh'});
+      expect(await _fileHistoryIds(server, key), {'fresh', 'old'});
+
+      await week.history.clear();
+      await _rounds([week, forever], server, key);
+      final writes = _puts(server);
+      await _rounds([week, forever], server, key);
+
+      expect(_puts(server), writes, reason: 'the file no longer changes');
+      expect(await week.historyIds(), isEmpty);
+      expect(await forever.historyIds(), isEmpty);
+      expect(await _fileHistoryIds(server, key), isEmpty);
+    });
+
+    test('keeps the favorites when it kept them, and what another device '
+        'adds or changes afterwards', () async {
+      final server = _server();
+      final week = _Device(config: _historyOnly);
+      final forever = _Device(config: _historyOnly);
+      await week.keepHistory(HistoryRetention.week);
+      await forever.history.replaceAll([
+        _entry('old', const Duration(days: 20)),
+        _entry('old starred', const Duration(days: 21)),
+        _entry('old edited', const Duration(days: 22)),
+      ]);
+      await forever.history.toggleFavorite('old starred');
+      await _rounds([forever, week], server, key);
+
+      await week.history.clear(keepFavorites: true);
+      // Before the clear reaches it, the other device adds an entry and
+      // stars one (after the clear).
+      await Future<void>.delayed(const Duration(milliseconds: 2));
+      await forever.history.add(_entry('new', Duration.zero));
+      await forever.history.toggleFavorite('old edited');
+      await _rounds([week, forever], server, key);
+
+      final kept = {'old starred', 'old edited', 'new'};
+      expect(await forever.historyIds(), kept);
+      expect(await week.historyIds(), kept);
+      expect(await _fileHistoryIds(server, key), kept);
+    });
+
+    test('reaches a device that syncs only later (within a month), and one '
+        'on the previous version through tombstones', () async {
+      final server = _server();
+      final week = _Device(config: _historyOnly);
+      final forever = _Device(config: _historyOnly);
+      await week.keepHistory(HistoryRetention.week);
+      await forever.history.replaceAll([
+        _entry('old', const Duration(days: 20)),
+      ]);
+      await _rounds([forever, week], server, key);
+      await week.history.clear();
+      await week.sync(server, key);
+
+      // A device that had the entry and syncs for the first time since.
+      final late = _Device(config: _historyOnly);
+      await late.history.replaceAll([_entry('mine', const Duration(days: 30))]);
+      await late.sync(server, key);
+      expect(await late.historyIds(), isEmpty);
+
+      // The previous version knows no record of clears: it drops it from
+      // the file and writes its entries back, and the tombstones the
+      // others leave for them delete them there too.
+      final previous = _Device(config: _historyOnly, previousVersion: true);
+      await previous.history.replaceAll([
+        _entry('old', const Duration(days: 20)),
+        _entry('never synced', const Duration(days: 25)),
+      ]);
+      await previous.sync(server, key);
+      // The clearing device left a tombstone for what the file held.
+      expect(await previous.historyIds(), {'never synced'});
+      expect(await _fileHistoryIds(server, key), {'never synced'});
+      await week.sync(server, key);
+      await previous.sync(server, key);
+
+      expect(await previous.historyIds(), isEmpty);
+      expect(await _fileHistoryIds(server, key), isEmpty);
+      await forever.sync(server, key);
+      expect(await forever.historyIds(), isEmpty);
+    });
+  });
+
+  group('Clear history and a device that joins later', () {
+    /// A device that starts syncing now.
+    _Device joining() => _Device(
+      config: _historyOnly.copyWith(joinedAt: DateTime.now().toUtc()),
+    );
+
+    test('a device that joins after a clear keeps its own history', () async {
+      final server = _server();
+      final clearing = _Device(config: _historyOnly);
+      await clearing.history.replaceAll([
+        _entry('old', const Duration(days: 3)),
+      ]);
+      await clearing.sync(server, key);
+      await clearing.history.clear();
+      await clearing.sync(server, key);
+
+      await Future<void>.delayed(const Duration(milliseconds: 2));
+      final joiner = joining();
+      await joiner.history.replaceAll([
+        _entry('mine', const Duration(days: 3)),
+      ]);
+      await _rounds([joiner, clearing], server, key);
+
+      expect(await joiner.historyIds(), {'mine'});
+      expect(await clearing.historyIds(), {'mine'});
+      expect(await _fileHistoryIds(server, key), {'mine'});
+    });
+
+    test('also when the clear reaches the folder only after it joined, '
+        'which still takes what the folder held', () async {
+      final server = _server();
+      final clearing = _Device(config: _historyOnly);
+      await clearing.history.replaceAll([
+        _entry('old', const Duration(days: 3)),
+      ]);
+      await clearing.sync(server, key);
+      // Cleared without syncing (offline).
+      await clearing.history.clear();
+
+      await Future<void>.delayed(const Duration(milliseconds: 2));
+      final joiner = joining();
+      await joiner.history.replaceAll([
+        _entry('mine', const Duration(days: 3)),
+      ]);
+      await joiner.sync(server, key);
+      expect(await joiner.historyIds(), {'old', 'mine'});
+
+      await _rounds([clearing, joiner], server, key);
+
+      expect(await joiner.historyIds(), {'mine'});
+      expect(await clearing.historyIds(), {'mine'});
+      expect(await _fileHistoryIds(server, key), {'mine'});
+    });
+
+    test("a clear made on the joining device before it joined doesn't "
+        "take the folder's history", () async {
+      final server = _server();
+      final member = _Device(config: _historyOnly);
+      await member.history.replaceAll([
+        _entry('theirs', const Duration(days: 3)),
+      ]);
+      await member.sync(server, key);
+      final joiner = _Device(config: _historyOnly);
+      await joiner.history.replaceAll([
+        _entry('mine', const Duration(days: 3)),
+      ]);
+      await joiner.history.clear();
+      await Future<void>.delayed(const Duration(milliseconds: 2));
+      final joined = _historyOnly.copyWith(joinedAt: DateTime.now().toUtc());
+
+      for (var round = 0; round < 3; round++) {
+        await joiner.sync(server, key, config: joined);
+        await member.sync(server, key);
+      }
+
+      expect(await joiner.historyIds(), {'theirs'});
+      expect(await member.historyIds(), {'theirs'});
     });
   });
 

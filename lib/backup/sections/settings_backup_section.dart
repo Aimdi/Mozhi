@@ -391,15 +391,26 @@ class SettingsBackupSection implements BackupSection {
   /// consent of their own, and an AI one may be picked by itself (the
   /// first AI engine assists and proofreads when none is chosen), so Merge
   /// adds them turned off.
-  static bool asksBeforeFirstUse(AiProviderConfig provider) =>
-      switch (provider.service) {
-        MtService.deepl => true,
-        MtService.libreTranslate => false,
-        MtService.llm => DataDestination.forUrl(
-          provider.baseUrl.trim(),
-          cloudProvider: '',
-        ) is CloudProviderDestination,
-      };
+  ///
+  /// An AI provider at a Tailscale `.ts.net` name never counts as asking:
+  /// it is public until a lookup showed that it leads to the tailnet
+  /// (`TailnetHosts`), which may only happen after the merge, and from
+  /// then on it needs no consent.
+  static bool asksBeforeFirstUse(AiProviderConfig provider) {
+    switch (provider.service) {
+      case MtService.deepl:
+        return true;
+      case MtService.libreTranslate:
+        return false;
+      case MtService.llm:
+        final url = provider.baseUrl.trim();
+        if (TailnetHosts.isTailnetName(DataDestination.hostOf(url))) {
+          return false;
+        }
+        return DataDestination.forUrl(url, cloudProvider: '')
+            is CloudProviderDestination;
+    }
+  }
 
   /// [provider] with [apiKey] and [headers] where it has none.
   static AiProviderConfig _filled(

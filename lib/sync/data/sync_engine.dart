@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:cryptography/dart.dart';
 import 'package:mozhi/backup/data/backup_codec.dart';
 import 'package:mozhi/backup/data/backup_registry.dart';
+import 'package:mozhi/sync/data/sync_merge.dart';
 import 'package:mozhi/sync/data/webdav_client.dart';
 import 'package:mozhi/sync/models/sync_config.dart';
 import 'package:mozhi/sync/models/sync_status.dart';
@@ -51,7 +52,9 @@ class SyncRun {
 /// 5. writes the merged data back, encrypted, unless the file holds it
 ///    already; a [BackupSyncSection] adds what the file's copy keeps for
 ///    other devices (the history older than this device keeps it, see
-///    `HistoryBackupSection`). `PUT` with `If-Match` (the ETag it read), or
+///    `HistoryBackupSection`). A [SyncMergeSection] merges and writes
+///    knowing when this device joined the folder ([SyncConfig.joinedAt]).
+///    `PUT` with `If-Match` (the ETag it read), or
 ///    `If-None-Match: *` when there was no file. When another device
 ///    wrote in between (`412`), it starts over, at most [maxAttempts]
 ///    times.
@@ -94,6 +97,7 @@ class SyncEngine {
   }) async {
     bool stop() => cancelled?.call() ?? false;
     final ids = config.syncedOf(registry.sections.map((s) => s.id));
+    final context = SyncMergeContext(joinedAt: config.joinedAt);
     var last = cursor;
     var pending = prefetched;
     for (var attempt = 1; ; attempt++) {
@@ -139,7 +143,7 @@ class SyncEngine {
         if (stop()) return SyncRun.skipped(cursor);
         try {
           report = await registry.restore(
-            remote,
+            _forMerge(remote, context),
             mode: BackupRestoreMode.merge,
             only: ids,
           );
@@ -161,7 +165,7 @@ class SyncEngine {
           if (remote != null)
             for (final MapEntry(:key, :value) in remote.sections.entries)
               if (!ids.contains(key)) key: value,
-          ...await _forFile(merged.sections, remote?.sections),
+          ...await _forFile(merged.sections, remote?.sections, context),
         },
       );
       final uploadPrint = fingerprint(_only(upload.sections, ids));
@@ -244,31 +248,62 @@ class SyncEngine {
   Future<Map<String, BackupSectionData>> _forFile(
     Map<String, BackupSectionData> sections,
     Map<String, BackupSectionData>? remote,
+    SyncMergeContext context,
   ) async {
     final result = <String, BackupSectionData>{};
     for (final MapEntry(:key, :value) in sections.entries) {
-      if (registry.section(key) case final BackupSyncSection section) {
-        final theirs = remote?[key];
-        try {
-          result[key] = BackupSectionData(
-            version: value.version,
-            data: await section.syncData(
-              value.data,
-              remote: theirs?.data,
-              remoteVersion: theirs?.version,
-            ),
-          );
-        } on Object catch (error, stackTrace) {
-          Error.throwWithStackTrace(
-            SyncException(SyncFailure.localData, cause: error),
-            stackTrace,
-          );
-        }
-      } else {
+      final theirs = remote?[key];
+      final forFile = switch (registry.section(key)) {
+        final SyncMergeSection section => () => section.syncDataIn(
+          context,
+          value.data,
+          remote: theirs?.data,
+          remoteVersion: theirs?.version,
+        ),
+        final BackupSyncSection section => () => section.syncData(
+          value.data,
+          remote: theirs?.data,
+          remoteVersion: theirs?.version,
+        ),
+        _ => null,
+      };
+      if (forFile == null) {
         result[key] = value;
+        continue;
+      }
+      try {
+        result[key] = BackupSectionData(
+          version: value.version,
+          data: await forFile(),
+        );
+      } on Object catch (error, stackTrace) {
+        Error.throwWithStackTrace(
+          SyncException(SyncFailure.localData, cause: error),
+          stackTrace,
+        );
       }
     }
     return result;
+  }
+
+  /// [remote] as the sections merge it in sync: a [SyncMergeSection]'s
+  /// data as it takes it ([SyncMergeSection.forSyncMerge]).
+  BackupSnapshot _forMerge(BackupSnapshot remote, SyncMergeContext context) {
+    if (!registry.sections.any((s) => s is SyncMergeSection)) return remote;
+    return BackupSnapshot(
+      createdAt: remote.createdAt,
+      appVersion: remote.appVersion,
+      sections: {
+        for (final MapEntry(:key, :value) in remote.sections.entries)
+          key: switch (registry.section(key)) {
+            final SyncMergeSection section => BackupSectionData(
+              version: value.version,
+              data: section.forSyncMerge(value.data, context),
+            ),
+            _ => value,
+          },
+      },
+    );
   }
 
   Future<BackupSnapshot> _export(

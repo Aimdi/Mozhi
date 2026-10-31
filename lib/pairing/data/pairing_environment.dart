@@ -15,8 +15,12 @@ typedef PairingListen = Future<PairingListener> Function(
   Duration validity,
 );
 
-/// Connects to the receiving phone of [code] (see [connectPairing]).
-typedef PairingConnect = Future<PairingChannel> Function(PairingCode code);
+/// Connects to the receiving phone of [code] (see [connectPairing]); stops
+/// trying when [cancel] completes.
+typedef PairingConnect = Future<PairingChannel> Function(
+  PairingCode code, {
+  Future<void>? cancel,
+});
 
 /// What the phone-to-phone screens work with; tests replace the network
 /// and storage parts.
