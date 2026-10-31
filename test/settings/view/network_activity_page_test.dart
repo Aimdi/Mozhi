@@ -222,6 +222,62 @@ void main() {
       handle.dispose();
     });
 
+    testWidgets('names the engine a Mozhi server was asked to use', (
+      tester,
+    ) async {
+      const mozhi = EgressDestination(
+        kind: EgressDestinationKind.publicServer,
+        host: 'mozhi.example',
+      );
+      final google = ledger.begin(
+        method: 'POST',
+        scheme: 'https',
+        destination: mozhi,
+        purpose: EgressPurpose.translation,
+        engine: 'google',
+      );
+      final duckDuckGo = ledger.begin(
+        method: 'POST',
+        scheme: 'https',
+        destination: mozhi,
+        purpose: EgressPurpose.translation,
+        engine: 'duckduckgo',
+      );
+      final plain = record(_openAi);
+      await pump(tester, size: const Size(400, 2000));
+
+      String line(EgressEntry entry) => [
+        l10n.settingsNetworkPurposeTranslation,
+        l10n.settingsNetworkKindPublicServer,
+        l10n.settingsNetworkEngine(egressEngineLabel(entry)!),
+      ].join(' · ');
+      expect(egressEngineLabel(duckDuckGo), 'DuckDuckGo');
+      expect(
+        find.descendant(
+          of: find.byKey(Key('network_entry_${duckDuckGo.id}')),
+          matching: find.text(line(duckDuckGo)),
+        ),
+        findsOneWidget,
+      );
+      expect(find.text(line(duckDuckGo)), findsOneWidget);
+      expect(
+        line(duckDuckGo),
+        'Translation · ${l10n.settingsNetworkKindPublicServer} · '
+        'Engine: DuckDuckGo',
+      );
+      expect(find.text(line(google)), findsOneWidget);
+      expect(egressEngineLabel(plain), isNull);
+      expect(
+        egressEngineLabel(
+          EgressEntry.fromMap({
+            ...duckDuckGo.toMap(),
+            'engine': 'google,deepl',
+          })!,
+        ),
+        'Google, DeepL',
+      );
+    });
+
     testWidgets('mentions requests that are no longer listed', (tester) async {
       ledger = EgressLedger(capacity: 1, clock: () => start);
       record(_openAi);

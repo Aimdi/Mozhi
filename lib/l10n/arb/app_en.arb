@@ -13922,5 +13922,47 @@
         "type": "String"
       }
     }
+  },
+  "settingsFallbackDuckDuckGo": "If Google fails, use DuckDuckGo",
+  "@settingsFallbackDuckDuckGo": {
+    "description": "settingsFallbackDuckDuckGo"
+  },
+  "settingsFallbackDuckDuckGoSubtitle": "When Google fails on every volunteer server, your text is sent to DuckDuckGo's translator through the same servers instead. DuckDuckGo's translations come from Microsoft Translator.",
+  "@settingsFallbackDuckDuckGoSubtitle": {
+    "description": "settingsFallbackDuckDuckGoSubtitle"
+  },
+  "translateFallbackAllServers": "{engine} failed on every server, so {fallback} translated this.",
+  "@translateFallbackAllServers": {
+    "description": "Note under a translation made by DuckDuckGo because Google failed on every volunteer server.",
+    "placeholders": {
+      "engine": {
+        "type": "String"
+      },
+      "fallback": {
+        "type": "String"
+      }
+    }
+  },
+  "translateErrorAllServersRateLimited": "{engine} is limiting requests from the volunteer servers right now. This usually passes after a while.",
+  "@translateErrorAllServersRateLimited": {
+    "description": "Shown when every volunteer server failed because the engine (e.g. Google) rate-limits them.",
+    "placeholders": {
+      "engine": {
+        "type": "String"
+      }
+    }
+  },
+  "translateErrorUseDuckDuckGo": "Use DuckDuckGo when Google fails",
+  "@translateErrorUseDuckDuckGo": {
+    "description": "Button on the volunteer servers error: turns on the DuckDuckGo fallback and translates again."
+  },
+  "settingsNetworkEngine": "Engine: {engine}",
+  "@settingsNetworkEngine": {
+    "description": "Network activity: the translation engine a Mozhi request asked the server to use, e.g. Engine: DuckDuckGo.",
+    "placeholders": {
+      "engine": {
+        "type": "String"
+      }
+    }
   }
 }

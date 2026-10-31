@@ -791,6 +791,12 @@ void main() {
       );
 
       mutation(
+        'setFallbackToDuckDuckGo stores the flag',
+        act: (cubit) => cubit.setFallbackToDuckDuckGo(enabled: true),
+        expected: const AppSettings(fallbackToDuckDuckGo: true),
+      );
+
+      mutation(
         'setLiveEngine stores the engine',
         act: (cubit) => cubit.setLiveEngine('ai:a'),
         expected: const AppSettings(liveEngineId: 'ai:a'),

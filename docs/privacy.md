@@ -89,7 +89,53 @@ to another back end by itself: an offline or Mozhi translation is never
 retried with an AI provider, a helper request (language detection, the AI
 model for extras, Reverso after Google for speech) is checked as its own destination, and when the
 engine you selected is gone, only the on-device engine may take its place;
-otherwise you pick one.
+otherwise you pick one. The one exception is the opt-in setting below,
+which is your permission for one case.
+
+### If Google fails, use DuckDuckGo
+
+**Settings > Translation engines > If Google fails, use DuckDuckGo** is off
+by default. When it is on and a translation with Mozhi's Google engine
+fails on every volunteer server of your list, the Translate screen (and
+its extra target languages) tries once more with Mozhi's **DuckDuckGo**
+engine, through the same servers, in your order, with the same failover.
+
+Where the text goes then: to the Mozhi server (its operator can read it,
+as with Google), which forwards it to DuckDuckGo's translator.
+DuckDuckGo's translations come from Microsoft Translator, so DuckDuckGo
+passes the text on to Microsoft. Google already received the text from
+the servers that tried it before.
+
+It never applies:
+
+- in **Offline only** (nothing is sent at all);
+- when the request was refused by a consent prompt or a network rule
+  (plain `http` to a public server, a `.onion` address without a proxy),
+  or when none of the servers could be reached;
+- with any engine but Google, including when DuckDuckGo is your engine
+  already.
+
+Turning the setting on is your permission to switch engines in this
+case, not a consent for the DuckDuckGo request: it goes through the same
+privacy checks as if you had picked DuckDuckGo. Consent for Mozhi
+engines works like this:
+
+- **Online**: Mozhi servers need no prompt for any engine, so DuckDuckGo
+  isn't asked about either, as when you pick it.
+- **Offline first**: **Always for** a language pair is kept per pair,
+  whatever the engine, so a pair you allowed covers DuckDuckGo too. A
+  **Once** is for one engine and destination: the **Once** you gave for
+  Google doesn't cover DuckDuckGo, so the app asks again before anything
+  goes to DuckDuckGo, and the prompt names it ("DuckDuckGo via
+  mozhi.example.org"). Answering **Once** sends the text straight to
+  DuckDuckGo; Google isn't asked again.
+
+The result says so (**Google failed on every server, so DuckDuckGo
+translated this.**), and the engine name, the destination chip, the
+history entry and [Network activity](#network-activity) name DuckDuckGo.
+When the setting is off and Google failed on every server, the error
+offers **Use DuckDuckGo when Google fails**: tapping it turns the setting
+on and translates the text with DuckDuckGo (with the same checks).
 
 ## Where your text goes
 
@@ -207,7 +253,11 @@ destination with a line on who can read what was sent, and has Clear and Copy
 summary actions.
 
 The log never records text, paths, query strings, request bodies or
-headers. It lives in memory only (the last 500 requests), is never saved
+headers, with one exception: for a request that carries your text or
+photo, it keeps the name of the translation engine the Mozhi server was
+asked to use (**Engine: Google**, **Engine: DuckDuckGo**), so you can see
+which company behind a volunteer server got the text. That is an engine
+name, never your text. It lives in memory only (the last 500 requests), is never saved
 and is gone when the app closes. Requests the app refuses (for example
 plain `http` to a public server) are never sent, so they don't appear.
 Network use outside the app's own connections isn't listed: the system's
@@ -363,7 +413,7 @@ stores on the device and what the other party may keep.
 
 | Feature | Destination | What is sent | Kept |
 | --- | --- | --- | --- |
-| Translate with a Mozhi engine | The Mozhi instance (then the next ones in your list if it fails), which forwards to its engine (Google, DeepL, Reverso, Yandex, MyMemory, DuckDuckGo/Bing or its LibreTranslate) | Text, languages and engine in the request body (`POST`); your IP address to the instance, the instance's IP to the engine | On the device: in the history unless incognito or **Save history** is off. The instance and engine: their own logs and policies, unknown for public instances. |
+| Translate with a Mozhi engine | The Mozhi instance (then the next ones in your list if it fails), which forwards to its engine (Google, DeepL, Reverso, Yandex, MyMemory, DuckDuckGo/Bing or its LibreTranslate); with [If Google fails, use DuckDuckGo](#if-google-fails-use-duckduckgo) on, after Google failed on every server, the same servers again with DuckDuckGo (Microsoft Translator) | Text, languages and engine in the request body (`POST`); your IP address to the instance, the instance's IP to the engine | On the device: in the history unless incognito or **Save history** is off. The instance and engine: their own logs and policies, unknown for public instances. |
 | Translate with a cloud AI provider | The provider's API (only after your one-time OK) | Text, languages, your translation options (context, glossary, instructions), the API key, your IP address. For short texts, the languages you recently translated from (not the texts) | The provider's retention and training policy; check its terms. History as above. |
 | Translate with a local AI model or your own server | That server | As above | Only on your server. |
 | DeepL API, LibreTranslate | The service you set up | Text, languages, formality, context or glossary (DeepL), the key | The service's policy. |

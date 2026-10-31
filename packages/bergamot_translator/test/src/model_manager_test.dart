@@ -397,6 +397,38 @@ void main() {
       expect(await manager.installed(), isEmpty);
       expect(await manager.totalSize(), 0);
     });
+
+    test('sees what another manager of the same folder installs and '
+        'deletes', () async {
+      // Another window of the app: an engine of its own, the same files.
+      final other = BergamotModelManager(root: root, httpClient: server.client);
+      addTearDown(other.close);
+      await manager.install(deen.catalog);
+      expect((await other.installed()).map((m) => m.pair), ['de-en']);
+
+      await manager.install(ende.catalog);
+      expect((await other.installed()).map((m) => m.pair), ['de-en', 'en-de']);
+      expect(await other.isInstalled(ende.catalog), isTrue);
+
+      await other.delete('de', 'en');
+      expect((await manager.installed()).map((m) => m.pair), ['en-de']);
+      expect(await manager.installedModel('de', 'en'), isNull);
+    });
+
+    test('reads the disk only again after a change', () async {
+      await manager.install(ende.catalog);
+      final first = await manager.installed();
+      expect(await manager.installed(), same(first));
+
+      // A change by hand, without the token: not noticed.
+      await Directory(p.join(root.path, 'models', 'en-de'))
+          .delete(recursive: true);
+      expect(await manager.installed(), same(first));
+
+      File(p.join(root.path, 'models', BergamotModelManager.changesName))
+          .writeAsStringSync('another one');
+      expect(await manager.installed(), isEmpty);
+    });
   });
 
   group('delete', () {

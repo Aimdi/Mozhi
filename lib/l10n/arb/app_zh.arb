@@ -2767,5 +2767,11 @@
   "onboardingLanguagesSuggestionPicked": "你之前选择了{language}。",
   "offlineManualMirrorNote": "这些链接指向你的模型下载源 {host}，Mozhi 从这里下载。如果那里缺少某个文件，请使用发布者的链接。",
   "offlineManualPublisherLink": "发布者的链接（镜像中没有该文件时使用）",
-  "offlineManualCopyPublisherLink": "复制 {file} 的发布者链接"
+  "offlineManualCopyPublisherLink": "复制 {file} 的发布者链接",
+  "settingsFallbackDuckDuckGo": "Google 失败时使用 DuckDuckGo",
+  "settingsFallbackDuckDuckGoSubtitle": "当 Google 在所有志愿者服务器上都失败时，你的文本会通过同样的服务器发送到 DuckDuckGo 的翻译服务。DuckDuckGo 的翻译来自 Microsoft Translator。",
+  "translateFallbackAllServers": "{engine} 在所有服务器上都失败了，因此由 {fallback} 翻译。",
+  "translateErrorAllServersRateLimited": "{engine} 目前正在限制来自志愿者服务器的请求，通常过一段时间就会恢复。",
+  "translateErrorUseDuckDuckGo": "Google 失败时使用 DuckDuckGo",
+  "settingsNetworkEngine": "引擎：{engine}"
 }

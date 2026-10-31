@@ -2767,5 +2767,11 @@
   "onboardingLanguagesSuggestionPicked": "Wcześniej wybrano język: {language}.",
   "offlineManualMirrorNote": "Linki prowadzą do Twojego źródła modeli, {host}, z którego pobiera Mozhi. Jeśli brakuje tam pliku, użyj linku wydawcy.",
   "offlineManualPublisherLink": "Link wydawcy, jeśli kopia lustrzana nie ma pliku",
-  "offlineManualCopyPublisherLink": "Kopiuj link wydawcy do pliku {file}"
+  "offlineManualCopyPublisherLink": "Kopiuj link wydawcy do pliku {file}",
+  "settingsFallbackDuckDuckGo": "Gdy Google zawiedzie, użyj DuckDuckGo",
+  "settingsFallbackDuckDuckGoSubtitle": "Gdy Google zawiedzie na wszystkich serwerach wolontariuszy, tekst zostanie wysłany przez te same serwery do tłumacza DuckDuckGo. Tłumaczenia DuckDuckGo pochodzą z Microsoft Translator.",
+  "translateFallbackAllServers": "{engine} zawiódł na wszystkich serwerach, więc przetłumaczył to {fallback}.",
+  "translateErrorAllServersRateLimited": "{engine} ogranicza teraz żądania z serwerów wolontariuszy. Zwykle mija to po chwili.",
+  "translateErrorUseDuckDuckGo": "Użyj DuckDuckGo, gdy Google zawiedzie",
+  "settingsNetworkEngine": "Silnik: {engine}"
 }

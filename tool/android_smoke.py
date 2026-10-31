@@ -40,9 +40,11 @@ the run (exit 1) when it does not work, with a screenshot and the screen's
 labels of the moment it failed (<n>-<flow>-failed.png/.xml):
 
   offline-only  Settings > Privacy & data > Privacy mode: Offline only.
-                Shares a new French sentence; it must be translated, be
-                labelled Offline, and Mozhi's uid must send and receive
-                no byte meanwhile (`dumpsys netstats` counters).
+                Opens the translate tab (mozhi://translate) and shares a
+                new French sentence; it must reach the translate box
+                within 30 s, be translated, be labelled Offline, and
+                Mozhi's uid must send and receive no byte meanwhile
+                (`dumpsys netstats` counters).
   image         Shares tool/smoke_assets/french_sign.png (ACTION_SEND
                 image/png, a MediaStore content URI) and accepts the text
                 recognition download; the English text must appear.
@@ -50,9 +52,14 @@ labels of the moment it failed (<n>-<flow>-failed.png/.xml):
                 EXTRA_STREAM) and translates it; the English text must
                 appear on the result screen.
   cancel        Settings > Translation engines > Offline languages: starts
-                downloading Azerbaijani, taps "Cancel downloading
-                Azerbaijani"; the row must go back to Download, with no
+                downloading Greek, taps "Cancel downloading Greek"; the
+                row must go back to Download, with no
                 error.
+
+For a failed flow it also saves the log of Mozhi's processes and of
+Flutter since the flow started (<n>-<flow>-failed-logcat.txt; the last
+lines go to the output too) and every text of the page, scrolled from top
+to bottom (<n>-<flow>-failed-page.txt, printed too).
 
   --skip-offline-only, --skip-image, --skip-document, --skip-cancel
 
@@ -177,12 +184,21 @@ DOCUMENT_RESULT = r"(?is).*\b(book|bread|morning)\b.*"
 DOCUMENT_LOADED = (r"Remove document", r"\d+ segments?")
 DOCUMENT_EMPTY = r"(?s)Pick a document\b.*"
 
-# Cancel: one of the smallest offline languages in
-# packages/bergamot_translator/assets/catalog.json (about 25 MB), near the
-# top of the list.
-CANCEL_LANGUAGE = "Azerbaijani"
+# Cancel: the smallest offline language with models in both directions in
+# packages/bergamot_translator/assets/catalog.json (about 30 MB), so that
+# its download takes long enough (Azerbaijani, the smallest, has English to
+# Azerbaijani only).
+CANCEL_LANGUAGE = "Greek"
 ENGINES_CATEGORY = r"(?s)Translation engines\b.*"
-OFFLINE_LANGUAGES = r"(?s)Offline languages\b.*"
+# Translation engines' row that opens the offline languages ("Languages on
+# this device", under the heading "Offline languages"); tapped as the
+# clickable node that matches.
+OFFLINE_LANGUAGES = r"(?s)(Languages on this device|Offline languages)\b.*"
+# The offline languages page: its title (also the heading of the settings
+# row), its header (offlineDownloadedCount) and its search field.
+OFFLINE_TITLE = r"Offline languages"
+OFFLINE_COUNT = r"(?s)(No languages downloaded|\d+ languages? downloaded)\b.*"
+OFFLINE_SETTINGS_ROW = r"(?s)Languages on this device\b.*"
 OFFLINE_SEARCH = r"(?s)Search languages\b.*"
 # Words of the offline languages' error messages ("Couldn’t download …",
 # "… isn’t enough space …").
@@ -190,6 +206,18 @@ CANCEL_ERRORS = r"(?is).*\b(couldn.t|can.t|failed|error|damaged|not enough)\b.*"
 # The emulator console's slowest network profiles keep the download running
 # while Cancel is looked for; "full" puts it back.
 SLOW_NETWORK = "gsm"
+# The emulator's Wi-Fi (netsim) doesn't follow the console's network speed,
+# and a runner downloads 30 MB in a few seconds. So, as root, iptables lets
+# in only so many HTTPS packets a second (about 30 KB/s) while Cancel is
+# looked for: (table command, the rule), inserted in this order at the top
+# of INPUT and deleted afterwards.
+THROTTLE_RULES = (
+    ("-p", "tcp", "--sport", "443", "-j", "DROP"),
+    ("-p", "tcp", "--sport", "443", "-m", "limit", "--limit", "20/second",
+     "--limit-burst", "40", "-j", "ACCEPT"),
+)
+THROTTLE_TABLES = ("iptables", "ip6tables")
+THROTTLE_OK = "mozhi-throttle-ok"
 
 # Offers every flow may accept: the "Download over mobile data?" dialog
 # and first-time tips.
@@ -696,7 +724,16 @@ class Device:
         return None
 
     def alive(self) -> bool:
-        return bool(self.adb("shell", "pidof", PACKAGE, check=False).strip())
+        return bool(self.app_pids())
+
+    def app_pids(self) -> set[str]:
+        """The ids of Mozhi's running processes."""
+        return set(self.adb("shell", "pidof", PACKAGE, check=False).split())
+
+    def log_time(self) -> str | None:
+        """The device's time now, as `logcat -t` takes it (see
+        [log_start])."""
+        return log_start(self.adb("shell", "date", "+%s", check=False))
 
     def logcat(self) -> str:
         """The log since the run started ([log_since]; all of it when that
@@ -1106,19 +1143,105 @@ def tap_until(
 
 
 def scroll_to(
-    device: Device, pattern: str, step: str, seconds: float = 15, swipes: int = 4
+    device: Device,
+    pattern: str,
+    step: str,
+    seconds: float = 15,
+    swipes: int = 4,
+    clickable: bool = False,
 ) -> Node:
-    """The node matching [pattern], waited for, then scrolled to (towards
-    the end of the page, at most [swipes] times)."""
-    node = wait_until(device, any_of(pattern), seconds)
+    """The node matching [pattern] ([clickable]: a clickable one), waited
+    for, then scrolled to (towards the end of the page, at most [swipes]
+    times)."""
+    look = (lambda nodes: find_clickable(nodes, pattern)) if clickable else any_of(pattern)
+    node = wait_until(device, look, seconds)
+    if node is None:
+        node = scroll_find(device, look, swipes)
+    if node is None:
+        raise StepFailed(f"{step}: “{pattern}” is not on the page")
+    return node
+
+
+def scroll_find(device: Device, check: Check, swipes: int = 4) -> Node | None:
+    """What [check] finds on screen, scrolling towards the end of the page
+    (at most [swipes] times) until it does; None when it never does."""
+    node = check(device.dump())
     for _ in range(swipes):
         if node is not None:
             return node
         device.swipe(up=True)
-        node = find(device.dump(), pattern)
-    if node is None:
-        raise StepFailed(f"{step}: “{pattern}” is not on the page")
+        node = check(device.dump())
     return node
+
+
+def page_text(device: Device, swipes: int = 10) -> list[str]:
+    """Every label of the page, from its top (scrolled back first) to its
+    end: each screen's labels that the screen before did not show."""
+    for _ in range(3):
+        device.swipe(up=False)
+    lines: list[str] = []
+    previous: set[str] = set()
+    for index in range(swipes + 1):
+        labels = [one_line(n.label) for n in device.dump() if n.label.strip()]
+        new = [label for label in labels if label not in previous]
+        if index and not new:
+            break
+        lines.extend(new)
+        previous = set(labels)
+        if index < swipes:
+            device.swipe(up=True)
+    return lines
+
+
+# Lines of `logcat -v threadtime`: date, time, pid, tid, level, tag.
+LOGCAT_LINE = re.compile(
+    r"^\d\d-\d\d\s+[\d:.]+\s+(\d+)\s+\d+\s+[VDIWEFAS]\s+(.*?)\s*: "
+)
+
+
+def app_log_lines(log: str, pids: set[str], package: str = PACKAGE) -> list[str]:
+    """The lines of `logcat -v threadtime` [log] written by Mozhi's
+    processes ([pids]) or by Flutter (tag `flutter`), and those that name
+    [package] (the system's about its activities and processes)."""
+    lines = []
+    for line in log.splitlines():
+        match = LOGCAT_LINE.match(line)
+        if match and (match.group(1) in pids or match.group(2) == "flutter"):
+            lines.append(line)
+        elif package in line:
+            lines.append(line)
+    return lines
+
+
+def save_failure_log(device: Device, name: str, since: str | None, shown: int = 40) -> None:
+    """Saves Mozhi's and Flutter's log since [since] (the flow's start;
+    the whole log when unknown) as <step>-<name>-failed-logcat.txt and
+    prints its last [shown] lines."""
+    since_args = ("-t", since) if since else ()
+    log = device.adb(
+        "logcat", "-d", "-v", "threadtime", *since_args, check=False, timeout=60
+    )
+    lines = app_log_lines(log, device.app_pids())
+    path = device.out / f"{device.step:02d}-{name}-failed-logcat.txt"
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print(
+        f"--- {name}: the last {min(shown, len(lines))} of {len(lines)} lines of "
+        f"Mozhi's log since the flow started (all in {path.name}):",
+        flush=True,
+    )
+    for line in lines[-shown:]:
+        print(line, flush=True)
+
+
+def save_page_text(device: Device, name: str) -> None:
+    """Saves and prints every text of the page on screen (see [page_text])
+    as <step>-<name>-failed-page.txt."""
+    lines = page_text(device)
+    path = device.out / f"{device.step:02d}-{name}-failed-page.txt"
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print(f"--- {name}: the page from top to bottom ({path.name}):", flush=True)
+    for line in lines:
+        print(f"  {line}", flush=True)
 
 
 def hide_keyboard(device: Device) -> None:
@@ -1136,7 +1259,7 @@ def open_settings_page(
     show_screen(device, "mozhi://settings")
     try:
         for index, pattern in enumerate(taps):
-            scroll_to(device, pattern, step)
+            scroll_to(device, pattern, step, clickable=True)
             following = any_of(taps[index + 1]) if index + 1 < len(taps) else arrived
             tap_until(device, step, pattern, following)
         page = wait_until(device, arrived, 15)
@@ -1189,10 +1312,24 @@ def sockets(device: Device) -> str:
     )
 
 
+def shared_box(nodes: list[Node], sentence: str) -> Node | None:
+    """The translate box when it holds [sentence]."""
+    box = input_box(nodes)
+    return box if box is not None and sentence in box.text else None
+
+
+def brought_to_front(output: str) -> bool:
+    """Whether `am start` [output] says Android only brought an existing
+    task to the front (the intent was not delivered)."""
+    return "brought to the front" in output
+
+
 def flow_offline_only(device: Device) -> str:
-    """Switches the privacy mode to Offline only, shares a new French
-    sentence and checks it is translated on the device: labelled Offline,
-    and not one byte to or from the network for Mozhi's uid meanwhile."""
+    """Switches the privacy mode to Offline only, opens the translate tab
+    (as a user could), shares a new French sentence, checks that it
+    reaches the translate box and that it is translated on the device:
+    labelled Offline, and not one byte to or from the network for Mozhi's
+    uid meanwhile."""
     open_settings_page(
         device, "open Privacy & data", (PRIVACY_CATEGORY,),
         "mozhi://settings/privacy", any_of(OFFLINE_ONLY),
@@ -1211,14 +1348,31 @@ def flow_offline_only(device: Device) -> str:
     uid = app_uid(device)
     for index, (sentence, pattern) in enumerate(OFFLINE_SENTENCES, start=1):
         step = f"translate “{sentence}” offline"
+        # The translate tab in front, as a user could have it.
+        show_screen(device, "mozhi://translate")
         before = traffic(device, uid, f"before-{index}")
         remote: set[str] = set()
 
         def watch() -> None:
             remote.update(uid_connections(sockets(device), uid))
 
-        device.adb(*share_text_args(sentence))
-        device.note(f"{step}: shared with Mozhi")
+        output = device.shell_output(*share_text_args(sentence))
+        device.note(f"{step}: shared with Mozhi (am: {one_line(output)[:300] or 'no output'})")
+        if am_failed(output):
+            raise StepFailed(f"{step}: sharing was refused: {one_line(output)[:300]}")
+        if wait_until(device, lambda nodes: shared_box(nodes, sentence), 30) is None:
+            box = input_box(device.dump())
+            shows = f"“{one_line(box.text)[:80]}”" if box else "no text field"
+            why = (
+                "; am only brought a task to the front, the intent was not delivered"
+                if brought_to_front(output)
+                else ""
+            )
+            raise StepFailed(
+                f"{step}: the shared text did not reach the translate box "
+                f"within 30 s (it shows {shows}){why}"
+            )
+        device.note(f"{step}: the shared text is in the translate box")
         result, tapped = follow(
             device,
             step,
@@ -1438,6 +1592,21 @@ def download_button(nodes: list[Node], row: Node, language: str) -> Node:
                 True, False)
 
 
+def offline_page(nodes: list[Node]) -> Node | None:
+    """What shows that the offline languages page is open: its header
+    ("No languages downloaded", "2 languages downloaded"), its search
+    field, its "Available to download" section, or its title while the
+    settings row that opens it (whose heading is the same) is not on
+    screen."""
+    return (
+        find(nodes, OFFLINE_COUNT)
+        or find(nodes, OFFLINE_SEARCH)
+        or input_box(nodes)
+        or find(nodes, r"Available to download")
+        or (find(nodes, OFFLINE_TITLE) if find(nodes, OFFLINE_SETTINGS_ROW) is None else None)
+    )
+
+
 def flow_cancel(device: Device) -> str:
     """Starts downloading [CANCEL_LANGUAGE] in Settings > Translation
     engines > Offline languages, cancels it and checks that the row is back
@@ -1449,30 +1618,23 @@ def flow_cancel(device: Device) -> str:
         r".*\b(couldn.t|can.t|failed|error|damaged|not enough)\b.*"
     )
 
-    def page(nodes: list[Node]) -> Node | None:
-        return (
-            find(nodes, OFFLINE_SEARCH)
-            or input_box(nodes)
-            or find(nodes, r"Available to download")
-        )
-
     open_settings_page(
         device, "open Offline languages", (ENGINES_CATEGORY, OFFLINE_LANGUAGES),
-        "mozhi://settings/offline", page,
+        "mozhi://settings/offline", offline_page,
     )
-    nodes = device.dump()
-    search = find(nodes, OFFLINE_SEARCH) or input_box(nodes)
+    search = scroll_find(
+        device, lambda nodes: find(nodes, OFFLINE_SEARCH) or input_box(nodes)
+    )
     if search is not None:
         device.tap(search)
         device.adb("shell", "input", "text", language)
         time.sleep(2)
         hide_keyboard(device)
+    else:
+        device.note(f"find {language}: no search field on the page")
     row = wait_until(device, lambda n: language_row(n, language), 15)
-    for _ in range(4):
-        if row is not None:
-            break
-        device.swipe(up=True)
-        row = language_row(device.dump(), language)
+    if row is None:
+        row = scroll_find(device, lambda n: language_row(n, language))
     if row is None:
         raise StepFailed(f"find {language}: it is not in the list")
     device.capture("cancel-before")
@@ -1483,11 +1645,19 @@ def flow_cancel(device: Device) -> str:
         raise StepFailed(f"find {language}: it is downloading already")
     slow = device.shell_output("emu", "network", "speed", SLOW_NETWORK, timeout=30)
     device.note(f"emulator network speed {SLOW_NETWORK}: {one_line(slow)[:200]}")
+    throttled: list[str] = []
     try:
+        throttled = throttle_https(device)
         cancel = None
         for attempt in (1, 2):
             nodes = device.dump()
             current = language_row(nodes, language) or row
+            if attempt == 2 and row_button(nodes, current, r"Downloaded|Delete.*|Update"):
+                how = ", ".join(throttled) or "not slowed: no root or no iptables"
+                raise StepFailed(
+                    f"download {language}: it finished before “Cancel downloading "
+                    f"{language}” was seen (network {how})"
+                )
             if attempt == 1 or not re.search(r"Downloading", current.label):
                 button = download_button(nodes, current, language)
                 again = " again" if attempt == 2 else ""
@@ -1525,6 +1695,7 @@ def flow_cancel(device: Device) -> str:
             errors=errors,
         )
     finally:
+        unthrottle_https(device, throttled)
         device.shell_output("emu", "network", "speed", "full", timeout=30)
     # An error would come as a snack bar after the row has settled.
     time.sleep(3)
@@ -1537,6 +1708,46 @@ def flow_cancel(device: Device) -> str:
     if current is None:
         raise StepFailed(f"cancel: {language}'s row is not back to Download")
     return f"{language}: “{one_line(current.label)[:80]}”, no error"
+
+
+def throttle_https(device: Device) -> list[str]:
+    """Slows HTTPS downloads on the device with [THROTTLE_RULES]; returns
+    the tables that took them (none without root or iptables, noted)."""
+    root = device.shell_output("root", timeout=60)
+    device.shell_output("wait-for-device", timeout=60)
+    uid = device.shell_output("shell", "id", "-u", timeout=30).strip()
+    if uid != "0":
+        device.note(f"slow HTTPS: no root ({one_line(root)[:120]})")
+        return []
+    done: list[str] = []
+    for table in THROTTLE_TABLES:
+        added: list[tuple[str, ...]] = []
+        for rule in THROTTLE_RULES:
+            # adb runs the line with the device's shell, so `&&` is its.
+            out = device.shell_output(
+                "shell", table, "-w", "-I", "INPUT", "1", *rule,
+                "&&", "echo", THROTTLE_OK, timeout=30,
+            )
+            if THROTTLE_OK not in out:
+                device.note(f"slow HTTPS: {table}: {one_line(out)[:160]}")
+                break
+            added.append(rule)
+        if len(added) == len(THROTTLE_RULES):
+            done.append(table)
+        else:
+            for rule in added:
+                device.shell_output("shell", table, "-w", "-D", "INPUT", *rule,
+                                    timeout=30)
+    device.note(f"slow HTTPS: {', '.join(done) or 'no table took the rules'}")
+    return done
+
+
+def unthrottle_https(device: Device, tables: list[str]) -> None:
+    """Deletes the rules [throttle_https] added to [tables]."""
+    for table in tables:
+        for rule in THROTTLE_RULES:
+            device.shell_output("shell", table, "-w", "-D", "INPUT", *rule,
+                                timeout=30)
 
 
 def cancelled_row(nodes: list[Node], language: str) -> Node | None:
@@ -1579,6 +1790,10 @@ def run_flows(device: Device, skip: set[str]) -> list[FlowResult]:
         device.note(f"=== {title} ({name})")
         started = time.monotonic()
         try:
+            since = device.log_time()
+        except (RuntimeError, OSError, subprocess.TimeoutExpired):
+            since = None
+        try:
             status, detail = "passed", flow_function(name)(device)
         except StepFailed as error:
             status, detail = "failed", str(error)
@@ -1592,6 +1807,14 @@ def run_flows(device: Device, skip: set[str]) -> list[FlowResult]:
             except (RuntimeError, OSError, subprocess.TimeoutExpired):
                 nodes = []
             detail += f"\n  on screen: {labels_of(nodes, 500) or '(nothing readable)'}"
+            for save in (
+                lambda: save_failure_log(device, name, since),
+                lambda: save_page_text(device, name),
+            ):
+                try:
+                    save()
+                except (RuntimeError, OSError, subprocess.TimeoutExpired) as error:
+                    device.note(f"{name}: diagnostics incomplete: {error}")
         seconds = time.monotonic() - started
         device.note(f"=== {title}: {status} after {seconds:.0f} s: {detail}")
         results.append(FlowResult(name, title, status, detail))

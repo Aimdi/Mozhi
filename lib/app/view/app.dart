@@ -79,6 +79,13 @@ class _AppState extends State<App> {
   /// The on-device models' providers as they change (see
   /// [_applyEngineConfiguration]).
   StreamSubscription<List<AiProviderConfig>>? _onDeviceProviders;
+
+  /// Reads the settings again whenever this window comes back to the
+  /// front: Android can run more than one window of the app (one opened
+  /// from another app's share sheet, the quick translate window), each
+  /// with its own copy of the settings, and a change made in another one
+  /// (Offline only, above all) must hold here before anything is sent.
+  late final AppLifecycleListener _resumeListener;
   late final SharedTextHandler _sharedText;
   final _navigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
   final _messengerKey = GlobalKey<ScaffoldMessengerState>();
@@ -93,6 +100,9 @@ class _AppState extends State<App> {
       // Without "Remember quality selection" each start begins in the
       // default quality mode.
       initial: _deps.settings.atLaunch(),
+    );
+    _resumeListener = AppLifecycleListener(
+      onResume: () => unawaited(_settingsCubit.load()),
     );
     // Before anything is shown: whether it may be. A provided lock starts
     // with the settings' timeout too.
@@ -231,6 +241,7 @@ class _AppState extends State<App> {
 
   @override
   void dispose() {
+    _resumeListener.dispose();
     unawaited(_sharedText.dispose());
     _router.routeInformationProvider.removeListener(_keepRouteLinks);
     unawaited(_linkHold.dispose());

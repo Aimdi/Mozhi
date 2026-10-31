@@ -538,6 +538,8 @@ void main() {
         TranslationWarningKind.echo,
         'DeepL',
         false,
+        // allServersFailed: a suspect result, not a failure on every server.
+        false,
       ]);
     });
   });

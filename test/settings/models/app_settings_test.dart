@@ -78,6 +78,7 @@ const _custom = AppSettings(
   tapToLookUp: false,
   highlightSpokenWord: false,
   offlineAppShell: false,
+  fallbackToDuckDuckGo: true,
 );
 
 void main() {
@@ -136,6 +137,8 @@ void main() {
       expect(settings.tapToLookUp, isTrue);
       expect(settings.highlightSpokenWord, isTrue);
       expect(settings.offlineAppShell, isTrue);
+      // The app never moves text to another engine unless the user says so.
+      expect(settings.fallbackToDuckDuckGo, isFalse);
     });
 
     test('supports value equality', () {
@@ -358,6 +361,7 @@ void main() {
           tapToLookUp: _custom.tapToLookUp,
           highlightSpokenWord: _custom.highlightSpokenWord,
           offlineAppShell: _custom.offlineAppShell,
+          fallbackToDuckDuckGo: _custom.fallbackToDuckDuckGo,
         );
 
         expect(copy, equals(_custom));
@@ -576,6 +580,7 @@ void main() {
           'tapToLookUp': 'yes',
           'highlightSpokenWord': 1,
           'offlineAppShell': 'on',
+          'fallbackToDuckDuckGo': 'yes',
         });
 
         expect(settings, equals(const AppSettings()));
@@ -620,6 +625,24 @@ void main() {
         expect(stored.tapToLookUp, isFalse);
         expect(stored.highlightSpokenWord, isFalse);
         expect(stored.offlineAppShell, isFalse);
+      });
+
+      test('round-trips the DuckDuckGo fallback', () {
+        final json = _custom.toJson();
+        expect(json['fallbackToDuckDuckGo'], isTrue);
+        expect(AppSettings.fromJson(json).fallbackToDuckDuckGo, isTrue);
+        final off = const AppSettings().toJson();
+        expect(off['fallbackToDuckDuckGo'], isFalse);
+        expect(AppSettings.fromJson(off).fallbackToDuckDuckGo, isFalse);
+        expect(
+          _custom.copyWith(fallbackToDuckDuckGo: false),
+          isNot(equals(_custom)),
+        );
+      });
+
+      test('loads settings stored before the DuckDuckGo fallback existed', () {
+        final json = _custom.toJson()..remove('fallbackToDuckDuckGo');
+        expect(AppSettings.fromJson(json).fallbackToDuckDuckGo, isFalse);
       });
 
       test('loads settings stored before the model source existed', () {

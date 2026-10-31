@@ -927,6 +927,64 @@ void main() {
         );
       });
 
+      test("with an engine, keeps every server's failure in order", () async {
+        healthy.update([instanceA, instanceB, instanceC]);
+        await expectLater(
+          healthy.run<void>((client, instance) async {
+            if (instance == instanceA) {
+              throw const MozhiApiException(
+                'request failed with status code: 429',
+                statusCode: 500,
+              );
+            }
+            if (instance == instanceB) throw TimeoutException('slow');
+            throw const MozhiApiException('invalid json', statusCode: 500);
+          }, engine: googleEngine),
+          throwsA(
+            isA<AllInstancesFailedException>()
+                .having((e) => e.failures, 'failures', [
+                  isA<MozhiApiException>().having(
+                    (e) => e.message,
+                    'message',
+                    contains('429'),
+                  ),
+                  isA<TimeoutException>(),
+                  isA<MozhiApiException>().having(
+                    (e) => e.message,
+                    'message',
+                    'invalid json',
+                  ),
+                ])
+                // The last failure says nothing of a limit; the first does.
+                .having((e) => e.rateLimited, 'rateLimited', isTrue)
+                .having((e) => e.serverAnswered, 'serverAnswered', isTrue),
+          ),
+        );
+      });
+
+      test('with an engine, failures are sanitised', () async {
+        healthy.update([instanceA]);
+        await expectLater(
+          healthy.run<void>(
+            (client, instance) async => throw serverError(
+              'Get "https://translate.google.com/?q=secret": EOF',
+            ),
+            engine: googleEngine,
+          ),
+          throwsA(
+            isA<AllInstancesFailedException>().having(
+              (e) => e.failures.single,
+              'failure',
+              isA<MozhiApiException>().having(
+                (e) => e.message,
+                'message',
+                isNot(contains('secret')),
+              ),
+            ),
+          ),
+        );
+      });
+
       test('with an engine, input errors are not wrapped', () async {
         healthy.update([instanceA, instanceB]);
         await expectLater(

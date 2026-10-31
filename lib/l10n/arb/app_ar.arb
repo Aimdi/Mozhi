@@ -2767,5 +2767,11 @@
   "onboardingLanguagesSuggestionPicked": "اخترت {language} من قبل.",
   "offlineManualMirrorNote": "تؤدي الروابط إلى مصدر النماذج لديك، {host}، الذي يُنزّل منه Mozhi. إذا كان أحد الملفات غير موجود هناك، فاستخدم رابط الناشر.",
   "offlineManualPublisherLink": "رابط الناشر، إذا لم يكن الملف على المرآة",
-  "offlineManualCopyPublisherLink": "نسخ رابط الناشر إلى {file}"
+  "offlineManualCopyPublisherLink": "نسخ رابط الناشر إلى {file}",
+  "settingsFallbackDuckDuckGo": "إذا فشل Google، فاستخدم DuckDuckGo",
+  "settingsFallbackDuckDuckGoSubtitle": "عندما يفشل Google على كل خوادم المتطوّعين، يُرسَل نصك بدلًا من ذلك إلى مترجم DuckDuckGo عبر الخوادم نفسها. تأتي ترجمات DuckDuckGo من Microsoft Translator.",
+  "translateFallbackAllServers": "فشل {engine} على كل الخوادم، لذلك ترجم {fallback} هذا النص.",
+  "translateErrorAllServersRateLimited": "يحدّ {engine} حاليًا من الطلبات الواردة من خوادم المتطوّعين. يزول هذا عادةً بعد فترة.",
+  "translateErrorUseDuckDuckGo": "استخدام DuckDuckGo عند فشل Google",
+  "settingsNetworkEngine": "المحرّك: {engine}"
 }

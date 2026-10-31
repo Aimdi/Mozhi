@@ -108,6 +108,7 @@ class EgressLedger {
     required EgressPurpose purpose,
     bool viaProxy = false,
     int? bytesSent,
+    String? engine,
   }) {
     final entry = EgressEntry(
       id: _nextId++,
@@ -118,6 +119,7 @@ class EgressLedger {
       purpose: purpose,
       viaProxy: viaProxy,
       bytesSent: bytesSent,
+      engine: engine,
     );
     _append(entry);
     return entry;

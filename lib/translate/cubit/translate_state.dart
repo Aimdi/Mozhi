@@ -81,21 +81,26 @@ class AppliedRefinement extends Equatable {
 /// returned the original text. Translated on this device."
 /// (`TranslateCubit` falls back by itself, only to engines the privacy
 /// settings allow without asking, and for text that an engine on this
-/// device translated only to engines on this device).
+/// device translated only to engines on this device), or because Google
+/// failed on every volunteer server and the user allowed DuckDuckGo to
+/// take over then ([allServersFailed], `AppSettings.fallbackToDuckDuckGo`):
+/// "Google failed on every server, so DuckDuckGo translated this."
 class TranslationFallback extends Equatable {
   const new({
     required this.fromEngineName,
-    required this.reason,
     required this.engineName,
     required this.onDevice,
+    this.reason,
+    this.allServersFailed = false,
   });
 
-  /// The engine that returned the suspect result.
+  /// The engine that returned the suspect result (or failed on every
+  /// server).
   final String fromEngineName;
 
   /// Why its result was suspect (a [TranslationWarningKind] whose
-  /// `isSuspect` is true).
-  final TranslationWarningKind reason;
+  /// `isSuspect` is true); null when [allServersFailed].
+  final TranslationWarningKind? reason;
 
   /// The engine that translated instead.
   final String engineName;
@@ -103,8 +108,18 @@ class TranslationFallback extends Equatable {
   /// Whether that engine is the on-device one.
   final bool onDevice;
 
+  /// Whether [fromEngineName] failed on every volunteer server (an
+  /// `AllInstancesFailedException`) rather than returning a suspect result.
+  final bool allServersFailed;
+
   @override
-  List<Object?> get props => [fromEngineName, reason, engineName, onDevice];
+  List<Object?> get props => [
+    fromEngineName,
+    reason,
+    engineName,
+    onDevice,
+    allServersFailed,
+  ];
 }
 
 /// A one-shot notice that the target language was switched automatically

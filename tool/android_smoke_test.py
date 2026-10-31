@@ -1002,9 +1002,10 @@ class Clock:
 
 
 class ScreenDevice(FakeDevice):
-    """A fake emulator whose screen changes on taps and adb commands:
-    [screens] by name, [on_tap] (label pattern -> screen), [on_adb]
-    (argument prefix -> (screen or None, output))."""
+    """A fake emulator whose screen changes on taps, swipes and adb
+    commands: [screens] by name, [on_tap] (label pattern -> screen),
+    [on_swipe] / [on_swipe_back] (screen -> the screen below / above it),
+    [on_adb] (argument prefix -> (screen or None, output))."""
 
     def __init__(self, out: Path, clock: Clock) -> None:
         super().__init__(out)
@@ -1012,6 +1013,8 @@ class ScreenDevice(FakeDevice):
         self.screens: dict[str, list[smoke.Node]] = {}
         self.current = ""
         self.on_tap: dict[str, str] = {}
+        self.on_swipe: dict[str, str] = {}
+        self.on_swipe_back: dict[str, str] = {}
         self.on_adb: list[tuple[tuple[str, ...], str | None, str]] = []
         self.captured: list[str] = []
 
@@ -1041,6 +1044,8 @@ class ScreenDevice(FakeDevice):
     def swipe(self, up: bool = True) -> None:
         self.calls.append(("swipe", up))
         self.clock.now += 1
+        moves = self.on_swipe if up else self.on_swipe_back
+        self.current = moves.get(self.current, self.current)
 
     def capture(self, name: str) -> list[smoke.Node]:
         self.captured.append(name)
@@ -1167,6 +1172,57 @@ class RunFlowsTest(ClockTestCase):
         self.assertIn("on screen: Settings | Privacy & data", results[1].detail)
         self.assertEqual(self.device.captured, ["image-failed"])
 
+    def test_a_failed_flow_saves_the_app_log_and_the_whole_page(self):
+        d = self.device
+        d.screens = {
+            "top": [node("Offline languages"), node("No languages downloaded")],
+            "end": [node("No languages downloaded"), node("Azerbaijani\n25 MB")],
+        }
+        d.current = "end"
+        d.on_swipe = {"top": "end"}
+        d.on_swipe_back = {"end": "top"}
+        log = "\n".join([
+            "10-31 05:20:00.100  1234  1250 I flutter : Uncaught error",
+            "10-31 05:20:00.200   555   560 I ActivityTaskManager: START u0 "
+            f"{{act=android.intent.action.SEND pkg={smoke.PACKAGE}}}",
+            "10-31 05:20:00.300   777   780 D other   : not ours",
+            "10-31 05:20:00.400  1234  1251 W Mozhi   : engines still loading",
+        ])
+        d.on_adb.append((("logcat", "-d"), None, log))
+
+        def fails(device):
+            raise smoke.StepFailed("open Offline languages: no page")
+
+        with mock.patch.object(smoke, "flow_cancel", fails), \
+                redirect_stdout(io.StringIO()) as out:
+            results = smoke.run_flows(d, {"offline-only", "image", "document"})
+
+        self.assertEqual(results[-1].status, "failed")
+        self.assertIn(("logcat", "-d", "-v", "threadtime", "-t", "1730000000.000"),
+                      d.calls)
+        saved = (Path(self.tmp.name) / "00-cancel-failed-logcat.txt").read_text()
+        self.assertIn("Uncaught error", saved)
+        self.assertIn("START u0", saved)
+        self.assertIn("engines still loading", saved)
+        self.assertNotIn("not ours", saved)
+        page = (Path(self.tmp.name) / "00-cancel-failed-page.txt").read_text()
+        self.assertEqual(
+            page.splitlines(),
+            ["Offline languages", "No languages downloaded", "Azerbaijani 25 MB"],
+        )
+        printed = out.getvalue()
+        self.assertIn("the last 3 of 3 lines of Mozhi's log", printed)
+        self.assertIn("engines still loading", printed)
+        self.assertIn("  Azerbaijani 25 MB", printed)
+
+    def test_diagnostics_that_fail_do_not_stop_the_run(self):
+        self.device.fail_on = ("logcat",)
+        with mock.patch.object(smoke, "flow_cancel", lambda d: (_ for _ in ()).throw(
+                smoke.StepFailed("boom"))), redirect_stdout(io.StringIO()):
+            results = smoke.run_flows(self.device, {"offline-only", "image", "document"})
+        self.assertEqual(results[-1].status, "failed")
+        self.assertTrue(any("diagnostics incomplete" in line for line in self.device.log))
+
     def test_a_flow_that_leaves_mozhi_stopped_fails(self):
         self.device.on_adb.append((("shell", "pidof"), None, ""))
         with mock.patch.object(smoke, "flow_offline_only", lambda d: "fine"):
@@ -1178,6 +1234,83 @@ class RunFlowsTest(ClockTestCase):
         results = [smoke.FlowResult("image", "Image", "failed", "share: no\n  on screen: x")]
         self.assertEqual(smoke.flow_lines(results, True), ["- Image: failed (share: no)"])
         self.assertEqual(len(smoke.flow_lines([], False)), len(smoke.FLOWS))
+
+
+class DiagnosticsTest(ClockTestCase):
+    def test_app_log_lines_keep_the_app_flutter_and_its_name(self):
+        log = "\n".join([
+            "--------- beginning of main",
+            "10-31 05:20:00.100  1234  1250 I flutter : hello",
+            "10-31 05:20:00.200  4321  4322 I flutter : another engine",
+            "10-31 05:20:00.300   555   560 W ActivityTaskManager: Activity not "
+            f"started for {smoke.PACKAGE}",
+            "10-31 05:20:00.400   777   780 D Other   : not ours",
+            "10-31 05:20:00.500  1234  1251 E AndroidRuntime: boom",
+        ])
+
+        lines = smoke.app_log_lines(log, {"1234"})
+
+        self.assertEqual(len(lines), 4)
+        self.assertNotIn("not ours", "\n".join(lines))
+        self.assertEqual(smoke.app_log_lines("", {"1"}), [])
+
+    def test_page_text_reads_from_the_top_to_the_end(self):
+        d = self.device
+        d.screens = {
+            "a": [node("Title"), node("One")],
+            "b": [node("One"), node("Two")],
+            "c": [node("Two"), node("Three\nlines")],
+        }
+        d.current = "b"
+        d.on_swipe = {"a": "b", "b": "c"}
+        d.on_swipe_back = {"c": "b", "b": "a"}
+
+        self.assertEqual(smoke.page_text(d),
+                         ["Title", "One", "Two", "Three lines"])
+        self.assertEqual(d.calls.count(("swipe", False)), 3)
+
+    def test_scroll_find_scrolls_until_it_finds(self):
+        d = self.device
+        d.screens = {"a": [node("Top")], "b": [node("Search languages")]}
+        d.current = "a"
+        d.on_swipe = {"a": "b"}
+
+        found = smoke.scroll_find(d, smoke.any_of(smoke.OFFLINE_SEARCH))
+
+        self.assertEqual(found.label, "Search languages")
+        self.assertIsNone(smoke.scroll_find(d, smoke.any_of("Nothing"), swipes=2))
+
+
+class OfflinePageTest(unittest.TestCase):
+    def test_the_header_counts_the_downloaded_languages(self):
+        for header in ("No languages downloaded", "1 language downloaded",
+                       "12 languages downloaded"):
+            self.assertEqual(smoke.offline_page([node(header)]).label, header)
+
+    def test_the_title_counts_only_off_the_settings_page(self):
+        settings = [
+            node("Offline languages"),
+            node("Languages on this device\nTranslate without internet using "
+                 "on-device models", clickable=True),
+        ]
+        self.assertIsNone(smoke.offline_page(settings))
+        page = [node("Offline languages"), node("Translations run on this phone")]
+        self.assertEqual(smoke.offline_page(page).label, "Offline languages")
+
+    def test_the_settings_row_has_either_label(self):
+        self.assertIsNotNone(re.fullmatch(
+            smoke.OFFLINE_LANGUAGES,
+            "Languages on this device\nTranslate without internet using on-device "
+            "models",
+        ))
+        self.assertIsNotNone(re.fullmatch(smoke.OFFLINE_LANGUAGES,
+                                          "Offline languages\nDownload languages"))
+        row = smoke.find_clickable(
+            [node("Offline languages"),
+             node("Languages on this device\nTranslate offline", clickable=True)],
+            smoke.OFFLINE_LANGUAGES,
+        )
+        self.assertTrue(row.label.startswith("Languages on this device"))
 
 
 def netstats(uid_bytes: int, bpf_bytes: int) -> str:
@@ -1236,6 +1369,53 @@ class OfflineOnlyFlowTest(ClockTestCase):
                                        "Offline only\nOnly on-device translation."])
         self.assertIn("offline-only-chosen", self.device.captured)
 
+    def test_opens_the_translate_tab_before_sharing(self):
+        smoke.flow_offline_only(self.device)
+
+        calls = self.device.calls
+        translate = calls.index(self.link("mozhi://translate"))
+        share = next(i for i, c in enumerate(calls)
+                     if c[:5] == ("shell", "am", "start", "-a",
+                                  "android.intent.action.SEND"))
+        self.assertLess(translate, share)
+        self.assertIn(
+            "translate “Le chat dort sur le lit” offline: the shared text is in "
+            "the translate box", self.device.log)
+
+    def test_fails_when_the_shared_text_does_not_reach_the_box(self):
+        d = self.device
+        d.screens["old"] = [
+            node("Bonjour je cherche la gare", "android.widget.EditText",
+                 bounds=(0, 200, 1080, 400)),
+            node("Hello, I'm looking for the station", bounds=(0, 500, 1080, 700)),
+        ]
+        d.on_adb[2] = (
+            ("shell", "am", "start", "-a", "android.intent.action.SEND"), "old",
+            "Starting: Intent { act=android.intent.action.SEND }\n"
+            "Warning: Activity not started, its current task has been brought to "
+            "the front",
+        )
+
+        with self.assertRaises(smoke.StepFailed) as raised:
+            smoke.flow_offline_only(d)
+
+        message = str(raised.exception)
+        self.assertIn("the shared text did not reach the translate box within 30 s",
+                      message)
+        self.assertIn("it shows “Bonjour je cherche la gare”", message)
+        self.assertIn("brought a task to the front", message)
+        self.assertNotIn("translation", message)
+        self.assertLessEqual(self.clock.now, 60)
+
+    def test_fails_when_sharing_is_refused(self):
+        self.device.on_adb[2] = (
+            ("shell", "am", "start", "-a", "android.intent.action.SEND"), None,
+            "Error: Activity not started, unable to resolve Intent",
+        )
+
+        with self.assertRaisesRegex(smoke.StepFailed, "sharing was refused"):
+            smoke.flow_offline_only(self.device)
+
     def test_fails_when_the_app_used_the_network(self):
         self.readings["after-1"] = (500, 9100)
 
@@ -1250,11 +1430,17 @@ class OfflineOnlyFlowTest(ClockTestCase):
 
     def test_measures_again_after_downloading_french(self):
         d = self.device
-        d.screens["offer"] = [node("Download French (52 MB)", clickable=True)]
+        d.screens["offer"] = [
+            node("Le chat dort sur le lit", "android.widget.EditText",
+                 bounds=(0, 200, 1080, 400)),
+            node("Download French (52 MB)", clickable=True),
+        ]
         d.on_adb[2] = (("shell", "am", "start", "-a", "android.intent.action.SEND"),
                        "offer", "")
         d.on_tap[r"Download French.*"] = "translated"
         d.screens["translated-2"] = [
+            node("Mon frere aime la musique", "android.widget.EditText",
+                 bounds=(0, 200, 1080, 400)),
             node("My brother loves music\nOffline", bounds=(0, 500, 1080, 700)),
         ]
         self.readings.update({"after-1": (900, 60000), "before-2": (900, 60000),
@@ -1457,19 +1643,19 @@ class CancelFlowTest(ClockTestCase):
             "offline": [
                 node("", "android.widget.EditText", bounds=(0, 300, 1080, 400),
                      clickable=True),
-                node("Azerbaijani\nAzərbaycan dili · 25 MB download", bounds=row),
+                node("Greek\nΕλληνικά · 25 MB download", bounds=row),
                 node("Download", bounds=pill, clickable=True),
             ],
             "downloading": [
-                node("Azerbaijani\nDownloading… 3%", bounds=row),
-                node("Cancel downloading Azerbaijani", bounds=pill, clickable=True),
+                node("Greek\nDownloading… 3%", bounds=row),
+                node("Cancel downloading Greek", bounds=pill, clickable=True),
             ],
         }
         d.on_tap = {
             r"Translation engines.*": "engines",
             r"Offline languages.*": "offline",
             r"Download": "downloading",
-            r"Cancel downloading Azerbaijani": "offline",
+            r"Cancel downloading Greek": "offline",
         }
         d.on_adb = [(self.link("mozhi://settings"), "settings", ""),
                     (("emu",), None, "OK")]
@@ -1477,23 +1663,48 @@ class CancelFlowTest(ClockTestCase):
     def test_starts_and_cancels_the_download(self):
         detail = smoke.flow_cancel(self.device)
 
-        self.assertIn("Azerbaijani: “Azerbaijani Azərbaycan dili", detail)
+        self.assertIn("Greek: “Greek Ελληνικά", detail)
         self.assertIn("no error", detail)
         calls = self.device.calls
-        self.assertIn(("shell", "input", "text", "Azerbaijani"), calls)
+        self.assertIn(("shell", "input", "text", "Greek"), calls)
         self.assertEqual(
             [c for c in calls if c[0] == "emu"],
             [("emu", "network", "speed", smoke.SLOW_NETWORK),
              ("emu", "network", "speed", "full")],
         )
-        self.assertEqual(self.taps()[-2:], ["Download", "Cancel downloading Azerbaijani"])
+        self.assertEqual(self.taps()[-2:], ["Download", "Cancel downloading Greek"])
+
+    def test_opens_the_page_from_the_languages_row_and_scrolls(self):
+        d = self.device
+        d.screens["engines"] = [
+            node("Offline languages"),
+            node("Languages on this device\nTranslate without internet using "
+                 "on-device models", clickable=True),
+        ]
+        # The page as it opens: its header, the search field below the fold.
+        d.screens["offline-top"] = [
+            node("Offline languages"),
+            node("No languages downloaded"),
+            node("Translations run on this phone, with Mozilla's models."),
+        ]
+        d.on_tap[r"Languages on this device.*"] = "offline-top"
+        d.on_swipe = {"offline-top": "offline"}
+
+        detail = smoke.flow_cancel(d)
+
+        self.assertIn("no error", detail)
+        self.assertNotIn("settings-not-found", d.captured)
+        self.assertIn("Languages on this device\nTranslate without internet using "
+                      "on-device models", self.taps())
+        self.assertIn(("swipe", True), d.calls)
+        self.assertIn(("shell", "input", "text", "Greek"), d.calls)
 
     def test_fails_on_an_error_and_restores_the_network(self):
         self.device.screens["offline-error"] = [
-            *self.device.screens["offline"], node("Couldn’t download Azerbaijani")]
-        self.device.on_tap["Cancel downloading Azerbaijani"] = "offline-error"
+            *self.device.screens["offline"], node("Couldn’t download Greek")]
+        self.device.on_tap["Cancel downloading Greek"] = "offline-error"
 
-        with self.assertRaisesRegex(smoke.StepFailed, "Couldn’t download Azerbaijani"):
+        with self.assertRaisesRegex(smoke.StepFailed, "Couldn’t download Greek"):
             smoke.flow_cancel(self.device)
         self.assertEqual(self.device.calls[-1][:4], ("emu", "network", "speed", "full"))
 
@@ -1517,6 +1728,54 @@ class CancelFlowTest(ClockTestCase):
         with mock.patch.object(d, "tap", tap):
             smoke.flow_cancel(d)
         self.assertEqual(len(presses), 2)
+
+    def test_slows_https_as_root_and_puts_it_back(self):
+        d = self.device
+        d.on_adb[1:1] = [
+            (("shell", "id", "-u"), None, "0\n"),
+            (("shell", "iptables", "-w", "-I"), None, smoke.THROTTLE_OK),
+            (("shell", "ip6tables", "-w", "-I"), None, "ip6tables: No chain"),
+        ]
+
+        smoke.flow_cancel(d)
+
+        def rules(table, op):
+            return [c for c in d.calls if c[1:4] == (table, "-w", op)]
+
+        added = rules("iptables", "-I")
+        self.assertEqual([c[6:-3] for c in added], list(smoke.THROTTLE_RULES))
+        self.assertEqual(added[0][4:6], ("INPUT", "1"))
+        self.assertEqual([c[5:] for c in rules("iptables", "-D")],
+                         list(smoke.THROTTLE_RULES))
+        # ip6tables refused the first rule: nothing of it is left to delete.
+        self.assertEqual(len(rules("ip6tables", "-I")), 1)
+        self.assertEqual(rules("ip6tables", "-D"), [])
+        self.assertIn("slow HTTPS: iptables", d.log)
+        # The rules go before the network speed is put back, after Cancel.
+        last_delete = max(i for i, c in enumerate(d.calls) if c[3:4] == ("-D",))
+        self.assertLess(d.calls.index(("tap", "Cancel downloading Greek")), last_delete)
+
+    def test_without_root_it_only_notes_it(self):
+        smoke.flow_cancel(self.device)
+
+        self.assertFalse([c for c in self.device.calls if "iptables" in c])
+        self.assertTrue(any(m.startswith("slow HTTPS: no root") for m in self.device.log))
+
+    def test_says_when_the_download_finished_before_cancel(self):
+        d = self.device
+        d.screens["done"] = [
+            d.screens["offline"][0],
+            node("Greek\nΕλληνικά · 25 MB", bounds=(0, 900, 1080, 1050)),
+            node("Delete Greek", bounds=(800, 940, 1000, 1010), clickable=True),
+        ]
+        d.on_tap["Download"] = "done"
+
+        with self.assertRaisesRegex(smoke.StepFailed,
+                                    "finished before “Cancel downloading Greek”"):
+            smoke.flow_cancel(d)
+        self.assertEqual(self.taps().count("Download"), 1)
+        self.assertNotIn("Delete Greek", self.taps())
+        self.assertEqual(d.calls[-1][:4], ("emu", "network", "speed", "full"))
 
     def test_refuses_a_language_already_downloaded(self):
         self.device.screens["offline"][2] = node(

@@ -323,7 +323,17 @@ class BergamotModelManager {
   final _installing = SharedInstalls<InstalledModel>();
   List<InstalledModel>? _installedCache;
 
+  /// The [changesName] token [_installedCache] was read with.
+  String _cachedChanges = '';
+
   static const manifestName = 'manifest.json';
+
+  /// File in [modelsDirectory] that every install and delete rewrites with
+  /// a new token. Other managers of the same [root] (the app's other
+  /// windows run engines of their own over the same files) see it change
+  /// and read the installed models again ([installed]).
+  static const changesName = '.changes';
+
   static const _manifestSchema = 1;
 
   /// `<root>/models`.
@@ -339,8 +349,42 @@ class BergamotModelManager {
       Directory(p.join(modelsDirectory.path, '.trash'));
 
   /// Every installed model (one version per pair).
-  Future<List<InstalledModel>> installed() async =>
-      _installedCache ??= List.unmodifiable(await _scan());
+  ///
+  /// Read from the disk once, and again after this manager or another one
+  /// of the same [root] installed or deleted a model ([changesName]).
+  Future<List<InstalledModel>> installed() async {
+    final changes = await _readChanges();
+    final cached = _installedCache;
+    if (cached != null && changes == _cachedChanges) return cached;
+    final scanned = List<InstalledModel>.unmodifiable(await _scan());
+    _cachedChanges = changes;
+    return _installedCache = scanned;
+  }
+
+  /// The token of [changesName] ('' when there is none).
+  Future<String> _readChanges() async {
+    final file = File(p.join(modelsDirectory.path, changesName));
+    try {
+      return file.existsSync() ? await file.readAsString() : '';
+    } on FileSystemException {
+      return '';
+    }
+  }
+
+  /// Writes a new token to [changesName] (see there) and forgets the
+  /// installed models. Best effort: nothing is written without a
+  /// [modelsDirectory].
+  Future<void> _noteChange() async {
+    _installedCache = null;
+    final directory = modelsDirectory;
+    if (!directory.existsSync()) return;
+    try {
+      await File(p.join(directory.path, changesName))
+          .writeAsString(_randomSuffix(), flush: true);
+    } on FileSystemException {
+      // This manager reads the models again anyway.
+    }
+  }
 
   /// The installed model for `source -> target` (Mozilla codes), if any.
   Future<InstalledModel?> installedModel(String source, String target) async {
@@ -511,6 +555,7 @@ class BergamotModelManager {
     _installedCache = null;
     await _deleteQuietly(Directory(p.join(modelsDirectory.path, pair)));
     await _deleteQuietly(Directory(p.join(_downloadsDirectory.path, pair)));
+    await _noteChange();
   }
 
   /// Removes leftovers of interrupted installs (staging and trash; partial
@@ -632,7 +677,7 @@ class BergamotModelManager {
       await _deleteQuietly(
         Directory(p.join(_downloadsDirectory.path, model.pair, model.version)),
       );
-      _installedCache = null;
+      await _noteChange();
       return (await installedModel(model.source, model.target))!;
     } finally {
       await _deleteQuietly(staging);

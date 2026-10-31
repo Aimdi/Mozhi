@@ -126,6 +126,7 @@ class AppSettings extends Equatable {
     this.tapToLookUp = true,
     this.highlightSpokenWord = true,
     this.offlineAppShell = true,
+    this.fallbackToDuckDuckGo = false,
   });
 
   /// Tolerant counterpart of [toJson]: missing or invalid fields fall back to
@@ -219,6 +220,8 @@ class AppSettings extends Equatable {
           _bool(json['highlightSpokenWord']) ?? defaults.highlightSpokenWord,
       offlineAppShell:
           _bool(json['offlineAppShell']) ?? defaults.offlineAppShell,
+      fallbackToDuckDuckGo:
+          _bool(json['fallbackToDuckDuckGo']) ?? defaults.fallbackToDuckDuckGo,
     );
   }
 
@@ -416,6 +419,17 @@ class AppSettings extends Equatable {
   /// never carry it (`SettingsBackupSection.deviceOnlyFields`).
   final bool offlineAppShell;
 
+  /// "If Google fails, use DuckDuckGo": when a text translation with
+  /// Mozhi's Google engine failed on every volunteer server
+  /// (`AllInstancesFailedException`), the Translate screen tries once more
+  /// with Mozhi's DuckDuckGo engine through the same servers (whose
+  /// translations come from Microsoft Translator). Off by default: the app
+  /// never moves text to another engine by itself, and this is the user's
+  /// permission for that one case. The DuckDuckGo request still goes
+  /// through the privacy settings like any other (never in Offline only;
+  /// in Offline first a "Once" given for Google does not cover it).
+  final bool fallbackToDuckDuckGo;
+
   /// The quality mode a start of the app begins in when [rememberQuality]
   /// is off: [QualityMode.fast] when a fast engine is chosen, else
   /// [QualityMode.off] (the usual engine).
@@ -477,6 +491,7 @@ class AppSettings extends Equatable {
     bool? tapToLookUp,
     bool? highlightSpokenWord,
     bool? offlineAppShell,
+    bool? fallbackToDuckDuckGo,
   }) {
     return AppSettings(
       themeMode: themeMode ?? this.themeMode,
@@ -524,6 +539,7 @@ class AppSettings extends Equatable {
       tapToLookUp: tapToLookUp ?? this.tapToLookUp,
       highlightSpokenWord: highlightSpokenWord ?? this.highlightSpokenWord,
       offlineAppShell: offlineAppShell ?? this.offlineAppShell,
+      fallbackToDuckDuckGo: fallbackToDuckDuckGo ?? this.fallbackToDuckDuckGo,
     );
   }
 
@@ -591,6 +607,7 @@ class AppSettings extends Equatable {
       'tapToLookUp': tapToLookUp,
       'highlightSpokenWord': highlightSpokenWord,
       'offlineAppShell': offlineAppShell,
+      'fallbackToDuckDuckGo': fallbackToDuckDuckGo,
     };
   }
 
@@ -640,6 +657,7 @@ class AppSettings extends Equatable {
     tapToLookUp,
     highlightSpokenWord,
     offlineAppShell,
+    fallbackToDuckDuckGo,
   ];
 }
 

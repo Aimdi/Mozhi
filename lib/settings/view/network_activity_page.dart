@@ -7,6 +7,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/core/network/network_session.dart';
 import 'package:mozhi/core/privacy/egress/egress.dart';
+import 'package:mozhi/core/widgets/consent_prompt.dart' show upstreamEngineName;
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/platform/clipboard_service.dart'
@@ -224,6 +225,15 @@ String formatActivityTime(
 /// host (and port).
 String egressDestinationTitle(EgressDestination destination) =>
     destination.name ?? destination.authority;
+
+/// The translation engine [entry] asked its server to use, by name
+/// ("DuckDuckGo", "Google, DeepL"), or null when it named none
+/// ([EgressEntry.engine]).
+String? egressEngineLabel(EgressEntry entry) {
+  final engine = entry.engine;
+  if (engine == null || engine.isEmpty) return null;
+  return engine.split(',').map(upstreamEngineName).join(', ');
+}
 
 /// "Cloud provider", "Your local network", ...
 String egressKindLabel(
@@ -612,8 +622,12 @@ class _EntryTile extends StatelessWidget {
                     style: theme.textTheme.bodyLarge,
                   ),
                   Text(
-                    '${egressPurposeLabel(l10n, entry.purpose)} · '
-                    '${egressKindLabel(l10n, entry.destination.kind)}',
+                    [
+                      egressPurposeLabel(l10n, entry.purpose),
+                      egressKindLabel(l10n, entry.destination.kind),
+                      if (egressEngineLabel(entry) case final engine?)
+                        l10n.settingsNetworkEngine(engine),
+                    ].join(' · '),
                     style: small,
                   ),
                   Text(details, style: small),

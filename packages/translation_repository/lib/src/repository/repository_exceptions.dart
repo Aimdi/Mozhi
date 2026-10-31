@@ -120,23 +120,28 @@ final class InstanceDoesNotTranslateException extends MozhiApiException {
 /// [MozhiApiException], sanitised like every Mozhi error). The app should
 /// offer a way on that needs no Mozhi server: the device's own engine,
 /// another engine (never switched to on its own: another engine sends the
-/// text somewhere else), or another server.
+/// text somewhere else; the app's opt-in "If Google fails, use DuckDuckGo"
+/// is the user's permission for that one case), or another server.
+/// [rateLimited] tells when the engine is limiting the servers' requests.
 final class AllInstancesFailedException extends MozhiApiException {
   const new(
     super.message, {
     required this.engine,
     required this.instances,
     this.cause,
+    this.failures = const [],
     super.statusCode,
     super.uri,
   });
 
   /// Wraps the last failure [cause] of a request that failed on every
-  /// server of [instances] (in the order they were tried).
+  /// server of [instances] (in the order they were tried); [failures] are
+  /// every server's failures in that order (sanitised like [cause]).
   factory from(
     Object cause, {
     required TranslationEngine engine,
     required List<MozhiInstance> instances,
+    List<Object> failures = const [],
   }) => switch (cause) {
     MozhiApiException(:final message, :final statusCode, :final uri) =>
       AllInstancesFailedException(
@@ -144,6 +149,7 @@ final class AllInstancesFailedException extends MozhiApiException {
         engine: engine,
         instances: List.unmodifiable(instances),
         cause: cause,
+        failures: List.unmodifiable(failures),
         statusCode: statusCode,
         uri: uri,
       ),
@@ -152,6 +158,7 @@ final class AllInstancesFailedException extends MozhiApiException {
       engine: engine,
       instances: List.unmodifiable(instances),
       cause: cause,
+      failures: List.unmodifiable(failures),
     ),
   };
 
@@ -164,6 +171,43 @@ final class AllInstancesFailedException extends MozhiApiException {
 
   /// The last server's failure.
   final Object? cause;
+
+  /// Every server's failure, in the order the servers were tried (the last
+  /// one is [cause]); empty when only [cause] is known.
+  final List<Object> failures;
+
+  /// The failures this exception knows of: [failures], else [cause] (or
+  /// this exception itself, which carries the last failure's message).
+  List<Object> get _known => failures.isNotEmpty ? failures : [cause ?? this];
+
+  /// Whether [engine] is rate-limiting the servers: at least one of them
+  /// reported that its upstream engine (or the server itself) limits its
+  /// requests ([isRateLimit]), e.g. Google answering the servers with HTTP
+  /// 429 (`request failed with status code: 429`) or Mozhi's `instance has
+  /// been rate limited`.
+  bool get rateLimited => _known.any(isRateLimit);
+
+  /// Whether at least one server answered (with an HTTP error), as opposed
+  /// to none being reachable (no connection, a timeout): only then can
+  /// another engine on the same servers be worth a try.
+  bool get serverAnswered => _known.any(
+    (failure) => failure is MozhiApiException && failure.statusCode != null,
+  );
+
+  /// Whether [failure] says the server or its upstream engine is limiting
+  /// requests: HTTP 429 from the server, or a message such as `request
+  /// failed with status code: 429`, `instance has been rate limited` or
+  /// `Too Many Requests`. Only the kind of failure is read; its text is
+  /// never shown.
+  static bool isRateLimit(Object failure) {
+    if (failure is! MozhiApiException) return false;
+    return failure.statusCode == 429 || _rateLimit.hasMatch(failure.message);
+  }
+
+  static final _rateLimit = RegExp(
+    r'rate.?limit|status code:?\s*429\b|too many requests',
+    caseSensitive: false,
+  );
 
   @override
   String toString() =>

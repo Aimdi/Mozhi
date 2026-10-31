@@ -2767,5 +2767,11 @@
   "onboardingLanguagesSuggestionPicked": "Du hast vorhin {language} gewählt.",
   "offlineManualMirrorNote": "Die Links führen zu deiner Modellquelle {host}, von der Mozhi herunterlädt. Fehlt dort eine Datei, nimm den Link des Herausgebers.",
   "offlineManualPublisherLink": "Link des Herausgebers, falls der Spiegelserver die Datei nicht hat",
-  "offlineManualCopyPublisherLink": "Link des Herausgebers zu {file} kopieren"
+  "offlineManualCopyPublisherLink": "Link des Herausgebers zu {file} kopieren",
+  "settingsFallbackDuckDuckGo": "Wenn Google ausfällt, DuckDuckGo verwenden",
+  "settingsFallbackDuckDuckGoSubtitle": "Wenn Google auf allen Freiwilligen-Servern ausfällt, wird dein Text stattdessen über dieselben Server an den Übersetzer von DuckDuckGo gesendet. Die Übersetzungen von DuckDuckGo stammen von Microsoft Translator.",
+  "translateFallbackAllServers": "{engine} ist auf allen Servern ausgefallen, deshalb hat {fallback} dies übersetzt.",
+  "translateErrorAllServersRateLimited": "{engine} begrenzt gerade die Anfragen der Freiwilligen-Server. Das legt sich meist nach einer Weile.",
+  "translateErrorUseDuckDuckGo": "DuckDuckGo verwenden, wenn Google ausfällt",
+  "settingsNetworkEngine": "Dienst: {engine}"
 }

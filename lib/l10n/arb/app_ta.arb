@@ -2767,5 +2767,11 @@
   "onboardingLanguagesSuggestionPicked": "முன்பு நீங்கள் {language} மொழியைத் தேர்ந்தெடுத்தீர்கள்.",
   "offlineManualMirrorNote": "இந்த இணைப்புகள் Mozhi பதிவிறக்கும் உங்கள் மாடல் பதிவிறக்க இடமான {host}-க்குச் செல்லும். அங்கு ஒரு கோப்பு இல்லையெனில், வெளியீட்டாளரின் இணைப்பைப் பயன்படுத்தவும்.",
   "offlineManualPublisherLink": "வெளியீட்டாளரின் இணைப்பு (மிரரில் கோப்பு இல்லையெனில்)",
-  "offlineManualCopyPublisherLink": "{file}-க்கான வெளியீட்டாளரின் இணைப்பை நகலெடு"
+  "offlineManualCopyPublisherLink": "{file}-க்கான வெளியீட்டாளரின் இணைப்பை நகலெடு",
+  "settingsFallbackDuckDuckGo": "Google தோல்வியுற்றால் DuckDuckGo-ஐப் பயன்படுத்து",
+  "settingsFallbackDuckDuckGoSubtitle": "எல்லா தன்னார்வலர் சர்வர்களிலும் Google தோல்வியுற்றால், உங்கள் உரை அதே சர்வர்கள் வழியாக DuckDuckGo மொழிபெயர்ப்பாளருக்கு அனுப்பப்படும். DuckDuckGo மொழிபெயர்ப்புகள் Microsoft Translator-இலிருந்து வருகின்றன.",
+  "translateFallbackAllServers": "எல்லா சர்வர்களிலும் {engine} தோல்வியுற்றதால், {fallback} இதை மொழிபெயர்த்தது.",
+  "translateErrorAllServersRateLimited": "{engine} இப்போது தன்னார்வலர் சர்வர்களின் கோரிக்கைகளைக் கட்டுப்படுத்துகிறது. பொதுவாகச் சிறிது நேரத்தில் சரியாகிவிடும்.",
+  "translateErrorUseDuckDuckGo": "Google தோல்வியுற்றால் DuckDuckGo-ஐப் பயன்படுத்து",
+  "settingsNetworkEngine": "இயந்திரம்: {engine}"
 }

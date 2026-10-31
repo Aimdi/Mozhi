@@ -364,6 +364,40 @@ void main() {
       });
     });
 
+    group('the DuckDuckGo fallback', () {
+      test('is exported like the other preferences', () async {
+        await repository.save(mine.copyWith(fallbackToDuckDuckGo: true));
+        final data = throughJson(await section.export(includeSecrets: false));
+        expect(
+          ((data! as Map)['settings'] as Map)['fallbackToDuckDuckGo'],
+          isTrue,
+        );
+      });
+
+      test("replace takes the backup's choice", () async {
+        await section.restore(
+          throughJson({
+            'settings': theirs.copyWith(fallbackToDuckDuckGo: true).toJson(),
+          }),
+          version: 1,
+          mode: BackupRestoreMode.replace,
+        );
+        expect((await repository.load()).fallbackToDuckDuckGo, isTrue);
+      });
+
+      test("merge keeps this device's choice, like the other privacy "
+          'choices', () async {
+        await section.restore(
+          throughJson({
+            'settings': theirs.copyWith(fallbackToDuckDuckGo: true).toJson(),
+          }),
+          version: 1,
+          mode: BackupRestoreMode.merge,
+        );
+        expect((await repository.load()).fallbackToDuckDuckGo, isFalse);
+      });
+    });
+
     group('merge', () {
       test("keeps this device's settings and adds the providers and pinned "
           'languages only in the backup', () async {

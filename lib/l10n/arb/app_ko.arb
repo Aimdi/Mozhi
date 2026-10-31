@@ -2767,5 +2767,11 @@
   "onboardingLanguagesSuggestionPicked": "앞에서 {language}을(를) 선택했습니다.",
   "offlineManualMirrorNote": "이 링크는 Mozhi가 다운로드하는 모델 출처 {host}(으)로 연결됩니다. 파일이 없으면 게시자 링크를 사용하세요.",
   "offlineManualPublisherLink": "게시자 링크(미러에 파일이 없을 때)",
-  "offlineManualCopyPublisherLink": "{file}의 게시자 링크 복사"
+  "offlineManualCopyPublisherLink": "{file}의 게시자 링크 복사",
+  "settingsFallbackDuckDuckGo": "Google이 실패하면 DuckDuckGo 사용",
+  "settingsFallbackDuckDuckGoSubtitle": "Google이 모든 자원봉사 서버에서 실패하면 텍스트가 같은 서버를 통해 DuckDuckGo 번역기로 전송됩니다. DuckDuckGo의 번역은 Microsoft Translator에서 제공됩니다.",
+  "translateFallbackAllServers": "{engine}이(가) 모든 서버에서 실패하여 {fallback}(으)로 번역했습니다.",
+  "translateErrorAllServersRateLimited": "{engine}이(가) 지금 자원봉사 서버의 요청을 제한하고 있습니다. 보통 잠시 후 풀립니다.",
+  "translateErrorUseDuckDuckGo": "Google이 실패하면 DuckDuckGo 사용",
+  "settingsNetworkEngine": "엔진: {engine}"
 }

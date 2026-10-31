@@ -153,6 +153,20 @@ void main() {
       expect(progress, isNotEmpty);
     });
 
+    test("another window's download and delete are seen", () async {
+      // The app's main window looked first (and keeps what it read)...
+      final main = create();
+      addTearDown(main.models.close);
+      expect(await main.downloadedLanguages(), {'en'});
+
+      // ...then another window (an engine of its own) downloads German.
+      await translator.downloadLanguage('de');
+      expect(await main.downloadedLanguages(), {'en', 'de'});
+
+      await main.deleteLanguage('de');
+      expect(await translator.downloadedLanguages(), {'en'});
+    });
+
     test('target-only languages install one direction', () async {
       await translator.downloadLanguage('az');
       expect(await translator.downloadedLanguages(), {'en', 'az'});

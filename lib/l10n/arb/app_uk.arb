@@ -2767,5 +2767,11 @@
   "onboardingLanguagesSuggestionPicked": "Раніше ви вибрали мову: {language}.",
   "offlineManualMirrorNote": "Посилання ведуть до вашого джерела моделей {host}, звідки Mozhi завантажує файли. Якщо файлу там немає, скористайтеся посиланням видавця.",
   "offlineManualPublisherLink": "Посилання видавця, якщо на дзеркалі немає файлу",
-  "offlineManualCopyPublisherLink": "Скопіювати посилання видавця на {file}"
+  "offlineManualCopyPublisherLink": "Скопіювати посилання видавця на {file}",
+  "settingsFallbackDuckDuckGo": "Якщо Google не працює, використовувати DuckDuckGo",
+  "settingsFallbackDuckDuckGoSubtitle": "Якщо Google не працює на жодному волонтерському сервері, текст надсилається перекладачу DuckDuckGo через ті самі сервери. Переклади DuckDuckGo виконує Microsoft Translator.",
+  "translateFallbackAllServers": "{engine} не спрацював на жодному сервері, тому це переклав {fallback}.",
+  "translateErrorAllServersRateLimited": "{engine} зараз обмежує запити з волонтерських серверів. Зазвичай це минає за деякий час.",
+  "translateErrorUseDuckDuckGo": "Використовувати DuckDuckGo, якщо Google не працює",
+  "settingsNetworkEngine": "Сервіс: {engine}"
 }

@@ -35,7 +35,16 @@ import java.util.concurrent.Executors
  * shared files older than [MAX_AGE_MILLIS] are deleted at every share.
  *
  * MainActivity is started into the sharing app's task, as when it was the
- * share target itself.
+ * share target itself. A sender without a task of its own (one that starts
+ * this window with `FLAG_ACTIVITY_NEW_TASK`, e.g. from a service, a
+ * notification or `adb shell am start`) gives this window a new task
+ * instead: MainActivity then goes to its own task ([forwarded]), where the
+ * running window gets what was shared (`onNewIntent`). Otherwise
+ * MainActivity would stay behind in this window's task, and Android brings
+ * that task to the front for the next share whose intent only differs in
+ * its extras (another text) without starting this window: the text would
+ * never reach Mozhi, and the second MainActivity (a Flutter engine of its
+ * own) would not know what the first one changed.
  */
 class ShareReceiverActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -78,7 +87,7 @@ class ShareReceiverActivity : Activity() {
                 .setType("text/plain")
                 .putExtra(Intent.EXTRA_TEXT, text)
         }
-        startActivity(forward)
+        startActivity(forwarded(forward))
     }
 
     /** Opens the image or document screen, with the file of [token] if any. */
@@ -87,11 +96,30 @@ class ShareReceiverActivity : Activity() {
         val link = StringBuilder("${MainActivity.DEEP_LINK_SCHEME}://$screen")
         if (token != null) link.append("?$TOKEN_PARAMETER=").append(token)
         startActivity(
-            Intent(this, MainActivity::class.java)
-                .setAction(Intent.ACTION_VIEW)
-                .setData(Uri.parse(link.toString())),
+            forwarded(
+                Intent(this, MainActivity::class.java)
+                    .setAction(Intent.ACTION_VIEW)
+                    .setData(Uri.parse(link.toString())),
+            ),
         )
     }
+
+    /**
+     * [intent] for MainActivity as it is started from here: into the
+     * sharing app's task, or, when this window is the root of a task of its
+     * own (see the class documentation), into MainActivity's own task, to
+     * the running window there (as the Quick Settings tile does).
+     */
+    private fun forwarded(intent: Intent): Intent =
+        if (isTaskRoot) {
+            intent.addFlags(
+                Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP,
+            )
+        } else {
+            intent
+        }
 
     /**
      * The shared content URI of [intent], or null when there is none or it

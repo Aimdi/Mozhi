@@ -20,6 +20,7 @@ import 'package:mozhi/quick_translate/view/quick_translate_sheet.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_languages.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
+import 'package:mozhi/settings/models/settings_category.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/view/translate_page.dart';
 import 'package:mozhi/usage/data/usage_tracker.dart';
@@ -208,6 +209,39 @@ void main() {
       ).called(1);
       verify(() => env.translationRepository.getEngines(refresh: true))
           .called(1);
+    });
+
+    testWidgets('reads the settings again when it comes back to the front', (
+      tester,
+    ) async {
+      // Another window of the app switched to Offline only meanwhile.
+      when(() => env.settingsRepository.load()).thenAnswer(
+        (_) async => const AppSettings(
+          onboardingComplete: true,
+          instances: [testInstance],
+          privacyMode: PrivacyMode.offlineOnly,
+        ),
+      );
+      await pumpApp(tester);
+      clearInteractions(env.translationRepository);
+      const [
+        AppLifecycleState.inactive,
+        AppLifecycleState.hidden,
+        AppLifecycleState.paused,
+        AppLifecycleState.hidden,
+        AppLifecycleState.inactive,
+        AppLifecycleState.resumed,
+      ].forEach(tester.binding.handleAppLifecycleStateChanged);
+      await tester.pump();
+      await tester.pump();
+      verify(
+        () => env.translationRepository.updatePrivacy(
+          mode: PrivacyMode.offlineOnly,
+          approvedPairs: any(named: 'approvedPairs'),
+          consentedProviders: any(named: 'consentedProviders'),
+          maskPersonalData: any(named: 'maskPersonalData'),
+        ),
+      ).called(1);
     });
 
     group('Tailscale names', () {
@@ -748,6 +782,95 @@ void main() {
       expect(settings.isClosed, isTrue);
       expect(env.offlineTranslator.disposed, isTrue);
       verify(env.speechService.dispose).called(1);
+    });
+
+    group('shared text after choosing Offline only', () {
+      const shared = 'Le chat dort sur le lit';
+
+      /// Starts the app with an old translation in the translate tab,
+      /// opens Settings > Privacy & data and chooses Offline only there, as
+      /// the emulator smoke test does. Returns the translate cubit.
+      Future<TranslateCubit> openOfflineOnly(
+        WidgetTester tester, {
+        Future<List<TranslationEngine>> Function()? reload,
+      }) async {
+        when(
+          () => env.translationRepository.getEngines(
+            refresh: any(named: 'refresh'),
+          ),
+        ).thenAnswer(
+          (_) async => [testEngines.first, TranslationEngine.offline()],
+        );
+        await pumpApp(tester);
+        final translate = translateCubit(tester)
+          ..setInput('Bonjour je cherche la gare');
+        final settings = shellContext(tester).read<SettingsCubit>();
+        GoRouter.of(shellContext(tester))
+            .go(SettingsCategory.privacy.location());
+        for (var i = 0; i < 5; i++) {
+          await tester.pump(const Duration(milliseconds: 200));
+        }
+        expect(find.byType(TranslatePage).hitTestable(), findsNothing);
+
+        if (reload != null) {
+          when(
+            () => env.translationRepository.getEngines(
+              refresh: any(named: 'refresh'),
+            ),
+          ).thenAnswer((_) => reload());
+        }
+        clearInteractions(env.translationRepository);
+        settings.setPrivacyMode(PrivacyMode.offlineOnly);
+        await tester.pump();
+        verify(() => env.translationRepository.getEngines()).called(1);
+        return translate;
+      }
+
+      testWidgets('reaches the translate box from the settings page', (
+        tester,
+      ) async {
+        final translate = await openOfflineOnly(tester);
+
+        sharedTexts.add(const SharedText(shared));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 400));
+
+        expect(find.byType(TranslatePage).hitTestable(), findsOneWidget);
+        expect(translate.state.input, shared);
+        expect(find.text(shared), findsOneWidget);
+        // Translated on the device only.
+        verify(
+          () => env.translationRepository.translate(
+            TranslationEngine.offline(),
+            any(),
+          ),
+        ).called(1);
+        verifyNever(
+          () => env.translationRepository.translate(testEngines.first, any()),
+        );
+      });
+
+      testWidgets('reaches the translate box when the engines never load', (
+        tester,
+      ) async {
+        final translate = await openOfflineOnly(
+          tester,
+          reload: () => Completer<List<TranslationEngine>>().future,
+        );
+        expect(translate.state.enginesStatus, EnginesStatus.loading);
+
+        sharedTexts.add(const SharedText(shared));
+        await tester.pump();
+        await tester.pump(const Duration(seconds: 1));
+        expect(find.byType(TranslatePage).hitTestable(), findsOneWidget);
+        // Waiting for the engines (20 s at most).
+        expect(translate.state.input, 'Bonjour je cherche la gare');
+
+        await tester.pump(const Duration(seconds: 20));
+        expect(translate.state.input, shared);
+        expect(find.text(shared), findsOneWidget);
+        verifyNever(() => env.translationRepository.translate(any(), any()));
+      });
     });
   });
 
