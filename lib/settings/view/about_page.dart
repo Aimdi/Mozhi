@@ -1,6 +1,7 @@
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/router.dart' show AppRoutes;
+import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/view/settings_page.dart';
 import 'package:mozhi/settings/view/widgets/link_launcher.dart';
@@ -78,7 +79,9 @@ class _AboutViewState extends State<AboutView> {
                     child: DecoratedBox(
                       decoration: BoxDecoration(
                         color: colors.primaryContainer,
-                        shape: BoxShape.circle,
+                        shape: AppLook.of(context).isTerminal
+                            ? BoxShape.rectangle
+                            : BoxShape.circle,
                       ),
                       child: Padding(
                         padding: const EdgeInsets.all(20),

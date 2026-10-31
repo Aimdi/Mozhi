@@ -75,8 +75,11 @@ void main() {
     late MockGoRouter router;
 
     setUp(() {
+      // The classic style: these tests cover its appearance settings
+      // (appearance_settings_test.dart covers the terminal style's).
       settings = createSettingsCubit(
         const AppSettings(
+          style: AppStyle.classic,
           instances: [
             MozhiInstance(url: 'https://mozhi.example.com'),
             MozhiInstance(url: 'https://other.example.org'),
@@ -355,7 +358,7 @@ void main() {
           (
             SettingsCategory.appearance,
             [
-              (null, ['Theme', 'Dark theme', 'Show romanization']),
+              (null, ['Style', 'Theme', 'Dark theme', 'Show romanization']),
             ],
           ),
           (
@@ -858,7 +861,10 @@ void main() {
         await pump(
           tester,
           category: SettingsCategory.appearance,
-          state: const AppSettings(dynamicColor: false),
+          state: const AppSettings(
+            style: AppStyle.classic,
+            dynamicColor: false,
+          ),
         );
         expect(find.text('Accent color'), findsOneWidget);
         await tester.tap(find.bySemanticsLabel('Teal'));
@@ -866,7 +872,8 @@ void main() {
       });
 
       testWidgets('accent colors always shown on iOS', (tester) async {
-        when(() => settings.state).thenReturn(const AppSettings());
+        when(() => settings.state)
+            .thenReturn(const AppSettings(style: AppStyle.classic));
         tester.setScreenSize(const Size(800, 5000));
         await tester.pumpView(
           const SettingsCategoryPage(category: SettingsCategory.appearance),
@@ -914,7 +921,10 @@ void main() {
         await pump(
           tester,
           category: SettingsCategory.appearance,
-          state: const AppSettings(dynamicColor: false),
+          state: const AppSettings(
+            style: AppStyle.classic,
+            dynamicColor: false,
+          ),
         );
         final node = tester.getSemantics(find.bySemanticsLabel('Teal'));
         expect(
@@ -968,7 +978,10 @@ void main() {
         await pump(
           tester,
           category: SettingsCategory.appearance,
-          state: const AppSettings(dynamicColor: false),
+          state: const AppSettings(
+            style: AppStyle.classic,
+            dynamicColor: false,
+          ),
         );
         for (final name in [
           'Blue',
@@ -1012,7 +1025,7 @@ void main() {
         await pump(
           tester,
           category: SettingsCategory.appearance,
-          state: const AppSettings(pureBlack: false),
+          state: const AppSettings(style: AppStyle.classic, pureBlack: false),
         );
         await tester.tap(find.text('Lights out'));
         verify(() => settings.setPureBlack(enabled: true)).called(1);
@@ -1022,7 +1035,10 @@ void main() {
         await pump(
           tester,
           category: SettingsCategory.appearance,
-          state: const AppSettings(themeMode: ThemeMode.light),
+          state: const AppSettings(
+            style: AppStyle.classic,
+            themeMode: ThemeMode.light,
+          ),
         );
         final tiles = tester.widgetList<RadioListTile<bool>>(
           find.byType(RadioListTile<bool>),

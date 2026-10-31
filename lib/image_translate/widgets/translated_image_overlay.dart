@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/semantics.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/image_translate/models/models.dart';
 import 'package:mozhi/image_translate/widgets/image_translate_links.dart';
@@ -374,7 +375,7 @@ class HoldToShowOriginalButton extends StatelessWidget {
           onPointerCancel: (_) => onChanged(false),
           child: Material(
             color: showing ? colors.primary : colors.surfaceContainerHigh,
-            shape: const StadiumBorder(),
+            shape: AppLook.of(context).control,
             elevation: 2,
             child: ConstrainedBox(
               constraints: const BoxConstraints(minHeight: 48, minWidth: 48),

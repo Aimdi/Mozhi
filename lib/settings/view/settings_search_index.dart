@@ -14,6 +14,7 @@ import 'package:mozhi/settings/view/categories/backup_settings.dart';
 import 'package:mozhi/settings/view/categories/engine_settings.dart';
 import 'package:mozhi/settings/view/categories/general_settings.dart';
 import 'package:mozhi/settings/view/categories/speech_settings.dart';
+import 'package:mozhi/settings/view/widgets/accent_color_picker.dart';
 import 'package:mozhi/settings/view/widgets/model_source_dialog.dart';
 import 'package:mozhi/settings/view/widgets/on_device_ai_tile.dart';
 import 'package:mozhi/settings/view/widgets/privacy_settings_section.dart';
@@ -52,9 +53,10 @@ List<SettingsSearchEntry> settingsSearchIndex(
   const appearance = SettingsCategory.appearance;
   const speech = SettingsCategory.speech;
   const about = SettingsCategory.about;
-  final dynamicColor = AppearanceSettings.dynamicColorAvailable(
-    Theme.of(context).platform,
-  );
+  final terminal = settings.style == AppStyle.terminal;
+  final dynamicColor =
+      !terminal &&
+      AppearanceSettings.dynamicColorAvailable(Theme.of(context).platform);
   return [
     entry(
       general,
@@ -368,8 +370,31 @@ List<SettingsSearchEntry> settingsSearchIndex(
     ),
     entry(
       appearance,
+      AppearanceAnchors.style,
+      l10n.settingsStyle,
+      subtitle: l10n.settingsStyleSubtitle,
+      keywords: [
+        l10n.settingsStyleTerminal,
+        l10n.settingsStyleClassic,
+        l10n.settingsStyleKeywords,
+      ],
+    ),
+    if (terminal)
+      entry(
+        appearance,
+        AppearanceAnchors.terminalAccent,
+        l10n.settingsAccentColor,
+        keywords: [
+          l10n.settingsStyleTerminal,
+          for (final option in AccentColorOption.terminalOptions)
+            option.label(l10n),
+        ],
+      ),
+    entry(
+      appearance,
       AppearanceAnchors.theme,
       l10n.settingsTheme,
+      subtitle: terminal ? l10n.settingsThemeTerminalSubtitle : null,
       keywords: [
         l10n.settingsThemeSystem,
         l10n.settingsThemeLight,
@@ -383,13 +408,14 @@ List<SettingsSearchEntry> settingsSearchIndex(
         l10n.settingsDynamicColor,
         subtitle: l10n.settingsDynamicColorSubtitle,
       ),
-    entry(
-      appearance,
-      AppearanceAnchors.darkLook,
-      l10n.settingsDarkLook,
-      subtitle: l10n.settingsDarkLookSubtitle,
-      keywords: [l10n.settingsDarkLookDim, l10n.settingsDarkLookLightsOut],
-    ),
+    if (!terminal)
+      entry(
+        appearance,
+        AppearanceAnchors.darkLook,
+        l10n.settingsDarkLook,
+        subtitle: l10n.settingsDarkLookSubtitle,
+        keywords: [l10n.settingsDarkLookDim, l10n.settingsDarkLookLightsOut],
+      ),
     entry(
       appearance,
       AppearanceAnchors.transliteration,
@@ -408,7 +434,7 @@ List<SettingsSearchEntry> settingsSearchIndex(
       l10n.settingsHighlightSpokenWord,
       subtitle: l10n.settingsHighlightSpokenWordSubtitle,
     ),
-    if (!dynamicColor || !settings.dynamicColor)
+    if (!terminal && (!dynamicColor || !settings.dynamicColor))
       entry(
         appearance,
         AppearanceAnchors.accentColor,

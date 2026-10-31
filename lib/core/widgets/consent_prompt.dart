@@ -625,7 +625,7 @@ class ConsentInlinePrompt extends StatelessWidget {
       child: DecoratedBox(
         decoration: BoxDecoration(
           border: Border.all(color: AppPalette.of(context).hairline),
-          borderRadius: AppRadius.cardBorderRadius,
+          borderRadius: AppLook.of(context).cardRadius,
         ),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
@@ -716,6 +716,9 @@ class DestinationChip extends StatelessWidget {
     final theme = Theme.of(context);
     final palette = AppPalette.of(context);
     final label = destinationLabel(l10n, destination, engineId: engineId);
+    final radius = BorderRadius.circular(
+      AppLook.of(context).controlRadius(999),
+    );
     return Semantics(
       // Its own node: in a row of texts (a result's header) it would
       // otherwise merge into them and make the whole header this button.
@@ -726,7 +729,7 @@ class DestinationChip extends StatelessWidget {
       child: Tooltip(
         message: label,
         child: InkWell(
-          borderRadius: BorderRadius.circular(999),
+          borderRadius: radius,
           onTap: () => unawaited(
             showDestinationSheet(context, destination, engineId: engineId),
           ),
@@ -737,7 +740,7 @@ class DestinationChip extends StatelessWidget {
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   border: Border.all(color: palette.hairline),
-                  borderRadius: BorderRadius.circular(999),
+                  borderRadius: radius,
                 ),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(

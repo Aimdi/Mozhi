@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/dictionary/data/dictionary_packs.dart';
 import 'package:mozhi/dictionary/widgets/dictionary_attribution.dart';
@@ -87,7 +88,7 @@ class DictionaryOfflineFooter extends StatelessWidget {
             key: const Key('dictionary_more_detail'),
             style: OutlinedButton.styleFrom(
               minimumSize: const Size(48, 48),
-              shape: const StadiumBorder(),
+              shape: AppLook.of(context).control,
             ),
             onPressed: onMoreDetail,
             icon: const Icon(Icons.auto_awesome_outlined),
@@ -152,7 +153,7 @@ class DictionaryGetPacksButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) => FilledButton.icon(
     key: const Key('dictionary_get_packs'),
-    style: FilledButton.styleFrom(shape: const StadiumBorder()),
+    style: FilledButton.styleFrom(shape: AppLook.of(context).control),
     onPressed: () => unawaited(openDictionaryPacks(context, packs)),
     icon: const Icon(Icons.download_outlined),
     label: Text(context.l10n.dictionaryGetDictionaries),

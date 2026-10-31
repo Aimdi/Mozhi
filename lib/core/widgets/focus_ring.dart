@@ -363,7 +363,8 @@ class FocusRing extends StatefulWidget {
     super.key,
   }) : fields = true;
 
-  /// A rounded rectangle ([AppRadius.badge]).
+  /// A rounded rectangle ([AppRadius.badge]; square in the terminal look:
+  /// the ring then uses [AppLook.badgeRadius]).
   static const ShapeBorder defaultShape = RoundedRectangleBorder(
     borderRadius: BorderRadius.all(Radius.circular(AppRadius.badge)),
   );
@@ -462,6 +463,10 @@ class _FocusRingState extends State<FocusRing> {
 
   @override
   Widget build(BuildContext context) {
+    // The default follows the look (square in the terminal look).
+    final shape = widget.shape == FocusRing.defaultShape
+        ? RoundedRectangleBorder(borderRadius: AppLook.of(context).badgeRadius)
+        : widget.shape;
     return Focus(
       focusNode: _node,
       canRequestFocus: false,
@@ -470,7 +475,7 @@ class _FocusRingState extends State<FocusRing> {
       child: CustomPaint(
         foregroundPainter: widget.enabled && _focused
             ? _FocusRingPainter(
-                shape: widget.shape,
+                shape: shape,
                 margin: widget.margin,
                 color: Theme.of(context).colorScheme.primary,
                 textDirection: Directionality.maybeOf(context),

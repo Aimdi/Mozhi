@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/router.dart' show AppRoutes;
+import 'package:mozhi/app/theme.dart' show AppLook;
 import 'package:mozhi/core/privacy/ime_learning.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
@@ -175,9 +176,9 @@ Future<T?> _showSideSheet<T>(
           child: Material(
             color: Theme.of(context).colorScheme.surfaceContainerLow,
             elevation: 1,
-            shape: const RoundedRectangleBorder(
+            shape: RoundedRectangleBorder(
               borderRadius: BorderRadiusDirectional.horizontal(
-                start: Radius.circular(16),
+                start: Radius.circular(AppLook.of(context).menu),
               ),
             ),
             clipBehavior: Clip.antiAlias,
@@ -874,7 +875,7 @@ class _AiNote extends StatelessWidget {
         key: const Key('translate_options_ai_note'),
         decoration: BoxDecoration(
           color: scheme.primary.withValues(alpha: 0.08),
-          borderRadius: TranslateLayout.cardBorderRadius,
+          borderRadius: AppLook.of(context).cardRadius,
         ),
         child: Padding(
           padding: const EdgeInsetsDirectional.fromSTEB(16, 12, 8, 4),

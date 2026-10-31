@@ -2034,7 +2034,7 @@ field, then eight categories, each on a page of its own:
 | **Backup & sync** | **Encrypted backup** ([**Back up now**](#backup-and-restore) with the date of the last backup, **Restore from a backup**), then sync and phone to phone |
 | **Translation engines** | Offline languages, on-device AI, Mozhi instances, translation services (DeepL API, LibreTranslate), quality modes, **Remember quality selection** and **Instant translate** |
 | **AI** (marked **Advanced**) | On-device AI, AI providers, the AI assistant for insights, presets, glossaries, usage & costs |
-| **Appearance** | Theme, dynamic color, dark theme, romanization, **Tap a word to look it up**, **Highlight the word being read**, accent color |
+| **Appearance** | Style (**Terminal** or **Classic**), accent color, theme, romanization, **Tap a word to look it up**, **Highlight the word being read**; in Classic also dynamic color and the dark theme |
 | **Read aloud & voice** | Read aloud and voice input |
 | **About** | Version, privacy, source code, the Mozhi project, open-source licenses and **Run setup again** |
 
@@ -2051,15 +2051,36 @@ unprotected.**).
 
 ## Appearance and layout
 
-- Light, dark or system theme. The dark theme is **Lights out** (true
-  black, easy on OLED screens) by default, or **Dim** (dark blue-grey);
-  pick it under **Settings > Appearance > Dark theme**.
-- Dynamic color or one of ten accent colours, including a soft
-  **Lavender**.
-- Rounded, outlined controls: pill-shaped chips and buttons, rounded
-  cards, sheets and text fields, and big bold headings. Outlines of
-  controls have at least 3:1 contrast in every look, and secondary text is
-  lighter in **Dim** and **Lights out**.
+Two styles, under **Settings > Appearance > Style** (each with a small
+preview):
+
+- **Terminal** (the default): a command-line look. Everything is set in
+  the monospaced JetBrains Mono (scripts it lacks, such as Arabic,
+  Devanagari, Chinese or Tamil, use the system's fonts), on a near-black
+  background (`#0B0B0B`) with warm off-white text, and 1 px borders
+  instead of shadows. Corners are square everywhere: boxes, buttons,
+  chips, fields, dialogs, sheets and snack bars. The main action and the
+  selected tab are blocks of the accent colour with dark text. Pick the
+  accent under **Accent color**: **Amber** (the default), **Green**,
+  **Cyan** or **Pink** (the selected one has a check mark). The
+  **Theme** choice works like this here: **System** and **Dark** are the
+  dark look, **Light** is a light "paper" look (`#F4F1E8`), with the
+  accent darkened just enough to read as text. Small text decorations
+  give it the terminal feel (`●`, `⇄`, `>`, `//`, `$`, numbered tabs);
+  these command words (`stdin`, `run`, `--from` and so on) stay in
+  English, while every real word, and what screen readers say, is in your
+  language. The font is part of the app: it is never downloaded
+  ([privacy](privacy.md)).
+- **Classic**: the rounded look. Light, dark or system theme; the dark
+  theme is **Lights out** (true black, easy on OLED screens) by default,
+  or **Dim** (dark blue-grey), under **Settings > Appearance > Dark
+  theme**. Dynamic color or one of ten accent colours, including a soft
+  **Lavender**. Rounded, outlined controls: pill-shaped chips and buttons,
+  rounded cards, sheets and text fields, and big bold headings.
+
+In both styles text has at least 4.5:1 contrast (secondary text and the
+accent as text too), and the outlines of controls at least 3:1, with every
+accent, dark and light.
 - Four tabs: **Translate**, **Dictionary**, **Proofread** and
   **Conversation**. **History** and **Settings** are the clock and gear
   buttons at the top of every tab; they open as full pages above the tabs,

@@ -131,7 +131,7 @@ class ImageTranslateErrorView extends StatelessWidget {
         border: Border.all(
           color: theme.colorScheme.error.withValues(alpha: 0.5),
         ),
-        borderRadius: AppRadius.cardBorderRadius,
+        borderRadius: AppLook.of(context).cardRadius,
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),

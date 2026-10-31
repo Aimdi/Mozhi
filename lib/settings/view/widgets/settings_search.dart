@@ -152,7 +152,7 @@ class _SettingsAnchorState extends State<SettingsAnchor> {
           : const Duration(milliseconds: 600),
       foregroundDecoration: BoxDecoration(
         color: _highlighted ? tint : tint.withValues(alpha: 0),
-        borderRadius: AppRadius.cardBorderRadius,
+        borderRadius: AppLook.of(context).cardRadius,
       ),
       // Ink splashes stay visible under the highlight.
       child: Material(type: MaterialType.transparency, child: widget.child),
@@ -191,7 +191,7 @@ class SettingsSearchField extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       shape: RoundedRectangleBorder(
-        borderRadius: AppRadius.fieldBorderRadius,
+        borderRadius: AppLook.of(context).fieldRadius,
         side: BorderSide(color: outline),
       ),
       clipBehavior: Clip.antiAlias,

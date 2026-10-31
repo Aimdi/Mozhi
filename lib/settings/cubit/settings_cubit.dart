@@ -87,6 +87,16 @@ class SettingsCubit extends Cubit<AppSettings> {
 
   void setSeedColor(int argb) => _apply(state.copyWith(seedColor: argb));
 
+  /// Sets the app's look ([AppSettings.style]).
+  void setStyle(AppStyle style) => _apply(state.copyWith(style: style));
+
+  /// Sets the terminal look's accent ([AppSettings.terminalAccent]); a
+  /// colour that is not one of [kTerminalAccents] is ignored.
+  void setTerminalAccent(int argb) {
+    if (!kTerminalAccents.contains(argb)) return;
+    _apply(state.copyWith(terminalAccent: argb));
+  }
+
   // General
 
   /// Sets the language of the app's texts ([AppSettings.appLocale]) as a

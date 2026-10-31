@@ -1049,7 +1049,7 @@ class _TestResultView extends StatelessWidget {
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: color.withValues(alpha: 0.1),
-          borderRadius: AppRadius.cardBorderRadius,
+          borderRadius: AppLook.of(context).cardRadius,
         ),
         child: Padding(
           padding: const EdgeInsets.all(12),

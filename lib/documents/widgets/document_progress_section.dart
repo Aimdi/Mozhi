@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/widgets/composer_card.dart';
 import 'package:mozhi/core/widgets/consent_prompt.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
@@ -74,7 +75,9 @@ class DocumentProgressSection extends StatelessWidget {
             key: const Key('documents_progress'),
             value: state.progress,
             minHeight: 6,
-            borderRadius: const BorderRadius.all(Radius.circular(3)),
+            borderRadius: BorderRadius.circular(
+              AppLook.of(context).controlRadius(3),
+            ),
             semanticsLabel: state.isPdf
                 ? l10n.documentsPdfProgress(state.doneChunks, state.chunkCount)
                 : l10n.documentsProgress(state.doneChunks, state.chunkCount),

@@ -2791,5 +2791,13 @@
   "voiceBrowserNoticeContinue": "Usar reconocimiento de voz",
   "voiceErrorUnavailableBrowser": "Este navegador no tiene reconocimiento de voz. Prueba Chrome, Edge o Safari, o escribe el texto.",
   "offlineDirectionIntoOnly": "Solo hacia {language}",
-  "offlineDirectionFromOnly": "Solo desde {language}"
+  "offlineDirectionFromOnly": "Solo desde {language}",
+  "settingsStyle": "Estilo",
+  "settingsStyleSubtitle": "Terminal es monoespaciado y de esquinas rectas sobre casi negro; Clásico es redondeado, con Atenuado o Luces apagadas",
+  "settingsStyleTerminal": "Terminal",
+  "settingsStyleClassic": "Clásico",
+  "settingsStyleKeywords": "terminal, clásico, aspecto, apariencia, fuente, tipografía, monoespaciada, monoespacio, classic, monospace, monospaced, JetBrains Mono",
+  "settingsThemeTerminalSubtitle": "En el estilo Terminal, Sistema significa oscuro; Claro da el aspecto de papel",
+  "settingsColorAmber": "Ámbar",
+  "settingsColorCyan": "Cian"
 }

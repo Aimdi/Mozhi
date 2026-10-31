@@ -182,7 +182,7 @@ class _OfflineOnlyNoticeState extends State<OfflineOnlyNotice> {
       child: DecoratedBox(
         decoration: BoxDecoration(
           border: Border.all(color: AppPalette.of(context).hairline),
-          borderRadius: AppRadius.cardBorderRadius,
+          borderRadius: AppLook.of(context).cardRadius,
         ),
         child: Padding(
           padding: const EdgeInsetsDirectional.fromSTEB(16, 12, 8, 8),

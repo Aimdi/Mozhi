@@ -99,7 +99,7 @@ class _Card extends StatelessWidget {
           key: const Key('translate_on_device_ai_offer'),
           decoration: BoxDecoration(
             border: Border.all(color: palette.hairline),
-            borderRadius: AppRadius.cardBorderRadius,
+            borderRadius: AppLook.of(context).cardRadius,
           ),
           child: Semantics(
             container: true,

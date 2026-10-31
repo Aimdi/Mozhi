@@ -2,13 +2,16 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart' show AppLook;
 import 'package:mozhi/core/haptics.dart';
 import 'package:mozhi/core/widgets/composer_card.dart' show ComposerGoButton;
+import 'package:mozhi/core/widgets/x_ui.dart' show AppPalette;
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/widgets/skeleton.dart' show loadingRevealDelay;
+import 'package:mozhi/translate/widgets/terminal_chrome.dart';
 
 /// Whether the go button can translate [state]'s input: there is some.
 bool translateGoEnabled(TranslateState state) => state.input.trim().isNotEmpty;
@@ -54,6 +57,11 @@ bool _instant(TranslateState state, (bool, bool) instant) {
 ///
 /// Its accessible name is "Translate" ("Stop translating" while it
 /// stops); the tooltip adds the keyboard shortcut (Ctrl/Cmd+Enter).
+///
+/// In the terminal look ([AppLook.isTerminal]) it is the accent-filled
+/// `run ⏎` at the end of the input box (`^C stop` with a small progress
+/// ring while it stops); the visible words are decoration, the name and
+/// tooltip stay the same.
 class TranslateGoButton extends StatelessWidget {
   const new({this.instant, super.key});
 
@@ -165,6 +173,9 @@ class _GoButtonState extends State<_GoButton> {
     final label = stoppable
         ? l10n.translateStopTranslating
         : l10n.translateTranslateButton;
+    if (AppLook.of(context).isTerminal) {
+      return _terminal(context, label: label, stoppable: stoppable);
+    }
     final style = stoppable
         ? ComposerGoButton.styleOf(scheme, tonal: true)
         : widget.quiet
@@ -224,6 +235,75 @@ class _GoButtonState extends State<_GoButton> {
               ),
             ),
         ],
+      ),
+    );
+  }
+
+  /// The terminal look's `run ⏎` (see [TranslateGoButton]).
+  Widget _terminal(
+    BuildContext context, {
+    required String label,
+    required bool stoppable,
+  }) {
+    final l10n = context.l10n;
+    final scheme = Theme.of(context).colorScheme;
+    final palette = AppPalette.of(context);
+    final filled = widget.enabled && !stoppable;
+    return Semantics(
+      container: true,
+      child: Tooltip(
+        message: stoppable
+            ? l10n.translateStopTranslating
+            : l10n.translateShortcutTranslate,
+        excludeFromSemantics: stoppable,
+        child: TextButton(
+          key: const Key('translate_translate_button'),
+          style: TextButton.styleFrom(
+            minimumSize: const Size(64, 44),
+            tapTargetSize: MaterialTapTargetSize.padded,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            shape: RoundedRectangleBorder(
+              side: BorderSide(
+                color: filled ? scheme.primary : palette.hairline,
+              ),
+            ),
+            backgroundColor: filled ? scheme.primary : Colors.transparent,
+            foregroundColor: filled ? scheme.onPrimary : scheme.primary,
+            disabledBackgroundColor: Colors.transparent,
+            disabledForegroundColor: palette.secondaryText,
+            textStyle: Theme.of(context).textTheme.labelLarge
+                ?.copyWith(fontSize: 13, fontWeight: FontWeight.w800),
+          ),
+          onPressed: !widget.enabled
+              ? null
+              : stoppable
+              ? widget.onStop
+              : widget.onGo,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (stoppable) ...[
+                const ExcludeSemantics(
+                  child: SizedBox.square(
+                    dimension: 14,
+                    child: CircularProgressIndicator(
+                      key: Key('translate_go_progress'),
+                      strokeWidth: 2,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ],
+              Flexible(
+                child: Semantics(
+                  label: label,
+                  excludeSemantics: true,
+                  child: TerminalGlyph(stoppable ? '^C stop' : 'run ⏎'),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

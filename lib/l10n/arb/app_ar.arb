@@ -2791,5 +2791,13 @@
   "voiceBrowserNoticeContinue": "استخدام التعرّف على الكلام",
   "voiceErrorUnavailableBrowser": "لا يدعم هذا المتصفح التعرّف على الكلام. جرّب Chrome أو Edge أو Safari، أو اكتب النص بدلًا من ذلك.",
   "offlineDirectionIntoOnly": "إلى {language} فقط",
-  "offlineDirectionFromOnly": "من {language} فقط"
+  "offlineDirectionFromOnly": "من {language} فقط",
+  "settingsStyle": "النمط",
+  "settingsStyleSubtitle": "الطرفية: خط أحادي المسافة وزوايا حادة على خلفية شبه سوداء؛ والكلاسيكي: زوايا مستديرة مع معتم أو إطفاء الأنوار",
+  "settingsStyleTerminal": "الطرفية",
+  "settingsStyleClassic": "كلاسيكي",
+  "settingsStyleKeywords": "طرفية، الطرفية، كلاسيكي، مظهر، خط، أحادي المسافة، terminal، classic، monospace، monospaced، JetBrains Mono",
+  "settingsThemeTerminalSubtitle": "في نمط الطرفية يعني النظام الوضع الداكن؛ ويمنح فاتح مظهر الورق",
+  "settingsColorAmber": "كهرماني",
+  "settingsColorCyan": "سماوي"
 }

@@ -119,9 +119,13 @@ void main() {
       expect(find.byType(AppShell), findsOneWidget);
       expect(find.byType(TranslatePage), findsOneWidget);
       final app = tester.widget<MaterialApp>(find.byType(MaterialApp));
-      expect(app.themeMode, ThemeMode.system);
+      // The default terminal look is dark while the theme follows the
+      // system; its light (paper) theme is there for an explicit Light.
+      expect(app.themeMode, ThemeMode.dark);
       expect(app.theme?.useMaterial3, isTrue);
       expect(app.darkTheme?.brightness, Brightness.dark);
+      expect(app.darkTheme?.extension<AppLook>()?.isTerminal, isTrue);
+      expect(app.darkTheme?.colorScheme.surface, const Color(0xFF0B0B0B));
     });
 
     testWidgets('loads history and engines on start', (tester) async {
@@ -154,6 +158,7 @@ void main() {
           instances: [testInstance],
           dynamicColor: false,
           onboardingComplete: true,
+          style: AppStyle.classic,
         ),
       );
 

@@ -274,6 +274,24 @@ void main() {
         act: (cubit) => cubit.setSeedColor(0xFF00FF00),
         expected: const AppSettings(seedColor: 0xFF00FF00),
       );
+      mutation(
+        'setStyle (classic)',
+        act: (cubit) => cubit.setStyle(AppStyle.classic),
+        expected: const AppSettings(style: AppStyle.classic),
+      );
+      noOp(
+        'setStyle to the current style',
+        act: (cubit) => cubit.setStyle(AppStyle.terminal),
+      );
+      mutation(
+        'setTerminalAccent',
+        act: (cubit) => cubit.setTerminalAccent(kTerminalAccents[2]),
+        expected: AppSettings(terminalAccent: kTerminalAccents[2]),
+      );
+      noOp(
+        'setTerminalAccent ignores colours that are not offered',
+        act: (cubit) => cubit.setTerminalAccent(0xFF123456),
+      );
     });
 
     group('general', () {

@@ -55,13 +55,28 @@ const DisplayFeature duoHinge = DisplayFeature(
   state: DisplayFeatureState.unknown,
 );
 
-/// The app's themes with the default settings (accent, "Lights out" dark
-/// look).
-final AppThemes goldenThemes = AppThemes.fromSettings(const AppSettings());
+/// The app's classic themes with the default settings (accent, "Lights
+/// out" dark look): the look of the screenshots without `terminal` in
+/// their names.
+final AppThemes goldenThemes = AppThemes.fromSettings(
+  const AppSettings(style: AppStyle.classic),
+);
 
-/// The app theme of [brightness].
+/// The classic app theme of [brightness].
 ThemeData goldenTheme(Brightness brightness) =>
     brightness == Brightness.dark ? goldenThemes.dark : goldenThemes.light;
+
+/// The app's terminal themes (the default style, amber accent): dark, or
+/// the light "paper" variant.
+final AppThemes goldenTerminalThemes = AppThemes.fromSettings(
+  const AppSettings(),
+);
+
+/// The terminal app theme of [brightness] (light: the paper variant).
+ThemeData goldenTerminalTheme(Brightness brightness) =>
+    brightness == Brightness.dark
+    ? goldenTerminalThemes.dark
+    : goldenTerminalThemes.light;
 
 /// Sizes the test window like [device] (device pixel ratio 1).
 void useGoldenDevice(
@@ -84,13 +99,15 @@ Future<void> expectScreenGolden(String name) =>
     expectLater(find.byType(MaterialApp), matchesGoldenFile(goldenFile(name)));
 
 /// Pumps [TranslateView] the way the translate widget tests do
-/// ([TranslateHarness]'s mocks and providers), with the app's real theme.
+/// ([TranslateHarness]'s mocks and providers), with the app's real theme
+/// ([theme], or the classic [goldenTheme] of [brightness]).
 Future<void> pumpTranslateGolden(
   WidgetTester tester,
   TranslateHarness harness, {
   required GoldenDevice device,
   Brightness brightness = Brightness.light,
   List<DisplayFeature> displayFeatures = const [],
+  ThemeData? theme,
 }) async {
   useGoldenDevice(tester, device, displayFeatures: displayFeatures);
   await tester.pumpWidget(
@@ -111,7 +128,7 @@ Future<void> pumpTranslateGolden(
           ],
           child: MaterialApp(
             debugShowCheckedModeBanner: false,
-            theme: goldenTheme(brightness),
+            theme: theme ?? goldenTheme(brightness),
             localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: const TranslateView(),

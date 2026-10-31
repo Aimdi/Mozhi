@@ -986,6 +986,7 @@ class _HistoryFilterBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final colors = Theme.of(context).colorScheme;
+    final look = AppLook.of(context);
     final cubit = context.read<HistoryCubit>();
     final pair = state.pair;
     final destination = state.destination;
@@ -1018,7 +1019,7 @@ class _HistoryFilterBar extends StatelessWidget {
                   minimumSize: const Size(0, 32),
                   tapTargetSize: MaterialTapTargetSize.padded,
                   padding: const EdgeInsetsDirectional.only(start: 8, end: 4),
-                  shape: const StadiumBorder(),
+                  shape: look.control,
                   backgroundColor: pair == null
                       ? null
                       : colors.secondaryContainer,
@@ -1298,7 +1299,7 @@ class _HistorySearchField extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       shape: RoundedRectangleBorder(
-        borderRadius: AppRadius.fieldBorderRadius,
+        borderRadius: AppLook.of(context).fieldRadius,
         side: BorderSide(color: outline),
       ),
       clipBehavior: Clip.antiAlias,
@@ -1363,6 +1364,7 @@ class _HistoryPausedBanner extends StatelessWidget {
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
+    final look = AppLook.of(context);
     final settings = context.read<SettingsCubit>();
     final (icon, body, action, onPressed) = incognito
         ? (
@@ -1385,7 +1387,7 @@ class _HistoryPausedBanner extends StatelessWidget {
         child: DecoratedBox(
           decoration: BoxDecoration(
             border: Border.all(color: colors.outline),
-            borderRadius: AppRadius.cardBorderRadius,
+            borderRadius: look.cardRadius,
           ),
           child: Padding(
             padding: const EdgeInsetsDirectional.fromSTEB(16, 14, 12, 12),
@@ -1424,7 +1426,7 @@ class _HistoryPausedBanner extends StatelessWidget {
                 Align(
                   alignment: AlignmentDirectional.centerEnd,
                   child: FilledButton(
-                    style: FilledButton.styleFrom(shape: const StadiumBorder()),
+                    style: FilledButton.styleFrom(shape: look.control),
                     onPressed: onPressed,
                     child: Text(action),
                   ),

@@ -6,6 +6,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/router.dart' show AppRoutes;
+import 'package:mozhi/app/theme.dart' show AppLook;
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/history/models/history_entry.dart';
@@ -17,6 +18,7 @@ import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/widgets/on_device_ai_offer.dart';
 import 'package:mozhi/translate/widgets/quality_toggle.dart';
 import 'package:mozhi/translate/widgets/recent_pairs_sheet.dart';
+import 'package:mozhi/translate/widgets/terminal_chrome.dart';
 import 'package:mozhi/translate/widgets/translate_layout.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -258,15 +260,271 @@ HistoryEntry? translateHeroContinueEntry({
   final entry = history.entries
       .where((entry) => !entry.isDictionary && entry.text.trim().isNotEmpty)
       .firstOrNull;
-  if (entry == null || state.usableTarget(entry.target) == null) return null;
+  if (entry == null || !_restorable(entry, state)) return null;
+  return entry;
+}
+
+/// Whether the engine of [state] offers both languages of [entry] (see
+/// `TranslateCubit.restoreHistoryEntry`).
+bool _restorable(HistoryEntry entry, TranslateState state) {
+  if (state.usableTarget(entry.target) == null) return false;
   final source = entry.source;
   final sources = state.sourceLanguages;
-  final usableSource = source.isAuto
+  return source.isAuto
       ? sources.isEmpty || sources.contains(Language.auto)
       : source.isCustom
       ? state.supportsCustomLanguages
       : LanguageMatcher.match(source, sources) != null;
-  return usableSource ? entry : null;
+}
+
+/// Most recent translations the terminal look's `$ history --tail`
+/// lists ([TranslateHistoryTail]).
+const translateHistoryTailLength = 3;
+
+/// The entries of the terminal look's `$ history --tail`: the newest
+/// [count] translations of the on-device [history] whose languages the
+/// engine of [state] offers, while history is kept (as for
+/// [translateHeroContinueEntry]: `AppSettings.saveHistory`, not
+/// incognito, not paused); else none. Dictionary look-ups are skipped.
+List<HistoryEntry> translateHistoryTail({
+  required AppSettings settings,
+  required HistoryState? history,
+  required TranslateState state,
+  int count = translateHistoryTailLength,
+}) {
+  if (history == null ||
+      !settings.saveHistory ||
+      settings.incognito ||
+      history.paused ||
+      state.engine == null) {
+    return const [];
+  }
+  return history.entries
+      .where(
+        (entry) =>
+            !entry.isDictionary &&
+            entry.text.trim().isNotEmpty &&
+            _restorable(entry, state),
+      )
+      .take(count)
+      .toList();
+}
+
+/// Shows [entry] again, like "Continue" (`TranslateCubit.restoreHistoryEntry`:
+/// nothing is sent); where that is not possible (compare mode), the way
+/// the History tab opens it (its languages, then its text translated).
+void restoreTranslateHistoryEntry(BuildContext context, HistoryEntry entry) {
+  final cubit = context.read<TranslateCubit>();
+  if (cubit.restoreHistoryEntry(entry)) return;
+  cubit
+    ..setSource(entry.source)
+    ..setTarget(entry.target)
+    ..setInputAndTranslate(entry.text);
+}
+
+/// The terminal look's header of the translate screen: `// <greeting>`
+/// (the greeting for the time of day, [translateGreeting], in lower case
+/// and the secondary colour) and the screen title in lower case, bold and
+/// in the accent.
+///
+/// Screen readers hear the greeting as a header while the screen is
+/// empty ([greet], like the classic greeting) and the title only with
+/// [announceTitle] (where the classic app bar shows it); the `//` is
+/// decoration.
+class TranslateTerminalHeader extends StatelessWidget {
+  const new({this.greet = true, this.announceTitle = false, super.key});
+
+  /// Whether screen readers hear the greeting.
+  final bool greet;
+
+  /// Whether screen readers hear the title.
+  final bool announceTitle;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final muted = AppPalette.of(context).secondaryText;
+    final greeting = translateGreeting(l10n, TranslateHero.clock());
+    final quiet = theme.textTheme.bodyMedium?.copyWith(
+      fontSize: 13,
+      color: muted,
+    );
+    return Column(
+      key: const Key('translate_terminal_header'),
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TerminalGlyph('//', style: quiet),
+            TerminalGlyph(' ', style: quiet),
+            Flexible(
+              child: ExcludeSemantics(
+                excluding: !greet,
+                child: Semantics(
+                  header: true,
+                  child: Text(
+                    greeting.toLowerCase(),
+                    key: const Key('translate_greeting'),
+                    semanticsLabel: greeting,
+                    style: quiet,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        ExcludeSemantics(
+          excluding: !announceTitle,
+          child: Text(
+            l10n.translateTitle.toLowerCase(),
+            key: const Key('translate_terminal_title'),
+            semanticsLabel: l10n.translateTitle,
+            style: theme.textTheme.headlineSmall?.copyWith(
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              height: 1.2,
+              color: theme.colorScheme.primary,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// The terminal look's `$ history --tail 3` under the empty input: the
+/// newest translations of the on-device history ([translateHistoryTail])
+/// as rows of a two-digit index, the text (on one line) and the language
+/// pair (`en → de`) in the accent. A tap shows the translation again
+/// ([restoreTranslateHistoryEntry]; nothing is sent).
+///
+/// Nothing while there is no such entry, history is off or paused, in
+/// Incognito, or without the app-wide [HistoryCubit]. Screen readers hear
+/// each row like "Continue" ("Continue: hello, EN → DE"); the header and
+/// indexes are decoration.
+class TranslateHistoryTail extends StatelessWidget {
+  const new({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final muted = AppPalette.of(context).secondaryText;
+    final state = context.watch<TranslateCubit>().state;
+    final settings = context.watch<SettingsCubit>().state;
+    final entries = translateHistoryTail(
+      settings: settings,
+      history: _historyOf(context),
+      state: state,
+    );
+    if (entries.isEmpty) return const SizedBox.shrink();
+    final label = TerminalStyles.label(context);
+    final body = theme.textTheme.bodyMedium?.copyWith(
+      fontSize: 14,
+      fontWeight: FontWeight.w500,
+    );
+    return Column(
+      key: const Key('translate_history_tail'),
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: TerminalGlyph(
+              '\$ history --tail ${entries.length}',
+              style: label,
+            ),
+          ),
+        ),
+        for (final (index, entry) in entries.indexed)
+          _HistoryTailRow(
+            key: ValueKey('translate_history_tail:$index'),
+            index: index,
+            entry: entry,
+            style: body,
+            muted: muted,
+            l10n: l10n,
+          ),
+      ],
+    );
+  }
+}
+
+/// A row of [TranslateHistoryTail].
+class _HistoryTailRow extends StatelessWidget {
+  const new({
+    required this.index,
+    required this.entry,
+    required this.style,
+    required this.muted,
+    required this.l10n,
+    super.key,
+  });
+
+  final int index;
+  final HistoryEntry entry;
+  final TextStyle? style;
+  final Color muted;
+  final AppLocalizations l10n;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final text = entry.text.trim().replaceAll(RegExp(r'\s+'), ' ');
+    final source = entry.source.isAuto && entry.detectedSource != null
+        ? LanguageCatalog.byCode(entry.detectedSource!) ?? entry.source
+        : entry.source;
+    final pair = translatePairLabel(
+      l10n,
+      LanguagePair(source: source, target: entry.target),
+    );
+    return Semantics(
+      container: true,
+      button: true,
+      label: l10n.translateHeroContinueSemantics(text, pair),
+      excludeSemantics: true,
+      child: TextButton(
+        style: TextButton.styleFrom(
+          minimumSize: const Size(48, 48),
+          padding: EdgeInsets.zero,
+          shape: const RoundedRectangleBorder(),
+          foregroundColor: scheme.onSurface,
+          alignment: AlignmentDirectional.centerStart,
+          textStyle: style,
+        ),
+        onPressed: () => restoreTranslateHistoryEntry(context, entry),
+        child: Row(
+          children: [
+            TerminalGlyph(
+              (index + 1).toString().padLeft(2, '0'),
+              style: style?.copyWith(color: muted),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                text,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: style,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              _shortPair(l10n, entry).toLowerCase(),
+              maxLines: 1,
+              style: style?.copyWith(color: scheme.primary),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 /// The short codes of [entry]'s languages, "EN → FR" (the detected
@@ -317,7 +575,7 @@ class _ContinueButton extends StatelessWidget {
           key: const Key('translate_hero_continue'),
           style: OutlinedButton.styleFrom(
             minimumSize: const Size(48, 48),
-            shape: const StadiumBorder(),
+            shape: AppLook.of(context).control,
             side: BorderSide(color: theme.colorScheme.outline),
             padding: const EdgeInsetsDirectional.only(start: 16, end: 12),
           ),
@@ -495,7 +753,7 @@ class _HeroChip extends StatelessWidget {
     return FilledButton.tonalIcon(
       style: FilledButton.styleFrom(
         minimumSize: const Size(48, 48),
-        shape: const StadiumBorder(),
+        shape: AppLook.of(context).control,
         backgroundColor: scheme.secondaryContainer,
         foregroundColor: scheme.onSecondaryContainer,
         textStyle: Theme.of(context).textTheme.labelLarge

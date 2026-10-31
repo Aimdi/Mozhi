@@ -2791,5 +2791,13 @@
   "voiceBrowserNoticeContinue": "使用语音识别",
   "voiceErrorUnavailableBrowser": "此浏览器不支持语音识别。请尝试 Chrome、Edge 或 Safari，或改为手动输入。",
   "offlineDirectionIntoOnly": "仅支持译成{language}",
-  "offlineDirectionFromOnly": "仅支持从{language}翻译"
+  "offlineDirectionFromOnly": "仅支持从{language}翻译",
+  "settingsStyle": "风格",
+  "settingsStyleSubtitle": "终端为等宽字体、直角，衬以近黑底色；经典为圆角，可选暗淡或熄灯",
+  "settingsStyleTerminal": "终端",
+  "settingsStyleClassic": "经典",
+  "settingsStyleKeywords": "终端、经典、外观、样式、字体、等宽、等宽字体、terminal、classic、monospace、monospaced、JetBrains Mono",
+  "settingsThemeTerminalSubtitle": "在终端风格下，跟随系统即为深色；浅色呈现纸张质感",
+  "settingsColorAmber": "琥珀色",
+  "settingsColorCyan": "湖蓝色"
 }

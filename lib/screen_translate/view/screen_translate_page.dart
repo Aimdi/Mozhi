@@ -427,7 +427,7 @@ class _TopBar extends StatelessWidget {
             child: Material(
               color: theme.colorScheme.surfaceContainerHigh,
               elevation: 3,
-              borderRadius: BorderRadius.circular(28),
+              borderRadius: AppLook.of(context).sheetRadius,
               clipBehavior: Clip.antiAlias,
               child: Padding(
                 padding: const EdgeInsetsDirectional.fromSTEB(4, 4, 12, 4),
@@ -506,7 +506,7 @@ class _BottomPanel extends StatelessWidget {
               key: const Key('screen_translate_panel'),
               color: theme.colorScheme.surfaceContainerHigh,
               elevation: 3,
-              borderRadius: BorderRadius.circular(AppRadius.card),
+              borderRadius: AppLook.of(context).cardRadius,
               clipBehavior: Clip.antiAlias,
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(12),

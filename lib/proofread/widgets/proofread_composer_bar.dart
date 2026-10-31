@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/widgets/composer_card.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
@@ -156,7 +157,7 @@ class ProofreadLanguageButton extends StatelessWidget {
         style: TextButton.styleFrom(
           minimumSize: const Size(48, 48),
           padding: const EdgeInsetsDirectional.only(start: 10, end: 6),
-          shape: const StadiumBorder(),
+          shape: AppLook.of(context).control,
           foregroundColor: scheme.onSurface,
         ),
         onPressed: () => unawaited(showProofreadLanguages(context)),

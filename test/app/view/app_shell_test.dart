@@ -8,6 +8,8 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/router.dart' show AppRoutes;
 import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/app/view/app_shell.dart';
+import 'package:mozhi/app/view/top_level_actions.dart';
+import 'package:mozhi/core/widgets/terminal_rule.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
@@ -798,6 +800,208 @@ void main() {
         'Proofread',
         'Conversation',
       ]);
+    });
+  });
+
+  group('AppShell in the terminal look', () {
+    final theme = buildAppTheme(
+      appColorScheme(
+        brightness: Brightness.dark,
+        seedColor: const Color(0xFFFFB000),
+      ),
+      look: AppLook.terminal,
+    );
+
+    Future<List<int>> pumpShell(
+      WidgetTester tester, {
+      required double width,
+      double height = 900,
+      int selectedIndex = 0,
+      double textScale = 1,
+      Locale? locale,
+    }) async {
+      tester.view.physicalSize = Size(width, height);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final selected = <int>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: theme,
+          locale: locale,
+          localizationsDelegates: appLocalizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(context)
+                .copyWith(textScaler: TextScaler.linear(textScale)),
+            child: child!,
+          ),
+          home: AppShell(
+            selectedIndex: selectedIndex,
+            onDestinationSelected: selected.add,
+            child: Scaffold(
+              appBar: AppBar(actions: const [TopLevelActions()]),
+              body: const Text('body'),
+            ),
+          ),
+        ),
+      );
+      return selected;
+    }
+
+    testWidgets('numbers the tabs under a dashed rule on phones', (
+      tester,
+    ) async {
+      await pumpShell(tester, width: 390);
+
+      final bar = find.byKey(const Key('terminal_navigation_bar'));
+      expect(bar, findsOneWidget);
+      expect(find.byType(BlurBar), findsNothing);
+      expect(find.byType(TerminalRule), findsOneWidget);
+      // The rule is right above the bar.
+      expect(
+        tester.getBottomLeft(find.byType(TerminalRule)).dy,
+        tester.getTopLeft(bar).dy,
+      );
+      for (final label in [
+        '1:translate',
+        '2:dictionary',
+        '3:proofread',
+        '4:conversation',
+      ]) {
+        expect(find.text(label), findsOneWidget);
+      }
+      // No icons.
+      expect(find.byIcon(Icons.translate_outlined), findsNothing);
+      expect(find.byIcon(Icons.translate), findsNothing);
+      expect(
+        tester.widget<NavigationBar>(bar).labelBehavior,
+        NavigationDestinationLabelBehavior.alwaysHide,
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('marks the selected tab with an accent block', (tester) async {
+      await pumpShell(tester, width: 390, selectedIndex: 2);
+
+      final block = find.byKey(const Key('terminal_nav_selected'));
+      expect(block, findsOneWidget);
+      expect(
+        find.descendant(of: block, matching: find.text('3:proofread')),
+        findsOneWidget,
+      );
+      final decoration =
+          tester.widget<DecoratedBox>(block).decoration as BoxDecoration;
+      final scheme = theme.colorScheme;
+      expect(decoration.color, scheme.primary);
+      final selected = tester.widget<Text>(find.text('3:proofread'));
+      expect(selected.style?.color, scheme.onPrimary);
+      expect(selected.style?.fontWeight, FontWeight.w700);
+      final other = tester.widget<Text>(find.text('1:translate'));
+      expect(other.style?.fontWeight, FontWeight.w500);
+      expect(other.style?.color, isNot(scheme.onPrimary));
+    });
+
+    testWidgets('keeps the names of the tabs for screen readers', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await pumpShell(tester, width: 390, selectedIndex: 1);
+
+      for (final label in [
+        'Translate',
+        'Dictionary',
+        'Proofread',
+        'Conversation',
+      ]) {
+        expect(find.bySemanticsLabel(RegExp('^$label')), findsOneWidget);
+        expect(
+          find.byWidgetPredicate((w) => w is Tooltip && w.message == label),
+          findsOneWidget,
+        );
+      }
+      expect(find.bySemanticsLabel(RegExp('^[1-4]:')), findsNothing);
+      expect(
+        tester.getSemantics(find.bySemanticsLabel(RegExp('^Dictionary'))),
+        isSemantics(isSelected: true, isButton: true),
+      );
+      handle.dispose();
+    });
+
+    testWidgets('reports the tapped tab', (tester) async {
+      final selected = await pumpShell(tester, width: 390);
+
+      await tester.tap(find.text('2:dictionary'));
+      await tester.tap(find.text('4:conversation'));
+      expect(selected, [1, 3]);
+      // 48 dp targets.
+      final size = tester.getSize(
+        find
+            .ancestor(
+              of: find.text('2:dictionary'),
+              matching: find.byWidgetPredicate((w) => w is InkResponse),
+            )
+            .first,
+      );
+      expect(size.height, greaterThanOrEqualTo(48));
+      expect(size.width, greaterThanOrEqualTo(48));
+    });
+
+    testWidgets('fits 200 % text on a 320 dp phone', (tester) async {
+      await pumpShell(tester, width: 320, height: 640, textScale: 2);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('restyles the sidebar on large screens', (tester) async {
+      final selected = await pumpShell(tester, width: 1000);
+
+      expect(find.byKey(const Key('terminal_navigation_rail')), findsOne);
+      expect(find.byType(NavigationBar), findsNothing);
+      expect(find.text('1:translate'), findsOneWidget);
+      expect(find.byKey(const Key('terminal_nav_selected')), findsOneWidget);
+      // A dashed edge instead of the hairline.
+      final rule = tester.widget<TerminalRule>(find.byType(TerminalRule));
+      expect(rule.axis, Axis.vertical);
+      expect(find.byType(Hairline), findsNothing);
+      expect(find.text('mozhi'), findsOneWidget);
+      expect(find.bySemanticsLabel('Mozhi'), findsOneWidget);
+
+      await tester.tap(find.text('3:proofread'));
+      expect(selected, [2]);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('puts the sidebar on the right in right-to-left languages', (
+      tester,
+    ) async {
+      await pumpShell(tester, width: 1000, locale: const Locale('ar'));
+
+      final rail = tester.getRect(
+        find.byKey(const Key('terminal_navigation_rail')),
+      );
+      expect(rail.right, 1000);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('names History and Settings [h] and [s]', (tester) async {
+      final handle = tester.ensureSemantics();
+      await pumpShell(tester, width: 390);
+
+      expect(find.text('[h]'), findsOneWidget);
+      expect(find.text('[s]'), findsOneWidget);
+      expect(find.byIcon(Icons.history), findsNothing);
+      expect(
+        tester.getSemantics(find.byKey(TopLevelActions.historyKey)),
+        isSemantics(label: 'History', isButton: true, hasTapAction: true),
+      );
+      expect(
+        find.byWidgetPredicate((w) => w is Tooltip && w.message == 'Settings'),
+        findsOneWidget,
+      );
+      expect(find.bySemanticsLabel(RegExp(r'\[')), findsNothing);
+      final size = tester.getSize(find.byKey(TopLevelActions.settingsKey));
+      expect(size.width, greaterThanOrEqualTo(48));
+      expect(size.height, greaterThanOrEqualTo(48));
+      handle.dispose();
     });
   });
 }

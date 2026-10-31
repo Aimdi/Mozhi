@@ -2791,5 +2791,13 @@
   "voiceBrowserNoticeContinue": "Dùng nhận dạng giọng nói",
   "voiceErrorUnavailableBrowser": "Trình duyệt này không có tính năng nhận dạng giọng nói. Hãy thử Chrome, Edge hoặc Safari, hoặc nhập bằng bàn phím.",
   "offlineDirectionIntoOnly": "Chỉ dịch sang {language}",
-  "offlineDirectionFromOnly": "Chỉ dịch từ {language}"
+  "offlineDirectionFromOnly": "Chỉ dịch từ {language}",
+  "settingsStyle": "Phong cách",
+  "settingsStyleSubtitle": "Terminal dùng phông chữ đơn cách, góc vuông trên nền gần đen; Cổ điển bo tròn, với Mờ hoặc Tắt đèn",
+  "settingsStyleTerminal": "Terminal",
+  "settingsStyleClassic": "Cổ điển",
+  "settingsStyleKeywords": "terminal, cổ điển, giao diện, phông chữ, font, đơn cách, classic, monospace, monospaced, JetBrains Mono",
+  "settingsThemeTerminalSubtitle": "Ở phong cách Terminal, Hệ thống nghĩa là tối; Sáng cho giao diện giấy",
+  "settingsColorAmber": "Hổ phách",
+  "settingsColorCyan": "Xanh lơ"
 }

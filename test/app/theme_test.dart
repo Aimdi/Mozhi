@@ -669,7 +669,7 @@ void main() {
     test('defaults to the X blue accent and Lights out', () {
       expect(const AppSettings().seedColor, 0xFF1D9BF0);
       final themes = AppThemes.fromSettings(
-        const AppSettings(dynamicColor: false),
+        const AppSettings(style: AppStyle.classic, dynamicColor: false),
       );
       expect(themes.light.brightness, Brightness.light);
       expect(themes.dark.brightness, Brightness.dark);
@@ -680,7 +680,7 @@ void main() {
 
     test('uses the dynamic accent when enabled and available', () {
       final themes = AppThemes.fromSettings(
-        const AppSettings(),
+        const AppSettings(style: AppStyle.classic),
         lightDynamic: lightDynamic,
         darkDynamic: darkDynamic,
       );
@@ -699,7 +699,11 @@ void main() {
 
     test('ignores dynamic colors when disabled', () {
       final themes = AppThemes.fromSettings(
-        const AppSettings(dynamicColor: false, seedColor: 0xFF00BA7C),
+        const AppSettings(
+          style: AppStyle.classic,
+          dynamicColor: false,
+          seedColor: 0xFF00BA7C,
+        ),
         lightDynamic: lightDynamic,
         darkDynamic: darkDynamic,
       );
@@ -708,7 +712,7 @@ void main() {
 
     test('Dim when pure black is off', () {
       final themes = AppThemes.fromSettings(
-        const AppSettings(pureBlack: false),
+        const AppSettings(style: AppStyle.classic, pureBlack: false),
         darkDynamic: darkDynamic,
       );
       expect(themes.dark.colorScheme.surface, const Color(0xFF15202B));
@@ -721,7 +725,7 @@ void main() {
 
     test('Lights out applies to the dark theme only', () {
       final themes = AppThemes.fromSettings(
-        const AppSettings(),
+        const AppSettings(style: AppStyle.classic),
         darkDynamic: darkDynamic,
       );
       expect(themes.dark.colorScheme.surface, const Color(0xFF000000));

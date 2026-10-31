@@ -218,7 +218,7 @@ class DocumentSideBySide extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         border: Border.all(color: palette.hairline),
-        borderRadius: AppRadius.cardBorderRadius,
+        borderRadius: AppLook.of(context).cardRadius,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

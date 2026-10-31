@@ -81,9 +81,7 @@ class ReadableBlockView extends StatelessWidget {
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: colors.surfaceContainerHighest,
-            borderRadius: const BorderRadius.all(
-              Radius.circular(AppRadius.menu),
-            ),
+            borderRadius: AppLook.of(context).menuRadius,
           ),
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
@@ -104,9 +102,7 @@ class ReadableBlockView extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
             border: Border.all(color: colors.outlineVariant),
-            borderRadius: const BorderRadius.all(
-              Radius.circular(AppRadius.menu),
-            ),
+            borderRadius: AppLook.of(context).menuRadius,
           ),
           child: Row(
             children: [

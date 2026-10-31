@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/qr/qr_code.dart';
 
 /// A QR code of [data], [size] logical pixels square: black modules on
@@ -64,7 +65,7 @@ class _QrCodeViewState extends State<QrCodeView> {
       child: SizedBox.square(
         dimension: widget.size,
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: AppLook.of(context).badgeRadius,
           child: CustomPaint(
             painter: QrCodePainter(
               _code,

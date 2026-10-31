@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/widgets/composer_card.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/dictionary/cubit/dictionary_cubit.dart';
@@ -288,7 +289,7 @@ class _PairButton extends StatelessWidget {
         style: TextButton.styleFrom(
           minimumSize: const Size(48, 48),
           padding: const EdgeInsetsDirectional.only(start: 10, end: 6),
-          shape: const StadiumBorder(),
+          shape: AppLook.of(context).control,
           foregroundColor: scheme.onSurface,
         ),
         onPressed: onPressed,

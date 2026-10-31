@@ -185,9 +185,7 @@ class _LanguageDropdownRoute extends PopupRoute<Language> {
                 shape:
                     menu.shape ??
                     RoundedRectangleBorder(
-                      borderRadius: const BorderRadius.all(
-                        Radius.circular(AppRadius.menu),
-                      ),
+                      borderRadius: AppLook.of(context).menuRadius,
                       side: BorderSide(color: theme.colorScheme.outline),
                     ),
                 clipBehavior: Clip.antiAlias,
@@ -1139,7 +1137,7 @@ class _DetectedChip extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: scheme.secondaryContainer,
-        borderRadius: const BorderRadius.all(Radius.circular(AppRadius.badge)),
+        borderRadius: AppLook.of(context).badgeRadius,
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -1314,10 +1312,8 @@ class _LanguageTileState extends State<_LanguageTile> {
         // A cell of the grid is a rounded box, tinted while selected, so
         // its check mark is not read as the next cell's.
         shape: dense
-            ? const RoundedRectangleBorder(
-                borderRadius: BorderRadius.all(
-                  Radius.circular(AppRadius.badge),
-                ),
+            ? RoundedRectangleBorder(
+                borderRadius: AppLook.of(context).badgeRadius,
               )
             : null,
         selectedTileColor: dense

@@ -18,11 +18,13 @@ const double goldenTolerance = 0.005;
 /// comparator that tolerates [goldenTolerance] of differing pixels.
 ///
 /// flutter_test draws all text in its block test font by default. Here
-/// Roboto (under the app theme's font family and `Roboto`) and the
+/// Roboto (under the classic theme's font family and `Roboto`) and the
 /// Material Icons font are loaded from the Flutter SDK's cache
-/// (`<FLUTTER_ROOT>/bin/cache/artifacts/material_fonts`). When they cannot
-/// be found the golden tests are skipped ([goldenSkipReason]) instead of
-/// failing on a different machine.
+/// (`<FLUTTER_ROOT>/bin/cache/artifacts/material_fonts`), and JetBrains
+/// Mono (the terminal look's [kTerminalFontFamily]) from the app's
+/// `assets/fonts/jetbrains_mono`. When they cannot be found the golden
+/// tests are skipped ([goldenSkipReason]) instead of failing on a
+/// different machine.
 Future<void> testExecutable(FutureOr<void> Function() testMain) async {
   TestWidgetsFlutterBinding.ensureInitialized();
   // No "DEBUG" ribbon in the screenshots (whatever the helpers pump).
@@ -34,6 +36,8 @@ Future<void> testExecutable(FutureOr<void> Function() testMain) async {
         r'$FLUTTER_ROOT/bin/cache/artifacts/material_fonts (run '
         '`flutter precache` or set FLUTTER_ROOT).';
   } else if (await _loadFonts(fonts) case final missing?) {
+    goldenSkipReason = 'Golden tests skipped: $missing';
+  } else if (await _loadTerminalFont() case final missing?) {
     goldenSkipReason = 'Golden tests skipped: $missing';
   } else {
     goldenSkipReason = null;
@@ -86,11 +90,9 @@ Future<String?> _loadFonts(Directory directory) async {
 
   // The app theme does not name a family: its text styles come from the
   // platform's typography (Roboto on Android, the test platform).
-  final appFamily = AppThemes.fromSettings(const AppSettings())
-      .light
-      .textTheme
-      .bodyMedium
-      ?.fontFamily;
+  final appFamily = AppThemes.fromSettings(
+    const AppSettings(style: AppStyle.classic),
+  ).light.textTheme.bodyMedium?.fontFamily;
   for (final family in {'Roboto', ?appFamily}) {
     final loader = FontLoader(family);
     for (final file in roboto) {
@@ -101,6 +103,32 @@ Future<String?> _loadFonts(Directory directory) async {
   final iconLoader = FontLoader(Icons.add.fontFamily ?? 'MaterialIcons')
     ..addFont(_bytesOf(icons));
   await iconLoader.load();
+  return null;
+}
+
+/// The app's bundled JetBrains Mono (`pubspec.yaml`'s `JetBrainsMono`
+/// family; flutter_test does not load the app's fonts by itself).
+const String terminalFontDirectory = 'assets/fonts/jetbrains_mono';
+
+/// Loads JetBrains Mono (all its weights) from [terminalFontDirectory]
+/// under [kTerminalFontFamily]; returns what is missing, or null when it
+/// was loaded.
+Future<String?> _loadTerminalFont() async {
+  final directory = Directory(terminalFontDirectory);
+  final files = directory.existsSync()
+      ? (directory
+            .listSync()
+            .whereType<File>()
+            .where((file) => file.path.endsWith('.ttf'))
+            .toList()
+          ..sort((a, b) => a.path.compareTo(b.path)))
+      : <File>[];
+  if (files.isEmpty) return 'no JetBrainsMono-*.ttf in $terminalFontDirectory.';
+  final loader = FontLoader(kTerminalFontFamily);
+  for (final file in files) {
+    loader.addFont(_bytesOf(file));
+  }
+  await loader.load();
   return null;
 }
 

@@ -277,8 +277,8 @@ class _Notice extends StatelessWidget {
       child: Card.filled(
         margin: EdgeInsets.zero,
         color: colors.surfaceContainerHigh,
-        shape: const RoundedRectangleBorder(
-          borderRadius: AppRadius.cardBorderRadius,
+        shape: RoundedRectangleBorder(
+          borderRadius: AppLook.of(context).cardRadius,
         ),
         child: Padding(
           padding: const EdgeInsetsDirectional.fromSTEB(16, 12, 8, 12),

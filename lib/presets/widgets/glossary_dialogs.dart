@@ -147,7 +147,7 @@ class _LanguageField extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         // The shape of the field it looks like.
-        borderRadius: AppRadius.fieldBorderRadius,
+        borderRadius: AppLook.of(context).fieldRadius,
         child: InputDecorator(
           decoration: InputDecoration(
             labelText: label,

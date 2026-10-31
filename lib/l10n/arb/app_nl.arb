@@ -2791,5 +2791,13 @@
   "voiceBrowserNoticeContinue": "Spraakherkenning gebruiken",
   "voiceErrorUnavailableBrowser": "Deze browser heeft geen spraakherkenning. Probeer Chrome, Edge of Safari, of typ de tekst.",
   "offlineDirectionIntoOnly": "Alleen naar het {language}",
-  "offlineDirectionFromOnly": "Alleen vanuit het {language}"
+  "offlineDirectionFromOnly": "Alleen vanuit het {language}",
+  "settingsStyle": "Stijl",
+  "settingsStyleSubtitle": "Terminal is monospace en hoekig op bijna-zwart; Klassiek is afgerond, met Gedimd of Lichten uit",
+  "settingsStyleTerminal": "Terminal",
+  "settingsStyleClassic": "Klassiek",
+  "settingsStyleKeywords": "terminal, klassiek, uiterlijk, weergave, lettertype, vaste breedte, classic, monospace, monospaced, JetBrains Mono",
+  "settingsThemeTerminalSubtitle": "In de stijl Terminal betekent Systeem donker; Licht geeft de papierlook",
+  "settingsColorAmber": "Amber",
+  "settingsColorCyan": "Cyaan"
 }

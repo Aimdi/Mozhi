@@ -7,10 +7,13 @@ import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/router.dart' show AppRoutes;
 import 'package:mozhi/app/theme.dart';
+import 'package:mozhi/core/widgets/terminal_rule.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
+import 'package:mozhi/translate/widgets/terminal_chrome.dart'
+    show TerminalGlyphDot;
 
 /// One top-level destination of the app.
 class AppDestination {
@@ -81,6 +84,14 @@ class AppDestination {
 /// `AppSettings.tabOrder`, from the [SettingsCubit] above, else the
 /// default order). [selectedIndex] and [onDestinationSelected] always use
 /// the branch indexes ([AppTab.index]), whatever the order on screen.
+///
+/// In the terminal look ([AppLook.isTerminal]) the bottom bar sits under a
+/// dashed rule ([TerminalRule]) and names its tabs `1:translate`,
+/// `2:dictionary` … (their place on screen and the localized label, in
+/// lower case; [TerminalNavLabel]) without icons, the selected one on an
+/// accent block; the sidebar shows the same labels beside a dashed edge.
+/// The destinations keep their names, tooltips and "Tab 1 of 4" for
+/// screen readers (the visible labels are decoration).
 class AppShell extends StatelessWidget {
   const new({
     required this.selectedIndex,
@@ -146,6 +157,7 @@ class AppShell extends StatelessWidget {
     final selected = tabs.indexWhere((tab) => tab.index == selectedIndex);
     final selectedPosition = selected == -1 ? 0 : selected;
     void select(int position) => onDestinationSelected(tabs[position].index);
+    final terminal = AppLook.of(context).isTerminal;
 
     if (width < kExpandedBreakpoint) {
       return _GlobalShortcuts(
@@ -170,25 +182,31 @@ class AppShell extends StatelessWidget {
             bottomNavigationBar: FocusTraversalOrder(
               order: const NumericFocusOrder(2),
               child: FocusTraversalGroup(
-                child: BlurBar(
-                  top: true,
-                  sigma: 0,
-                  child: NavigationBar(
-                    selectedIndex: selectedPosition,
-                    onDestinationSelected: select,
-                    destinations: [
-                      for (final d in destinations)
-                        NavigationDestination(
-                          icon: NavIcon(icon: d.icon, selected: false),
-                          selectedIcon: NavIcon(
-                            icon: d.selectedIcon,
-                            selected: true,
-                          ),
-                          label: d.label(l10n),
+                child: terminal
+                    ? _TerminalNavigationBar(
+                        selectedIndex: selectedPosition,
+                        onDestinationSelected: select,
+                        labels: [for (final d in destinations) d.label(l10n)],
+                      )
+                    : BlurBar(
+                        top: true,
+                        sigma: 0,
+                        child: NavigationBar(
+                          selectedIndex: selectedPosition,
+                          onDestinationSelected: select,
+                          destinations: [
+                            for (final d in destinations)
+                              NavigationDestination(
+                                icon: NavIcon(icon: d.icon, selected: false),
+                                selectedIcon: NavIcon(
+                                  icon: d.selectedIcon,
+                                  selected: true,
+                                ),
+                                label: d.label(l10n),
+                              ),
+                          ],
                         ),
-                    ],
-                  ),
-                ),
+                      ),
               ),
             ),
           ),
@@ -228,42 +246,57 @@ class AppShell extends StatelessWidget {
                     child: SafeArea(
                       left: !rtl,
                       right: rtl,
-                      child: NavigationRail(
-                        selectedIndex: selectedPosition,
-                        onDestinationSelected: select,
-                        extended: extended,
-                        minExtendedWidth: 240,
-                        labelType: extended
-                            ? NavigationRailLabelType.none
-                            : NavigationRailLabelType.all,
-                        selectedLabelTextStyle: railLabel(selected: true),
-                        unselectedLabelTextStyle: railLabel(selected: false),
-                        leading: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          child: _RailHeader(extended: extended),
-                        ),
-                        destinations: [
-                          for (final d in destinations)
-                            NavigationRailDestination(
-                              icon: NavIcon(
-                                icon: d.icon,
+                      child: terminal
+                          ? _TerminalRail(
+                              selectedIndex: selectedPosition,
+                              onDestinationSelected: select,
+                              labels: [
+                                for (final d in destinations) d.label(l10n),
+                              ],
+                            )
+                          : NavigationRail(
+                              selectedIndex: selectedPosition,
+                              onDestinationSelected: select,
+                              extended: extended,
+                              minExtendedWidth: 240,
+                              labelType: extended
+                                  ? NavigationRailLabelType.none
+                                  : NavigationRailLabelType.all,
+                              selectedLabelTextStyle: railLabel(selected: true),
+                              unselectedLabelTextStyle: railLabel(
                                 selected: false,
-                                marker: !extended,
                               ),
-                              selectedIcon: NavIcon(
-                                icon: d.selectedIcon,
-                                selected: true,
-                                marker: !extended,
+                              leading: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 8,
+                                ),
+                                child: _RailHeader(extended: extended),
                               ),
-                              label: Text(d.label(l10n)),
+                              destinations: [
+                                for (final d in destinations)
+                                  NavigationRailDestination(
+                                    icon: NavIcon(
+                                      icon: d.icon,
+                                      selected: false,
+                                      marker: !extended,
+                                    ),
+                                    selectedIcon: NavIcon(
+                                      icon: d.selectedIcon,
+                                      selected: true,
+                                      marker: !extended,
+                                    ),
+                                    label: Text(d.label(l10n)),
+                                  ),
+                              ],
                             ),
-                        ],
-                      ),
                     ),
                   ),
                 ),
               ),
-              const Hairline(vertical: true),
+              if (terminal)
+                const TerminalRule(axis: Axis.vertical)
+              else
+                const Hairline(vertical: true),
               Expanded(
                 // The sidebar keeps clear of its side and the app bars of
                 // the top: the tab avoids the system bars below and at the
@@ -442,6 +475,190 @@ class _RailHeader extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// The label of a destination of the terminal look's navigation
+/// ([AppShell]): `<number>:<label>` in lower case on one line (cut with an
+/// ellipsis when long), on an accent block when [selected] (bold, in the
+/// accent's text colour), else in the secondary colour. Decoration: the
+/// destination's own label names it for screen readers.
+class TerminalNavLabel extends StatelessWidget {
+  const new({
+    required this.number,
+    required this.label,
+    required this.selected,
+    super.key,
+  });
+
+  /// The place of the destination on screen (from 1).
+  final int number;
+  final String label;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return ExcludeSemantics(
+      child: DecoratedBox(
+        key: selected ? const Key('terminal_nav_selected') : null,
+        decoration: BoxDecoration(
+          color: selected ? scheme.primary : Colors.transparent,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+          child: Text(
+            '$number:${label.toLowerCase()}',
+            maxLines: 1,
+            softWrap: false,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.labelMedium?.copyWith(
+              fontSize: 12,
+              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+              color: selected
+                  ? scheme.onPrimary
+                  : AppPalette.of(context).secondaryText,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The terminal look's bottom bar ([AppShell]): a [NavigationBar] (its
+/// semantics, tooltips, focus and touch targets) under a dashed rule, with
+/// [TerminalNavLabel]s instead of icons and labels.
+class _TerminalNavigationBar extends StatelessWidget {
+  const new({
+    required this.selectedIndex,
+    required this.onDestinationSelected,
+    required this.labels,
+  });
+
+  final int selectedIndex;
+  final ValueChanged<int> onDestinationSelected;
+  final List<String> labels;
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: Theme.of(context).colorScheme.surface,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const TerminalRule(),
+          NavigationBar(
+            key: const Key('terminal_navigation_bar'),
+            selectedIndex: selectedIndex,
+            onDestinationSelected: onDestinationSelected,
+            height: kNavigationBarHeight,
+            elevation: 0,
+            backgroundColor: Colors.transparent,
+            surfaceTintColor: Colors.transparent,
+            indicatorColor: Colors.transparent,
+            // The labels are in the destinations' "icons"; the hidden
+            // labels still name them.
+            labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
+            destinations: [
+              for (final (index, label) in labels.indexed)
+                NavigationDestination(
+                  icon: TerminalNavLabel(
+                    number: index + 1,
+                    label: label,
+                    selected: false,
+                  ),
+                  selectedIcon: TerminalNavLabel(
+                    number: index + 1,
+                    label: label,
+                    selected: true,
+                  ),
+                  label: label,
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The terminal look's sidebar ([AppShell], from [kExpandedBreakpoint]):
+/// a [NavigationRail] of [TerminalNavLabel]s (its labels hidden but still
+/// naming the destinations) under `● <app name>`.
+class _TerminalRail extends StatelessWidget {
+  const new({
+    required this.selectedIndex,
+    required this.onDestinationSelected,
+    required this.labels,
+  });
+
+  final int selectedIndex;
+  final ValueChanged<int> onDestinationSelected;
+  final List<String> labels;
+
+  /// Width of the rail.
+  static const double width = 128;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final title = context.l10n.appTitle;
+    return NavigationRail(
+      key: const Key('terminal_navigation_rail'),
+      selectedIndex: selectedIndex,
+      onDestinationSelected: onDestinationSelected,
+      minWidth: width,
+      backgroundColor: Colors.transparent,
+      useIndicator: false,
+      labelType: NavigationRailLabelType.none,
+      leading: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        child: SizedBox(
+          width: width - 16,
+          child: Semantics(
+            label: title,
+            excludeSemantics: true,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                TerminalGlyphDot(color: scheme.primary),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    title.toLowerCase(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: scheme.primary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      destinations: [
+        for (final (index, label) in labels.indexed)
+          NavigationRailDestination(
+            icon: TerminalNavLabel(
+              number: index + 1,
+              label: label,
+              selected: false,
+            ),
+            selectedIcon: TerminalNavLabel(
+              number: index + 1,
+              label: label,
+              selected: true,
+            ),
+            label: Text(label),
+          ),
+      ],
     );
   }
 }

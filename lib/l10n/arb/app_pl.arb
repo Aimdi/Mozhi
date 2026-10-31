@@ -2791,5 +2791,13 @@
   "voiceBrowserNoticeContinue": "Użyj rozpoznawania mowy",
   "voiceErrorUnavailableBrowser": "Ta przeglądarka nie obsługuje rozpoznawania mowy. Wypróbuj Chrome, Edge lub Safari albo wpisz tekst.",
   "offlineDirectionIntoOnly": "Tylko tłumaczenie na: {language}",
-  "offlineDirectionFromOnly": "Tylko tłumaczenie z: {language}"
+  "offlineDirectionFromOnly": "Tylko tłumaczenie z: {language}",
+  "settingsStyle": "Styl",
+  "settingsStyleSubtitle": "Terminal to czcionka o stałej szerokości i ostre rogi na prawie czarnym tle; Klasyczny jest zaokrąglony, w wariancie Przyciemniony lub Zgaszone światła",
+  "settingsStyleTerminal": "Terminal",
+  "settingsStyleClassic": "Klasyczny",
+  "settingsStyleKeywords": "terminal, klasyczny, wygląd, czcionka, krój pisma, stała szerokość, classic, monospace, monospaced, JetBrains Mono",
+  "settingsThemeTerminalSubtitle": "W stylu Terminal opcja Systemowy oznacza ciemny motyw; Jasny daje wygląd papieru",
+  "settingsColorAmber": "Bursztynowy",
+  "settingsColorCyan": "Cyjanowy"
 }
