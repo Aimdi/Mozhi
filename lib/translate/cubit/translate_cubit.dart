@@ -1367,7 +1367,10 @@ class TranslateCubit extends Cubit<TranslateState> {
   ///   other non-AI) engines. AI engines wait for the user to press
   ///   Translate, even with `instantTranslateAi` on (that covers typing
   ///   only), so a link or share never starts a paid request on its own.
-  ///   Compare mode never starts on its own either.
+  ///   Compare mode never starts on its own either. In
+  ///   [PrivacyMode.offlineOnly] only an engine that keeps the text on this
+  ///   device starts on its own, and while the engines load the text waits
+  ///   for them ([loadEngines] translates it with the engine it picks).
   void setExternalInput(String text, {Language? source, Language? target}) {
     final now = _clock();
     final last = _lastExternal;
@@ -1404,11 +1407,16 @@ class TranslateCubit extends Cubit<TranslateState> {
   }
 
   /// Whether external input may be translated without a user action: only
-  /// by engines that are not AI models.
+  /// by engines that are not AI models, not while the engines (re)load
+  /// (the engine may still change: [loadEngines] translates it once they
+  /// are ready), and in [PrivacyMode.offlineOnly] only by an engine that
+  /// keeps the text on this device.
   bool get _mayAutoTranslateExternal {
     final engine = state.engine;
-    if (engine == null || state.compareMode) return false;
-    return !engine.isAi;
+    if (engine == null || state.compareMode || engine.isAi) return false;
+    if (state.enginesStatus == EnginesStatus.loading) return false;
+    return _settings.state.privacyMode != PrivacyMode.offlineOnly ||
+        _staysOnDevice(engine);
   }
 
   /// Puts [raw] (cut to [maxLength]) into the input. With [instant] (typed

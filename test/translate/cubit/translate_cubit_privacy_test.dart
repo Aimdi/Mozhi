@@ -307,4 +307,92 @@ void main() {
       verify: (cubit) => expect(cubit.state.engine, claude),
     );
   });
+
+  group('text from outside the app (share, link)', () {
+    final offline = TranslationEngine.offline();
+    const offlineOnly = AppSettings(privacyMode: PrivacyMode.offlineOnly);
+
+    blocTest<TranslateCubit, TranslateState>(
+      'in Offline only is not sent to a network engine on its own',
+      setUp: () {
+        mocks
+          ..stubSettings(offlineOnly)
+          ..stubTranslate();
+      },
+      build: () => mocks.build(),
+      seed: () => readyState(input: 'Bonjour', engines: [google, offline]),
+      act: (cubit) => cubit.setExternalInput('Le chat dort'),
+      verify: (cubit) {
+        // The text is there, for the user to translate (or not).
+        expect(cubit.state.input, 'Le chat dort');
+        expect(cubit.state.result, isNull);
+        verifyNever(() => mocks.repository.translate(any(), any()));
+      },
+    );
+
+    blocTest<TranslateCubit, TranslateState>(
+      'in Offline only is translated on the device on its own',
+      setUp: () {
+        mocks
+          ..stubSettings(offlineOnly)
+          ..stubTranslate();
+      },
+      build: () => mocks.build(),
+      seed: () => readyState(engine: offline, engines: [google, offline]),
+      act: (cubit) => cubit.setExternalInput('Le chat dort'),
+      verify: (cubit) {
+        expect(cubit.state.input, 'Le chat dort');
+        expect(cubit.state.result?.text, 'Le chat dort->en');
+        verify(() => mocks.repository.translate(offline, any())).called(1);
+      },
+    );
+
+    blocTest<TranslateCubit, TranslateState>(
+      'waits for the engines that load, then uses the one they pick',
+      setUp: () {
+        mocks
+          ..stubSettings(
+            const AppSettings(
+              privacyMode: PrivacyMode.offlineOnly,
+              engineId: TranslationEngine.offlineId,
+            ),
+          )
+          ..stubTranslate();
+        when(() => mocks.repository.getEngines(refresh: any(named: 'refresh')))
+            .thenAnswer((_) async => [google, offline]);
+      },
+      build: () => mocks.build(),
+      // The engine of the online mode, while the engines reload for
+      // Offline only.
+      seed: () =>
+          readyState(engines: [google, offline])
+              .copyWith(enginesStatus: EnginesStatus.loading),
+      act: (cubit) async {
+        cubit.setExternalInput('Le chat dort');
+        expect(cubit.state.input, 'Le chat dort');
+        verifyNever(() => mocks.repository.translate(any(), any()));
+        await cubit.loadEngines();
+      },
+      verify: (cubit) {
+        expect(cubit.state.engine, offline);
+        expect(cubit.state.result?.text, 'Le chat dort->en');
+        verify(() => mocks.repository.translate(offline, any())).called(1);
+        verifyNever(() => mocks.repository.translate(google, any()));
+      },
+    );
+
+    blocTest<TranslateCubit, TranslateState>(
+      'is still put into the input when the engines never finish loading',
+      setUp: () => mocks.stubTranslate(),
+      build: () => mocks.build(),
+      seed: () =>
+          readyState(input: 'Bonjour')
+              .copyWith(enginesStatus: EnginesStatus.loading),
+      act: (cubit) => cubit.setExternalInput('Le chat dort'),
+      verify: (cubit) {
+        expect(cubit.state.input, 'Le chat dort');
+        verifyNever(() => mocks.repository.translate(any(), any()));
+      },
+    );
+  });
 }
