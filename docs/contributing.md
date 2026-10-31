@@ -284,8 +284,12 @@ own and fails the job when it does not work:
 - **Cancel**: opens Settings › Translation engines › Offline languages,
   searches for Greek (about 30 MB) and taps Download, then "Cancel
   downloading Greek". The row must go back to Download with no
-  error. Meanwhile the emulator's network is slowed (`adb emu network
-  speed gsm`), so the download is still running when Cancel is tapped.
+  error. Meanwhile the network is slowed, so the download is still
+  running when Cancel is tapped: the emulator's Wi-Fi ignores `adb emu
+  network speed gsm`, so the script also runs `adb root` and lets in only
+  about 30 KB/s of HTTPS with `iptables` (deleted afterwards; without
+  root it says so). A download that still finishes first fails the flow
+  with that message.
 
 Every step waits for its labels with a timeout and taps a button again
 when nothing happens. On failure it saves `<n>-<flow>-failed.png` and
