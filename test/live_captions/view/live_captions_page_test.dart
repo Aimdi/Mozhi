@@ -15,6 +15,7 @@ import 'package:mozhi/live_captions/cubit/live_captions_cubit.dart';
 import 'package:mozhi/live_captions/data/captions_host.dart';
 import 'package:mozhi/live_captions/view/live_captions_page.dart';
 import 'package:mozhi/platform/device_conditions.dart';
+import 'package:mozhi/platform/system_app_settings.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
@@ -410,6 +411,46 @@ void main() {
         );
       });
     }
+
+    testWidgets("a refused microphone offers Android's settings", (
+      tester,
+    ) async {
+      var opened = 0;
+      SystemAppSettings.debugIsSupported = true;
+      final previous = SystemAppSettings.opener;
+      SystemAppSettings.opener = () async {
+        opened++;
+        return true;
+      };
+      addTearDown(() {
+        SystemAppSettings.debugIsSupported = null;
+        SystemAppSettings.opener = previous;
+      });
+      host.startResult = const CaptureFailed(CaptureFailure.permission);
+      await pump(tester);
+      await start(tester);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 750));
+
+      await tester.tap(find.byKey(const Key('live_captions_open_settings')));
+      await tester.pump();
+      expect(opened, 1);
+    });
+
+    testWidgets('other failures offer no settings', (tester) async {
+      SystemAppSettings.debugIsSupported = true;
+      addTearDown(() => SystemAppSettings.debugIsSupported = null);
+      host.startResult = const CaptureDeclined();
+      await pump(tester);
+      await start(tester);
+      await tester.pump();
+
+      expect(find.text(l10n.liveCaptionsDeclined), findsOneWidget);
+      expect(
+        find.byKey(const Key('live_captions_open_settings')),
+        findsNothing,
+      );
+    });
 
     testWidgets('a capture that ends by itself', (tester) async {
       await pump(tester);

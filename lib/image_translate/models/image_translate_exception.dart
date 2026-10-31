@@ -21,6 +21,12 @@ enum ImageTranslateErrorKind {
   /// The picker failed for another reason.
   pickFailed,
 
+  /// "Take photo" found no camera app to take it with (Android's
+  /// `ACTION_IMAGE_CAPTURE` has no handler: some phones without Google
+  /// services, or with the camera app disabled). The live camera, which
+  /// uses the camera itself, still works.
+  noCameraApp,
+
   /// No translation engine is available for the recognised text.
   noEngine,
 

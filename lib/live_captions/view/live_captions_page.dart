@@ -16,6 +16,7 @@ import 'package:mozhi/live_captions/data/method_channel_captions_host.dart';
 import 'package:mozhi/live_captions/widgets/live_captions_widgets.dart';
 import 'package:mozhi/platform/clipboard_service.dart';
 import 'package:mozhi/platform/device_conditions.dart';
+import 'package:mozhi/platform/system_app_settings.dart';
 import 'package:mozhi/screen_translate/data/screen_translate_controls.dart';
 import 'package:mozhi/transcribe/data/transcript_export.dart';
 import 'package:mozhi/transcribe/view/transcribe_page.dart'
@@ -223,8 +224,20 @@ class LiveCaptionsView extends StatelessWidget {
         BlocListener<LiveCaptionsCubit, LiveCaptionsState>(
           listenWhen: (previous, current) =>
               current.notices > previous.notices && current.notice != null,
-          listener: (context, state) =>
-              _say(context, _noticeText(l10n, state.notice!)),
+          listener: (context, state) => _say(
+            context,
+            _noticeText(l10n, state.notice!),
+            // Android may no longer ask: the permission is in its settings.
+            action:
+                state.notice == LiveCaptionsNotice.permissionDenied &&
+                    SystemAppSettings.isSupported
+                ? SnackBarAction(
+                    key: const Key('live_captions_open_settings'),
+                    label: l10n.commonOpenAppSettings,
+                    onPressed: () => unawaited(SystemAppSettings.open()),
+                  )
+                : null,
+          ),
         ),
         BlocListener<LiveCaptionsCubit, LiveCaptionsState>(
           listenWhen: (previous, current) =>
@@ -267,10 +280,19 @@ class LiveCaptionsView extends StatelessWidget {
         LiveCaptionsNotice.saveFailed => l10n.transcribeSaveHistoryFailed,
       };
 
-  static void _say(BuildContext context, String message) =>
-      ScaffoldMessenger.maybeOf(context)
-        ?..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(content: Text(message)));
+  static void _say(
+    BuildContext context,
+    String message, {
+    SnackBarAction? action,
+  }) => ScaffoldMessenger.maybeOf(context)
+    ?..hideCurrentSnackBar()
+    ..showSnackBar(
+      SnackBar(
+        content: Text(message),
+        action: action,
+        duration: Duration(seconds: action == null ? 4 : 8),
+      ),
+    );
 
   /// "Show captions over other apps?": the setting, captions on this
   /// screen only, or (dismissed) not now.

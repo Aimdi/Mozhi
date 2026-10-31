@@ -31,11 +31,25 @@ const maxDeviceSpeechChunkLength = 3900;
 /// an online voice the user has not allowed yet), and Mozhi is not
 /// configured, not allowed or failed. [cause] is the first underlying
 /// failure, if any.
+///
+/// [noDeviceEngine] tells that the device has no speech engine at all
+/// ([DeviceTtsEngines.hasEngine] answered false): no voice can be
+/// installed for the language before a text-to-speech app is (common on
+/// Android phones without Google services).
 class SpeechUnavailableException implements Exception {
-  const new(this.languageCode, {this.cause});
+  const new(this.languageCode, {this.cause, this.noDeviceEngine = false});
 
   final String languageCode;
   final Object? cause;
+
+  /// Whether the device has no speech engine installed at all.
+  final bool noDeviceEngine;
+
+  /// This failure without its [cause] (e.g. without the Mozhi instance
+  /// that could have read the text with the user's consent, when that is
+  /// not offered), keeping [noDeviceEngine].
+  SpeechUnavailableException withoutCause() =>
+      SpeechUnavailableException(languageCode, noDeviceEngine: noDeviceEngine);
 
   /// The consent that lets a Mozhi instance read the text aloud once, when
   /// the privacy settings stopped it ([PrivacyMode.offlineFirst] and the
@@ -54,7 +68,8 @@ class SpeechUnavailableException implements Exception {
   @override
   String toString() =>
       'SpeechUnavailableException($languageCode'
-      '${cause == null ? '' : ', cause: $cause'})';
+      '${cause == null ? '' : ', cause: $cause'}'
+      '${noDeviceEngine ? ', no device engine' : ''})';
 }
 
 /// Something [SpeechService] read aloud (see [SpeechService.lastUtterance]).
@@ -546,6 +561,7 @@ class SpeechService {
           ? consent
           : null;
       Object? cause;
+      var deviceSkipped = false;
       for (final backend in [
         _Backend.device,
         if (!deviceOnly) _Backend.mozhi,
@@ -582,6 +598,7 @@ class SpeechService {
                 : null;
           }
           if (outcome != _Outcome.skipped) return;
+          if (backend == _Backend.device) deviceSkipped = true;
         } on Object catch (error) {
           cause ??= error;
           // A device voice that fails is not replaced by a server: the text
@@ -590,13 +607,38 @@ class SpeechService {
         }
       }
       if (generation != _generation) return;
-      throw SpeechUnavailableException(languageCode, cause: cause);
+      final noEngine = deviceSkipped && await _hasNoDeviceEngine();
+      if (generation != _generation) return;
+      throw SpeechUnavailableException(
+        languageCode,
+        cause: cause,
+        noDeviceEngine: noEngine,
+      );
     } on Object {
       if (generation != _generation) return;
       _setCurrent(null);
       rethrow;
     }
   }
+
+  /// Whether the device engine says the device has no speech engine at
+  /// all ([DeviceTtsEngines.hasEngine]); false when it cannot tell.
+  Future<bool> _hasNoDeviceEngine() async {
+    if (!_device.isSupported) return false;
+    if (_device case final DeviceTtsEngines engines) {
+      try {
+        return await engines.hasEngine() == false;
+      } on Object {
+        return false;
+      }
+    }
+    return false;
+  }
+
+  /// Whether the device has no speech engine installed at all (an Android
+  /// phone without any text-to-speech app, see [DeviceTtsEngines]): false
+  /// when it has one or when that is unknown. Never throws.
+  Future<bool> hasNoDeviceEngine() => _hasNoDeviceEngine();
 
   /// Fetches and starts the first chunk of [text]; completions play the
   /// rest ([_playNextChunk]).

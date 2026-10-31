@@ -10,8 +10,8 @@ abstract interface class ImagePickerService {
   bool get supportsCamera;
 
   /// Resolves to null when the user dismisses the picker. Throws an
-  /// [ImageTranslateException] (`permissionDenied` / `pickFailed`) on
-  /// failure.
+  /// [ImageTranslateException] (`permissionDenied`, `noCameraApp` or
+  /// `pickFailed`) on failure.
   Future<PickedImage?> pick(ImagePickSource source);
 
   /// The image of a [pick] that Android could not deliver because it ended
@@ -40,6 +40,9 @@ class PluginImagePickerService implements ImagePickerService {
     'camera_access_restricted',
     'photo_access_restricted',
   };
+
+  /// `image_picker`'s code when no app can take the photo (Android).
+  static const _noCameraCode = 'no_available_camera';
 
   final ImagePicker _picker;
   final bool _isWeb;
@@ -107,6 +110,8 @@ class PluginImagePickerService implements ImagePickerService {
       ImageTranslateException(
         _deniedCodes.contains(error.code)
             ? ImageTranslateErrorKind.permissionDenied
+            : error.code == _noCameraCode
+            ? ImageTranslateErrorKind.noCameraApp
             : ImageTranslateErrorKind.pickFailed,
         cause: error,
       );

@@ -180,6 +180,26 @@ void main() {
     );
   });
 
+  test('gives up after the no-speech timeout without speech', () async {
+    adapter = WhisperSpeechRecognizerAdapter(
+      speech: speech,
+      recorder: recorder,
+      noSpeechTimeout: const Duration(seconds: 1),
+    );
+    await listen();
+    // 0.96 s of a quiet room: still waiting.
+    recorder.emit(pcm(30, 0.001));
+    await settle();
+    expect(recorder.stops, 0);
+    recorder.emit(pcm(2, 0.001));
+    await settle();
+    expect(recorder.stops, 1);
+    expect(errors.single.message, 'error_no_match');
+    verifyNever(
+      () => speech.transcribe(any(), language: any(named: 'language')),
+    );
+  });
+
   test('a phrase the engine fails is an engine error', () async {
     when(() => speech.transcribe(any(), language: any(named: 'language')))
         .thenThrow(const WhisperEngineException('boom'));

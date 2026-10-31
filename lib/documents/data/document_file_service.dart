@@ -21,11 +21,31 @@ class ShareUnsupportedException implements Exception {
   String toString() => 'ShareUnsupportedException';
 }
 
+/// Largest file [DocumentFileService.pickFile] reads: the largest document
+/// the translator opens (office documents, e-books and PDFs, 25 MB; text
+/// files stop at 2 MB). Larger files are refused before they are read, so
+/// a video picked by mistake cannot exhaust the memory.
+const int maxPickedDocumentBytes = 25 * 1024 * 1024;
+
+/// Thrown by [DocumentFileService.pickFile] for a file over
+/// [maxPickedDocumentBytes]; nothing was read.
+class DocumentFileTooLargeException implements Exception {
+  const new(this.name);
+
+  /// The picked file's name.
+  final String name;
+
+  @override
+  String toString() => 'DocumentFileTooLargeException($name)';
+}
+
 /// Platform file operations used by the document translator, behind an
 /// interface so they can be faked in tests.
 abstract interface class DocumentFileService {
   /// Lets the user pick one file with one of [extensions] (lower case,
-  /// without dot); null when cancelled.
+  /// without dot); null when cancelled. Throws
+  /// [DocumentFileTooLargeException] for a file over
+  /// [maxPickedDocumentBytes].
   Future<PickedFile?> pickFile({required List<String> extensions});
 
   /// Lets the user save [bytes] (a download on the web). Returns false when
@@ -78,7 +98,16 @@ class PlatformDocumentFileService implements DocumentFileService {
       allowedExtensions: filter ? extensions : null,
     );
     if (file == null) return null;
-    return PickedFile(name: file.name, bytes: await file.readAsBytes());
+    // Android offers any file: refuse a huge one before reading it.
+    final length = file.lengthSync() ?? await file.length();
+    if (length != null && length > maxPickedDocumentBytes) {
+      throw DocumentFileTooLargeException(file.name);
+    }
+    final bytes = await file.readAsBytes();
+    if (bytes.length > maxPickedDocumentBytes) {
+      throw DocumentFileTooLargeException(file.name);
+    }
+    return PickedFile(name: file.name, bytes: bytes);
   }
 
   @override

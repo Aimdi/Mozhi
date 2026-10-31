@@ -3,6 +3,34 @@
 All notable changes to Mozhi, by release tag on GitHub (pre-releases end
 in `-rc.N`).
 
+## 0.1.0-rc.10
+
+### Fixed
+
+- **Voice input works out of the box on phones without Google.** Where
+  the phone has no speech recognition service, tapping the microphone
+  now offers the offline speech model right there (Fast, 74.1 MB from
+  Hugging Face, under the usual Wi-Fi rule), downloads it with progress
+  and starts listening once it is in, instead of a message pointing to
+  the settings. Offline recording stops after 8 seconds when nobody
+  speaks (it used to keep the microphone open for up to a minute); a
+  microphone denied for good offers **Open settings**; and the web app
+  says before its first dictation that the browser's speech recognition
+  sends the audio to the browser's maker (Chrome to Google). CI now runs
+  Whisper for real: it transcribes recorded English speech with the Fast
+  model through the app's own recording path.
+- **Read aloud on a phone with no text-to-speech app** says so and offers
+  SherpaTTS (free, works offline), instead of failing without a word.
+- **A camera or microphone you denied for good** now offers **Open
+  settings** wherever it is needed (photo, live camera, live captions,
+  voice input). A phone with no camera app says so and offers the live
+  camera or a photo instead.
+- **Offline languages that only work one way** (for example into English
+  only) are listed, marked "Into ... only" or "From ... only", instead of
+  being hidden after the download.
+- **Documents over 25 MB** are turned down with a message before they are
+  read, instead of running the phone out of memory.
+
 ## 0.1.0-rc.9
 
 ### Added

@@ -2,6 +2,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
+import 'package:mozhi/offline/data/offline_model_details.dart';
 import 'package:mozhi/offline/offline.dart';
 
 import '../../helpers/helpers.dart';
@@ -60,6 +61,33 @@ void main() {
       expect(find.text('Downloaded'), findsNothing);
       await tester.tap(find.byTooltip('Download German'));
       expect(taps, ['download']);
+    });
+
+    testWidgets('says which way a one-way language goes', (tester) async {
+      await pump(
+        tester,
+        language: const OfflineLanguage(
+          code: 'az',
+          name: 'Azerbaijani',
+          nativeName: 'Azərbaycanca',
+          direction: OfflineLanguageDirection.intoOnly,
+        ),
+        downloadSize: 20 * 1024 * 1024,
+      );
+      expect(
+        find.textContaining('Azərbaycanca · Into Azerbaijani only · '),
+        findsOneWidget,
+      );
+
+      await pump(
+        tester,
+        language: const OfflineLanguage(
+          code: 'non',
+          name: 'Old Norse',
+          direction: OfflineLanguageDirection.fromOnly,
+        ),
+      );
+      expect(find.text('From Old Norse only'), findsOneWidget);
     });
 
     testWidgets('shows a badge and a delete action when downloaded', (

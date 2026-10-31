@@ -13,7 +13,10 @@ export 'offline_models_state.dart';
 typedef OfflineLanguageDescriber = OfflineLanguage Function(String code);
 
 /// Lists the offline engine's languages and downloads, updates and deletes
-/// their models.
+/// their models. Languages that translate one way only (models from
+/// English into Azerbaijani, but not back) are listed too, with their
+/// [OfflineLanguage.direction], when `details` tells which they are
+/// ([OfflineLanguageDirections]).
 ///
 /// With `details` (Mozilla's Bergamot engine, see `offlineModelDetailsOf`)
 /// it also reports download sizes, disk usage, updates and download
@@ -67,9 +70,15 @@ class OfflineModelsCubit extends Cubit<OfflineModelsState> {
     final wifiOnly = await _readWifiOnly();
     try {
       final available = _translator.isAvailable;
-      final codes = _translator.supportedLanguages;
-      final languages = [for (final code in codes) _describe(code)]
-        ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+      final oneWay = _oneWayLanguages();
+      final codes = _codes(oneWay);
+      final languages = [
+        for (final code in codes)
+          switch (oneWay[code]) {
+            final direction? => _describe(code).withDirection(direction),
+            null => _describe(code),
+          },
+      ]..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
       final details = _details;
       final sizes = details == null
           ? const <String, int>{}
@@ -360,12 +369,28 @@ class OfflineModelsCubit extends Cubit<OfflineModelsState> {
     final details = _details;
     if (details == null) return null;
     try {
-      return await details.storage(_translator.supportedLanguages);
+      return await details.storage(_codes(_oneWayLanguages()));
     } on Object catch (error, stackTrace) {
       addError(error, stackTrace);
       return null;
     }
   }
+
+  /// The languages the engine translates one way only
+  /// ([OfflineLanguageDirections]); empty when it does not tell.
+  Map<String, OfflineLanguageDirection> _oneWayLanguages() {
+    if (_details case final OfflineLanguageDirections directions) {
+      return directions.oneWayLanguages;
+    }
+    return const {};
+  }
+
+  /// Every language listed: those that go both ways and those that go one
+  /// way only ([oneWay]), which can be downloaded and deleted alike.
+  Set<String> _codes(Map<String, OfflineLanguageDirection> oneWay) => {
+    ..._translator.supportedLanguages,
+    ...oneWay.keys,
+  };
 
   OfflineLanguage _languageOf(String code) {
     for (final language in state.languages) {

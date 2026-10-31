@@ -62,6 +62,15 @@ class _FakeFlutterTts extends Fake implements FlutterTts {
     return _answer(languages);
   }
 
+  /// The `getEngines` answer; an [Exception] is thrown.
+  Object? engines = const <Object?>['org.woheller69.ttsengine'];
+
+  @override
+  Future<dynamic> get getEngines async {
+    calls.add('getEngines');
+    return _answer(engines);
+  }
+
   @override
   Future<dynamic> get getVoices async {
     calls.add('getVoices');
@@ -1012,6 +1021,36 @@ void main() {
         await device.dispose();
         tts.progress!('one', 0, 3, 'one');
         await done.future;
+      });
+    });
+    group('hasEngine', () {
+      test('tells whether Android lists any speech engine', () async {
+        final device = deviceTts();
+
+        expect(await device.hasEngine(), isTrue);
+        tts.engines = const <Object?>[];
+        expect(await device.hasEngine(), isFalse);
+        expect(tts.calls, ['getEngines', 'getEngines']);
+      });
+
+      test('is unknown when the list fails or is not a list', () async {
+        final device = deviceTts();
+
+        tts.engines = Exception('no engine service');
+        expect(await device.hasEngine(), isNull);
+        tts.engines = null;
+        expect(await device.hasEngine(), isNull);
+      });
+
+      test('is unknown off Android, without touching the plugin', () async {
+        for (final device in [
+          deviceTts(platform: TargetPlatform.iOS),
+          deviceTts(isWeb: true),
+          deviceTts(platform: TargetPlatform.linux),
+        ]) {
+          expect(await device.hasEngine(), isNull);
+        }
+        expect(created, 0);
       });
     });
   });

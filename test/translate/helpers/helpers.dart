@@ -41,6 +41,7 @@ class MockSpeechInputService extends Mock implements SpeechInputService;
 class FakeSpeechInput {
   new() {
     when(() => service.isPlatformSupported).thenReturn(true);
+    when(() => service.usesBrowserRecognizer).thenReturn(false);
     when(() => service.state).thenReturn(const SpeechInputIdle());
     when(() => service.states).thenAnswer((_) => states.stream);
     when(() => service.results).thenAnswer((_) => results.stream);

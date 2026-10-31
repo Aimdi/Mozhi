@@ -55,13 +55,25 @@ labels of the moment it failed (<n>-<flow>-failed.png/.xml):
                 downloading Azerbaijani, taps "Cancel downloading
                 Azerbaijani"; the row must go back to Download, with no
                 error.
+  voice         Voice input on a phone without Google (the emulator image
+                has no Google apps, hence usually no speech recognition
+                service): allows the microphone (`pm grant`, as "Allow"
+                would), opens the translate tab and taps Speak. The mic
+                must answer within 30 s: offer the offline speech model
+                with its size ("Download the speech model?", "Download
+                (74.1 MB)"; closed with Not now, nothing is downloaded) or
+                listen (an image with a recogniser); nothing at all, or an
+                error, fails. The emulator runs without audio (-noaudio),
+                so no speech is recognised here: the real transcription is
+                tested in the job "Analyze and test".
 
 For a failed flow it also saves the log of Mozhi's processes and of
 Flutter since the flow started (<n>-<flow>-failed-logcat.txt; the last
 lines go to the output too) and every text of the page, scrolled from top
 to bottom (<n>-<flow>-failed-page.txt, printed too).
 
-  --skip-offline-only, --skip-image, --skip-document, --skip-cancel
+  --skip-offline-only, --skip-image, --skip-document, --skip-cancel,
+  --skip-voice
 
 leave a flow out (to look into a flaky one without hiding the others; CI
 runs them all). They run after the store screenshots, which keep showing
@@ -142,6 +154,7 @@ FLOWS = (
     ("image", "Image translation offline"),
     ("document", "Document translation"),
     ("cancel", "Cancel an offline language download"),
+    ("voice", "Voice input without Google"),
 )
 SHARE_ACTIVITY = f"{PACKAGE}/.ShareReceiverActivity"
 ASSETS = Path(__file__).resolve().parent / "smoke_assets"
@@ -1700,6 +1713,48 @@ def cancelled_row(nodes: list[Node], language: str) -> Node | None:
     if row_button(nodes, row, r"Downloaded|Delete.*|Update"):
         raise StepFailed(f"cancel: {language} finished downloading before Cancel")
     return row
+
+
+# Voice input: the microphone of the translate box (VoiceInputButton's
+# tooltip "Speak"), what it must lead to, and errors it must not show.
+VOICE_MIC = r"Speak"
+VOICE_OFFER = r"Download the speech model\?"
+VOICE_DOWNLOAD = r"Download \([0-9.,]+ [KMG]B\)"
+VOICE_LISTENING = r"Stop listening|Listening…"
+VOICE_ERRORS = (
+    r"(?s).*(Speech recognition isn’t available|Voice input failed|"
+    r"Couldn’t use the microphone|Microphone access is off).*"
+)
+
+
+def flow_voice(device: Device) -> str:
+    """Taps Speak on the translate tab with the microphone allowed; the
+    offline speech model must be offered with its size (no recogniser,
+    no model yet), or the recogniser must listen. See the docstring."""
+    device.adb(
+        "shell", "pm", "grant", PACKAGE, "android.permission.RECORD_AUDIO",
+        check=False,
+    )
+    show_screen(device, "mozhi://translate")
+    answer = any_of(VOICE_OFFER, VOICE_LISTENING, VOICE_ERRORS)
+    found = tap_until(device, "tap Speak", VOICE_MIC, answer, seconds=30)
+    nodes = device.capture("voice-answer")
+    if re.fullmatch(VOICE_ERRORS, found.label.strip(), re.DOTALL):
+        raise StepFailed(f"voice: “{one_line(found.label)}”")
+    if find(nodes, VOICE_OFFER) is not None:
+        download = wait_until(
+            device, lambda nodes: find_clickable(nodes, VOICE_DOWNLOAD), 20
+        )
+        if download is None:
+            raise StepFailed("voice: the model offer names no download size")
+        not_now = find_clickable(device.dump(), r"Not now")
+        if not_now is not None:
+            device.tap(not_now)
+        return f"no recogniser: offered “{one_line(download.label)}”"
+    stop = find_clickable(nodes, VOICE_LISTENING)
+    if stop is not None:
+        device.tap(stop)
+    return f"a recogniser listened (“{one_line(found.label)}”)"
 
 
 @dataclass(frozen=True)

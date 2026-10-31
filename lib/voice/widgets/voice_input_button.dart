@@ -6,7 +6,9 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/voice/speech_input_service.dart';
 import 'package:mozhi/voice/speech_input_state.dart';
+import 'package:mozhi/voice/widgets/browser_speech_notice.dart';
 import 'package:mozhi/voice/widgets/voice_error_message.dart';
+import 'package:mozhi/voice/widgets/voice_model_offer.dart';
 
 /// Receives recognised speech. Partial results ([isFinal] false) contain the
 /// whole utterance so far and are replaced by later ones.
@@ -30,9 +32,16 @@ typedef VoiceInputResultCallback = void Function(
 /// tries again (Android asks for a denied permission again) and explains
 /// what is wrong; after a denied permission is granted in the system
 /// settings it is back to normal when the app resumes. Failures are
-/// explained in a [SnackBar]; when an offline speech model would help, it
-/// offers to open the voice input settings ([settingsLocation]) to
-/// download one (with a [GoRouter] above).
+/// explained in a [SnackBar] ([showVoiceInputErrorSnackBar]). When the
+/// offline speech model would help (a phone without a speech recognition
+/// service, or Whisper without a model) and Whisper runs here (an
+/// `OfflineSpeech` above, [offlineSpeechOf]) it offers the download right
+/// away instead ([offerVoiceModel]: the model, its size, Download) and
+/// starts listening once the model is installed; without one it offers to
+/// open the voice input settings ([settingsLocation], with a [GoRouter]
+/// above). In the web app the first tap says that the browser's speech
+/// recognition may send the audio to the browser's maker
+/// ([confirmBrowserSpeech]).
 ///
 /// With [prominent] it is a large filled accent circle
 /// ([prominentSize] dp) instead of a plain 48 dp icon button, e.g. the main
@@ -127,6 +136,12 @@ class _VoiceInputButtonState extends State<VoiceInputButton> {
 
   bool get _starting => _startingSession != null;
 
+  /// The model offer is open (one at a time).
+  bool _offering = false;
+
+  /// The session started after the offer installed a model is starting.
+  bool _afterOffer = false;
+
   @override
   void initState() {
     super.initState();
@@ -183,7 +198,7 @@ class _VoiceInputButtonState extends State<VoiceInputButton> {
     if (wasActive != active) widget.onListeningChanged?.call(active);
     // Failures to start are explained once `listen` returns (_toggle).
     if (state is SpeechInputError && state.isOwnedBy(this) && !_starting) {
-      _showError(state.failure);
+      unawaited(_showError(state.failure));
     }
   }
 
@@ -206,6 +221,12 @@ class _VoiceInputButtonState extends State<VoiceInputButton> {
       setState(() => _startingSession = null);
       await _service.cancel();
       return;
+    }
+    if (_service.usesBrowserRecognizer) {
+      final starts = _starts;
+      if (!await confirmBrowserSpeech(context, _service)) return;
+      // Gone, or another tap started a session meanwhile.
+      if (!mounted || starts != _starts) return;
     }
     final session = ++_starts;
     setState(() => _startingSession = session);
@@ -233,15 +254,48 @@ class _VoiceInputButtonState extends State<VoiceInputButton> {
         error.failure,
       _ => null,
     };
-    if (failure != null) _showError(failure);
+    if (failure != null) await _showError(failure);
   }
 
-  void _showError(SpeechInputFailure failure) => showVoiceInputErrorSnackBar(
-    context,
-    failure,
-    onDevice: widget.preferOnDevice ?? _service.preferOnDevice.value,
-    offlineSupported: _service.isOfflineSupported,
-  );
+  /// Explains [failure]; offers the offline speech model where it helps
+  /// and listens once it is installed.
+  Future<void> _showError(SpeechInputFailure failure) async {
+    final offline = offlineSpeechOf(context);
+    // Once per tap: a model the offer saw installed that still does not
+    // work is explained instead of offered again.
+    if (_offering ||
+        _afterOffer ||
+        !canOfferVoiceModel(failure, service: _service, offline: offline)) {
+      showVoiceInputErrorSnackBar(
+        context,
+        failure,
+        onDevice: widget.preferOnDevice ?? _service.preferOnDevice.value,
+        offlineSupported: _service.isOfflineSupported,
+      );
+      return;
+    }
+    _offering = true;
+    final bool installed;
+    try {
+      installed = await offerVoiceModel(
+        context,
+        service: _service,
+        offline: offline!,
+        failure: failure,
+      );
+    } finally {
+      _offering = false;
+    }
+    if (!installed || !mounted) return;
+    if (_listening || _transcribing || _starting) return;
+    // The user tapped the microphone to speak: now they can.
+    _afterOffer = true;
+    try {
+      await _toggle();
+    } finally {
+      _afterOffer = false;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
