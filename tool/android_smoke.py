@@ -850,6 +850,7 @@ def translate(device: Device) -> str:
     route = "as typed"
     taken: set[str] = set()
     deadline = time.monotonic() + 240
+    idle = 0
     while time.monotonic() < deadline:
         nodes = device.dump()
         if translated(nodes):
@@ -865,6 +866,15 @@ def translate(device: Device) -> str:
                 device.capture("offer")
                 break
         else:
+            # On a small screen the result (or what it offers) can be below
+            # the composer, as in the Terminal look: look further down, and
+            # back at the top now and then.
+            idle += 1
+            if idle % 6 == 0:
+                device.swipe(up=False)
+                device.swipe(up=False)
+            elif idle % 2 == 0:
+                device.swipe(up=True)
             time.sleep(3)
     device.capture("not-translated")
     return ""
@@ -1419,6 +1429,7 @@ def flow_offline_only(device: Device) -> str:
                 Offer(r"Translate", "press Translate", after=20),
             ),
             poll=watch,
+            scroll=True,
         )
         time.sleep(3)
         watch()
