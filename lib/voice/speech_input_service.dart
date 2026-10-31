@@ -111,6 +111,12 @@ enum VoiceInputEngine {
 /// wait for the permission prompt, so it only gives up after
 /// [initializeTimeout] (reported as [SpeechInputFailure.unknown]).
 ///
+/// In the web app ([usesBrowserRecognizer]) the platform recogniser is the
+/// browser's, which most browsers run on their maker's servers (Chrome:
+/// Google's): [needsBrowserNotice] says whether the user still has to be
+/// told so before the first session ([acceptBrowserNotice], stored under
+/// [browserNoticeKey]).
+///
 /// `timer` creates the timer of [listen]'s `pause` (default [Timer.new]);
 /// tests pass fake ones.
 class SpeechInputService {
@@ -121,6 +127,7 @@ class SpeechInputService {
     this._privacyMode,
     bool? platformSupported,
     bool? onDeviceSupported,
+    bool isWeb = kIsWeb,
     this.queryTimeout = defaultQueryTimeout,
     this.initializeTimeout = defaultInitializeTimeout,
     Timer Function(Duration duration, void Function() callback)? timer,
@@ -133,7 +140,9 @@ class SpeechInputService {
            platformSupported ?? isSpeechInputPlatformSupported(),
        isOnDeviceSupported =
            (platformSupported ?? isSpeechInputPlatformSupported()) &&
-           (onDeviceSupported ?? isOnDeviceSpeechSupported()) {
+           (onDeviceSupported ?? isOnDeviceSpeechSupported()),
+       usesBrowserRecognizer =
+           isWeb && (platformSupported ?? isSpeechInputPlatformSupported()) {
     _current = _system;
     _state = isPlatformSupported
         ? const SpeechInputIdle()
@@ -145,6 +154,10 @@ class SpeechInputService {
 
   /// [KeyValueStore] key of the [engine] ([VoiceInputEngine.key]).
   static const engineKey = 'voice.engine';
+
+  /// [KeyValueStore] key of the browser notice (`'true'` once accepted,
+  /// see [needsBrowserNotice]).
+  static const browserNoticeKey = 'voice.browserNoticeAccepted';
 
   /// Default of [queryTimeout].
   static const defaultQueryTimeout = Duration(seconds: 3);
@@ -169,6 +182,13 @@ class SpeechInputService {
 
   /// Whether the on-device preference has any effect on this platform.
   final bool isOnDeviceSupported;
+
+  /// Whether the platform recogniser is the browser's (the web app).
+  final bool usesBrowserRecognizer;
+
+  /// The browser notice was accepted in this run (also when the store
+  /// could not keep it).
+  bool _browserNoticeAccepted = false;
 
   final StreamController<SpeechInputState> _states =
       StreamController.broadcast();
@@ -249,13 +269,42 @@ class SpeechInputService {
 
   /// Forgets the loaded preferences ("Delete all local data" removed the
   /// stored ones): [preferOnDevice] and [engine] are back to the defaults
-  /// until [loadSettings] reads the store again.
+  /// until [loadSettings] reads the store again, and the browser notice is
+  /// shown again.
   void forgetSettings() {
     _settingsLoading = null;
+    _browserNoticeAccepted = false;
     if (_disposed) return;
     _preferOnDevice.value = false;
     _engine.value = VoiceInputEngine.system;
     unawaited(offlineModelsChanged());
+  }
+
+  /// Whether voice input must first tell the user that the browser's
+  /// speech recognition may send the audio to the browser's maker (the
+  /// web app, until [acceptBrowserNotice]). False in Offline only, where
+  /// the browser's recogniser is never used.
+  Future<bool> needsBrowserNotice() async {
+    if (!usesBrowserRecognizer || _disposed || _browserNoticeAccepted) {
+      return false;
+    }
+    if (_privacyMode?.call() == PrivacyMode.offlineOnly) return false;
+    try {
+      return await _store.read(browserNoticeKey) != 'true';
+    } on Object {
+      return true;
+    }
+  }
+
+  /// The user read the browser notice and wants to go on: it is not shown
+  /// again (kept for this run when the store fails).
+  Future<void> acceptBrowserNotice() async {
+    _browserNoticeAccepted = true;
+    try {
+      await _store.write(browserNoticeKey, 'true');
+    } on Object {
+      // Shown again after a restart; nothing else depends on it.
+    }
   }
 
   /// Persists the on-device preference.

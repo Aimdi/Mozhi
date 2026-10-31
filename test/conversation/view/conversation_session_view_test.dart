@@ -6,12 +6,16 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/conversation/conversation.dart';
 import 'package:mozhi/conversation/widgets/widgets.dart';
+import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/widgets/status_announcer.dart';
+import 'package:mozhi/voice/speech_input_service.dart';
 import 'package:mozhi/voice/speech_input_state.dart';
+import 'package:mozhi/voice/widgets/browser_speech_notice.dart';
 import 'package:translation_repository/translation_repository.dart';
 
+import '../../voice/helpers/fake_speech_recognizer.dart';
 import '../helpers.dart';
 
 Widget _fakeMic(BuildContext context, ConversationMicRequest request) =>
@@ -219,6 +223,36 @@ void main() {
       recognizer.partial('Good mor');
       await pumpFor(tester);
       expect(statusText(tester), 'Good mor');
+    });
+
+    testWidgets('the web app first says where the audio goes', (tester) async {
+      final store = MemoryStore();
+      final service = SpeechInputService(
+        store: store,
+        adapter: FakeSpeechRecognizer(),
+        platformSupported: true,
+        isWeb: true,
+      );
+      addTearDown(service.dispose);
+      await pumpPage(
+        tester,
+        wrap: (page) => RepositoryProvider<SpeechInputService>.value(
+          value: service,
+          child: page,
+        ),
+      );
+      await tapMic(tester);
+      expect(find.byType(BrowserSpeechNoticeDialog), findsOneWidget);
+      expect(recognizer.listens, isEmpty);
+      await tester.tap(find.text('Cancel'));
+      await pumpFor(tester);
+      expect(recognizer.listens, isEmpty);
+
+      await tapMic(tester);
+      await tester.tap(find.byKey(BrowserSpeechNoticeDialog.continueKey));
+      await pumpFor(tester);
+      expect(recognizer.listens, hasLength(1));
+      expect(store.values[SpeechInputService.browserNoticeKey], 'true');
     });
 
     testWidgets('screen readers start it with a tap action', (tester) async {

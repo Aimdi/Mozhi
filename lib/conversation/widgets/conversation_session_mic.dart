@@ -7,6 +7,8 @@ import 'package:mozhi/conversation/models/conversation_turn.dart';
 import 'package:mozhi/conversation/widgets/conversation_session_status.dart';
 import 'package:mozhi/conversation/widgets/side_colors.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/voice/speech_input_service.dart';
+import 'package:mozhi/voice/widgets/browser_speech_notice.dart';
 
 /// The large round microphone of a hands-free conversation
 /// ([ConversationCubit.toggleSession]): starts it, stops it while it runs
@@ -18,6 +20,10 @@ import 'package:mozhi/l10n/l10n.dart';
 /// translates a thin progress ring turns around it; while the translation
 /// is read aloud it shows a speaker. A paused or failed conversation shows
 /// a quieter tonal circle.
+///
+/// In the web app, starting a conversation first says that the browser's
+/// speech recognition may send the audio to the browser's maker
+/// ([confirmBrowserSpeech], once).
 ///
 /// Its semantics say what a tap does ("Start conversation", "Stop
 /// conversation", "Continue conversation") and, while active, the status
@@ -86,8 +92,7 @@ class ConversationSessionMic extends StatelessWidget {
         label: label,
         value: status,
         excludeSemantics: true,
-        onTap: () =>
-            unawaited(context.read<ConversationCubit>().toggleSession()),
+        onTap: () => unawaited(_toggle(context)),
         child: SizedBox.square(
           dimension: size + 16,
           child: Stack(
@@ -120,15 +125,35 @@ class ConversationSessionMic extends StatelessWidget {
                       : scheme.onPrimary,
                 ),
                 icon: Icon(icon),
-                onPressed: () => unawaited(
-                  context.read<ConversationCubit>().toggleSession(),
-                ),
+                onPressed: () => unawaited(_toggle(context)),
               ),
             ],
           ),
         ),
       ),
     );
+  }
+}
+
+/// Starts, stops or continues the conversation; a start in the web app
+/// waits for the browser notice ([confirmBrowserSpeech]).
+Future<void> _toggle(BuildContext context) async {
+  final cubit = context.read<ConversationCubit>();
+  if (!cubit.state.session.isActive) {
+    if (_speechInputOf(context) case final service?
+        when !await confirmBrowserSpeech(context, service)) {
+      return;
+    }
+    if (cubit.isClosed) return;
+  }
+  await cubit.toggleSession();
+}
+
+SpeechInputService? _speechInputOf(BuildContext context) {
+  try {
+    return context.read<SpeechInputService>();
+  } on ProviderNotFoundException {
+    return null;
   }
 }
 

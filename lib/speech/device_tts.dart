@@ -75,6 +75,18 @@ abstract interface class DeviceTts {
   Future<void> dispose();
 }
 
+/// A [DeviceTts] that can tell whether the device has a speech engine
+/// installed at all: many Android phones without Google services ship none
+/// (no "Speech Services by Google"), so no language has a voice until the
+/// user installs one, such as SherpaTTS or RHVoice.
+abstract interface class DeviceTtsEngines {
+  /// False when the platform reports no speech engine (an Android phone
+  /// without any text-to-speech app), true when it has one, null when it
+  /// cannot tell (other platforms, or the engine list failed). Never
+  /// throws.
+  Future<bool?> hasEngine();
+}
+
 /// [DeviceTts] backed by `flutter_tts` (Android TextToSpeech, iOS/macOS
 /// AVSpeechSynthesizer, Windows SAPI/WinRT, web `speechSynthesis`).
 ///
@@ -119,7 +131,8 @@ abstract interface class DeviceTts {
 ///   reports the whole text once). Reports for another text than the
 ///   latest [speak]'s, or while nothing is being spoken, are dropped;
 ///   the rest are cleaned with [cleanSpokenRange].
-class FlutterTtsDeviceTts implements DeviceTts, DeviceTtsProgress {
+class FlutterTtsDeviceTts
+    implements DeviceTts, DeviceTtsProgress, DeviceTtsEngines {
   new({
     FlutterTts Function()? createTts,
     TargetPlatform? platform,
@@ -236,6 +249,20 @@ class FlutterTtsDeviceTts implements DeviceTts, DeviceTtsProgress {
     if (!_speaking || _stopped > 0 || text != _utterance) return;
     final range = cleanSpokenRange(text, start, end);
     if (range != null && !_progress.isClosed) _progress.add(range);
+  }
+
+  /// On Android, whether `TextToSpeech.getEngines` lists any engine (the
+  /// manifest declares the `TTS_SERVICE` query that this needs on Android
+  /// 11+); null elsewhere.
+  @override
+  Future<bool?> hasEngine() async {
+    if (!_isAndroid) return null;
+    try {
+      final engines = await _engine.getEngines;
+      return engines is List ? engines.isNotEmpty : null;
+    } on Object {
+      return null;
+    }
   }
 
   @override

@@ -26,7 +26,11 @@ OfflineModelDetails? offlineModelDetailsOf(OfflineTranslator translator) =>
 /// [BergamotModelManager.importFiles] with the translator's catalog.
 /// Downloads come from the [ModelSource] in use when they start
 /// (`modelSource`, default [ModelSource.current]: the settings').
-class BergamotModelDetails implements OfflineModelDetails, OfflineModelImport {
+class BergamotModelDetails
+    implements
+        OfflineModelDetails,
+        OfflineModelImport,
+        OfflineLanguageDirections {
   new(this.translator, {ModelSource Function()? modelSource})
     : _modelSource = modelSource ?? _currentSource;
 
@@ -37,6 +41,25 @@ class BergamotModelDetails implements OfflineModelDetails, OfflineModelImport {
 
   @override
   int downloadSize(String code) => translator.downloadSize(code);
+
+  /// [BergamotTranslator.targetLanguages] and
+  /// [BergamotTranslator.sourceLanguages] that are not
+  /// [BergamotTranslator.supportedLanguages] (models in one direction
+  /// only, e.g. English to Azerbaijani).
+  @override
+  Map<String, OfflineLanguageDirection> get oneWayLanguages {
+    final both = translator.supportedLanguages;
+    final into = translator.targetLanguages;
+    final from = translator.sourceLanguages;
+    return {
+      for (final code in into)
+        if (!both.contains(code) && !from.contains(code))
+          code: OfflineLanguageDirection.intoOnly,
+      for (final code in from)
+        if (!both.contains(code) && !into.contains(code))
+          code: OfflineLanguageDirection.fromOnly,
+    };
+  }
 
   @override
   Future<OfflineStorage> storage(Iterable<String> codes) async {

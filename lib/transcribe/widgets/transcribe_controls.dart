@@ -5,12 +5,36 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/transcribe/cubit/transcribe_cubit.dart';
+import 'package:mozhi/voice/speech_input_service.dart';
+import 'package:mozhi/voice/widgets/browser_speech_notice.dart';
 
 /// The bottom of Transcribe: the status ("Listening…", phrases being
 /// transcribed, ...), a large microphone that starts, pauses and resumes,
 /// and Stop.
 class TranscribeControls extends StatelessWidget {
   const new({super.key});
+
+  /// Starts (or resumes) transcribing; with the browser's speech
+  /// recognition, only once the user has accepted its notice
+  /// ([confirmBrowserSpeech]), as for dictation.
+  static Future<void> _start(
+    BuildContext context,
+    TranscribeCubit cubit,
+    TranscribeMode mode,
+  ) async {
+    if (mode == TranscribeMode.system) {
+      SpeechInputService? service;
+      try {
+        service = context.read<SpeechInputService>();
+      } on ProviderNotFoundException {
+        service = null;
+      }
+      if (service != null && !await confirmBrowserSpeech(context, service)) {
+        return;
+      }
+    }
+    await cubit.start();
+  }
 
   /// Diameter of the microphone button.
   static const double micSize = 72;
@@ -104,7 +128,9 @@ class TranscribeControls extends StatelessWidget {
                         icon: const Icon(Icons.mic),
                         selectedIcon: const Icon(Icons.pause),
                         onPressed: () => unawaited(
-                          recording ? cubit.pause() : cubit.start(),
+                          recording
+                              ? cubit.pause()
+                              : _start(context, cubit, state.mode),
                         ),
                       ),
                     ],

@@ -118,6 +118,18 @@ void main() {
       );
     });
 
+    test('maps a missing camera app', () async {
+      stubPick(
+        () async => throw PlatformException(code: 'no_available_camera'),
+      );
+      await expectLater(
+        service.pick(ImagePickSource.camera),
+        throwsA(
+          const ImageTranslateException(ImageTranslateErrorKind.noCameraApp),
+        ),
+      );
+    });
+
     test('maps other platform errors', () async {
       stubPick(() async => throw PlatformException(code: 'invalid_image'));
       await expectLater(

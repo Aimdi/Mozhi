@@ -13964,5 +13964,103 @@
         "type": "String"
       }
     }
+  },
+  "speechNoEngine": "This phone has no text-to-speech app, so it can’t read aloud on its own. Install one, such as SherpaTTS (free, works offline), and choose it in the phone’s text-to-speech settings.",
+  "@speechNoEngine": {
+    "description": "speechNoEngine"
+  },
+  "speechGetEngine": "Get SherpaTTS",
+  "@speechGetEngine": {
+    "description": "speechGetEngine"
+  },
+  "commonOpenAppSettings": "Open settings",
+  "@commonOpenAppSettings": {
+    "description": "commonOpenAppSettings"
+  },
+  "imageTranslateErrorNoCameraApp": "No camera app was found on this phone. Use the live camera, or choose a photo instead.",
+  "@imageTranslateErrorNoCameraApp": {
+    "description": "imageTranslateErrorNoCameraApp"
+  },
+  "voiceOfferTitle": "Download the speech model?",
+  "@voiceOfferTitle": {
+    "description": "voiceOfferTitle"
+  },
+  "voiceOfferBodyNoRecognizer": "This device has no speech recognition service. Mozhi can turn your speech into text on the device itself with Whisper, after a one-time download of the {model} speech model ({size}, from Hugging Face). Your voice never leaves the device.",
+  "@voiceOfferBodyNoRecognizer": {
+    "placeholders": {
+      "model": {
+        "type": "String"
+      },
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "voiceOfferBody": "Voice input uses Whisper on this device. It needs the {model} speech model, a one-time download ({size}, from Hugging Face). Your voice never leaves the device.",
+  "@voiceOfferBody": {
+    "placeholders": {
+      "model": {
+        "type": "String"
+      },
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "voiceOfferDownload": "Download ({size})",
+  "@voiceOfferDownload": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "voiceOfferOtherModels": "Other models",
+  "@voiceOfferOtherModels": {
+    "description": "voiceOfferOtherModels"
+  },
+  "voiceOfferNotNow": "Not now",
+  "@voiceOfferNotNow": {
+    "description": "voiceOfferNotNow"
+  },
+  "voiceOfferBackground": "Continue in background",
+  "@voiceOfferBackground": {
+    "description": "voiceOfferBackground"
+  },
+  "voiceOfferWifiNote": "Downloads only over Wi-Fi unless you allow mobile data.",
+  "@voiceOfferWifiNote": {
+    "description": "voiceOfferWifiNote"
+  },
+  "voiceBrowserNoticeTitle": "Speech recognition in your browser",
+  "@voiceBrowserNoticeTitle": {
+    "description": "voiceBrowserNoticeTitle"
+  },
+  "voiceBrowserNoticeBody": "Voice input in the web app uses your browser’s speech recognition. Most browsers send the audio to their maker to turn it into text (Chrome to Google). Mozhi itself never receives or stores it. For voice input that stays on your device, use Offline (Whisper) in the Android app.",
+  "@voiceBrowserNoticeBody": {
+    "description": "voiceBrowserNoticeBody"
+  },
+  "voiceBrowserNoticeContinue": "Use speech recognition",
+  "@voiceBrowserNoticeContinue": {
+    "description": "voiceBrowserNoticeContinue"
+  },
+  "voiceErrorUnavailableBrowser": "This browser has no speech recognition. Try Chrome, Edge or Safari, or type instead.",
+  "@voiceErrorUnavailableBrowser": {
+    "description": "voiceErrorUnavailableBrowser"
+  },
+  "offlineDirectionIntoOnly": "Into {language} only",
+  "@offlineDirectionIntoOnly": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "offlineDirectionFromOnly": "From {language} only",
+  "@offlineDirectionFromOnly": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
   }
 }

@@ -7,6 +7,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/platform/system_app_settings.dart';
 import 'package:mozhi/voice/voice.dart';
 
 import '../../helpers/helpers.dart';
@@ -139,8 +140,40 @@ void main() {
 
       expectOff(tester);
       expect(find.text(l10n.voiceErrorPermission), findsOneWidget);
+      // Off Android there are no app settings to open.
       expect(find.byType(SnackBarAction), findsNothing);
       expect(received, isEmpty);
+    });
+
+    testWidgets("on Android it offers to open the app's settings", (
+      tester,
+    ) async {
+      final previous = SystemAppSettings.opener;
+      var opened = 0;
+      SystemAppSettings.debugIsSupported = true;
+      SystemAppSettings.opener = () async {
+        opened++;
+        return true;
+      };
+      addTearDown(() {
+        SystemAppSettings.debugIsSupported = null;
+        SystemAppSettings.opener = previous;
+      });
+      recognizer
+        ..initResult = false
+        ..permission = false;
+      await pump(tester, button());
+      await tapMic(tester);
+      await tester.pump(const Duration(seconds: 1));
+      // Android asks no more after "Don't ask again": the app's settings
+      // are one tap away.
+      expect(
+        find.widgetWithText(SnackBarAction, l10n.commonOpenAppSettings),
+        findsOneWidget,
+      );
+      await tester.tap(find.byKey(voiceOpenSettingsActionKey));
+      await tester.pump();
+      expect(opened, 1);
     });
 
     testWidgets('tapping the off mic tries again and explains again', (

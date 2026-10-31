@@ -55,13 +55,25 @@ labels of the moment it failed (<n>-<flow>-failed.png/.xml):
                 downloading Greek, taps "Cancel downloading Greek"; the
                 row must go back to Download, with no
                 error.
+  voice         Voice input on a phone without Google (the emulator image
+                has no Google apps, hence usually no speech recognition
+                service): allows the microphone (`pm grant`, as "Allow"
+                would), opens the translate tab and taps Speak. The mic
+                must answer within 30 s: offer the offline speech model
+                with its size ("Download the speech model?", "Download
+                (74.1 MB)"; closed with Not now, nothing is downloaded) or
+                listen (an image with a recogniser); nothing at all, or an
+                error, fails. The emulator runs without audio (-noaudio),
+                so no speech is recognised here: the real transcription is
+                tested in the job "Analyze and test".
 
 For a failed flow it also saves the log of Mozhi's processes and of
 Flutter since the flow started (<n>-<flow>-failed-logcat.txt; the last
 lines go to the output too) and every text of the page, scrolled from top
 to bottom (<n>-<flow>-failed-page.txt, printed too).
 
-  --skip-offline-only, --skip-image, --skip-document, --skip-cancel
+  --skip-offline-only, --skip-image, --skip-document, --skip-cancel,
+  --skip-voice
 
 leave a flow out (to look into a flaky one without hiding the others; CI
 runs them all). They run after the store screenshots, which keep showing
@@ -142,6 +154,7 @@ FLOWS = (
     ("image", "Image translation offline"),
     ("document", "Document translation"),
     ("cancel", "Cancel an offline language download"),
+    ("voice", "Voice input without Google"),
 )
 SHARE_ACTIVITY = f"{PACKAGE}/.ShareReceiverActivity"
 ASSETS = Path(__file__).resolve().parent / "smoke_assets"
@@ -931,9 +944,21 @@ def show_screen(device: Device, link: str) -> None:
     tip = find(device.dump(), STORE_DISMISS)
     if tip is not None:
         device.tap(tip)
-    if keyboard_shown(device.adb("shell", "dumpsys", "input_method", check=False)):
-        device.adb("shell", "input", "keyevent", "4")
-        time.sleep(1)
+    if hide_keyboard(device) and not in_front(device):
+        # Back closed Mozhi after all: open the screen again.
+        device.note(f"{link}: Back closed Mozhi, opening it again")
+        device.adb(
+            "shell", "am", "start", "-W", "-n", ACTIVITY,
+            "-a", "android.intent.action.VIEW", "-d", link,
+        )
+        time.sleep(3)
+
+
+def in_front(device: Device) -> bool:
+    """Whether a window of Mozhi has the focus (`dumpsys window`)."""
+    out = device.adb("shell", "dumpsys", "window", "windows", check=False)
+    focus = re.search(r"mCurrentFocus=.*", out)
+    return focus is None or PACKAGE in focus.group(0)
 
 
 def store_screenshots(device: Device, folder: Path) -> list[str]:
@@ -1244,10 +1269,19 @@ def save_page_text(device: Device, name: str) -> None:
         print(f"  {line}", flush=True)
 
 
-def hide_keyboard(device: Device) -> None:
-    if keyboard_shown(device.adb("shell", "dumpsys", "input_method", check=False)):
-        device.adb("shell", "input", "keyevent", "4", check=False)
-        time.sleep(1)
+def hide_keyboard(device: Device) -> bool:
+    """Closes the keyboard with Back; returns whether Back was pressed.
+    `dumpsys input_method` can still report the keyboard of a field on a
+    page that is gone, and Back on the first page closes Mozhi: so Back is
+    only pressed while a text field on screen has the focus."""
+    if not keyboard_shown(device.adb("shell", "dumpsys", "input_method", check=False)):
+        return False
+    if not any(n.focused and n.cls.endswith("EditText") for n in device.dump()):
+        device.note("keyboard: reported as shown, but no text field has the focus")
+        return False
+    device.adb("shell", "input", "keyevent", "4", check=False)
+    time.sleep(1)
+    return True
 
 
 def open_settings_page(
@@ -1762,6 +1796,48 @@ def cancelled_row(nodes: list[Node], language: str) -> Node | None:
     if row_button(nodes, row, r"Downloaded|Delete.*|Update"):
         raise StepFailed(f"cancel: {language} finished downloading before Cancel")
     return row
+
+
+# Voice input: the microphone of the translate box (VoiceInputButton's
+# tooltip "Speak"), what it must lead to, and errors it must not show.
+VOICE_MIC = r"Speak"
+VOICE_OFFER = r"Download the speech model\?"
+VOICE_DOWNLOAD = r"Download \([0-9.,]+ [KMG]B\)"
+VOICE_LISTENING = r"Stop listening|Listening…"
+VOICE_ERRORS = (
+    r"(?s).*(Speech recognition isn’t available|Voice input failed|"
+    r"Couldn’t use the microphone|Microphone access is off).*"
+)
+
+
+def flow_voice(device: Device) -> str:
+    """Taps Speak on the translate tab with the microphone allowed; the
+    offline speech model must be offered with its size (no recogniser,
+    no model yet), or the recogniser must listen. See the docstring."""
+    device.adb(
+        "shell", "pm", "grant", PACKAGE, "android.permission.RECORD_AUDIO",
+        check=False,
+    )
+    show_screen(device, "mozhi://translate")
+    answer = any_of(VOICE_OFFER, VOICE_LISTENING, VOICE_ERRORS)
+    found = tap_until(device, "tap Speak", VOICE_MIC, answer, seconds=30)
+    nodes = device.capture("voice-answer")
+    if re.fullmatch(VOICE_ERRORS, found.label.strip(), re.DOTALL):
+        raise StepFailed(f"voice: “{one_line(found.label)}”")
+    if find(nodes, VOICE_OFFER) is not None:
+        download = wait_until(
+            device, lambda nodes: find_clickable(nodes, VOICE_DOWNLOAD), 20
+        )
+        if download is None:
+            raise StepFailed("voice: the model offer names no download size")
+        not_now = find_clickable(device.dump(), r"Not now")
+        if not_now is not None:
+            device.tap(not_now)
+        return f"no recogniser: offered “{one_line(download.label)}”"
+    stop = find_clickable(nodes, VOICE_LISTENING)
+    if stop is not None:
+        device.tap(stop)
+    return f"a recogniser listened (“{one_line(found.label)}”)"
 
 
 @dataclass(frozen=True)

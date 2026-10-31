@@ -11,6 +11,8 @@ import 'package:mozhi/core/widgets/language_pair_bar.dart';
 import 'package:mozhi/core/widgets/tab_hero.dart';
 import 'package:mozhi/image_translate/image_translate.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/live_camera/live_camera_entry.dart';
+import 'package:mozhi/platform/system_app_settings.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
@@ -222,6 +224,79 @@ void main() {
       await tester.tap(find.byKey(const Key('image_translate_camera_button')));
       await tester.pump();
       expect(find.textContaining('Access to the camera'), findsOneWidget);
+    });
+
+    testWidgets("a refused camera offers Android's settings", (tester) async {
+      var opened = 0;
+      SystemAppSettings.debugIsSupported = true;
+      final previous = SystemAppSettings.opener;
+      SystemAppSettings.opener = () async {
+        opened++;
+        return true;
+      };
+      addTearDown(() {
+        SystemAppSettings.debugIsSupported = null;
+        SystemAppSettings.opener = previous;
+      });
+      harness.picker.error = const ImageTranslateException(
+        ImageTranslateErrorKind.permissionDenied,
+      );
+      await harness.pumpPage(tester);
+      await tester.tap(find.byKey(const Key('image_translate_camera_button')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 750));
+
+      await tester.tap(find.byKey(const Key('image_translate_open_settings')));
+      await tester.pump();
+      expect(opened, 1);
+    });
+
+    testWidgets('no settings button off Android', (tester) async {
+      SystemAppSettings.debugIsSupported = false;
+      addTearDown(() => SystemAppSettings.debugIsSupported = null);
+      harness.picker.error = const ImageTranslateException(
+        ImageTranslateErrorKind.permissionDenied,
+      );
+      await harness.pumpPage(tester);
+      await tester.tap(find.byKey(const Key('image_translate_camera_button')));
+      await tester.pump();
+
+      expect(find.textContaining('Access to the camera'), findsOneWidget);
+      expect(find.byType(SnackBarAction), findsNothing);
+    });
+
+    testWidgets('without a camera app it offers the live camera', (
+      tester,
+    ) async {
+      debugLiveCameraOffered = true;
+      addTearDown(() => debugLiveCameraOffered = null);
+      harness.picker.error = const ImageTranslateException(
+        ImageTranslateErrorKind.noCameraApp,
+      );
+      await harness.pumpPage(tester);
+      await tester.tap(find.byKey(const Key('image_translate_camera_button')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 750));
+
+      expect(find.textContaining('No camera app was found'), findsOneWidget);
+      expect(
+        find.byKey(const Key('image_translate_use_live_camera')),
+        findsOneWidget,
+      );
+      when(
+        () =>
+            harness.router.push<PickedImage>(any(), extra: any(named: 'extra')),
+      ).thenAnswer((_) async => null);
+      await tester.tap(
+        find.byKey(const Key('image_translate_use_live_camera')),
+      );
+      await tester.pump();
+      verify(
+        () => harness.router.push<PickedImage>(
+          LiveCameraRoutes.location,
+          extra: LiveCameraLaunch.open,
+        ),
+      ).called(1);
     });
 
     testWidgets('shows progress and can be cancelled', (tester) async {

@@ -150,6 +150,34 @@ void main() {
         expect(cubit.state, before);
       });
 
+      test('pickFile says when the file is too large to open', () async {
+        files.pickError = const DocumentFileTooLargeException('big.docx');
+        final cubit = build();
+        addTearDown(cubit.close);
+        await cubit.pickFile();
+        expect(cubit.state.error, DocumentError.tooLarge);
+        expect(cubit.state.fileName, 'big.docx');
+        expect(cubit.state.format, DocumentFormat.docx);
+        expect(cubit.state.mode, DocumentInputMode.file);
+      });
+
+      test('a huge file of no known format is unsupported', () async {
+        files.pickError = const DocumentFileTooLargeException('holiday.mp4');
+        final cubit = build();
+        addTearDown(cubit.close);
+        await cubit.pickFile();
+        expect(cubit.state.error, DocumentError.unsupportedFormat);
+        expect(cubit.state.fileName, 'holiday.mp4');
+      });
+
+      test('DocumentFileTooLargeException names the file', () {
+        expect(
+          const DocumentFileTooLargeException('big.pdf').toString(),
+          'DocumentFileTooLargeException(big.pdf)',
+        );
+        expect(maxPickedDocumentBytes, 25 * 1024 * 1024);
+      });
+
       test('pickFile reports picker errors', () async {
         files.pickError = Exception('denied');
         final cubit = build();

@@ -897,7 +897,10 @@ no Google code); the web app doesn't offer it.
   OpenAI's Whisper model (Fast, 75 MB, or Better, 142 MB, downloaded from
   Hugging Face or imported from a file) recognises 99 languages on the
   phone, so your voice never leaves it. **Offline only** always uses Whisper (see
-  [Voice input](voice-input.md)). A small speech detector (Silero VAD,
+  [Voice input](voice-input.md)). On a phone without a speech recognition
+  service (most phones without Google), Whisper is used by itself: the first
+  tap on the microphone offers the Fast model (74.1 MB) right there and
+  starts listening once it is in. A small speech detector (Silero VAD,
   0.9 MB, downloaded with the model) tells speech from noise, so Whisper
   writes each phrase down as soon as you pause, while you go on speaking,
   and a recording may last a minute.

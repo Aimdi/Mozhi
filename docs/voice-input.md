@@ -24,6 +24,30 @@ request: where the phone has no on-device recognizer, Android may still use
 the online one. That is why **Offline only** never uses it (see
 [below](#privacy-modes)).
 
+In the web app, the first dictation (and the first hands-free
+conversation) first says so: **Speech recognition in your browser**
+explains that most browsers send the audio to their maker to turn it into
+text (Chrome to Google) and that Mozhi itself never receives or stores
+it; **Use speech recognition** goes on (and is remembered), **Cancel**
+doesn't listen. A browser without speech recognition (Firefox) says so
+when you tap the mic.
+
+### A phone without Google
+
+Many phones without Google apps have no speech recognition service at
+all. Voice input then uses Whisper by itself, whatever **Speech
+recognition** is set to, once a model is installed. Before that, tapping
+the microphone offers it right there: **Download the speech model?**
+names the model (Fast, the quickest one the phone has the memory for), its
+size (74.1 MB, plus 0.9 MB for the speech detector the first time) and
+where it comes from (Hugging Face). **Download** downloads it with
+progress, under the same **Download over Wi-Fi only** rule as offline
+languages (on mobile data it asks first), and starts listening as soon as
+it is in; **Other models** opens the voice input settings to choose
+another or import one; **Continue in background** closes the dialog while
+the download goes on. The same offer appears when **Offline (Whisper)** is
+chosen, or **Offline only** is on, without a model.
+
 ## Offline (Whisper)
 
 Whisper recognises speech on the phone, phrase by phrase:
@@ -34,8 +58,9 @@ Whisper recognises speech on the phone, phrase by phrase:
    field.
 3. Tap again to stop, or just stop talking: recording ends after 3 seconds
    of silence (in a hands-free conversation after the turn's pause, 0.8 s
-   by default, see [Voice](features.md#voice)), and after a minute at
-   most. Only the last phrase is left to
+   by default, see [Voice](features.md#voice)), after 8 seconds when
+   nobody speaks at all ("Didn't catch that"; nothing is transcribed), and
+   after a minute at most. Only the last phrase is left to
    transcribe then (a "Transcribing…" ring shows meanwhile); tapping the
    microphone while it transcribes cancels.
 4. The text is added to the source field (or sent, in conversation mode).
@@ -222,11 +247,16 @@ on.
   you chose (German as `de-DE`). Tap the mic again to cancel.
 - **The mic is crossed out:** voice input can't be used right now. Tap it
   to see why: the microphone permission was denied (tap again to be asked
-  once more, or allow it in Android's app settings), or the phone has no
-  speech recognition service (common without Google apps). Then use
-  **Download model** to get the offline Whisper model
-  (**Settings > Read aloud & voice > Voice input**); it works on every
+  once more; after "Don't ask again" Android doesn't ask any more, so
+  **Open settings** takes you to Mozhi's page in Android's settings, where
+  **Permissions > Microphone** allows it; back in Mozhi the mic works
+  again), or the phone has no speech recognition service (common without
+  Google apps). Then the mic offers the offline Whisper model (see
+  [A phone without Google](#a-phone-without-google)); it works on every
   supported phone.
+- **"Didn't catch that":** nothing was heard. With Whisper, check that the
+  microphone isn't muted (Android 12 and later have a **Microphone access**
+  switch in the quick settings that makes every app hear silence).
 
 ## For contributors
 
@@ -267,6 +297,22 @@ pauses (with 200 ms of padding, dropping blips under 160 ms, at most 25 s
 each) and each phrase is transcribed as soon as it is cut; the text so far
 arrives as partial results. Transcribe (`lib/transcribe/`) uses the same
 pipeline without the end-of-utterance stop.
+
+CI runs the real engine (the job "Analyze and test"): it builds
+`libmozhi_whisper.so` for the Linux host
+(`packages/whisper_speech/tool/build_native_linux.sh`), and
+`packages/whisper_speech/tool/fetch_test_model.py` downloads the
+catalogue's Fast model (checked against its SHA-256 and SHA-1, cached under
+the SHA-256) and copies whisper.cpp's `samples/jfk.wav` (11 s of clear
+English speech, public domain) from the pinned submodule. The package's
+`test/src/real_transcription_test.dart` transcribes it with the engine and
+through `WhisperSpeech` after an import; the app's
+`test/voice/offline/whisper_real_speech_test.dart` plays it through a fake
+microphone into `SpeechInputService` with no system recognizer (as on a
+phone without Google), with and without the speech detector, and checks
+the words. Locally, run those two scripts and the tests pick the files up
+from `packages/whisper_speech/build/` (or set `WHISPER_LIBRARY_PATH`,
+`WHISPER_SPEECH_MODEL` and `WHISPER_SPEECH_SAMPLE`).
 
 The quantized models' catalogue entries come from
 `tool/whisper_catalog.py resolve`: it pins Hugging Face's current commit,

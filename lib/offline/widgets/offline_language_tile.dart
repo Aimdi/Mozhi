@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/offline/cubit/offline_models_state.dart';
+import 'package:mozhi/offline/data/offline_model_details.dart';
 import 'package:mozhi/settings/view/widgets/delete_local_data.dart'
     show formatStoredSize;
 
@@ -100,7 +101,17 @@ class OfflineLanguageTile extends StatelessWidget {
         l10n.offlineDownloadSize(formatStoredSize(l10n, downloadSize)),
       _ => null,
     };
-    final parts = [?language.nativeName, ?size];
+    // A language that goes one way only says which way.
+    final direction = switch (language.direction) {
+      OfflineLanguageDirection.both => null,
+      OfflineLanguageDirection.intoOnly => l10n.offlineDirectionIntoOnly(
+        language.name,
+      ),
+      OfflineLanguageDirection.fromOnly => l10n.offlineDirectionFromOnly(
+        language.name,
+      ),
+    };
+    final parts = [?language.nativeName, ?direction, ?size];
     return parts.isEmpty ? null : parts.join(' · ');
   }
 

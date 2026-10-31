@@ -13,6 +13,7 @@ import 'package:mozhi/image_translate/widgets/widgets.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/live_camera/live_camera_entry.dart';
 import 'package:mozhi/platform/mlkit_bindings.dart';
+import 'package:mozhi/platform/system_app_settings.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
@@ -204,10 +205,39 @@ class _ImageTranslateViewState extends State<ImageTranslateView> {
               current.pickError != null &&
               previous.pickError != current.pickError,
           listener: (context, state) {
-            final info = describeImageTranslateError(l10n, state.pickError);
+            final error = state.pickError;
+            final info = describeImageTranslateError(l10n, error);
+            final kind = error is ImageTranslateException ? error.kind : null;
+            // What helps next: Android's settings for a refused camera
+            // (it no longer asks), the live camera when no app can take
+            // the photo.
+            final action = switch (kind) {
+              ImageTranslateErrorKind.permissionDenied
+                  when SystemAppSettings.isSupported =>
+                SnackBarAction(
+                  key: const Key('image_translate_open_settings'),
+                  label: l10n.commonOpenAppSettings,
+                  onPressed: () => unawaited(SystemAppSettings.open()),
+                ),
+              ImageTranslateErrorKind.noCameraApp when liveCameraOffered =>
+                SnackBarAction(
+                  key: const Key('image_translate_use_live_camera'),
+                  label: l10n.liveCameraOpen,
+                  onPressed: () {
+                    if (context.mounted) unawaited(openLiveCamera(context));
+                  },
+                ),
+              _ => null,
+            };
             ScaffoldMessenger.of(context)
               ..hideCurrentSnackBar()
-              ..showSnackBar(SnackBar(content: Text(info.message)));
+              ..showSnackBar(
+                SnackBar(
+                  content: Text(info.message),
+                  action: action,
+                  duration: Duration(seconds: action == null ? 4 : 8),
+                ),
+              );
           },
         ),
       ],

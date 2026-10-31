@@ -28,6 +28,86 @@ void main() {
       );
     });
 
+    group('without a speech engine on the device', () {
+      test('says so and names one to install', () {
+        for (final error in const [
+          SpeechUnavailableException('fr', noDeviceEngine: true),
+          SpeechUnavailableException(
+            'fr',
+            noDeviceEngine: true,
+            cause: ConsentRequiredException(
+              kind: ConsentKind.offlineOnly,
+              destination: PublicInstanceDestination('mozhi.example'),
+              engineId: 'mozhi:google',
+            ),
+          ),
+          SpeechUnavailableException(
+            'fr',
+            noDeviceEngine: true,
+            cause: MozhiApiException('Bad request', statusCode: 400),
+          ),
+        ]) {
+          expect(
+            speechErrorMessage(l10n, error),
+            l10n.speechNoEngine,
+            reason: '$error',
+          );
+          expect(speechNeedsEngine(error), isTrue, reason: '$error');
+        }
+        expect(l10n.speechNoEngine, contains('SherpaTTS'));
+        expect(speechGetEngineUrl.host, 'f-droid.org');
+      });
+
+      test('the instance that could read it comes first', () {
+        final error = SpeechUnavailableException(
+          'fr',
+          noDeviceEngine: true,
+          cause: _consent(const PublicInstanceDestination('mozhi.example')),
+        );
+
+        expect(
+          speechErrorMessage(l10n, error),
+          l10n.speechUnavailableOnline('mozhi.example'),
+        );
+        expect(speechNeedsEngine(error), isFalse);
+        expect(speechNeedsEngine(error.withoutCause()), isTrue);
+      });
+
+      test('failing servers and the network policy say so first', () {
+        final allFailed = SpeechUnavailableException(
+          'fr',
+          noDeviceEngine: true,
+          cause: AllInstancesFailedException(
+            'boom',
+            engine: TranslationEngine.mozhi('google', 'Google'),
+            instances: const [MozhiInstance(url: 'https://mozhi.example')],
+            statusCode: 502,
+          ),
+        );
+        const cleartext = SpeechUnavailableException(
+          'fr',
+          noDeviceEngine: true,
+          cause: MozhiApiException(CleartextRefusedException.defaultMessage),
+        );
+
+        expect(
+          speechErrorMessage(l10n, allFailed),
+          l10n.speechErrorServersUnavailable,
+        );
+        expect(speechNeedsEngine(allFailed), isFalse);
+        expect(
+          speechErrorMessage(l10n, cleartext),
+          l10n.commonErrorCleartextRefused,
+        );
+        expect(speechNeedsEngine(cleartext), isFalse);
+        expect(
+          speechNeedsEngine(const SpeechUnavailableException('fr')),
+          isFalse,
+        );
+        expect(speechNeedsEngine(StateError('x')), isFalse);
+      });
+    });
+
     test('names the instance that could read it with consent', () {
       final error = SpeechUnavailableException(
         'fr',
