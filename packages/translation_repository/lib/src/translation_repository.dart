@@ -2276,6 +2276,13 @@ class TranslationRepository {
   /// The Mozhi engine that detects languages.
   static const _detectionEngine = 'google';
 
+  /// [_detectionEngine] as the engine an [AllInstancesFailedException] of a
+  /// detection names.
+  static final _detectionMozhiEngine = TranslationEngine.mozhi(
+    _detectionEngine,
+    'Google',
+  );
+
   /// The Mozhi engine that translates images.
   static const _imageEngine = 'google';
 
@@ -3285,7 +3292,11 @@ class TranslationRepository {
 
   /// Detects the language of [text] with Mozhi google (the consent was
   /// checked by the caller); with the personal data shield, the instance
-  /// gets the masked text.
+  /// gets the masked text. Fails over like a translation (not after a
+  /// timeout, only to the instances [_mozhiFailoverAllowed] lets the text
+  /// go to); when every instance failed, throws an
+  /// [AllInstancesFailedException] for [_detectionMozhiEngine]. The outcome
+  /// does not count for the [instanceHealth].
   Future<DetectedLanguage> _detectWithMozhi(String text) async {
     final sent = _shielded(text, _mozhiDestination(_detectionEngine));
     final translation = await _mozhi.run(
@@ -3299,6 +3310,7 @@ class TranslationRepository {
       allow: _mozhiFailoverAllowed,
       // Only translations decide which server is asked first.
       recordHealth: false,
+      engine: _detectionMozhiEngine,
     );
     final code = normalizeDetected(translation.detectedLanguage);
     if (code == null) {
@@ -3310,7 +3322,10 @@ class TranslationRepository {
   /// Mozhi `/api/tts` on the active instance with failover (not after a
   /// timeout). [engine] is `google` (default) or `reverso`. When Google
   /// fails on every instance, Reverso is tried before giving up (the Google
-  /// error is rethrown).
+  /// error is rethrown: an [AllInstancesFailedException] naming Google
+  /// when every instance failed in a way another might not have repeated).
+  /// The outcome does not count for the [instanceHealth]: a server that
+  /// cannot read a language aloud may translate it just fine.
   ///
   /// The privacy settings apply with the pair `<languageCode>><languageCode>`
   /// ([pairKey]): a [ConsentRequiredException] before any request when the
@@ -3342,6 +3357,9 @@ class TranslationRepository {
       allow: _mozhiFailoverAllowed,
       // Read-aloud says nothing about translating there.
       recordHealth: false,
+      engine:
+          _ttsEngines[ttsEngine] ??
+          TranslationEngine.mozhi(ttsEngine, ttsEngine),
     );
     try {
       return await speak(engine);
@@ -3377,7 +3395,9 @@ class TranslationRepository {
   ///   [imageNoResultMessage]).
   /// * Retryable failures move on to another instance, but the photo is
   ///   sent to at most [maxImageInstances] instances, and never again after
-  ///   a timeout.
+  ///   a timeout. When each of them failed, an [AllInstancesFailedException]
+  ///   naming the Google engine is thrown. Like a translation's, the
+  ///   outcome counts for the [instanceHealth].
   Future<ImageTranslationResult> translateImage(
     TranslationEngine engine,
     Uint8List imageBytes, {
@@ -3516,6 +3536,7 @@ class TranslationRepository {
       // so).
       allow: (instance) =>
           _mozhiFailoverAllowed(instance) && attempts++ < maxImageInstances,
+      engine: _imageLanguageEngine,
     );
     return ImageTranslationResult(
       translatedImage: image,
@@ -3525,11 +3546,19 @@ class TranslationRepository {
     );
   }
 
-  /// The engine whose language lists [translateImage] maps codes with.
+  /// The engine whose language lists [translateImage] maps codes with (and
+  /// that an [AllInstancesFailedException] of an image translation names).
   static final _imageLanguageEngine = TranslationEngine.mozhi(
     _imageEngine,
     'Google',
   );
+
+  /// The Mozhi engines that read text aloud ([textToSpeech]), by id, as an
+  /// [AllInstancesFailedException] names them.
+  static final _ttsEngines = {
+    'google': TranslationEngine.mozhi('google', 'Google'),
+    'reverso': TranslationEngine.mozhi('reverso', 'Reverso'),
+  };
 
   /// Google's legacy codes for catalogue codes (used without a list).
   static const _googleLegacyCodes = {'he': 'iw', 'jv': 'jw'};

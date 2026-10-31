@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:bergamot_translator/bergamot_translator.dart';
@@ -190,6 +191,102 @@ void main() {
         () => translator.downloadLanguage('fr'),
         throwsA(isA<OfflineLanguageUnsupportedException>()),
       );
+    });
+  });
+
+  group('cancelDownload', () {
+    Future<void> until(bool Function() condition) async {
+      for (var i = 0; i < 500 && !condition(); i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 2));
+      }
+    }
+
+    test('stops a running download; the language stays missing', () async {
+      final body = StreamController<List<int>>();
+      server.stream = body;
+      final download = expectLater(
+        translator.downloadLanguage('de'),
+        throwsA(
+          isA<OfflineDownloadCancelledException>().having(
+            (error) => error.language,
+            'language',
+            'de',
+          ),
+        ),
+      );
+      await until(() => body.hasListener);
+      await translator.cancelDownload('de');
+      await download;
+      expect(body.hasListener, isFalse);
+      expect(await translator.downloadedLanguages(), {'en'});
+      expect(await translator.models.installed(), isEmpty);
+      expect(
+        const OfflineDownloadCancelledException('de').toString(),
+        contains('de'),
+      );
+
+      // The next download resumes and completes.
+      server.stream = null;
+      await translator.downloadLanguage('de');
+      expect(await translator.downloadedLanguages(), {'en', 'de'});
+    });
+
+    test('stops every download of the language', () async {
+      final body = StreamController<List<int>>();
+      server.stream = body;
+      final cancelled = throwsA(isA<OfflineDownloadCancelledException>());
+      final one = expectLater(translator.downloadLanguage('de'), cancelled);
+      final two = expectLater(translator.downloadLanguage('de'), cancelled);
+      await until(() => body.hasListener);
+      await translator.cancelDownload('de');
+      await one;
+      await two;
+      expect(await translator.downloadedLanguages(), {'en'});
+    });
+
+    test('keeps the models installed before the cancel', () async {
+      final progress = translator.downloadProgress.listen((event) {
+        if (event.receivedBytes == event.totalBytes) {
+          unawaited(translator.cancelDownload('de'));
+        }
+      });
+      addTearDown(progress.cancel);
+      await expectLater(
+        translator.downloadLanguage('de'),
+        throwsA(isA<OfflineDownloadCancelledException>()),
+      );
+      expect(await translator.models.installed(), hasLength(lessThan(2)));
+      expect(await translator.downloadedLanguages(), {'en'});
+    });
+
+    test('stops before downloading after the network check', () async {
+      final asked = Completer<bool>();
+      final translator = BergamotTranslator(
+        catalog: catalogOf(models),
+        root: root,
+        httpClient: server.client,
+        engine: engine,
+        languageId: languageId,
+        isAvailable: true,
+        isMeteredConnection: () => asked.future,
+      );
+      final download = expectLater(
+        translator.downloadLanguage('de'),
+        throwsA(isA<OfflineDownloadCancelledException>()),
+      );
+      await pumpEventQueue();
+      final cancelled = translator.cancelDownload('de');
+      asked.complete(false);
+      await cancelled;
+      await download;
+      expect(server.requests, isEmpty);
+    });
+
+    test('does nothing without a running download', () async {
+      await translator.cancelDownload('de');
+      await translator.downloadLanguage('de');
+      await translator.cancelDownload('de');
+      expect(await translator.downloadedLanguages(), {'en', 'de'});
     });
   });
 

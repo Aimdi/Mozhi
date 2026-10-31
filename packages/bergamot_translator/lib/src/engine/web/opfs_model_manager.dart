@@ -4,6 +4,7 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:bergamot_translator/src/catalog.dart';
+import 'package:bergamot_translator/src/download_cancel.dart';
 import 'package:bergamot_translator/src/engine/bergamot_engine.dart';
 import 'package:bergamot_translator/src/engine/web/bergamot_worker.dart';
 import 'package:bergamot_translator/src/engine/web/worker_engine.dart';
@@ -11,6 +12,8 @@ import 'package:bergamot_translator/src/engine/web/worker_values.dart';
 import 'package:bergamot_translator/src/model_manager.dart';
 import 'package:http/http.dart' as http;
 import 'package:meta/meta.dart';
+import 'package:translation_repository/translation_repository.dart'
+    show OfflineDownloadCancelledException;
 
 /// The [BergamotModelManager] of the web app: models in the browser's
 /// Origin Private File System, which the worker behind [channel]
@@ -22,8 +25,11 @@ import 'package:meta/meta.dart';
 /// * `models/<pair>/<version>/`: an installed model (decompressed files and
 ///   `manifest.json`, written last: a model without one is not installed
 ///   and [cleanUp] removes it);
-/// * `.downloads/<pair>/<version>/<file>.gz.part`: downloads in progress,
-///   resumed with an HTTP `Range` request next time.
+/// * `.downloads/<pair>/<version>/<file>.gz.part`: downloads in progress
+///   (also cancelled ones), resumed with an HTTP `Range` request next time
+///   when the server answers `206` with the `Content-Range` of the rest of
+///   the same file; otherwise, and once when a resumed file fails the
+///   worker's checks, the file starts over.
 ///
 /// Every download is checked by the worker against the catalog's size and
 /// SHA-256 (`crypto.subtle`) before it is decompressed
@@ -77,7 +83,7 @@ class OpfsModelManager extends BergamotModelManager {
   final int writeChunkSize;
 
   final http.Client _http;
-  final Map<String, Future<InstalledModel>> _installs = {};
+  final _installs = SharedInstalls<InstalledModel>();
   List<InstalledModel>? _cache;
   var _persistent = false;
 
@@ -92,14 +98,12 @@ class OpfsModelManager extends BergamotModelManager {
   Future<InstalledModel> install(
     CatalogModel model, {
     void Function(ModelDownloadProgress progress)? onProgress,
-  }) {
-    final key = '${model.pair}/${model.version}';
-    final running = _installs[key];
-    if (running != null) return running;
-    final started = _install(model, onProgress);
-    _installs[key] = started;
-    return started.whenComplete(() => _installs.remove(key));
-  }
+    Future<void>? abort,
+  }) => _installs.run(
+    '${model.pair}/${model.version}',
+    (cancel) => _install(model, onProgress, cancel),
+    abort: abort,
+  );
 
   @override
   Future<ModelImportResult> importFiles(
@@ -322,7 +326,8 @@ class OpfsModelManager extends BergamotModelManager {
     try {
       // A download of the same model that is running finishes first; when
       // it fails, the files are installed instead.
-      if (_installs['${model.pair}/${model.version}'] case final running?) {
+      if (_installs.running('${model.pair}/${model.version}')
+          case final running?) {
         try {
           await running;
         } on Object {
@@ -518,6 +523,7 @@ class OpfsModelManager extends BergamotModelManager {
   Future<InstalledModel> _install(
     CatalogModel model,
     void Function(ModelDownloadProgress progress)? onProgress,
+    DownloadCancel cancel,
   ) async {
     final current = await installedModel(model.source, model.target);
     if (current != null && current.version == model.version) return current;
@@ -544,28 +550,41 @@ class OpfsModelManager extends BergamotModelManager {
     try {
       for (final file in model.files.values) {
         final part = '$downloads/${file.name}.gz.part';
-        final source = await _download(
-          model,
-          file,
-          part,
-          report,
-          mirror: mirror,
-          fallbackToDefault: fallbackToDefault,
-        );
-        await _call(
-          'install',
-          {
-            'part': part,
-            'target': '$directory/${file.name}',
-            'size': file.size,
-            'sha256': file.sha256,
-            'uncompressedSize': file.uncompressedSize,
-            'uncompressedSha256': file.uncompressedSha256,
-          },
-          model.pair,
-          mirror: source,
-        );
+        for (var restarted = false; ; restarted = true) {
+          cancel.check();
+          final (source, resumed) = await _download(
+            model,
+            file,
+            part,
+            report,
+            cancel: cancel,
+            mirror: mirror,
+            fallbackToDefault: fallbackToDefault,
+          );
+          try {
+            await _call(
+              'install',
+              {
+                'part': part,
+                'target': '$directory/${file.name}',
+                'size': file.size,
+                'sha256': file.sha256,
+                'uncompressedSize': file.uncompressedSize,
+                'uncompressedSha256': file.uncompressedSha256,
+              },
+              model.pair,
+              mirror: source,
+            );
+            break;
+          } on ModelChecksumException {
+            // The worker removed the part. The bytes of an earlier download
+            // may be what is wrong: start over, once.
+            if (!resumed || restarted) rethrow;
+            report(file.kind, 0);
+          }
+        }
       }
+      cancel.check();
       await _call('commit', {
         'directory': directory,
         'downloads': downloads,
@@ -600,14 +619,16 @@ class OpfsModelManager extends BergamotModelManager {
   }
 
   /// Downloads [file] into [part] (resuming a partial download) from the
-  /// [mirror] or the catalog's URL; returns the mirror the bytes came from
-  /// (null: the catalog's URL). The worker verifies it afterwards
-  /// (`install`).
-  Future<Uri?> _download(
+  /// [mirror] or the catalog's URL: the mirror the bytes came from (null:
+  /// the catalog's URL) and whether bytes of an earlier download are part
+  /// of them. The worker verifies it afterwards (`install`). Interrupted
+  /// or [cancel]led, what arrived is kept for resuming.
+  Future<(Uri?, bool)> _download(
     CatalogModel model,
     CatalogFile file,
     String part,
     void Function(ModelFileKind kind, int bytes) report, {
+    required DownloadCancel cancel,
     required Uri? mirror,
     required bool fallbackToDefault,
   }) async {
@@ -623,26 +644,43 @@ class OpfsModelManager extends BergamotModelManager {
     if (offset == file.size) {
       // Complete already (the checksum decides whether it is right).
       await _call('downloadClose', {'path': part}, model.pair);
-      return null;
+      return (null, true);
     }
 
-    final (http.StreamedResponse, Uri?) answer;
+    http.StreamedResponse response;
+    Uri? source;
     try {
-      answer = await _request(
+      (response, source) = await _request(
         model,
         file,
         offset,
+        cancel: cancel,
         mirror: mirror,
         fallbackToDefault: fallbackToDefault,
       );
+      if (offset > 0 &&
+          response.statusCode == 206 &&
+          !resumesAt(response, offset, file.size)) {
+        // A part of something else: ask for the whole file.
+        _discard(response);
+        (response, source) = await _request(
+          model,
+          file,
+          0,
+          cancel: cancel,
+          mirror: mirror,
+          fallbackToDefault: fallbackToDefault,
+        );
+      }
     } on Object {
       await _closeQuietly(part);
       rethrow;
     }
-    final (response, source) = answer;
-    if (offset > 0 && response.statusCode != 206) {
+    final resumed = offset > 0 && response.statusCode == 206;
+    if (offset > 0 && !resumed) {
       // The server sent the whole file: start over.
       offset = await open(restart: true);
+      report(file.kind, 0);
     }
 
     final pending = BytesBuilder(copy: false);
@@ -659,7 +697,8 @@ class OpfsModelManager extends BergamotModelManager {
     }
 
     try {
-      await for (final chunk in response.stream.timeout(requestTimeout)) {
+      await for (final chunk
+          in cancel.guard(response.stream).timeout(requestTimeout)) {
         if (offset + pending.length + chunk.length > file.size) {
           await _call('remove', {'path': part}, model.pair);
           throw ModelChecksumException(
@@ -683,13 +722,14 @@ class OpfsModelManager extends BergamotModelManager {
         await _closeQuietly(part);
         rethrow;
       }
-      // Interrupted: keep what arrived for resuming.
+      // Interrupted or cancelled: keep what arrived for resuming.
       try {
         await flush();
       } on Object {
         // Resumes from what the worker has.
       }
       await _closeQuietly(part);
+      cancel.check();
       throw ModelDownloadException(
         model.pair,
         '${file.name}${_from(source)}: $error',
@@ -697,18 +737,30 @@ class OpfsModelManager extends BergamotModelManager {
       );
     }
     await _call('downloadClose', {'path': part}, model.pair, mirror: source);
-    return source;
+    return (source, resumed);
+  }
+
+  /// Stops reading [response] (closing its connection).
+  static void _discard(http.StreamedResponse response) {
+    unawaited(
+      response.stream
+          .listen(null, onError: (Object _) {})
+          .cancel()
+          .catchError((Object _) {}),
+    );
   }
 
   /// Sends the request for [file] (from byte [existing] on) to each URL of
   /// [bergamotDownloadUrls] in turn until one answers with its contents
   /// (200, or 206 when resuming): the response and the mirror it came from
   /// (null: the catalog's URL). Throws the last URL's
-  /// [ModelDownloadException].
+  /// [ModelDownloadException], or an [OfflineDownloadCancelledException]
+  /// once [cancel] is (no other URL is tried).
   Future<(http.StreamedResponse, Uri?)> _request(
     CatalogModel model,
     CatalogFile file,
     int existing, {
+    required DownloadCancel cancel,
     required Uri? mirror,
     required bool fallbackToDefault,
   }) async {
@@ -722,12 +774,22 @@ class OpfsModelManager extends BergamotModelManager {
       final url = urls[i];
       final source = i == 0 ? mirror : null;
       final last = i == urls.length - 1;
-      final request = http.Request('GET', url);
+      final request = http.AbortableRequest(
+        'GET',
+        url,
+        abortTrigger: cancel.future,
+      );
       if (existing > 0) request.headers['Range'] = 'bytes=$existing-';
       final http.StreamedResponse response;
       try {
-        response = await _http.send(request).timeout(requestTimeout);
+        response = await cancel.race(
+          _http.send(request).timeout(requestTimeout),
+          onLate: _discard,
+        );
+      } on OfflineDownloadCancelledException {
+        rethrow;
       } on Object catch (error) {
+        cancel.check();
         if (!last) continue;
         throw ModelDownloadException(
           model.pair,
@@ -739,7 +801,11 @@ class OpfsModelManager extends BergamotModelManager {
       if (status == 200 || (existing > 0 && status == 206)) {
         return (response, source);
       }
-      await response.stream.drain<void>().catchError((_) {});
+      await cancel
+          .guard(response.stream)
+          .drain<void>()
+          .catchError((Object _) {});
+      cancel.check();
       if (last) {
         throw ModelDownloadException(
           model.pair,

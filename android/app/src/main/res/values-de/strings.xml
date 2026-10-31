@@ -47,4 +47,7 @@
     <string name="live_captions_stop_description">Live-Untertitel beenden</string>
     <string name="live_captions_open_description">Mozhi öffnen</string>
     <string name="live_captions_bar_description">Live-Untertitel</string>
+    <string name="tile_live_captions_label">Live-Untertitel</string>
+    <string name="tile_live_captions_description">Live-Untertitel von Mozhi starten oder beenden</string>
+    <string name="live_captions_locked">Mozhi ist gesperrt</string>
 </resources>

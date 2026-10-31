@@ -231,7 +231,8 @@ int _pdfRequests(DocumentTranslateState state, PdfSource pdf) {
 /// requests, and what the run does not use is withdrawn when it ends.
 const _requestsPerUnreadPage = 3;
 
-/// "Page 3 of 12: reading the text…", "Page 3 of 12: translating…", or
+/// "Page 3 of 12: reading the text…", "Page 3 of 12: translating…",
+/// "Page 3 of 12: the phone is hot…" while text recognition waits, or
 /// between pages "2 of 12 pages done".
 String documentPdfProgressLabel(
   AppLocalizations l10n,
@@ -247,6 +248,10 @@ String documentPdfProgressLabel(
     ),
     PdfStage.translating when page != null =>
       l10n.documentsPdfProgressTranslating(page + 1, total),
+    PdfStage.cooling when page != null => l10n.documentsPdfProgressCooling(
+      page + 1,
+      total,
+    ),
     _ => l10n.documentsPdfProgress(state.doneChunks, total),
   };
 }

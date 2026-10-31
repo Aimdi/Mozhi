@@ -2757,5 +2757,11 @@
   "conversationTurnPauseHintAny": "Un turno finisce dopo questo tempo di silenzio successivo al parlato.",
   "translateOfflineManageLanguages": "Gestisci lingue",
   "translateOfflineDownloadingLanguage": "Download in corso: {language}… {percent}%",
-  "translateOfflineDownloadingLanguageStarted": "Download in corso: {language}…"
+  "translateOfflineDownloadingLanguageStarted": "Download in corso: {language}…",
+  "translateErrorDetectionServersFailed": "I server dei volontari non sono riusciti a rilevare la lingua in questo momento. Scegli la lingua in cui è scritto il testo.",
+  "speechErrorServersUnavailable": "I server dei volontari non sono riusciti a leggere ad alta voce in questo momento. Questi server gratuiti a volte sono fuori servizio.",
+  "liveCaptionsBarLocked": "Mozhi è bloccato",
+  "offlineCancelDownloadTooltip": "Annulla il download di {language}",
+  "offlineCancelling": "Interruzione…",
+  "documentsPdfProgressCooling": "Pagina {page} di {total}: il telefono è caldo, in attesa che si raffreddi…"
 }

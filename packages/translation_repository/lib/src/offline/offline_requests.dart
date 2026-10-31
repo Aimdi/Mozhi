@@ -184,9 +184,10 @@ final _letter = RegExp(r'[\p{L}\p{N}]', unicode: true);
 /// The translator as one request of the repository sees it: translations
 /// get its [abort], and with [detailed] are made with
 /// [DetailedOfflineTranslator.translateDetailed], the last one kept as
-/// [result]. Everything else goes to the translator unchanged; [dispose]
+/// [result]. Everything else goes to the translator unchanged (a
+/// [cancelDownload] only when it has [CancellableDownloads]); [dispose]
 /// does nothing (the request does not own it).
-final class _RequestTranslator implements OfflineTranslator {
+final class _RequestTranslator implements CancellableDownloads {
   new(this._translator, {this.abort, this.detailed = false});
 
   final DetailedOfflineTranslator _translator;
@@ -211,6 +212,13 @@ final class _RequestTranslator implements OfflineTranslator {
   @override
   Future<void> downloadLanguage(String code, {bool wifiOnly = true}) =>
       _translator.downloadLanguage(code, wifiOnly: wifiOnly);
+
+  @override
+  Future<void> cancelDownload(String code) async {
+    if (_translator case final CancellableDownloads translator) {
+      await translator.cancelDownload(code);
+    }
+  }
 
   @override
   Future<void> deleteLanguage(String code) => _translator.deleteLanguage(code);

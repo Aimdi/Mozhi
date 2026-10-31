@@ -6,15 +6,22 @@
      when it arrives through the non-exported alias TranslateClipboardActivity
      (shortcuts are started with Mozhi's own identity, so the alias works;
      other apps can't reach it).
-     The first four shortcuts are Translate clipboard and the other tabs in
-     their default order (Dictionary, Proofread, Conversation; AppRoutes in
-     lib/app/router.dart). Static shortcuts can't follow the user's own tab
-     order. The fifth is Translate screen: most launchers (Launcher3, Pixel)
-     show only the first four, so it is last, where it is left out rather
-     than a tab; launchers that show five, assistants and automation apps
-     list it.
+     Most launchers (Launcher3, Pixel) show only the first four, so those are
+     the four quickest ways into a translation from outside the app:
+     1. Translate clipboard: text copied in another app, translated at once.
+     2. Camera (mozhi://image?source=camera, the home-screen widget's Camera
+        button): signs, menus and labels, the camera opens on arrival.
+     3. Conversation: two people talking, when there is no time to look for
+        a tab.
+     4. Translate screen (ScreenTranslateActivity): another app's screen.
+     Then the other tabs, one tap away inside the app anyway: Dictionary
+     (fifth, for launchers that show five) and Proofread (sixth: Android 10
+     and later publish more per activity, getMaxShortcutCountPerActivity();
+     Android 7 to 9 publish five and leave it out). Assistants and
+     automation apps list them all.
+     Static shortcuts can't follow the user's own tab order.
      test/platform/android_resources_test.dart checks that the copies agree
-     and that every link opens its tab.
+     and that every link opens its screen.
      Keep all three copies (main, staging, development) in sync.
      This copy is used by the production flavour (no applicationIdSuffix).
      staging and development override it in src/<flavor>/res/xml/ because
@@ -30,6 +37,45 @@
             android:action="io.github.aimdi.mozhi.action.TRANSLATE_CLIPBOARD"
             android:targetPackage="io.github.aimdi.mozhi"
             android:targetClass="io.github.aimdi.mozhi.TranslateClipboardActivity" />
+    </shortcut>
+    <!-- Camera translate: the labels of the widget's Camera button. -->
+    <shortcut
+        android:shortcutId="camera"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_camera"
+        android:shortcutShortLabel="@string/widget_camera_label"
+        android:shortcutLongLabel="@string/widget_camera_description">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="mozhi://image?source=camera"
+            android:targetPackage="io.github.aimdi.mozhi"
+            android:targetClass="io.github.aimdi.mozhi.MainActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="conversation"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_conversation"
+        android:shortcutShortLabel="@string/shortcut_conversation_short"
+        android:shortcutLongLabel="@string/shortcut_conversation_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="mozhi://conversation"
+            android:targetPackage="io.github.aimdi.mozhi"
+            android:targetClass="io.github.aimdi.mozhi.MainActivity" />
+    </shortcut>
+    <!-- Translate screen (ScreenTranslateActivity, not exported; shortcuts
+         start with Mozhi's identity): fourth, so launchers that show four
+         show it. -->
+    <shortcut
+        android:shortcutId="translate_screen"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_translate_screen"
+        android:shortcutShortLabel="@string/shortcut_translate_screen_short"
+        android:shortcutLongLabel="@string/shortcut_translate_screen_long">
+        <intent
+            android:action="io.github.aimdi.mozhi.action.TRANSLATE_SCREEN"
+            android:targetPackage="io.github.aimdi.mozhi"
+            android:targetClass="io.github.aimdi.mozhi.ScreenTranslateActivity" />
     </shortcut>
     <shortcut
         android:shortcutId="dictionary"
@@ -54,31 +100,5 @@
             android:data="mozhi://proofread"
             android:targetPackage="io.github.aimdi.mozhi"
             android:targetClass="io.github.aimdi.mozhi.MainActivity" />
-    </shortcut>
-    <shortcut
-        android:shortcutId="conversation"
-        android:enabled="true"
-        android:icon="@drawable/ic_shortcut_conversation"
-        android:shortcutShortLabel="@string/shortcut_conversation_short"
-        android:shortcutLongLabel="@string/shortcut_conversation_long">
-        <intent
-            android:action="android.intent.action.VIEW"
-            android:data="mozhi://conversation"
-            android:targetPackage="io.github.aimdi.mozhi"
-            android:targetClass="io.github.aimdi.mozhi.MainActivity" />
-    </shortcut>
-    <!-- Translate screen (ScreenTranslateActivity, not exported; shortcuts
-         start with Mozhi's identity): fifth, after the tabs, so launchers
-         that show four leave this one out rather than a tab. -->
-    <shortcut
-        android:shortcutId="translate_screen"
-        android:enabled="true"
-        android:icon="@drawable/ic_shortcut_translate_screen"
-        android:shortcutShortLabel="@string/shortcut_translate_screen_short"
-        android:shortcutLongLabel="@string/shortcut_translate_screen_long">
-        <intent
-            android:action="io.github.aimdi.mozhi.action.TRANSLATE_SCREEN"
-            android:targetPackage="io.github.aimdi.mozhi"
-            android:targetClass="io.github.aimdi.mozhi.ScreenTranslateActivity" />
     </shortcut>
 </shortcuts>

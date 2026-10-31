@@ -200,6 +200,24 @@ abstract final class AppRoutes {
   /// (see [deepLinkLocation]).
   static const deepLinkScheme = 'mozhi';
 
+  /// The screens a `mozhi://` link handed to the router may open: the
+  /// hosts of MainActivity's deep link filter (AndroidManifest.xml). Any
+  /// other host opens `/` ([appRedirect]). On Android, MainActivity turns
+  /// every `mozhi://` link into a plain route first, also the app's own
+  /// links to other screens (`mozhi://settings/…`, the Quick Settings tile's
+  /// `mozhi://transcribe/captions`), so only a link that reached the router
+  /// unchanged is held to this list.
+  static const deepLinkHosts = {
+    'translate',
+    'image',
+    'conversation',
+    'proofread',
+    'documents',
+    'web',
+    'dictionary',
+    'pair',
+  };
+
   /// Location of the provider editor: edit [id], or create a new provider
   /// (prefilled from [preset] when given).
   static String editProvider({String? id, String? preset}) =>
@@ -814,11 +832,16 @@ bool isLaunchLocation(Uri uri) {
 }
 
 /// Top-level redirect: deep links (`mozhi://<screen>…`) go to their
-/// location ([deepLinkLocation]); `/` goes to `/translate`; translate links
+/// location ([deepLinkLocation]), those to a screen that is not one of
+/// [AppRoutes.deepLinkHosts] to `/`; `/` goes to `/translate`; translate links
 /// are reported to [onTranslateLink] and stripped from the location so
 /// that returning to the tab does not translate again; [AppRoutes.aliases]
 /// are sent to their current location (keeping the query).
 String? appRedirect(Uri uri, TranslateLinkCallback? onTranslateLink) {
+  if (uri.isScheme(AppRoutes.deepLinkScheme) &&
+      !AppRoutes.deepLinkHosts.contains(uri.host.toLowerCase())) {
+    return '/';
+  }
   final deepLink = deepLinkLocation(uri);
   if (deepLink != null) return deepLink;
 
@@ -837,14 +860,25 @@ String? appRedirect(Uri uri, TranslateLinkCallback? onTranslateLink) {
 /// The location a deep link `mozhi://<screen>[/<path>][?<query>]` opens:
 /// `/<screen>[/<path>][?<query>]`, e.g. `mozhi://dictionary?word=gato` ->
 /// `/dictionary?word=gato` (`mozhi:///<path>` opens `/<path>`). Null for
-/// anything else.
+/// anything else. The location stays below the screen: `.` and `..`
+/// segments and segments with a slash or backslash (decoded `%2F`, `%5C`)
+/// are dropped (`Uri` resolves dot segments already).
 ///
-/// Android rewrites these links before Flutter sees them (MainActivity),
-/// but iOS hands the whole URL to the router, with the screen as the host.
+/// Android rewrites these links before Flutter sees them (MainActivity,
+/// which opens `/` for a link with a backslash, a dot segment or an encoded
+/// dot, slash or backslash in its path), but iOS hands the whole URL to the
+/// router, with the screen as the host.
 String? deepLinkLocation(Uri uri) {
   if (!uri.isScheme(AppRoutes.deepLinkScheme)) return null;
   final host = uri.host.toLowerCase();
-  final segments = uri.pathSegments.where((s) => s.isNotEmpty);
+  final segments = uri.pathSegments.where(
+    (s) =>
+        s.isNotEmpty &&
+        s != '.' &&
+        s != '..' &&
+        !s.contains('/') &&
+        !s.contains(r'\'),
+  );
   final path = Uri(pathSegments: [if (host.isNotEmpty) host, ...segments]);
   return Uri(
     path: '/${path.path}',

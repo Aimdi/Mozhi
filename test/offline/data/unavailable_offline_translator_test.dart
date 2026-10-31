@@ -29,6 +29,11 @@ void main() {
       );
     });
 
+    test('has no download to cancel', () async {
+      expect(translator, isA<CancellableDownloads>());
+      await translator.cancelDownload('de');
+    });
+
     test('gives the repository no offline engine', () {
       final repository = TranslationRepository(offline: translator);
       expect(repository.hasOfflineEngine, isFalse);

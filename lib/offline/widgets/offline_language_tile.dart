@@ -10,8 +10,10 @@ import 'package:mozhi/settings/view/widgets/delete_local_data.dart'
 /// "Download" pill for missing models, an outlined "Downloaded" pill (that
 /// turns into "Delete" on hover/focus and deletes) for downloaded ones, an
 /// "Update" pill plus a delete button when a newer model exists, nothing
-/// for built-in languages, and accent progress while an operation runs.
-/// With [onShowFiles], tapping the row shows the files to download by hand.
+/// for built-in languages, and accent progress while an operation runs:
+/// with [onCancel], a running download or update also shows Cancel next to
+/// its progress ([cancelling]: being stopped). With [onShowFiles], tapping
+/// the row shows the files to download by hand.
 class OfflineLanguageTile extends StatelessWidget {
   const new({
     required this.language,
@@ -26,6 +28,8 @@ class OfflineLanguageTile extends StatelessWidget {
     this.builtIn = false,
     this.enabled = true,
     this.onShowFiles,
+    this.onCancel,
+    this.cancelling = false,
     super.key,
   });
 
@@ -58,8 +62,18 @@ class OfflineLanguageTile extends StatelessWidget {
   /// Shows the language's files for a manual download (the row's tap).
   final VoidCallback? onShowFiles;
 
+  /// Cancels the running download or update; null: no Cancel.
+  final VoidCallback? onCancel;
+
+  /// The running download or update is being cancelled (Cancel is
+  /// disabled until it has stopped).
+  final bool cancelling;
+
   String? _status(AppLocalizations l10n) {
     final percent = progress == null ? null : (progress! * 100).floor();
+    if (cancelling && pending != OfflineModelOperation.delete) {
+      return l10n.offlineCancelling;
+    }
     return switch (pending) {
       OfflineModelOperation.download =>
         percent == null
@@ -116,20 +130,21 @@ class OfflineLanguageTile extends StatelessWidget {
               ),
             ),
       trailing: switch ((pending, downloaded)) {
-        (OfflineModelOperation(), _) => SizedBox.square(
-          dimension: 48,
-          child: Center(
-            child: SizedBox.square(
-              dimension: 24,
-              child: CircularProgressIndicator(
-                value: progress,
-                strokeWidth: 2.5,
-                color: theme.colorScheme.primary,
-                backgroundColor: palette.hairline,
-                semanticsLabel: status,
+        (OfflineModelOperation.download || OfflineModelOperation.update, _)
+            when onCancel != null =>
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _Progress(value: progress, label: status),
+              OfflineCancelDownloadButton(
+                language: language.name,
+                onPressed: enabled && !cancelling ? onCancel : null,
               ),
-            ),
+            ],
           ),
+        (OfflineModelOperation(), _) => _Progress(
+          value: progress,
+          label: status,
         ),
         _ when builtIn => null,
         (null, true) when outdated => Row(
@@ -163,6 +178,72 @@ class OfflineLanguageTile extends StatelessWidget {
     return onShowFiles == null
         ? tile
         : Semantics(onTapHint: l10n.offlineManualHint, child: tile);
+  }
+}
+
+/// The accent progress ring of a running operation, in a 48 dp square.
+class _Progress extends StatelessWidget {
+  const new({required this.value, required this.label});
+
+  /// Fraction done (null: indeterminate).
+  final double? value;
+  final String? label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SizedBox.square(
+      dimension: 48,
+      child: Center(
+        child: SizedBox.square(
+          dimension: 24,
+          child: CircularProgressIndicator(
+            value: value,
+            strokeWidth: 2.5,
+            color: theme.colorScheme.primary,
+            backgroundColor: AppPalette.of(context).hairline,
+            semanticsLabel: label,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// "Cancel" for a running offline download: a 48 dp text button whose
+/// tooltip and screen reader label say which download it stops
+/// ("Cancel downloading German"); [onPressed] null disables it.
+class OfflineCancelDownloadButton extends StatelessWidget {
+  const new({required this.language, required this.onPressed, super.key});
+
+  /// The name of the language being downloaded.
+  final String language;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final label = l10n.offlineCancelDownloadTooltip(language);
+    return Tooltip(
+      message: label,
+      excludeFromSemantics: true,
+      child: Semantics(
+        button: true,
+        label: label,
+        excludeSemantics: true,
+        enabled: onPressed != null,
+        onTap: onPressed,
+        child: TextButton(
+          key: const Key('offline_cancel_download'),
+          style: TextButton.styleFrom(
+            minimumSize: const Size(48, 48),
+            tapTargetSize: MaterialTapTargetSize.padded,
+          ),
+          onPressed: onPressed,
+          child: Text(l10n.commonCancel),
+        ),
+      ),
+    );
   }
 }
 

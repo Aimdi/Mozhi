@@ -19,6 +19,23 @@ abstract final class Ns {
     'http://schemas.openxmlformats.org/spreadsheetml/2006/main',
     'http://purl.oclc.org/ooxml/spreadsheetml/main',
   };
+  static const presentation = {
+    'http://schemas.openxmlformats.org/presentationml/2006/main',
+    'http://purl.oclc.org/ooxml/presentationml/main',
+  };
+  static const chart = {
+    'http://schemas.openxmlformats.org/drawingml/2006/chart',
+    'http://purl.oclc.org/ooxml/drawingml/chart',
+  };
+  static const chartEx = {
+    'http://schemas.microsoft.com/office/drawing/2014/chartex',
+  };
+
+  /// Excel's extensions (`xm:f` formulas in extension lists).
+  static const excel = {'http://schemas.microsoft.com/office/excel/2006/main'};
+  static const threadedComments = {
+    'http://schemas.microsoft.com/office/spreadsheetml/2018/threadedcomments',
+  };
   static const relationships = {
     'http://schemas.openxmlformats.org/package/2006/relationships',
   };

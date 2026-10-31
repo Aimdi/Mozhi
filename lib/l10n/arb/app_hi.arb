@@ -2757,5 +2757,11 @@
   "conversationTurnPauseHintAny": "बोलने के बाद इतनी देर चुप्पी रहने पर बारी खत्म हो जाती है।",
   "translateOfflineManageLanguages": "भाषाएं मैनेज करें",
   "translateOfflineDownloadingLanguage": "{language} डाउनलोड हो रही है… {percent}%",
-  "translateOfflineDownloadingLanguageStarted": "{language} डाउनलोड हो रही है…"
+  "translateOfflineDownloadingLanguageStarted": "{language} डाउनलोड हो रही है…",
+  "translateErrorDetectionServersFailed": "स्वयंसेवकों के सर्वर अभी भाषा का पता नहीं लगा सके। वह भाषा चुनें जिसमें टेक्स्ट लिखा है।",
+  "speechErrorServersUnavailable": "स्वयंसेवकों के सर्वर अभी इसे पढ़कर नहीं सुना सके। ये मुफ़्त सर्वर कभी-कभी बंद रहते हैं।",
+  "liveCaptionsBarLocked": "Mozhi लॉक है",
+  "offlineCancelDownloadTooltip": "{language} का डाउनलोड रद्द करें",
+  "offlineCancelling": "रोका जा रहा है…",
+  "documentsPdfProgressCooling": "{total} में से पेज {page}: फ़ोन गर्म है, उसके ठंडा होने का इंतज़ार किया जा रहा है…"
 }

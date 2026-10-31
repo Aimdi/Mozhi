@@ -310,6 +310,10 @@ const Map<String, String> _pluralForms = {
   'mk': 'nplurals=2; plural=(n%10==1 && n%100!=11) ? 0 : 1;',
 };
 
+/// The `Plural-Forms` written for languages [gettextPluralForms] does not
+/// know: two forms, singular and plural.
+const String defaultGettextPluralForms = _notOne;
+
 /// The gettext `Plural-Forms` header value for [tag] (Brazilian and
 /// European Portuguese differ), or null for a language this table does
 /// not know.
@@ -328,14 +332,30 @@ class PluralForms {
   final int count;
   final int Function(int n) _form;
 
+  /// The most tokens a plural expression may have ([parse]).
+  static const maxTokens = 256;
+
   /// The form index for [n] (clamped to `0..count-1`).
   int formFor(int n) {
     final form = _form(n);
     return form < 0 || form >= count ? count - 1 : form;
   }
 
+  /// Whether [form] is used for `n = 1` and no other number (checked up
+  /// to 1000): English "one", but not Russian "one" (1, 21, 31, ...) or
+  /// French (0 and 1).
+  bool isOnlyOne(int form) {
+    if (formFor(1) != form) return false;
+    for (var n = 0; n <= 1000; n++) {
+      if (n != 1 && formFor(n) == form) return false;
+    }
+    return true;
+  }
+
   /// Parses `nplurals=N; plural=EXPRESSION;`; null when it is malformed
-  /// (or the template's `nplurals=INTEGER; plural=EXPRESSION;`).
+  /// (or the template's `nplurals=INTEGER; plural=EXPRESSION;`), or when
+  /// the expression has more than [maxTokens] tokens (real rules have
+  /// fewer than 100; a longer one would make every evaluation slow).
   static PluralForms? parse(String? value) {
     if (value == null) return null;
     final match = RegExp(r'nplurals\s*=\s*(\d+)\s*;\s*plural\s*=\s*([^;]+);?')
@@ -358,7 +378,12 @@ class _PluralParser {
     : _tokens = RegExp(r'\d+|n|\|\||&&|==|!=|<=|>=|[-+*/%<>!?:()]')
           .allMatches(source)
           .map((match) => match.group(0)!)
+          // One more than allowed is enough to refuse it.
+          .take(PluralForms.maxTokens + 1)
           .toList() {
+    if (_tokens.length > PluralForms.maxTokens) {
+      throw FormatException('Plural expression too long', source);
+    }
     final rest = source.replaceAll(
       RegExp(r'\d+|n|\|\||&&|==|!=|<=|>=|[-+*/%<>!?:()\s]'),
       '',

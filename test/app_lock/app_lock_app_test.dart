@@ -127,6 +127,43 @@ void main() {
     expect(find.byType(TranslatePage), findsOneWidget);
   });
 
+  group('the history', () {
+    setUp(() {
+      when(env.historyRepository.forgetCache).thenAnswer((_) async {});
+      when(() => env.historyRepository.prune(any()))
+          .thenAnswer((_) async => const []);
+    });
+
+    testWidgets('is not read behind the lock screen of a cold start, only '
+        'once unlocked', (tester) async {
+      platform.holdPrompt = Completer();
+      await pumpApp(tester);
+      await tester.pump(const Duration(seconds: 1));
+
+      expect(find.byType(AppLockScreen), findsOneWidget);
+      verifyNever(
+        () => env.historyRepository.load(maxAge: any(named: 'maxAge')),
+      );
+      verifyNever(() => env.historyRepository.prune(any()));
+
+      platform.holdPrompt!.complete(AppLockPromptResult.success);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(find.byType(TranslatePage), findsOneWidget);
+      verify(() => env.historyRepository.load(maxAge: any(named: 'maxAge')))
+          .called(1);
+    });
+
+    testWidgets('is read at once with the lock off', (tester) async {
+      await pumpApp(tester, timeout: AppLockTimeout.off);
+
+      verify(() => env.historyRepository.load(maxAge: any(named: 'maxAge')))
+          .called(1);
+      verifyNever(env.historyRepository.forgetCache);
+    });
+  });
+
   testWidgets('provides the lock to the app', (tester) async {
     final lock = await pumpApp(tester, timeout: AppLockTimeout.off);
 

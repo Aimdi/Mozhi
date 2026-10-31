@@ -321,9 +321,12 @@ void main() {
               '$office.presentationml.slide+xml"/></Types>',
           'p.xml': '<p:presentation xmlns:p="$pNs"/>',
           'm.xml':
-              '<p:sldMaster xmlns:p="$pNs" xmlns:a="$aNs"><a:p><a:r>'
-              '<a:rPr lang="en-US"/><a:t>Master prompt</a:t></a:r></a:p>'
-              '</p:sldMaster>',
+              '<p:sldMaster xmlns:p="$pNs" xmlns:a="$aNs"><p:cSld>'
+              '<p:spTree><p:sp><p:nvSpPr><p:cNvPr id="2" name="Title"/>'
+              '<p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>'
+              '<p:txBody><a:p><a:r><a:rPr lang="en-US"/>'
+              '<a:t>Master prompt</a:t></a:r></a:p></p:txBody></p:sp>'
+              '</p:spTree></p:cSld></p:sldMaster>',
           's.xml':
               '<p:sld xmlns:p="$pNs" xmlns:a="$aNs"><a:p><a:r><a:t>Slide'
               '</a:t></a:r></a:p></p:sld>',

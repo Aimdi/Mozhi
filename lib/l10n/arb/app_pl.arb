@@ -2757,5 +2757,11 @@
   "conversationTurnPauseHintAny": "Wypowiedź kończy się, gdy po mowie zapada tak długa cisza.",
   "translateOfflineManageLanguages": "Zarządzaj językami",
   "translateOfflineDownloadingLanguage": "Pobieranie języka: {language}… {percent}%",
-  "translateOfflineDownloadingLanguageStarted": "Pobieranie języka: {language}…"
+  "translateOfflineDownloadingLanguageStarted": "Pobieranie języka: {language}…",
+  "translateErrorDetectionServersFailed": "Serwery wolontariuszy nie mogły teraz wykryć języka. Wybierz język, w którym napisano tekst.",
+  "speechErrorServersUnavailable": "Serwery wolontariuszy nie mogły teraz tego odczytać na głos. Te bezpłatne serwery czasem nie działają.",
+  "liveCaptionsBarLocked": "Mozhi jest zablokowany",
+  "offlineCancelDownloadTooltip": "Anuluj pobieranie: {language}",
+  "offlineCancelling": "Zatrzymywanie…",
+  "documentsPdfProgressCooling": "Strona {page} z {total}: telefon jest gorący, czekanie, aż ostygnie…"
 }

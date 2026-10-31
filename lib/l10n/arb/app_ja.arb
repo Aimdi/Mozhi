@@ -2757,5 +2757,11 @@
   "conversationTurnPauseHintAny": "発話のあと、この長さの無音が続くと番が終わります。",
   "translateOfflineManageLanguages": "言語を管理",
   "translateOfflineDownloadingLanguage": "{language}をダウンロード中… {percent}%",
-  "translateOfflineDownloadingLanguageStarted": "{language}をダウンロード中…"
+  "translateOfflineDownloadingLanguageStarted": "{language}をダウンロード中…",
+  "translateErrorDetectionServersFailed": "現在、ボランティアのサーバーで言語を検出できませんでした。テキストの言語を選択してください。",
+  "speechErrorServersUnavailable": "現在、ボランティアのサーバーで読み上げができませんでした。これらの無料サーバーは停止していることがあります。",
+  "liveCaptionsBarLocked": "Mozhi はロックされています",
+  "offlineCancelDownloadTooltip": "{language} のダウンロードをキャンセル",
+  "offlineCancelling": "停止しています…",
+  "documentsPdfProgressCooling": "{page}/{total} ページ: 端末が高温のため、冷えるのを待っています…"
 }

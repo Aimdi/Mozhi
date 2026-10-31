@@ -613,14 +613,19 @@ open class MainActivity : FlutterActivity() {
          * location `/<host>[<path>][?<query>][#<fragment>]`, keeping the
          * percent-encoding of path, query and fragment. The host (the screen)
          * is lower-cased. `mozhi:///<path>` (no host) maps to `/<path>`.
-         * Returns null for any other URI.
+         * A link that could leave its screen once Dart reads it opens
+         * [DEFAULT_ROUTE] instead: a host that is not a plain name
+         * ([DEEP_LINK_HOST]) or an unsafe path ([isUnsafeDeepLinkPath]: `\`,
+         * `.` or `..` segments, an encoded dot, slash or backslash). Returns
+         * null for any other URI.
          */
         fun deepLinkRoute(uri: Uri?): String? {
             if (uri == null || !DEEP_LINK_SCHEME.equals(uri.scheme, ignoreCase = true)) return null
-            val route = StringBuilder()
             val host = uri.host?.lowercase(Locale.ROOT).orEmpty()
-            if (host.isNotEmpty()) route.append('/').append(host)
             val path = uri.encodedPath.orEmpty()
+            if (!DEEP_LINK_HOST.matches(host) || isUnsafeDeepLinkPath(path)) return DEFAULT_ROUTE
+            val route = StringBuilder()
+            if (host.isNotEmpty()) route.append('/').append(host)
             if (path.isNotEmpty() && !path.startsWith("/")) route.append('/')
             route.append(path)
             if (route.isEmpty()) route.append(DEFAULT_ROUTE)
@@ -628,5 +633,24 @@ open class MainActivity : FlutterActivity() {
             uri.encodedFragment?.takeIf { it.isNotEmpty() }?.let { route.append('#').append(it) }
             return route.toString()
         }
+
+        /** A deep link's host (the screen), lower-cased: a plain name or none. */
+        private val DEEP_LINK_HOST = Regex("[a-z0-9_-]*")
+
+        /** Percent-encoded `.`, `/` and `\`, in any case ([isUnsafeDeepLinkPath]). */
+        private val ENCODED_PATH_SEPARATOR = Regex("%(2e|2f|5c)", RegexOption.IGNORE_CASE)
+
+        /**
+         * Whether the encoded [path] of a deep link could name another screen
+         * than its host once Dart reads it: `Uri.parse` reads `\` as `/`,
+         * decodes `%2e` and resolves `.` and `..` segments, so
+         * `mozhi://translate/..\transcribe/captions` would open
+         * `/transcribe/captions`. True for a `\`, a `.` or `..` segment, or
+         * a percent-encoded dot, slash or backslash anywhere in it.
+         */
+        fun isUnsafeDeepLinkPath(path: String): Boolean =
+            path.contains('\\') ||
+                ENCODED_PATH_SEPARATOR.containsMatchIn(path) ||
+                path.split('/').any { it == "." || it == ".." }
     }
 }

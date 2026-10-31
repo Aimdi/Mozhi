@@ -4,10 +4,13 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:bergamot_translator/src/catalog.dart';
+import 'package:bergamot_translator/src/download_cancel.dart';
 import 'package:bergamot_translator/src/file_hashing.dart';
 import 'package:http/http.dart' as http;
 import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
+import 'package:translation_repository/translation_repository.dart'
+    show OfflineDownloadCancelledException;
 
 /// A download or install of a model failed.
 sealed class ModelInstallException implements Exception {
@@ -245,9 +248,13 @@ final class ModelImportResult {
 ///   absent.
 /// * `<root>/models/.staging/`: models being decompressed.
 /// * `<root>/models/.downloads/<pair>/<version>/<file>.gz.part`: downloads
-///   in progress. Kept when a download is interrupted and resumed with an
-///   HTTP `Range` request next time (the bytes already on disk are hashed
-///   again, so the final SHA-256 check covers the whole file).
+///   in progress. Kept when a download is interrupted or cancelled and
+///   resumed with an HTTP `Range` request next time (the bytes already on
+///   disk are hashed again, so the final SHA-256 check covers the whole
+///   file). The server must answer `206` with the `Content-Range` of the
+///   rest of the same file; any other answer (`200`, another range or
+///   size) starts the file over, and so does a resumed file that fails its
+///   SHA-256 (once).
 ///
 /// Every download is checked against the catalog's size and SHA-256 before
 /// it is decompressed, and the decompressed file against its own size and
@@ -313,7 +320,7 @@ class BergamotModelManager {
 
   final http.Client _client;
   final bool _ownsClient;
-  final Map<String, Future<InstalledModel>> _installing = {};
+  final _installing = SharedInstalls<InstalledModel>();
   List<InstalledModel>? _installedCache;
 
   static const manifestName = 'manifest.json';
@@ -356,12 +363,20 @@ class BergamotModelManager {
   /// Downloads and installs [model], replacing any other version of the
   /// same pair. Returns at once when it is already installed. Concurrent
   /// calls for the same model share one download.
+  ///
+  /// Once [abort] completes, this call fails at once with an
+  /// [OfflineDownloadCancelledException]; when no other call is waiting
+  /// for the download, it stops (the request is aborted, the bytes
+  /// received so far are kept for resuming, and nothing is installed).
   Future<InstalledModel> install(
     CatalogModel model, {
     void Function(ModelDownloadProgress progress)? onProgress,
-  }) {
-    return _exclusive(model, () => _install(model, onProgress));
-  }
+    Future<void>? abort,
+  }) => _installing.run(
+    _keyOf(model),
+    (cancel) => _install(model, onProgress, cancel),
+    abort: abort,
+  );
 
   /// Installs models from files copied to the device by hand (downloaded
   /// elsewhere from [CatalogFile.url]), without any network request.
@@ -513,6 +528,7 @@ class BergamotModelManager {
   Future<InstalledModel> _install(
     CatalogModel model,
     void Function(ModelDownloadProgress progress)? onProgress,
+    DownloadCancel cancel,
   ) async {
     _checkSafe(model.pair);
     final current = await installedModel(model.source, model.target);
@@ -554,6 +570,7 @@ class BergamotModelManager {
           file,
           downloads,
           report,
+          cancel: cancel,
           mirror: mirror,
           fallbackToDefault: fallbackToDefault,
         );
@@ -565,23 +582,21 @@ class BergamotModelManager {
           await _deleteQuietly(gz);
           rethrow;
         }
+        // Cancelled while decompressing: the verified download stays.
+        cancel.check();
       }
     });
   }
+
+  /// `<pair>/<version>` of [model]: one install of it runs at a time.
+  static String _keyOf(CatalogModel model) => '${model.pair}/${model.version}';
 
   /// Runs [run] (installing [model]) unless an install of the same model is
   /// already running, which is then shared.
   Future<InstalledModel> _exclusive(
     CatalogModel model,
     Future<InstalledModel> Function() run,
-  ) {
-    final key = '${model.pair}/${model.version}';
-    // The callback must not return the removed future: whenComplete would
-    // then wait for itself.
-    return _installing[key] ??= run().whenComplete(() {
-      unawaited(_installing.remove(key));
-    });
-  }
+  ) => _installing.run(_keyOf(model), (_) => run());
 
   /// Installs [model] from a fresh staging directory that [fill] writes
   /// every verified file of [model] into (see [_writeVerified]): writes
@@ -626,12 +641,15 @@ class BergamotModelManager {
 
   /// Downloads [file] into `<downloads>/<name>.gz.part` (resuming a partial
   /// download) from [mirror] or the catalog's URL (see
-  /// [bergamotDownloadUrls]) and verifies its size and SHA-256.
+  /// [bergamotDownloadUrls]) and verifies its size and SHA-256. A file
+  /// that fails the check after resuming bytes of an earlier download is
+  /// downloaded once more from the start.
   Future<File> _download(
     CatalogModel model,
     CatalogFile file,
     Directory downloads,
     void Function(ModelFileKind kind, int bytes) report, {
+    required DownloadCancel cancel,
     Uri? mirror,
     bool fallbackToDefault = false,
   }) async {
@@ -642,86 +660,39 @@ class BergamotModelManager {
       existing = 0;
     }
 
-    var received = 0;
-    // The mirror the bytes come from (null: the catalog's URL).
-    Uri? source;
-    final FileDigest digest;
-
-    if (existing < file.size) {
-      final (response, from) = await _request(
-        model,
-        file,
-        existing,
-        mirror: mirror,
-        fallbackToDefault: fallbackToDefault,
-      );
-      source = from;
-      final resumed = existing > 0 && response.statusCode == 206;
-      final StreamHasher hasher;
-      try {
-        hasher = await hashing.stream();
-        // An isolate that cannot start: the download fails like an
-        // interrupted one.
-        // coverage:ignore-start
-      } on Object catch (error) {
-        unawaited(response.stream.listen(null).cancel());
-        throw ModelDownloadException(
-          model.pair,
-          '${file.name}${_from(source)}: $error',
-          mirror: source,
+    for (var restarted = false; ; restarted = true) {
+      cancel.check();
+      final FileDigest digest;
+      // The mirror the bytes come from (null: the catalog's URL).
+      Uri? source;
+      // Whether bytes of an earlier download were hashed too.
+      final bool resumed;
+      if (existing < file.size) {
+        (digest, source, resumed) = await _receive(
+          model,
+          file,
+          part,
+          existing,
+          report,
+          cancel: cancel,
+          mirror: mirror,
+          fallbackToDefault: fallbackToDefault,
         );
+      } else {
+        digest = await hashing.hashFile(part.path);
+        resumed = true;
+        report(file.kind, digest.size);
       }
-      // coverage:ignore-end
-      try {
-        if (resumed) {
-          // Hash what is already on disk (in the background), then append.
-          received = await hasher.addFile(part.path);
-        }
-        report(file.kind, received);
-        final sink = part.openWrite(
-          mode: resumed ? FileMode.writeOnlyAppend : FileMode.writeOnly,
-        );
-        try {
-          await for (final chunk in response.stream.timeout(requestTimeout)) {
-            received += chunk.length;
-            if (received > file.size) {
-              throw ModelChecksumException(
-                model.pair,
-                '${file.name}${_from(source)}: more than ${file.size} bytes',
-                mirror: source,
-              );
-            }
-            sink.add(chunk);
-            await hasher.add(chunk);
-            report(file.kind, received);
-          }
-        } on ModelInstallException {
-          await sink.close();
-          await _deleteQuietly(part);
-          rethrow;
-        } on Object catch (error) {
-          // Interrupted: keep the part for resuming.
-          await sink.close();
-          throw ModelDownloadException(
-            model.pair,
-            '${file.name}${_from(source)}: $error',
-            mirror: source,
-          );
-        }
-        await sink.flush();
-        await sink.close();
-        digest = await hasher.close();
-      } finally {
-        hasher.abort();
+      if (digest.size == file.size && digest.sha256 == file.sha256) {
+        return part;
       }
-    } else {
-      digest = await hashing.hashFile(part.path);
-      received = digest.size;
-      report(file.kind, received);
-    }
-
-    if (digest.size != file.size || digest.sha256 != file.sha256) {
       await _deleteQuietly(part);
+      if (resumed && !restarted) {
+        // The earlier bytes may be what is wrong: start over.
+        existing = 0;
+        report(file.kind, 0);
+        continue;
+      }
       throw ModelChecksumException(
         model.pair,
         '${file.name}${_from(source)}: got ${digest.size} bytes with SHA-256 '
@@ -730,7 +701,117 @@ class BergamotModelManager {
         mirror: source,
       );
     }
-    return part;
+  }
+
+  /// Requests the rest of [file] after the [existing] bytes of [part] and
+  /// writes it there (all of it when the server does not resume): the
+  /// digest of the whole file, the mirror it came from and whether the
+  /// [existing] bytes are part of it. An interrupted or cancelled download
+  /// keeps [part] for resuming.
+  Future<(FileDigest, Uri?, bool)> _receive(
+    CatalogModel model,
+    CatalogFile file,
+    File part,
+    int existing,
+    void Function(ModelFileKind kind, int bytes) report, {
+    required DownloadCancel cancel,
+    required Uri? mirror,
+    required bool fallbackToDefault,
+  }) async {
+    var (response, source) = await _request(
+      model,
+      file,
+      existing,
+      cancel: cancel,
+      mirror: mirror,
+      fallbackToDefault: fallbackToDefault,
+    );
+    var resumed = existing > 0 && response.statusCode == 206;
+    if (resumed && !resumesAt(response, existing, file.size)) {
+      // A part of something else: ask for the whole file.
+      _discard(response);
+      (response, source) = await _request(
+        model,
+        file,
+        0,
+        cancel: cancel,
+        mirror: mirror,
+        fallbackToDefault: fallbackToDefault,
+      );
+      resumed = false;
+    }
+    final StreamHasher hasher;
+    try {
+      hasher = await hashing.stream();
+      // An isolate that cannot start: the download fails like an
+      // interrupted one.
+      // coverage:ignore-start
+    } on Object catch (error) {
+      _discard(response);
+      throw ModelDownloadException(
+        model.pair,
+        '${file.name}${_from(source)}: $error',
+        mirror: source,
+      );
+    }
+    // coverage:ignore-end
+    try {
+      var received = 0;
+      if (resumed) {
+        // Hash what is already on disk (in the background), then append.
+        received = await hasher.addFile(part.path);
+        if (cancel.isCancelled) _discard(response);
+        cancel.check();
+      }
+      report(file.kind, received);
+      final sink = part.openWrite(
+        mode: resumed ? FileMode.writeOnlyAppend : FileMode.writeOnly,
+      );
+      try {
+        await for (final chunk
+            in cancel.guard(response.stream).timeout(requestTimeout)) {
+          received += chunk.length;
+          if (received > file.size) {
+            throw ModelChecksumException(
+              model.pair,
+              '${file.name}${_from(source)}: more than ${file.size} bytes',
+              mirror: source,
+            );
+          }
+          sink.add(chunk);
+          await hasher.add(chunk);
+          report(file.kind, received);
+        }
+      } on ModelInstallException {
+        await sink.close();
+        await _deleteQuietly(part);
+        rethrow;
+      } on Object catch (error) {
+        // Interrupted or cancelled: keep the part for resuming.
+        await sink.close();
+        cancel.check();
+        throw ModelDownloadException(
+          model.pair,
+          '${file.name}${_from(source)}: $error',
+          mirror: source,
+        );
+      }
+      await sink.flush();
+      await sink.close();
+      return (await hasher.close(), source, resumed);
+    } finally {
+      hasher.abort();
+    }
+  }
+
+  /// Stops reading [response] (closing its connection).
+  static void _discard(http.StreamedResponse response) {
+    unawaited(
+      response.stream
+          .listen(null, onError: (Object _) {})
+          .cancel()
+          .catchError((Object _) {}),
+    );
   }
 
   /// The partial download of [file] in [downloads].
@@ -741,11 +822,13 @@ class BergamotModelManager {
   /// [bergamotDownloadUrls] in turn until one answers with its contents
   /// (200, or 206 when resuming): the response and the mirror it came from
   /// (null: the catalog's URL). Throws the last URL's
-  /// [ModelDownloadException].
+  /// [ModelDownloadException], or an [OfflineDownloadCancelledException]
+  /// once [cancel] is (the request is aborted, no other URL is tried).
   Future<(http.StreamedResponse, Uri?)> _request(
     CatalogModel model,
     CatalogFile file,
     int existing, {
+    required DownloadCancel cancel,
     required Uri? mirror,
     required bool fallbackToDefault,
   }) async {
@@ -759,12 +842,22 @@ class BergamotModelManager {
       final url = urls[i];
       final source = i == 0 ? mirror : null;
       final last = i == urls.length - 1;
-      final request = http.Request('GET', url);
+      final request = http.AbortableRequest(
+        'GET',
+        url,
+        abortTrigger: cancel.future,
+      );
       if (existing > 0) request.headers['Range'] = 'bytes=$existing-';
       final http.StreamedResponse response;
       try {
-        response = await _client.send(request).timeout(requestTimeout);
+        response = await cancel.race(
+          _client.send(request).timeout(requestTimeout),
+          onLate: _discard,
+        );
+      } on OfflineDownloadCancelledException {
+        rethrow;
       } on Object catch (error) {
+        cancel.check();
         if (!last) continue;
         throw ModelDownloadException(
           model.pair,
@@ -777,7 +870,11 @@ class BergamotModelManager {
         return (response, source);
       }
       // Drain so the connection can be reused.
-      await response.stream.drain<void>().catchError((_) {});
+      await cancel
+          .guard(response.stream)
+          .drain<void>()
+          .catchError((Object _) {});
+      cancel.check();
       if (last) {
         throw ModelDownloadException(
           model.pair,
@@ -961,7 +1058,7 @@ class BergamotModelManager {
       _checkSafe(model.pair);
       // A download of the same model that is running finishes first; when
       // it fails, the files are installed instead.
-      if (_installing['${model.pair}/${model.version}'] case final running?) {
+      if (_installing.running(_keyOf(model)) case final running?) {
         try {
           await running;
         } on Object {

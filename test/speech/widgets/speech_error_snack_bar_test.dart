@@ -20,6 +20,7 @@ void main() {
       WidgetTester tester,
       Object error, {
       void Function(ConsentRequiredException consent)? onListenOnline,
+      VoidCallback? onRetry,
     }) async {
       await tester.pumpApp(
         Scaffold(
@@ -29,6 +30,7 @@ void main() {
                 context,
                 error,
                 onListenOnline: onListenOnline,
+                onRetry: onRetry,
               ),
               child: const Text('fail'),
             ),
@@ -99,6 +101,55 @@ void main() {
       );
 
       expect(find.textContaining('mozhi.example'), findsNothing);
+      expect(find.byType(SnackBarAction), findsNothing);
+    });
+
+    group('when the servers failed', () {
+      final error = SpeechUnavailableException(
+        'fr',
+        cause: AllInstancesFailedException(
+          'boom',
+          engine: TranslationEngine.mozhi('google', 'Google'),
+          instances: const [MozhiInstance(url: 'https://mozhi.example')],
+          statusCode: 502,
+        ),
+      );
+
+      testWidgets('says so plainly and offers Retry', (tester) async {
+        var retried = 0;
+        await show(tester, error, onRetry: () => retried++);
+
+        expect(
+          find.textContaining("The volunteer servers couldn't read this"),
+          findsOneWidget,
+        );
+        expect(find.textContaining('502'), findsNothing);
+        expect(
+          tester.widget<SnackBar>(find.byType(SnackBar)).duration,
+          const Duration(seconds: 6),
+        );
+        await tester.tap(find.text('Retry'));
+        expect(retried, 1);
+      });
+
+      testWidgets('without a callback it offers nothing', (tester) async {
+        await show(tester, error);
+
+        expect(
+          find.textContaining("The volunteer servers couldn't read this"),
+          findsOneWidget,
+        );
+        expect(find.byType(SnackBarAction), findsNothing);
+      });
+    });
+
+    testWidgets('a voice that is missing offers no Retry', (tester) async {
+      await show(
+        tester,
+        const SpeechUnavailableException('fr'),
+        onRetry: () {},
+      );
+
       expect(find.byType(SnackBarAction), findsNothing);
     });
 

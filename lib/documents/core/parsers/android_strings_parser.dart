@@ -13,10 +13,17 @@ import 'package:mozhi/documents/core/parsers/xml_tree.dart';
 /// Parses Android string resources ([DocumentFormat.androidStrings]).
 ///
 /// Translated in place: `<string>`, the items of `<string-array>` and
-/// `<plurals>` (each quantity on its own; the quantities of the source are
-/// kept), and `<item type="string">`. Skipped: anything marked
+/// `<plurals>`, and `<item type="string">`. Skipped: anything marked
 /// `translatable="false"`, resource references (`@string/name`), values
 /// that are not natural language, and every other resource type.
+///
+/// Plurals get the quantities of [targetLanguage] (its CLDR categories:
+/// Russian `one`, `few`, `many`, `other`; Japanese only `other`; Arabic
+/// all six), see [pluralCategories]: `one` is translated from the source's
+/// `one`, every other quantity from the source's `other` (a quantity the
+/// source has itself, such as `zero`, from that one). Without a target,
+/// for a language the table does not know, or when the quantities already
+/// match, the source's quantities are kept.
 ///
 /// Android's escaping is read and written back: `\'`, `\"`, `\\`, `\@`,
 /// `\?` and `\uXXXX` are decoded for the engine and escaped again, `\n`
@@ -28,7 +35,7 @@ import 'package:mozhi/documents/core/parsers/xml_tree.dart';
 ///
 /// Throws [DocumentParseException] for malformed XML, entity declarations,
 /// or a root element other than `<resources>`.
-ParsedDocument parseAndroidStrings(String text) {
+ParsedDocument parseAndroidStrings(String text, {String? targetLanguage}) {
   final tree = parseXmlTree(text, format: 'Android strings');
   if (tree.root.localName != 'resources') {
     throw DocumentParseException(
@@ -36,7 +43,7 @@ ParsedDocument parseAndroidStrings(String text) {
       'not <resources>',
     );
   }
-  return _AndroidParser(tree).parse();
+  return _AndroidParser(tree, pluralCategories(targetLanguage)).parse();
 }
 
 /// Styling tags of string resources, translated with their content.
@@ -66,10 +73,14 @@ const _styleTags = {
 final _reference = RegExp(r'^[@?][\w.:+-]*(?:/[\w.$]+|[\w.]|\$[\w.$]*)$');
 
 class _AndroidParser {
-  new(this.tree) : source = tree.source;
+  new(this.tree, this.quantities) : source = tree.source;
 
   final XmlTree tree;
   final String source;
+
+  /// The plural quantities of the target language (null: keep the
+  /// source's).
+  final List<String>? quantities;
   final DocumentBuilder builder = DocumentBuilder();
   int _pairs = 0;
 
@@ -119,18 +130,19 @@ class _AndroidParser {
       case 'string-array' || 'plurals':
         final plurals = element.localName == 'plurals';
         final nodes = NodeList();
+        final values = <XmlElement, List<DocNode>>{};
         var position = element.outerStart;
         var index = 0;
         for (final item in element.elements) {
           nodes.text(source.substring(position, item.outerStart));
           if (item.localName == 'item') {
             final quantity = item.attribute(source, 'quantity');
-            nodes.addAll(
-              _value(
-                item,
-                label: plurals ? '$name:$quantity' : '$name[$index]',
-              ),
+            final value = _value(
+              item,
+              label: plurals ? '$name:$quantity' : '$name[$index]',
             );
+            values[item] = value;
+            nodes.addAll(value);
             index++;
           } else {
             nodes.text(_outer(item));
@@ -138,10 +150,77 @@ class _AndroidParser {
           position = item.outerEnd;
         }
         nodes.text(source.substring(position, element.outerEnd));
+        if (plurals) {
+          if (_retargeted(element, values) case final target?) return target;
+        }
         return nodes.nodes;
       default:
         return whole;
     }
+  }
+
+  /// The `<plurals>` [element] with the target language's quantities
+  /// ([values] are the nodes of its items), or null when its quantities
+  /// stay.
+  ///
+  /// Only the two texts the source has are used: the source's `one` for
+  /// `one`, its `other` for `few`, `many` and the rest. No grammar is made
+  /// up for the forms English lacks (a Russian `few` gets the same text as
+  /// `many`), so translators should review them.
+  List<DocNode>? _retargeted(
+    XmlElement element,
+    Map<XmlElement, List<DocNode>> values,
+  ) {
+    final target = quantities;
+    if (target == null || values.isEmpty || element.end == null) return null;
+    // Anything but items (and comments) between the tags: keep it as is.
+    if (element.elements.length != values.length) return null;
+    final byQuantity = <String, XmlElement>{};
+    for (final item in values.keys) {
+      final quantity = item.attribute(source, 'quantity')?.trim();
+      if (quantity == null || item.end == null) return null;
+      byQuantity.putIfAbsent(quantity, () => item);
+    }
+    if (byQuantity.length == target.length &&
+        target.every(byQuantity.containsKey)) {
+      return null;
+    }
+    final items = values.keys.toList();
+    final fallback = byQuantity['other'] ?? items.last;
+
+    // The layout of the source: the text up to the first item, between
+    // items, and after the last one; comments between items move up.
+    final separator = items.length > 1
+        ? source.substring(items[0].outerEnd, items[1].outerStart)
+        : source.substring(element.contentStart, items.first.outerStart);
+    final indentation = separator.trim().isEmpty
+        ? separator
+        : _lastLineBreak(separator);
+    final nodes = NodeList()
+      ..text(source.substring(element.outerStart, items.first.outerStart));
+    for (var i = 0; i + 1 < items.length; i++) {
+      final between = source.substring(
+        items[i].outerEnd,
+        items[i + 1].outerStart,
+      );
+      if (between.trim().isNotEmpty) {
+        nodes.text('${between.trim()}$indentation');
+      }
+    }
+    for (final (i, quantity) in target.indexed) {
+      final item = byQuantity[quantity] ?? fallback;
+      final value = values[item]!;
+      nodes
+        ..text(i == 0 ? '' : indentation)
+        ..text(setAttributes(source, item.start, {'quantity': quantity}))
+        ..addAll(value.sublist(1, value.length - 1))
+        ..text(item.end!.raw(source));
+    }
+    nodes.text(source.substring(items.last.outerEnd, element.outerEnd));
+    final outer = _outer(element);
+    return [
+      EncodedNode(raw: outer, children: nodes.nodes, encode: (xml) => xml),
+    ];
   }
 
   /// Nodes for a string value element.
@@ -203,6 +282,18 @@ class _AndroidParser {
       TextNode(element.end!.raw(source)),
     ];
     return nodes;
+  }
+
+  /// The last line break of [text] and the whitespace after it (the
+  /// indentation of the next line), or nothing.
+  static String _lastLineBreak(String text) {
+    final newline = text.lastIndexOf('\n');
+    if (newline < 0) return '';
+    final start = newline > 0 && text[newline - 1] == '\r'
+        ? newline - 1
+        : newline;
+    final rest = text.substring(start);
+    return rest.trim().isEmpty ? rest : '';
   }
 
   /// The CDATA section that is [element]'s only content (besides

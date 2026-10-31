@@ -144,7 +144,29 @@ pick ones you trust, or self-host them ([guide](self-hosting-mozhi.md)).
   they can't take keyboard focus (a focused field loses it, which closes
   the on-screen keyboard); messages they show don't appear on the lock
   screen. So there is no history, phrasebook, conversation, setting or key
-  to see, read aloud, type into or tap. Text shared to the app, the
+  to see, read aloud, type into or tap. Locking also drops from memory
+  what can be dropped:
+  - **Translate:** the cache of recent translations is dropped. The text
+    you typed and its translation stay, hidden (not drawn, not in the
+    accessibility tree): dropping the translation would mean translating
+    it again after the unlock, which sends your text to an online engine
+    once more without you asking.
+  - **History:** its decrypted entries leave memory (the cubit's list and
+    the repository's copy); the encrypted history stays on disk and is
+    read again after the unlock. At a start with the lock on it isn't
+    read (decrypted) at all until the first unlock; the retention clean-up
+    waits for the unlock too. What is saved while locked (a running
+    Transcribe, a document) is written to disk without coming back into
+    memory.
+  - **Conversation:** kept, hidden like the translate screen: leaving the
+    app for a moment must not end a conversation, and guests of a shared
+    one keep seeing it. It is never stored; **Clear** removes it.
+  - **Kept, hidden:** work that runs or that you would lose: a running
+    Transcribe or live captions transcript, a document or image being
+    translated, the dictionary, the phrasebook and the settings screens.
+  Dropping means the app lets go of the text; Dart does not overwrite
+  freed memory, so this narrows what a memory dump would find but is not
+  erasure. Text shared to the app, the
   clipboard actions and `mozhi://` links (also shared files and the
   widget's buttons) wait for the unlock before they fill anything in,
   open a screen, translate or are saved; the clipboard is only read then,
@@ -155,11 +177,15 @@ pick ones you trust, or self-host them ([guide](self-hosting-mozhi.md)).
   Translate screen windows ask to unlock first
   (they would otherwise show your languages and spend your AI providers'
   credit), and Recents shows no preview while the lock is on. Unlocking uses Android's
-  system prompt (framework `BiometricPrompt` with `BIOMETRIC_WEAK` or the
+  system prompt (framework `BiometricPrompt` with `BIOMETRIC_STRONG` or the
   device credential on Android 11+, the device credential allowed on 10,
   the screen lock's own screen as fallback on 9 and as the only way on 7
   and 8; no third-party library); the app only learns whether it
-  succeeded. Turning it on needs one successful unlock, so a setting can't
+  succeeded. On Android 11+ only a strong (Class 3) fingerprint or face
+  unlocks Mozhi, or the screen lock: a "weak" (Class 2) face unlock,
+  which many phones accept on their own lock screen, offers the PIN,
+  pattern or password instead. On Android 10 the system picks which
+  biometrics the prompt accepts. Turning it on needs one successful unlock, so a setting can't
   lock the owner out; without a secure screen lock on the phone it can't
   be turned on, and it stops locking if the screen lock is removed (that
   needs the phone's PIN anyway). Away time is measured by the platform
@@ -185,8 +211,28 @@ pick ones you trust, or self-host them ([guide](self-hosting-mozhi.md)).
   keys, secrets in secure storage), not with a key that needs the unlock,
   so it doesn't protect against someone who can read the app's storage (a
   rooted phone, a forensic tool on an unlocked device) or against malware;
-  and while locked, the hidden screens' data is in memory as when unlocked.
-  The home-screen widget shows no translations anyway.
+  and while locked, what the screens keep (above) is in memory as when
+  unlocked. The home-screen widget shows no translations anyway.
+  **Live captions** keep running while Mozhi is locked (they are for
+  watching other apps), into the transcript behind the lock, but the
+  caption bar shows only **Mozhi is locked**: the app sends it no caption
+  text, and the bar itself ignores captions while the lock is engaged
+  (the platform side learns of it with `setUnlocked`). When the phone
+  locks the bar clears its text, and once the phone is unlocked the app
+  lock checks the time away first (its timer doesn't count deep sleep)
+  before a caption shows again.
+  The **Live captions** Quick Settings tile stops running captions, or
+  opens the captions screen with a start request
+  (`mozhi://transcribe/captions?start=<token>`): on a locked phone the
+  screen lock comes first, for stopping as for starting; a start then
+  goes through Mozhi's app lock, the microphone permission and Android's
+  capture dialog, as with **Start captions**. The token is random (32
+  bytes from `SecureRandom`), made for each tap and kept only in the
+  app's process; the screen starts the captions only after the platform
+  side confirmed it is the tile's latest token, which uses it up
+  (`consumeStartToken`). The main activity is exported, so another app
+  can send the same link, but with any other `start` value it only opens
+  the captions screen: nothing starts and no dialog opens.
 - **Clipboard:** on Android 13+ copies are marked sensitive
   (`EXTRA_IS_SENSITIVE`), so the system's preview and keyboard suggestions
   don't show them.
@@ -570,6 +616,19 @@ Settings tile, launcher shortcuts and widget, and links (`mozhi://…`,
   Free-text options (context, glossary, instructions) and unknown target
   languages are ignored, because they would end up in later AI prompts.
 - Dictionary, Proofread and web page links send nothing until you ask.
+- A `mozhi://` link opens the screen its host names. Dart's `Uri` reads
+  `\` as `/`, decodes `%2e` and resolves `.` and `..`, so a path could
+  otherwise climb to another screen
+  (`mozhi://translate/..\transcribe/captions`): the main activity opens
+  `/` instead for a link whose host isn't a plain name or whose path has
+  a backslash, a `.` or `..` segment, or a percent-encoded dot, slash or
+  backslash (`%2e`, `%2f`, `%5c`, any case). The router, for a
+  `mozhi://` link that reaches it unchanged, opens `/` for a host the
+  manifest's link filter doesn't list and drops dot segments and
+  segments with a slash or backslash. Explicit intents to the exported
+  main activity can still name any screen, so what a screen does on
+  arrival is limited as listed here (the live captions start request
+  needs the tile's token, see App lock).
 - Replacing the selected text in the other app (PROCESS_TEXT) needs a tap
   on **Replace**, and Android only accepts the answer for a writable
   selection request that is still current.
@@ -710,10 +769,9 @@ purpose, only sound, and keep nothing:
   window is on screen and while the phone is locked. Mozhi's windows are
   followed from the app's first window on, so the window that started the
   captions counts too (the microphone and capture dialogs in front of it
-  only pause it), and Translate screen never reads the bar. It shows the
-  current captions while the app lock is
-  locked (they are what is playing now, not stored data); the transcript
-  stays behind the lock.
+  only pause it), and Translate screen never reads the bar. While the app
+  lock is engaged it shows only **Mozhi is locked**, no captions; the
+  transcript stays behind the lock (see App lock).
 - **It ends** with Stop (in the app, on the bar, in the notification),
   when the captions screen closes, when Android revokes the projection
   (the status bar's stop) or the recording breaks (or doesn't start again

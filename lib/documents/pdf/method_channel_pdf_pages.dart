@@ -6,8 +6,10 @@ import 'package:mozhi/documents/pdf/pdf_pages.dart';
 /// document at a time).
 ///
 /// Everything the platform answers is checked before it is used: page
-/// counts and sizes, and that a rendered page has as many bytes as its size
-/// says, within [PdfLimits].
+/// counts and sizes, that a rendered page has as many bytes as its size
+/// says, within [PdfLimits], and that every line of a text layer has text
+/// and a finite box (at most [PdfLimits.maxTextLines] lines of
+/// [PdfLimits.maxTextLineLength] characters).
 class MethodChannelPdfPages implements PdfPages {
   new({MethodChannel? channel})
     : _channel = channel ?? const MethodChannel(channelName);
@@ -95,6 +97,71 @@ class MethodChannelPdfPages implements PdfPages {
       width: width,
       height: height,
       bytesPerPixel: bytesPerPixel,
+    );
+  }
+
+  /// `text({page})` answers `{lines: [{text, left, top, right, bottom}]}`
+  /// (points), or null before Android 15. A failure reads as a page
+  /// without text (text recognition reads it then).
+  @override
+  Future<List<PdfTextLine>?> readText(int page) async {
+    final Map<Object?, Object?>? answer;
+    try {
+      answer = await _channel.invokeMapMethod<Object?, Object?>('text', {
+        'page': page,
+      });
+    } on PlatformException {
+      return const [];
+    } on MissingPluginException {
+      return null;
+    }
+    if (answer == null) return null;
+    final lines = answer['lines'];
+    if (lines is! List) return const [];
+    return List.unmodifiable([
+      for (final line in lines.take(PdfLimits.maxTextLines)) ?_lineOf(line),
+    ]);
+  }
+
+  static PdfTextLine? _lineOf(Object? line) {
+    if (line is! Map) return null;
+    final text = line['text'];
+    final left = line['left'];
+    final top = line['top'];
+    final right = line['right'];
+    final bottom = line['bottom'];
+    if (text is! String ||
+        text.trim().isEmpty ||
+        left is! num ||
+        top is! num ||
+        right is! num ||
+        bottom is! num) {
+      return null;
+    }
+    final rect = Rect.fromLTRB(
+      left.toDouble(),
+      top.toDouble(),
+      right.toDouble(),
+      bottom.toDouble(),
+    );
+    if (!rect.isFinite) return null;
+    var cut = text;
+    if (cut.length > PdfLimits.maxTextLineLength) {
+      var end = PdfLimits.maxTextLineLength;
+      // Never inside a surrogate pair.
+      final last = cut.codeUnitAt(end - 1);
+      if (last >= 0xD800 && last <= 0xDBFF) end--;
+      cut = cut.substring(0, end);
+    }
+    // Some files have their boxes upside down.
+    return PdfTextLine(
+      text: cut,
+      rect: Rect.fromLTRB(
+        rect.left < rect.right ? rect.left : rect.right,
+        rect.top < rect.bottom ? rect.top : rect.bottom,
+        rect.left < rect.right ? rect.right : rect.left,
+        rect.top < rect.bottom ? rect.bottom : rect.top,
+      ),
     );
   }
 

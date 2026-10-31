@@ -92,10 +92,15 @@ enum DocumentFormat {
 
   bool get isSubtitle => this == srt || this == vtt;
 
-  /// Whether the format records the target language (it is passed to
-  /// `parseDocument`, and the document is parsed again when it changes).
+  /// Whether the format records the target language or depends on it (it
+  /// is passed to `parseDocument`, and the document is parsed again when it
+  /// changes): Android plurals get the target's quantities.
   bool get usesTargetLanguage =>
-      this == xliff || this == po || this == xcstrings || this == html;
+      this == xliff ||
+      this == po ||
+      this == xcstrings ||
+      this == html ||
+      this == androidStrings;
 
   /// Whether files of this format are not text (ZIP packages: office
   /// documents and e-books; and PDFs): they are read and written as bytes,

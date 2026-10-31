@@ -2757,5 +2757,11 @@
   "conversationTurnPauseHintAny": "说话后静音达到此时长即结束本轮发言。",
   "translateOfflineManageLanguages": "管理语言",
   "translateOfflineDownloadingLanguage": "正在下载{language}… {percent}%",
-  "translateOfflineDownloadingLanguageStarted": "正在下载{language}…"
+  "translateOfflineDownloadingLanguageStarted": "正在下载{language}…",
+  "translateErrorDetectionServersFailed": "志愿者服务器暂时无法检测语言。请选择文本所用的语言。",
+  "speechErrorServersUnavailable": "志愿者服务器暂时无法朗读这段内容。这些免费服务器有时会无法使用。",
+  "liveCaptionsBarLocked": "Mozhi 已锁定",
+  "offlineCancelDownloadTooltip": "取消下载{language}",
+  "offlineCancelling": "正在停止…",
+  "documentsPdfProgressCooling": "第 {page} 页，共 {total} 页：手机过热，正在等待降温…"
 }

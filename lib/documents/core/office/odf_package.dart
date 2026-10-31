@@ -13,8 +13,9 @@ const _odfPrefix = 'application/vnd.oasis.opendocument.';
 /// footers of `styles.xml` (not for presentations, whose master pages hold
 /// placeholder prompts) and the language in `meta.xml`.
 ///
-/// Refuses encrypted documents (`manifest:encryption-data`).
-List<PartTemplate> odfParts(ZipPackage zip, SegmentTable table) {
+/// Refuses encrypted documents (`manifest:encryption-data`). Each part is
+/// read when its function is called.
+List<PartTemplate Function()> odfParts(ZipPackage zip, SegmentTable table) {
   final manifestEntry = zip.file('META-INF/manifest.xml');
   final manifest = manifestEntry == null ? null : readXml(zip, manifestEntry);
   if (manifest != null &&
@@ -49,9 +50,9 @@ List<PartTemplate> odfParts(ZipPackage zip, SegmentTable table) {
   final presentation = mimetype.contains('presentation');
 
   return [
-    readPart(zip, content, table, OdfPartBuilder.new),
+    () => readPart(zip, content, table, OdfPartBuilder.new),
     if (zip.file('styles.xml') case final styles?)
-      readPart(
+      () => readPart(
         zip,
         styles,
         table,
@@ -63,7 +64,7 @@ List<PartTemplate> odfParts(ZipPackage zip, SegmentTable table) {
         ),
       ),
     if (zip.file('meta.xml') case final meta?)
-      readPart(
+      () => readPart(
         zip,
         meta,
         table,

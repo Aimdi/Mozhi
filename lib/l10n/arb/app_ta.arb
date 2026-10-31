@@ -2757,5 +2757,11 @@
   "conversationTurnPauseHintAny": "பேசிய பிறகு இவ்வளவு நேரம் அமைதி நிலவினால் ஒருவரின் முறை முடியும்.",
   "translateOfflineManageLanguages": "மொழிகளை நிர்வகி",
   "translateOfflineDownloadingLanguage": "{language} பதிவிறக்கப்படுகிறது… {percent}%",
-  "translateOfflineDownloadingLanguageStarted": "{language} பதிவிறக்கப்படுகிறது…"
+  "translateOfflineDownloadingLanguageStarted": "{language} பதிவிறக்கப்படுகிறது…",
+  "translateErrorDetectionServersFailed": "தன்னார்வலர் சர்வர்களால் இப்போது மொழியைக் கண்டறிய முடியவில்லை. உரை எழுதப்பட்ட மொழியைத் தேர்ந்தெடுக்கவும்.",
+  "speechErrorServersUnavailable": "தன்னார்வலர் சர்வர்களால் இப்போது இதைப் படித்துக் காட்ட முடியவில்லை. இந்த இலவச சர்வர்கள் சில நேரங்களில் இயங்காது.",
+  "liveCaptionsBarLocked": "Mozhi பூட்டப்பட்டுள்ளது",
+  "offlineCancelDownloadTooltip": "{language} பதிவிறக்கத்தை ரத்துசெய்",
+  "offlineCancelling": "நிறுத்துகிறது…",
+  "documentsPdfProgressCooling": "பக்கம் {page} / {total}: ஃபோன் சூடாக உள்ளது, குளிரும் வரை காத்திருக்கிறது…"
 }

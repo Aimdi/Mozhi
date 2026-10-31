@@ -308,4 +308,16 @@ void main() {
       'OfflineTranslationCancelledException()',
     );
   });
+
+  test('OfflineDownloadCancelledException', () {
+    expect(const OfflineDownloadCancelledException().language, isNull);
+    expect(
+      '${const OfflineDownloadCancelledException()}',
+      'OfflineDownloadCancelledException()',
+    );
+    expect(
+      '${const OfflineDownloadCancelledException('de')}',
+      'OfflineDownloadCancelledException(de)',
+    );
+  });
 }

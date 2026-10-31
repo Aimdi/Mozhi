@@ -69,21 +69,35 @@ final class OfficePackage implements PackagedDocument {
     String? targetLanguage,
     PackageLimits limits = const PackageLimits(),
   }) {
-    // PDFs are binary but not packages (lib/documents/pdf/).
-    if (!format.isBinary || format == DocumentFormat.pdf) {
-      throw ArgumentError.value(format, 'format', 'not a packaged format');
+    final (zip, table, readers) = _readers(bytes, format, limits);
+    return OfficePackage._(
+      format: format,
+      bytes: bytes,
+      parts: [for (final read in readers) ?read()],
+      segments: table.segments,
+      language: LanguageTag.tryParse(targetLanguage),
+      hasMacros: zip.entries.any((entry) => isMacroPart(entry.name)),
+      limits: limits,
+    );
+  }
+
+  /// Like [OfficePackage.parse], but lets the event loop run between parts
+  /// (for the web app, which parses on the UI thread: the page keeps
+  /// painting while a book with many chapters is read). One large part
+  /// still takes as long as it does.
+  static Future<OfficePackage> parseAsync(
+    Uint8List bytes,
+    DocumentFormat format, {
+    String? targetLanguage,
+    PackageLimits limits = const PackageLimits(),
+  }) async {
+    await _yield();
+    final (zip, table, readers) = _readers(bytes, format, limits);
+    final parts = <PartTemplate>[];
+    for (final read in readers) {
+      await _yield();
+      if (read() case final part?) parts.add(part);
     }
-    final zip = ZipPackage.read(bytes, limits: limits);
-    final table = SegmentTable();
-    final parts = switch (format) {
-      DocumentFormat.docx ||
-      DocumentFormat.pptx ||
-      DocumentFormat.xlsx => ooxmlParts(zip, format, table),
-      DocumentFormat.odt ||
-      DocumentFormat.odp ||
-      DocumentFormat.ods => odfParts(zip, table),
-      _ => epubParts(zip, table),
-    };
     return OfficePackage._(
       format: format,
       bytes: bytes,
@@ -93,6 +107,31 @@ final class OfficePackage implements PackagedDocument {
       hasMacros: zip.entries.any((entry) => isMacroPart(entry.name)),
       limits: limits,
     );
+  }
+
+  static Future<void> _yield() => Future<void>.delayed(Duration.zero);
+
+  static (ZipPackage, SegmentTable, List<PartTemplate? Function()>) _readers(
+    Uint8List bytes,
+    DocumentFormat format,
+    PackageLimits limits,
+  ) {
+    // PDFs are binary but not packages (lib/documents/pdf/).
+    if (!format.isBinary || format == DocumentFormat.pdf) {
+      throw ArgumentError.value(format, 'format', 'not a packaged format');
+    }
+    final zip = ZipPackage.read(bytes, limits: limits);
+    final table = SegmentTable();
+    final readers = switch (format) {
+      DocumentFormat.docx ||
+      DocumentFormat.pptx ||
+      DocumentFormat.xlsx => ooxmlParts(zip, format, table),
+      DocumentFormat.odt ||
+      DocumentFormat.odp ||
+      DocumentFormat.ods => odfParts(zip, table),
+      _ => epubParts(zip, table),
+    };
+    return (zip, table, readers);
   }
 
   /// Whether the entry [name] holds macros or ActiveX controls: a VBA
@@ -152,15 +191,45 @@ final class OfficePackage implements PackagedDocument {
     if (!renderer.documentTranslated) return Uint8List.fromList(_bytes);
     final replaced = <String, Uint8List>{};
     for (final part in _parts) {
-      final changed =
-          (part.hasLanguageMarks && language != null) ||
-          part.segments.any((index) => renderer.translationOf(index) != null);
-      if (!changed) continue;
-      replaced[part.name] = encodePart(
-        renderer.renderPart(part.nodes),
-        part.encoding,
-      );
+      _renderPart(renderer, part, replaced);
     }
+    return _write(replaced);
+  }
+
+  /// Like [render], but lets the event loop run between parts (see
+  /// [parseAsync]).
+  Future<Uint8List> renderAsync([List<String?> translations = const []]) async {
+    final renderer = PartRenderer(
+      translations: translations,
+      segments: segments,
+      language: language,
+    );
+    if (!renderer.documentTranslated) return Uint8List.fromList(_bytes);
+    final replaced = <String, Uint8List>{};
+    for (final part in _parts) {
+      await _yield();
+      _renderPart(renderer, part, replaced);
+    }
+    await _yield();
+    return _write(replaced);
+  }
+
+  void _renderPart(
+    PartRenderer renderer,
+    PartTemplate part,
+    Map<String, Uint8List> replaced,
+  ) {
+    final changed =
+        (part.hasLanguageMarks && language != null) ||
+        part.segments.any((index) => renderer.translationOf(index) != null);
+    if (!changed) return;
+    replaced[part.name] = encodePart(
+      renderer.renderPart(part.nodes),
+      part.encoding,
+    );
+  }
+
+  Uint8List _write(Map<String, Uint8List> replaced) {
     return ZipPackage.read(_bytes, limits: _limits).write(
       replaced,
       mimetypeFirst: switch (format) {

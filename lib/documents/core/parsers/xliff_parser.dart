@@ -15,9 +15,12 @@ import 'package:mozhi/documents/core/parsers/xml_tree.dart';
 /// Each `<source>` that has no translation yet is translated into its
 /// `<target>`: XLIFF 1.2 gets `<target state="needs-review-translation">`
 /// after the source, XLIFF 2.x a `<target>` in the `<segment>`, which is
-/// marked `state="translated"`. Existing translations are kept, unless the
-/// file's target language (`target-language`, `trgLang`) is another
-/// language than [targetLanguage]: then every unit is translated again.
+/// marked `state="translated"`. An XLIFF 1.2 unit whose `<seg-source>`
+/// splits it into sentences (`<mrk mtype="seg">`) is translated sentence
+/// by sentence, and its target has the same `<mrk>` segments. Existing
+/// translations are kept, unless the file's target language
+/// (`target-language`, `trgLang`) is another language than
+/// [targetLanguage]: then every unit is translated again.
 /// `translate="no"` (on files, groups, units, and inline `<mrk>`) is
 /// respected; inline codes (`<g>`, `<x/>`, `<ph>`, `<pc>`, `<sc/>`, ...)
 /// become placeholders, ICU plurals/selects keep their structure, and
@@ -180,10 +183,11 @@ class _XliffParser {
         state == 'needs-translation';
     if (!untranslated && !retranslate) return whole;
 
-    final content = _content(
-      sourceElement,
-      label: unit.attribute(source, 'id'),
-    );
+    final label = unit.attribute(source, 'id');
+    final segSource = unit.child('seg-source');
+    final content =
+        (segSource == null ? null : _segmented(segSource, label)) ??
+        _content(sourceElement, label: label);
     if (!hasSegment(content)) return whole;
 
     const state12 = 'needs-review-translation';
@@ -197,7 +201,6 @@ class _XliffParser {
     } else {
       // After <source> (and a <seg-source> that follows it).
       var after = sourceElement;
-      final segSource = unit.child('seg-source');
       if (segSource != null && segSource.outerStart > after.outerStart) {
         after = segSource;
       }
@@ -219,6 +222,35 @@ class _XliffParser {
       ),
       TextNode(source.substring(end, unit.outerEnd)),
     ];
+  }
+
+  /// The content of a `<seg-source>` whose sentences are marked
+  /// (`<mrk mtype="seg" mid="1">`): each marked sentence is a segment of
+  /// its own, and the target gets the same markers around the
+  /// translations, with whatever is between them kept. Null when it marks
+  /// no sentences.
+  List<DocNode>? _segmented(XmlElement segSource, String? label) {
+    if (segSource.end == null) return null;
+    bool isSentence(XmlElement element) =>
+        element.localName == 'mrk' &&
+        element.attribute(source, 'mtype') == 'seg' &&
+        element.end != null;
+    if (!segSource.elements.any(isSentence)) return null;
+    final nodes = NodeList();
+    var position = segSource.contentStart;
+    for (final mark in segSource.elements.where(isSentence)) {
+      final id = mark.attribute(source, 'mid');
+      nodes
+        ..text(source.substring(position, mark.outerStart))
+        ..text(mark.start.raw(source))
+        ..addAll(
+          _content(mark, label: [label, id].whereType<String>().join('/')),
+        )
+        ..text(mark.end!.raw(source));
+      position = mark.outerEnd;
+    }
+    nodes.text(source.substring(position, segSource.contentEnd));
+    return nodes.nodes;
   }
 
   // -------------------------------------------------------------------------

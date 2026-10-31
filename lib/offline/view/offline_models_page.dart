@@ -358,6 +358,10 @@ class _ModelsList extends StatelessWidget {
         enabled: state.isAvailable,
         onDownload: () => unawaited(cubit.download(code)),
         onDelete: () => unawaited(_delete(context, language)),
+        onCancel: state.canCancel
+            ? () => unawaited(cubit.cancelDownload(code))
+            : null,
+        cancelling: state.cancelling.contains(code),
         onShowFiles: switch (state.manualDownloadsOf(code)) {
           final directions when directions.isNotEmpty => () => unawaited(
             showOfflineManualFilesSheet(

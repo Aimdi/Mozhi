@@ -13854,5 +13854,41 @@
         "type": "String"
       }
     }
+  },
+  "translateErrorDetectionServersFailed": "The volunteer servers couldn't detect the language just now. Choose the language the text is written in.",
+  "@translateErrorDetectionServersFailed": {
+    "description": "Every Mozhi server failed while detecting the source language of a translation; the user can pick the language instead."
+  },
+  "speechErrorServersUnavailable": "The volunteer servers couldn't read this aloud just now. These free servers are sometimes down.",
+  "@speechErrorServersUnavailable": {
+    "description": "Snack bar: reading aloud through the Mozhi servers failed (none answered). Offered with a Retry action."
+  },
+  "liveCaptionsBarLocked": "Mozhi is locked",
+  "@liveCaptionsBarLocked": {
+    "description": "The live caption bar over other apps while the Mozhi app lock is engaged: no captions are shown."
+  },
+  "offlineCancelDownloadTooltip": "Cancel downloading {language}",
+  "@offlineCancelDownloadTooltip": {
+    "description": "Tooltip and screen reader label of the Cancel button next to a running offline language download.",
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "offlineCancelling": "Stopping…",
+  "@offlineCancelling": {
+    "description": "Status of an offline language download while it is being cancelled."
+  },
+  "documentsPdfProgressCooling": "Page {page} of {total}: the phone is hot, waiting for it to cool down…",
+  "@documentsPdfProgressCooling": {
+    "placeholders": {
+      "page": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
   }
 }

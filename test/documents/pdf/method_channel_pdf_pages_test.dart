@@ -284,6 +284,82 @@ void main() {
       });
     });
 
+    group('readText', () {
+      test('answers the lines of the text layer in points', () async {
+        answer = (_) async => {
+          'lines': [
+            {
+              'text': 'Hello',
+              'left': 72.0,
+              'top': 100.5,
+              'right': 120,
+              'bottom': 112,
+            },
+            // Upside-down boxes are turned over.
+            {
+              'text': 'world',
+              'left': 130,
+              'top': 112,
+              'right': 100,
+              'bottom': 100,
+            },
+          ],
+        };
+        final lines = await pages.readText(3);
+        expect(calls.single.method, 'text');
+        expect(calls.single.arguments, {'page': 3});
+        expect(lines, const [
+          PdfTextLine(text: 'Hello', rect: Rect.fromLTRB(72, 100.5, 120, 112)),
+          PdfTextLine(text: 'world', rect: Rect.fromLTRB(100, 100, 130, 112)),
+        ]);
+        expect(lines![0].hashCode, lines[0].hashCode);
+        expect('${lines[0]}', contains('Hello'));
+      });
+
+      test('is null before Android 15 and without the plugin', () async {
+        answer = (_) async => null;
+        expect(await pages.readText(0), isNull);
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, null);
+        expect(await pages.readText(0), isNull);
+      });
+
+      test('a failure reads as a page without text', () async {
+        answer = (_) async => throw PlatformException(code: 'failed');
+        expect(await pages.readText(0), isEmpty);
+        answer = (_) async => {'lines': 'nope'};
+        expect(await pages.readText(0), isEmpty);
+      });
+
+      test('checks every line and keeps within the limits', () async {
+        final long = '${'a' * (PdfLimits.maxTextLineLength - 1)}\u{1F600}';
+        answer = (_) async => {
+          'lines': [
+            'not a map',
+            {'text': '  ', 'left': 0, 'top': 0, 'right': 1, 'bottom': 1},
+            {'text': 'a', 'left': '0', 'top': 0, 'right': 1, 'bottom': 1},
+            {'text': 'a', 'left': 0, 'top': 0, 'right': 1},
+            {
+              'text': 'a',
+              'left': double.nan,
+              'top': 0,
+              'right': 1,
+              'bottom': 1,
+            },
+            {'text': long, 'left': 0, 'top': 0, 'right': 1, 'bottom': 1},
+            for (var i = 0; i < PdfLimits.maxTextLines; i++)
+              {'text': 'b', 'left': 0, 'top': 0, 'right': 1, 'bottom': 1},
+          ],
+        };
+        final lines = (await pages.readText(0))!;
+        // The first maxTextLines answered, the bad ones left out.
+        expect(lines, hasLength(PdfLimits.maxTextLines - 5));
+        // Cut, never inside a surrogate pair.
+        expect(lines.first.text, 'a' * (PdfLimits.maxTextLineLength - 1));
+        expect(lines.skip(1), everyElement(isA<PdfTextLine>()));
+      });
+    });
+
     test('close ignores errors and a missing plugin', () async {
       await pages.close();
       expect(calls.single.method, 'close');
@@ -313,6 +389,7 @@ void main() {
         unsupported.write('/a.pdf', const []),
         throwsA(isA<PdfWriteException>()),
       );
+      expect(await unsupported.readText(0), isNull);
       await unsupported.close();
     });
   });

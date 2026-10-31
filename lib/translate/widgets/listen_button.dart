@@ -18,7 +18,7 @@ import 'package:translation_repository/translation_repository.dart'
 /// A failure shows a snack bar ([showSpeechErrorSnackBar]); when a Mozhi
 /// instance could read the text with the user's consent, it offers "Listen
 /// via (host)", which reads it again with [allowOnline] set to that
-/// consent.
+/// consent; when the Mozhi servers failed, it offers Retry.
 Future<void> readAloud(
   BuildContext context, {
   required String id,
@@ -66,6 +66,19 @@ Future<void> readAloud(
                 allowOnline: consent,
               ),
             ),
+      onRetry: () {
+        if (!context.mounted) return;
+        unawaited(
+          readAloud(
+            context,
+            id: id,
+            text: text,
+            languageCode: languageCode,
+            slow: slow,
+            allowOnline: allowOnline,
+          ),
+        );
+      },
     );
   }
 }

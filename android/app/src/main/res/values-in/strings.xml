@@ -47,4 +47,7 @@
     <string name="live_captions_stop_description">Hentikan teks langsung</string>
     <string name="live_captions_open_description">Buka Mozhi</string>
     <string name="live_captions_bar_description">Teks langsung</string>
+    <string name="tile_live_captions_label">Teks langsung</string>
+    <string name="tile_live_captions_description">Mulai atau hentikan teks langsung Mozhi</string>
+    <string name="live_captions_locked">Mozhi terkunci</string>
 </resources>

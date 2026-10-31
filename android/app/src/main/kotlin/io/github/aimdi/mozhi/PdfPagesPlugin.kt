@@ -10,6 +10,7 @@ import android.graphics.RectF
 import android.graphics.Typeface
 import android.graphics.pdf.PdfDocument
 import android.graphics.pdf.PdfRenderer
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.ParcelFileDescriptor
@@ -52,6 +53,13 @@ import kotlin.math.sqrt
  *   [MAX_READ_SCALE] times its size in points). Answers `{width, height,
  *   bytesPerPixel: 4, pixels}` (RGBA, opaque). Errors `not_open`,
  *   `invalid_argument`, `too_large` (out of memory).
+ * - `text({page})`: the text layer of page `page` on Android 15 (API 35)
+ *   and later ([TextLayer]): `{lines: [{text, left, top, right, bottom}]}`,
+ *   every line of the page's text with its box in points from the top
+ *   left, in the file's order (empty for a page without text, a scan, or
+ *   when the framework cannot tell where the text is); null before
+ *   Android 15. Dart reads a page with too little text with text
+ *   recognition instead. Errors `not_open`, `invalid_argument`.
  * - `write({path, pages})`: writes the translated PDF to `path` (in the
  *   cache). Every page is its source page re-rendered as the background
  *   (at most [MAX_BACKGROUND_SCALE], 150 dpi, and a share of
@@ -113,6 +121,10 @@ class PdfPagesPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                 val page = call.argument<Number>("page")?.toInt()
                 val maxPixels = call.argument<Number>("maxPixels")?.toLong()
                 run(result) { render(page, maxPixels) }
+            }
+            "text" -> {
+                val page = call.argument<Number>("page")?.toInt()
+                run(result) { text(page) }
             }
             "write" -> {
                 val path = call.argument<String>("path")
@@ -220,6 +232,21 @@ class PdfPagesPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             } finally {
                 bitmap.recycle()
             }
+        } finally {
+            page.close()
+        }
+    }
+
+    /** The text layer of page [index] (`text`), null before Android 15. */
+    private fun text(index: Int?): Map<String, Any>? {
+        val pdf = renderer ?: throw PdfError("not_open", "No PDF is open")
+        if (index == null || index < 0 || index >= pdf.pageCount) {
+            throw PdfError("invalid_argument", "No page $index")
+        }
+        if (Build.VERSION.SDK_INT < TextLayer.SDK) return null
+        val page = pdf.openPage(index)
+        try {
+            return mapOf("lines" to TextLayer.lines(page))
         } finally {
             page.close()
         }
@@ -389,6 +416,184 @@ class PdfPagesPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
     )
 
     private class PdfError(val code: String, message: String) : Exception(message)
+
+    /**
+     * Android 15's text layer of a page (`android.graphics.pdf.content`),
+     * by reflection: the app compiles against an SDK that may not have it,
+     * and nothing here runs before [SDK].
+     *
+     * `PdfRenderer.Page.getTextContents()` gives the page's text, its lines
+     * separated by line breaks. When a content's bounds are one per line
+     * (as documented), they are taken as they are; otherwise (Android 15
+     * gives the text without bounds) every line is selected by its
+     * character indexes (`selectContent` with index `SelectionBoundary`s,
+     * stop exclusive) and its box is the union of the selection's bounds.
+     * Indexes count UTF-16 units, so a character outside the Basic
+     * Multilingual Plane can shift the boxes of the lines after it a little.
+     * Anything the framework throws reads as no text: the page is then
+     * read with text recognition.
+     */
+    private object TextLayer {
+        const val SDK = 35
+
+        private fun method(owner: String, name: String, vararg types: Class<*>) = try {
+            Class.forName(owner).getMethod(name, *types)
+        } catch (e: ReflectiveOperationException) {
+            null
+        } catch (e: LinkageError) {
+            null
+        }
+
+        private const val CONTENT = "android.graphics.pdf.content.PdfPageTextContent"
+        private const val BOUNDARY = "android.graphics.pdf.models.selection.SelectionBoundary"
+        private const val SELECTION = "android.graphics.pdf.models.selection.PageSelection"
+
+        private val getTextContents by lazy {
+            try {
+                PdfRenderer.Page::class.java.getMethod("getTextContents")
+            } catch (e: ReflectiveOperationException) {
+                null
+            }
+        }
+        private val getText by lazy { method(CONTENT, "getText") }
+        private val getBounds by lazy { method(CONTENT, "getBounds") }
+        private val selectedTextContents by lazy { method(SELECTION, "getSelectedTextContents") }
+        private val boundaryClass by lazy {
+            try {
+                Class.forName(BOUNDARY)
+            } catch (e: ReflectiveOperationException) {
+                null
+            }
+        }
+        private val boundaryAt by lazy {
+            try {
+                boundaryClass?.getConstructor(Int::class.javaPrimitiveType)
+            } catch (e: ReflectiveOperationException) {
+                null
+            }
+        }
+        private val selectContent by lazy {
+            val boundary = boundaryClass ?: return@lazy null
+            try {
+                PdfRenderer.Page::class.java.getMethod("selectContent", boundary, boundary)
+            } catch (e: ReflectiveOperationException) {
+                null
+            }
+        }
+
+        /** The lines of [page]'s text layer with their boxes (points). */
+        fun lines(page: PdfRenderer.Page): List<Map<String, Any>> {
+            val out = ArrayList<Map<String, Any>>()
+            val contents = try {
+                getTextContents?.invoke(page) as? List<*>
+            } catch (e: Exception) {
+                null
+            } ?: return out
+            // The index of each content's text in the page's text.
+            var offset = 0
+            for (content in contents) {
+                if (out.size >= MAX_TEXT_LINES) break
+                if (content == null) continue
+                val text = call { getText?.invoke(content) as? String } ?: continue
+                val lines = splitLines(text)
+                val bounds = rects(call { getBounds?.invoke(content) })
+                if (bounds.isNotEmpty() && bounds.size == lines.size) {
+                    for ((i, line) in lines.withIndex()) add(out, line.text, bounds[i])
+                } else {
+                    for (line in lines) {
+                        if (out.size >= MAX_TEXT_LINES) break
+                        val box = selectionBox(page, offset + line.start, offset + line.end)
+                        if (box != null) add(out, line.text, box)
+                    }
+                }
+                offset += text.length
+            }
+            return out
+        }
+
+        /** The union of the bounds of characters [start] until [stop]. */
+        private fun selectionBox(page: PdfRenderer.Page, start: Int, stop: Int): RectF? {
+            val select = selectContent ?: return null
+            val boundary = boundaryAt ?: return null
+            val selection = call {
+                select.invoke(page, boundary.newInstance(start), boundary.newInstance(stop))
+            } ?: return null
+            val contents = call { selectedTextContents?.invoke(selection) as? List<*> } ?: return null
+            var box: RectF? = null
+            for (content in contents) {
+                if (content == null) continue
+                for (rect in rects(call { getBounds?.invoke(content) })) {
+                    val union = box
+                    if (union == null) box = RectF(rect) else union.union(rect)
+                }
+            }
+            return box
+        }
+
+        /** [block]'s value, null when it throws (the framework or reflection). */
+        private inline fun <T> call(block: () -> T?): T? = try {
+            block()
+        } catch (e: Exception) {
+            null
+        } catch (e: LinkageError) {
+            null
+        }
+
+        /** The non-degenerate rectangles of [value] (a list of [RectF]). */
+        private fun rects(value: Any?): List<RectF> {
+            val list = value as? List<*> ?: return emptyList()
+            return list.mapNotNull { rect ->
+                (rect as? RectF)?.takeIf {
+                    it.width() >= MIN_BOX && it.height() >= MIN_BOX &&
+                        it.left.isFinite() && it.top.isFinite() &&
+                        it.right.isFinite() && it.bottom.isFinite()
+                }
+            }
+        }
+
+        private fun add(out: MutableList<Map<String, Any>>, text: String, box: RectF) {
+            out.add(
+                mapOf(
+                    "text" to text.take(MAX_TEXT_LINE_CHARS),
+                    "left" to box.left.toDouble(),
+                    "top" to box.top.toDouble(),
+                    "right" to box.right.toDouble(),
+                    "bottom" to box.bottom.toDouble(),
+                ),
+            )
+        }
+
+        /** A line of a text: [text], from [start] until [end] (trimmed). */
+        class Line(val text: String, val start: Int, val end: Int)
+
+        /** [text]'s non-blank lines (split at CR, LF and CR LF), trimmed. */
+        fun splitLines(text: String): List<Line> {
+            val lines = ArrayList<Line>()
+            var start = 0
+            var index = 0
+            while (index <= text.length) {
+                val atEnd = index == text.length
+                val c = if (atEnd) '\n' else text[index]
+                if (atEnd || c == '\n' || c == '\r' || c == '\u2028') {
+                    var from = start
+                    var to = index
+                    while (from < to && text[from].isWhitespace()) from++
+                    while (to > from && text[to - 1].isWhitespace()) to--
+                    if (to > from) lines.add(Line(text.substring(from, to), from, to))
+                    start = index + 1
+                }
+                index++
+            }
+            return lines
+        }
+
+        /** Most lines of a page (`PdfLimits.maxTextLines`), characters of one. */
+        private const val MAX_TEXT_LINES = 5_000
+        private const val MAX_TEXT_LINE_CHARS = 2_000
+
+        /** Boxes narrower or lower than this (points) are line breaks. */
+        private const val MIN_BOX = 0.5f
+    }
 
     companion object {
         const val CHANNEL = "mozhi/pdf_pages"

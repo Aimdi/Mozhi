@@ -7,7 +7,9 @@ import 'package:mozhi/app_lock/cubit/app_lock_cubit.dart';
 import 'package:mozhi/app_lock/data/app_lock.dart';
 import 'package:mozhi/app_lock/data/app_lock_platform.dart';
 import 'package:mozhi/app_lock/view/app_lock_screen.dart';
+import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:translation_repository/translation_repository.dart';
 
 /// The app lock's gate above the router: while [lock] is locked it shows
 /// the lock screen, and nothing of the app (while it finds out, at start,
@@ -23,6 +25,13 @@ import 'package:mozhi/l10n/l10n.dart';
 /// field in it loses the focus, which closes the on-screen keyboard). The
 /// lock screen has a [ScaffoldMessenger] of its own then, so messages of
 /// the hidden screens don't show on it.
+///
+/// Locking also drops from memory what can be read again without the
+/// network: the history's entries (they stay on disk and are read again
+/// after the unlock) and the cache of recent translations, from the
+/// [HistoryCubit] and [TranslationRepository] above it when there are any.
+/// The screens' own text (the translate screen, a conversation) stays,
+/// hidden. Screens can drop their own with an `AppLockListener`.
 ///
 /// It tells [lock] when the app goes to the background and comes back
 /// ([AppLock.noteBackground], [AppLock.noteForeground]), gives it the
@@ -126,16 +135,55 @@ class _AppLockGateState extends State<AppLockGate> {
   /// built, hidden while locked.
   bool _childBuilt = false;
 
+  /// Whether [_forgetForLock] ran and [_reloadAfterLock] not yet.
+  bool _forgotten = false;
+
+  T? _maybe<T>() {
+    try {
+      return context.read<T>();
+    } on ProviderNotFoundException {
+      return null;
+    }
+  }
+
+  /// The app locked with its screens built: what the app-wide state holds
+  /// leaves memory where it can be read again without the network: the
+  /// history's entries (kept on disk: `HistoryCubit.forgetForLock`) and the
+  /// cache of recent translations ([TranslationRepository.clearCache]).
+  /// The translate screen keeps its text and translation, hidden: making
+  /// the translation again after the unlock would send the text to an
+  /// online engine once more without being asked. Screens drop their own
+  /// with an `AppLockListener`.
+  void _forgetForLock() {
+    _forgotten = true;
+    final history = _maybe<HistoryCubit>();
+    if (history != null) unawaited(history.forgetForLock());
+    _maybe<TranslationRepository>()?.clearCache();
+  }
+
+  /// Unlocked after [_forgetForLock]: the history is read again.
+  void _reloadAfterLock() {
+    if (!_forgotten) return;
+    _forgotten = false;
+    final history = _maybe<HistoryCubit>();
+    if (history != null) unawaited(history.reloadAfterLock());
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!widget.blocking) return widget.child;
     return BlocProvider.value(
       value: _cubit,
       child: BlocConsumer<AppLockCubit, AppLockState>(
-        listenWhen: (previous, current) =>
-            previous.status != current.status &&
-            current.status == AppLockStatus.locked,
-        listener: (context, state) => _autoUnlock(),
+        listenWhen: (previous, current) => previous.status != current.status,
+        listener: (context, state) {
+          if (state.status == AppLockStatus.locked) {
+            if (_childBuilt) _forgetForLock();
+            _autoUnlock();
+          } else if (state.unlocked) {
+            _reloadAfterLock();
+          }
+        },
         builder: (context, state) {
           final locked = !state.unlocked;
           if (!locked) _childBuilt = true;

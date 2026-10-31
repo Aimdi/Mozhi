@@ -54,20 +54,15 @@ PartTemplate readPart(
   );
 }
 
-/// Like [readPart] for a part that may be left out: null when it is beyond
-/// the limits or its text does not contain [requires].
-PartTemplate? readOptionalPart(
+/// Builds the template of [entry] from its [text] and encoding, read
+/// before (see [ZipPackage.readText]).
+PartTemplate buildPart(
   ZipPackage zip,
   ArchiveFile entry,
+  (String, PartEncoding) text,
   SegmentTable table,
-  PartBuilderFactory builder, {
-  required String requires,
-}) {
-  if (!zip.canRead(entry)) return null;
-  final (text, encoding) = zip.readText(entry);
-  if (!text.contains(requires)) return null;
-  return _build(entry, text, encoding, zip, table, builder);
-}
+  PartBuilderFactory builder,
+) => _build(entry, text.$1, text.$2, zip, table, builder);
 
 PartTemplate _build(
   ArchiveFile entry,
@@ -116,7 +111,7 @@ SourceDocument readXml(
 bool _hasMarks(List<PartNode> nodes) {
   for (final node in nodes) {
     final found = switch (node) {
-      RawXml() => false,
+      RawXml() || ComputedXml() => false,
       LanguageMark() => true,
       UntranslatedScope(:final children) => _hasMarks(children),
       ParagraphSlot() =>

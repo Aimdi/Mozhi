@@ -47,4 +47,7 @@
     <string name="live_captions_stop_description">Зупинити живі субтитри</string>
     <string name="live_captions_open_description">Відкрити Mozhi</string>
     <string name="live_captions_bar_description">Живі субтитри</string>
+    <string name="tile_live_captions_label">Живі субтитри</string>
+    <string name="tile_live_captions_description">Увімкнути або вимкнути живі субтитри Mozhi</string>
+    <string name="live_captions_locked">Mozhi заблоковано</string>
 </resources>

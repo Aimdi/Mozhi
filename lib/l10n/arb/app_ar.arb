@@ -2757,5 +2757,11 @@
   "conversationTurnPauseHintAny": "ينتهي الدور بعد هذه المدة من الصمت بعد الكلام.",
   "translateOfflineManageLanguages": "إدارة اللغات",
   "translateOfflineDownloadingLanguage": "جارٍ تنزيل {language}… {percent}%",
-  "translateOfflineDownloadingLanguageStarted": "جارٍ تنزيل {language}…"
+  "translateOfflineDownloadingLanguageStarted": "جارٍ تنزيل {language}…",
+  "translateErrorDetectionServersFailed": "تعذّر على خوادم المتطوّعين اكتشاف اللغة الآن. اختر اللغة المكتوب بها النص.",
+  "speechErrorServersUnavailable": "تعذّر على خوادم المتطوّعين قراءة هذا النص بصوت عالٍ الآن. هذه الخوادم المجانية تتعطّل أحيانًا.",
+  "liveCaptionsBarLocked": "Mozhi مقفل",
+  "offlineCancelDownloadTooltip": "إلغاء تنزيل {language}",
+  "offlineCancelling": "جارٍ الإيقاف…",
+  "documentsPdfProgressCooling": "الصفحة {page} من {total}: الهاتف ساخن، في انتظار أن يبرد…"
 }

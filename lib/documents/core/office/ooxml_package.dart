@@ -7,6 +7,7 @@ import 'package:mozhi/documents/core/office/part_reader.dart';
 import 'package:mozhi/documents/core/office/part_template.dart';
 import 'package:mozhi/documents/core/office/sheet_parts.dart';
 import 'package:mozhi/documents/core/office/word_parts.dart';
+import 'package:mozhi/documents/core/office/workbook_parts.dart';
 import 'package:mozhi/documents/core/office/xml_source.dart';
 import 'package:mozhi/documents/core/office/zip_package.dart';
 
@@ -52,9 +53,14 @@ final Map<String, PartBuilderFactory> _translated = {
   '${_presentation}slide+xml': DrawingPartBuilder.new,
   '${_presentation}notesSlide+xml': DrawingPartBuilder.new,
   'application/vnd.ms-powerpoint.comments+xml': DrawingPartBuilder.new,
+  '${_presentation}comments+xml': PlainElementPartBuilder.presentationComments,
   '${_spreadsheet}sharedStrings+xml': SheetPartBuilder.new,
+  '${_spreadsheet}comments+xml': SheetPartBuilder.new,
+  'application/vnd.ms-excel.threadedcomments+xml':
+      PlainElementPartBuilder.threadedComments,
   _worksheet: SheetPartBuilder.new,
   '${_officeDocument}drawingml.chart+xml': DrawingPartBuilder.new,
+  'application/vnd.ms-office.chartex+xml': DrawingPartBuilder.new,
   '${_officeDocument}drawingml.diagramData+xml': DrawingPartBuilder.new,
   'application/vnd.ms-office.drawingml.diagramDrawing+xml':
       DrawingPartBuilder.new,
@@ -70,9 +76,12 @@ final Map<String, PartBuilderFactory> _languageOnly = {
   for (final type in _mainParts[DocumentFormat.pptx]!)
     type: (document, table) =>
         DrawingPartBuilder(document, table, translate: false),
-  for (final kind in ['slideMaster', 'slideLayout', 'notesMaster'])
+  // Only the shapes that are not placeholders (see DrawingPartBuilder).
+  for (final kind in ['slideMaster', 'slideLayout'])
     '$_presentation$kind+xml': (document, table) =>
-        DrawingPartBuilder(document, table, translate: false),
+        DrawingPartBuilder(document, table, masters: true),
+  '${_presentation}notesMaster+xml': (document, table) =>
+      DrawingPartBuilder(document, table, translate: false),
   'application/vnd.openxmlformats-package.core-properties+xml':
       (document, table) => PlainTextPartBuilder(
         document,
@@ -84,8 +93,12 @@ final Map<String, PartBuilderFactory> _languageOnly = {
 };
 
 /// The parts of an Office Open XML package ([format] docx, pptx or xlsx),
-/// found through `[Content_Types].xml`.
-List<PartTemplate> ooxmlParts(
+/// found through `[Content_Types].xml`, each read when its function is
+/// called (in order; null for a worksheet that is left as it is).
+///
+/// Worksheets are read only for their inline strings and for formulas
+/// that refer to sheets that are renamed (see [SheetNames]).
+List<PartTemplate? Function()> ooxmlParts(
   ZipPackage zip,
   DocumentFormat format,
   SegmentTable table,
@@ -121,28 +134,58 @@ List<PartTemplate> ooxmlParts(
   }
 
   final main = _mainParts[format]!;
-  if (!zip.entries.any((entry) => main.contains(typeOf(entry)))) {
+  final mainEntry = zip.entries
+      .where((entry) => entry.isFile && main.contains(typeOf(entry)))
+      .firstOrNull;
+  if (mainEntry == null) {
     throw PackageParseException(
       PackageProblem.damaged,
       'not a ${format.defaultExtension.toUpperCase()} document',
     );
   }
 
+  // Parts read while looking for sheet references are read only once.
+  final texts = <String, (String, PartEncoding)>{};
+  final sheetNames = format == DocumentFormat.xlsx
+      ? SheetNames.read(
+          zip,
+          mainEntry,
+          read: (entry) => (texts[entry.name] ??= zip.readText(entry)).$1,
+          typeOf: typeOf,
+        )
+      : null;
+  (String, PartEncoding) textOf(ArchiveFile entry) =>
+      texts.remove(entry.name) ?? zip.readText(entry);
+
+  PartBuilderFactory? builderFor(ArchiveFile entry, String type) {
+    final builder = sheetNames != null && identical(entry, mainEntry)
+        ? WorkbookPartBuilder.new
+        : _translated[type] ?? _languageOnly[type];
+    if (builder == null || sheetNames == null) return builder;
+    return (document, table) => builder(document, table)..sites = sheetNames;
+  }
+
   return [
     for (final entry in zip.entries)
       if (entry.isFile)
         if (typeOf(entry) case final type?)
-          if (_translated[type] ?? _languageOnly[type] case final builder?)
+          if (builderFor(entry, type) case final builder?)
             if (type == _worksheet)
-              ?readOptionalPart(
-                zip,
-                entry,
-                table,
-                builder,
-                requires: 'inlineStr',
-              )
+              () {
+                if (!texts.containsKey(entry.name) && !zip.canRead(entry)) {
+                  return null;
+                }
+                final text = textOf(entry);
+                final references =
+                    sheetNames?.partsWithReferences.contains(entry.name) ??
+                    false;
+                if (!references && !text.$1.contains('inlineStr')) {
+                  return null;
+                }
+                return buildPart(zip, entry, text, table, builder);
+              }
             else
-              readPart(zip, entry, table, builder),
+              () => buildPart(zip, entry, textOf(entry), table, builder),
   ];
 }
 

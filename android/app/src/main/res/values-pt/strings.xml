@@ -47,4 +47,7 @@
     <string name="live_captions_stop_description">Parar as legendas ao vivo</string>
     <string name="live_captions_open_description">Abrir o Mozhi</string>
     <string name="live_captions_bar_description">Legendas ao vivo</string>
+    <string name="tile_live_captions_label">Legendas ao vivo</string>
+    <string name="tile_live_captions_description">Iniciar ou parar as legendas ao vivo do Mozhi</string>
+    <string name="live_captions_locked">O Mozhi está bloqueado</string>
 </resources>
