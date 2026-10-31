@@ -189,4 +189,124 @@ void main() {
       expect(sameRelativeOrder(['a', 'a'], ['a']), isFalse);
     });
   });
+
+  group('ties', () {
+    MergedCopies<_Item> tied(List<_Item> local, List<_Item> other) =>
+        mergeCopies(
+          local: local,
+          other: other,
+          idOf: (item) => item.id,
+          modifiedAt: (item) => _time(item.at),
+          contentOf: (item) => item.value,
+          resolved: (item) => (id: item.id, at: -1, value: item.value),
+        );
+
+    test('two different copies changed at the same time: both devices pick '
+        'the same one and mark it', () {
+      final mine = _item('a', at: 3, value: 'mine');
+      final theirs = _item('a', at: 3, value: 'theirs');
+      final here = tied([mine], [theirs]).items.single;
+      final there = tied([theirs], [mine]).items.single;
+
+      expect(here.value, there.value);
+      expect(here.value, tieBreak('mine', 'theirs') ? 'theirs' : 'mine');
+      expect(here.at, -1);
+    });
+
+    test('equal copies and newer copies are not ties', () {
+      expect(tied([_item('a', at: 3)], [_item('a', at: 3)]).items.single.at, 3);
+      expect(
+        tied(
+          [_item('a', at: 3, value: 'mine')],
+          [_item('a', at: 4, value: 'theirs')],
+        ).items.single.value,
+        'theirs',
+      );
+    });
+
+    test('without contentOf this device wins a tie, as before', () {
+      expect(
+        _merge(
+          [_item('a', value: 'mine')],
+          [_item('a', value: 'theirs')],
+        ).items.single.value,
+        'mine',
+      );
+    });
+
+    test('tieBreak is a total order on different texts', () {
+      expect(tieBreak('x', 'y'), isNot(tieBreak('y', 'x')));
+      expect(tieBreak('x', 'x'), isFalse);
+    });
+
+    test('the decided change time beats none and loses to every change', () {
+      expect(isLaterChange(resolvedChangeTime, null), isTrue);
+      expect(
+        isLaterChange(DateTime.utc(1970, 1, 1, 0, 0, 1), resolvedChangeTime),
+        isTrue,
+      );
+    });
+  });
+
+  group('pickChange', () {
+    final early = DateTime.utc(2026);
+    final late = DateTime.utc(2027);
+
+    test('the later change wins and keeps its time', () {
+      expect(
+        pickChange(localAt: early, otherAt: late, localKey: 'a', otherKey: 'b'),
+        (otherWins: true, changedAt: late),
+      );
+      expect(
+        pickChange(localAt: late, otherAt: null, localKey: 'a', otherKey: 'b'),
+        (otherWins: false, changedAt: late),
+      );
+    });
+
+    test("equal values keep this device's, without marking", () {
+      expect(
+        pickChange(localAt: null, otherAt: null, localKey: 'a', otherKey: 'a'),
+        (otherWins: false, changedAt: null),
+      );
+    });
+
+    test('a tie between different values is decided the same way on both '
+        'devices; without change times it is marked', () {
+      final here = pickChange(
+        localAt: null,
+        otherAt: null,
+        localKey: 'a',
+        otherKey: 'b',
+      );
+      final there = pickChange(
+        localAt: null,
+        otherAt: null,
+        localKey: 'b',
+        otherKey: 'a',
+      );
+      expect(here.otherWins, isNot(there.otherWins));
+      expect(here.changedAt, resolvedChangeTime);
+      expect(
+        pickChange(
+          localAt: early,
+          otherAt: early,
+          localKey: 'a',
+          otherKey: 'b',
+        ).changedAt,
+        early,
+      );
+    });
+  });
+
+  test('canonicalJson sorts the keys of every object', () {
+    expect(
+      canonicalJson({
+        'b': 1,
+        'a': [
+          {'d': 2, 'c': 3},
+        ],
+      }),
+      '{"a":[{"c":3,"d":2}],"b":1}',
+    );
+  });
 }

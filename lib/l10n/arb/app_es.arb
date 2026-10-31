@@ -2763,5 +2763,9 @@
   "liveCaptionsBarLocked": "Mozhi está bloqueado",
   "offlineCancelDownloadTooltip": "Cancelar la descarga de {language}",
   "offlineCancelling": "Deteniendo…",
-  "documentsPdfProgressCooling": "Página {page} de {total}: el teléfono está caliente, esperando a que se enfríe…"
+  "documentsPdfProgressCooling": "Página {page} de {total}: el teléfono está caliente, esperando a que se enfríe…",
+  "onboardingLanguagesSuggestionPicked": "Antes elegiste {language}.",
+  "offlineManualMirrorNote": "Los enlaces llevan a tu fuente de modelos, {host}, desde donde descarga Mozhi. Si falta un archivo allí, usa el enlace del editor.",
+  "offlineManualPublisherLink": "Enlace del editor, si el espejo no tiene el archivo",
+  "offlineManualCopyPublisherLink": "Copiar el enlace del editor a {file}"
 }

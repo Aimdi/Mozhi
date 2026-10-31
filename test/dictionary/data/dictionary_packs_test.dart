@@ -224,6 +224,159 @@ void main() {
     });
   });
 
+  group('cancelInstall', () {
+    late StreamController<List<int>> body;
+    late Completer<void> listened;
+    late int closed;
+    late http.Client stalling;
+
+    setUp(() {
+      listened = Completer<void>();
+      closed = 0;
+      body = StreamController<List<int>>(
+        onListen: () {
+          body.add(spanish.sublist(0, 100));
+          listened.complete();
+        },
+        onCancel: () => closed++,
+      );
+      stalling = MockClient.streaming((request, _) async {
+        requested.add(request.url);
+        return http.StreamedResponse(
+          body.stream,
+          200,
+          contentLength: spanish.length,
+        );
+      });
+    });
+
+    test('stops a download mid-stream and installs nothing', () async {
+      final dictionaries = packs(client: stalling);
+      final changes = <void>[];
+      final subscription = dictionaries.changes.listen(changes.add);
+      addTearDown(subscription.cancel);
+      final install = dictionaries.install(es);
+      await listened.future;
+
+      await dictionaries.cancelInstall('es');
+
+      await expectLater(
+        install,
+        throwsA(
+          isA<OfflineDownloadCancelledException>().having(
+            (e) => e.language,
+            'language',
+            'es',
+          ),
+        ),
+      );
+      expect(closed, 1);
+      expect(await dictionaries.installed(), isEmpty);
+      await pumpEventQueue();
+      expect(changes, isEmpty);
+    });
+
+    test('aborts a request still waiting for its answer', () async {
+      final requests = <http.BaseRequest>[];
+      final dictionaries = packs(
+        client: MockClient.streaming((request, _) {
+          requests.add(request);
+          return Completer<http.StreamedResponse>().future;
+        }),
+        downloadUrls: (pack) => [pack.url, Uri.parse('https://b.example/x')],
+      );
+      final install = dictionaries.install(es);
+      await pumpEventQueue();
+      expect(requests.single, isA<http.Abortable>());
+
+      await dictionaries.cancelInstall('es');
+
+      await expectLater(
+        install,
+        throwsA(isA<OfflineDownloadCancelledException>()),
+      );
+      // No other URL is tried.
+      expect(requests, hasLength(1));
+    });
+
+    test('stops before the request when cancelled at once', () async {
+      final dictionaries = packs();
+      final install = dictionaries.install(es);
+      final stopping = dictionaries.cancelInstall('es');
+      await expectLater(
+        install,
+        throwsA(isA<OfflineDownloadCancelledException>()),
+      );
+      await stopping;
+      expect(requested, isEmpty);
+    });
+
+    test('a later install starts again from the beginning', () async {
+      var calls = 0;
+      final dictionaries = packs(
+        client: MockClient.streaming((request, _) async {
+          requested.add(request.url);
+          calls++;
+          if (calls == 1) {
+            return http.StreamedResponse(body.stream, 200);
+          }
+          expect(request.headers['Range'], isNull);
+          return http.StreamedResponse(Stream.value(spanish), 200);
+        }),
+      );
+      final cancelled = dictionaries.install(es);
+      await listened.future;
+      final stopping = dictionaries.cancelInstall('es');
+      final again = dictionaries.install(es);
+      await expectLater(
+        cancelled,
+        throwsA(isA<OfflineDownloadCancelledException>()),
+      );
+      await stopping;
+      await again;
+      expect(calls, 2);
+      expect((await dictionaries.installedPack('es'))?.sha256, es.sha256);
+    });
+
+    test('drops the pack when cancelled as the last bytes come', () async {
+      late final DictionaryPacks dictionaries;
+      dictionaries = packs(
+        client: MockClient.streaming((request, _) async {
+          final controller = StreamController<List<int>>();
+          controller.onListen = () {
+            controller.add(spanish);
+            unawaited(
+              Future<void>(() async {
+                await dictionaries.cancelInstall('es');
+              }),
+            );
+            unawaited(Future<void>.delayed(Duration.zero, controller.close));
+          };
+          return http.StreamedResponse(controller.stream, 200);
+        }),
+      );
+      await expectLater(
+        dictionaries.install(es),
+        throwsA(isA<OfflineDownloadCancelledException>()),
+      );
+      expect(await dictionaries.installed(), isEmpty);
+    });
+
+    test('leaves other packs alone and does nothing when idle', () async {
+      final dictionaries = packs(client: stalling);
+      await dictionaries.cancelInstall('es');
+      final install = dictionaries.install(es);
+      await listened.future;
+      await dictionaries.cancelInstall('en');
+      expect(closed, 0);
+      body
+        ..add(spanish.sublist(100))
+        ..close().ignore();
+      await install;
+      expect((await dictionaries.installedPack('es'))?.sha256, es.sha256);
+    });
+  });
+
   test('delete removes a pack', () async {
     storage.put(storedPack(es), spanish);
     final dictionaries = packs();

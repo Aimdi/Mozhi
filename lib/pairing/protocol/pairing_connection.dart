@@ -9,8 +9,8 @@ import 'package:mozhi/pairing/protocol/pairing_code.dart';
 import 'package:mozhi/pairing/protocol/pairing_exception.dart';
 import 'package:mozhi/pairing/protocol/pairing_handshake.dart';
 
-/// Version of the messages inside the channel (`hello`'s `v`).
-const pairingProtocolVersion = 1;
+export 'package:mozhi/pairing/protocol/pairing_channel.dart'
+    show checkHello, helloFeatures, pairingProtocolVersion;
 
 /// Time for the key agreement and the `hello` messages of a connection,
 /// in all.
@@ -27,11 +27,26 @@ const pairingHandshakeTimeout = Duration(seconds: 10);
 ///   messages complete within [handshakeTimeout] (one deadline for all of
 ///   it); [connection] then completes with its channel, and the listener
 ///   closes the others and stops listening.
-/// * Up to [maxPending] connections set up at once, so that one that
-///   stalls cannot keep the real phone out. When another one arrives, the
-///   oldest connection of the address with the most of them is closed (a
-///   device that opens many loses its own first; a real phone needs well
-///   under a second).
+/// * Handshakes started (connections taken on) are limited per minute:
+///   [maxAddressHandshakesPerMinute] from one address, and
+///   [maxHandshakesPerMinute] in all for addresses that started one in
+///   that minute already. A connection beyond them is closed at once and
+///   not counted (neither from its address nor in all), so the limits only
+///   hold back a flood while it lasts, and the work a flood makes the
+///   phone do (a key agreement each) stays small. The first connection
+///   of an address that started none in the last minute is always taken
+///   on (the limits then count it): a flood from a few addresses that
+///   uses up the budget in all cannot keep the real phone out, and one
+///   from many addresses gets one key agreement per address and minute.
+/// * Up to [maxPending] connections set up at once, at most
+///   [maxPendingPerAddress] from one address: a further one from that
+///   address closes its oldest one (a device that opens many loses its
+///   own first). When [maxPending] are setting up, a new one closes the
+///   oldest of the address with the most of them, but only one that has
+///   had [minSetupTime] (a real phone needs well under a second); when
+///   all are younger, the new one is closed instead. A flood from many
+///   addresses therefore cannot push out a phone in the middle of its
+///   key agreement, and one that stalls cannot keep the real phone out.
 /// * Only a first encrypted frame that does not decrypt proves a wrong
 ///   code (timeouts and malformed handshakes prove nothing, and anybody
 ///   can cause them). After [maxAttempts] of those from one address, that
@@ -49,8 +64,13 @@ class PairingListener {
     required this.maxAttempts,
     required this.maxFailures,
     required this.maxPending,
+    required this.maxPendingPerAddress,
+    required this.maxHandshakesPerMinute,
+    required this.maxAddressHandshakesPerMinute,
+    required this.minSetupTime,
     required this.handshakeTimeout,
     required Duration validity,
+    required this._now,
   }) {
     unawaited(_result.future.then((_) {}, onError: (Object _) {}));
     _expiry = Timer(validity, () => _finish(const PairingExpiredException()));
@@ -61,13 +81,18 @@ class PairingListener {
     );
   }
 
-  /// Starts listening on [address] (see [PairingListener]).
+  /// Starts listening on [address] (see [PairingListener]); [now] is the
+  /// clock of the per-minute limits and [minSetupTime].
   static Future<PairingListener> bind(
     InternetAddress address, {
     Duration validity = const Duration(minutes: 5),
     int maxAttempts = 3,
     int maxFailures = 30,
-    int maxPending = 4,
+    int maxPending = 8,
+    int maxPendingPerAddress = 2,
+    int maxHandshakesPerMinute = 30,
+    int maxAddressHandshakesPerMinute = 6,
+    Duration minSetupTime = const Duration(seconds: 2),
     PairingAddressPolicy policy = const PairingAddressPolicy(),
     Duration handshakeTimeout = pairingHandshakeTimeout,
     Random? random,
@@ -87,8 +112,13 @@ class PairingListener {
       maxAttempts: maxAttempts,
       maxFailures: maxFailures,
       maxPending: maxPending,
+      maxPendingPerAddress: maxPendingPerAddress,
+      maxHandshakesPerMinute: maxHandshakesPerMinute,
+      maxAddressHandshakesPerMinute: maxAddressHandshakesPerMinute,
+      minSetupTime: minSetupTime,
       handshakeTimeout: handshakeTimeout,
       validity: validity,
+      now: now,
     );
   }
 
@@ -106,18 +136,35 @@ class PairingListener {
   /// Wrong codes in all before the code is burnt.
   final int maxFailures;
 
-  /// Connections that may set up at once.
+  /// Connections that may set up at once, in all.
   final int maxPending;
+
+  /// Connections that may set up at once from one address.
+  final int maxPendingPerAddress;
+
+  /// Handshakes started per minute, in all, by addresses that started one
+  /// in that minute already (an address's first is always taken on).
+  final int maxHandshakesPerMinute;
+
+  /// Handshakes started per minute from one address.
+  final int maxAddressHandshakesPerMinute;
+
+  /// How long a connection may set up before a newer one can push it out.
+  final Duration minSetupTime;
 
   final Duration handshakeTimeout;
 
   final ServerSocket _server;
+  final DateTime Function() _now;
   late final StreamSubscription<Socket> _subscription;
   late final Timer _expiry;
   final Completer<PairingChannel> _result = Completer();
 
   /// The connections setting up, oldest first.
   final List<_Pending> _pending = [];
+
+  /// When the handshakes of the last minute started, and from where.
+  final List<(DateTime, String)> _started = [];
 
   /// Wrong codes by address, and in all.
   final Map<String, int> _failures = {};
@@ -132,28 +179,60 @@ class PairingListener {
 
   void _onSocket(Socket socket) {
     final address = socket.remoteAddress;
+    final from = address.address;
     if (_result.isCompleted ||
         !policy.allows(address) ||
-        (_failures[address.address] ?? 0) >= maxAttempts) {
+        (_failures[from] ?? 0) >= maxAttempts) {
       socket.destroy();
       return;
     }
-    final pending = _Pending(socket, address.address);
+    final now = _now();
+    final since = now.subtract(const Duration(minutes: 1));
+    _started.removeWhere((start) => !start.$1.isAfter(since));
+    final fromHere = _started.where((start) => start.$2 == from).length;
+    // Refused ones count nowhere; an address's first in the minute always
+    // gets in.
+    if (fromHere >= maxAddressHandshakesPerMinute ||
+        (fromHere > 0 && _started.length >= maxHandshakesPerMinute)) {
+      socket.destroy();
+      return;
+    }
+    final own = [
+      for (final pending in _pending)
+        if (pending.address == from) pending,
+    ];
+    if (own.length >= maxPendingPerAddress) {
+      _drop(own.first);
+    } else if (_pending.length >= maxPending) {
+      final oldest = _replaceable(now, from);
+      if (oldest == null) {
+        socket.destroy();
+        return;
+      }
+      _drop(oldest);
+    }
+    _started.add((now, from));
+    final pending = _Pending(socket, from, now);
     _pending.add(pending);
-    if (_pending.length > maxPending) _dropOne();
     unawaited(_accept(pending));
   }
 
-  /// Closes the oldest connection of the address with the most of them
-  /// (all of them counted, the one that just arrived included, which is
-  /// never the one closed).
-  void _dropOne() {
-    final counts = <String, int>{};
+  /// Of the connections that had [minSetupTime], the oldest of the
+  /// address with the most of them (all of them counted, the one arriving
+  /// from [from] included); null when none had.
+  _Pending? _replaceable(DateTime now, String from) {
+    final counts = <String, int>{from: 1};
     for (final pending in _pending) {
       counts.update(pending.address, (count) => count + 1, ifAbsent: () => 1);
     }
-    final most = counts.values.reduce(max);
-    _drop(_pending.firstWhere((pending) => counts[pending.address] == most));
+    _Pending? found;
+    for (final pending in _pending) {
+      if (now.difference(pending.since) < minSetupTime) continue;
+      if (found == null || counts[pending.address]! > counts[found.address]!) {
+        found = pending;
+      }
+    }
+    return found;
   }
 
   void _drop(_Pending pending) {
@@ -165,6 +244,8 @@ class PairingListener {
     final socket = pending.socket;
     final input = pending.input;
     final deadline = Timer(handshakeTimeout, () => _drop(pending));
+    PairingChannel? channel;
+    var handedOut = false;
     try {
       final keys = await PairingHandshake.respond(
         input: input,
@@ -172,27 +253,36 @@ class PairingListener {
         code: code,
         timeout: handshakeTimeout,
       );
-      final channel = PairingChannel(input: input, socket: socket, keys: keys);
-      checkHello(
-        await channel.receiveMessage(
+      final opened = channel = PairingChannel(
+        input: input,
+        socket: socket,
+        keys: keys,
+      );
+      opened.acceptHello(
+        await opened.receiveMessage(
           timeout: handshakeTimeout,
           expected: const {'hello'},
         ),
       );
       if (_result.isCompleted || pending.dropped) {
-        channel.destroy();
+        opened.destroy();
         return;
       }
       // This phone knows the code: it is the one (the others are closed),
       // and its hello goes out first.
       deadline.cancel();
       _pending.remove(pending);
-      final hello = channel.send('hello', const {'v': pairingProtocolVersion});
-      _result.complete(channel);
+      final hello = opened.sendHello();
+      handedOut = true;
+      _result.complete(opened);
       await _stop();
       await hello;
     } on Object catch (error) {
-      _drop(pending);
+      // A channel handed out is its user's to close.
+      if (!handedOut) {
+        channel?.destroy();
+        _drop(pending);
+      }
       if (error is PairingAuthenticationException) _wrongCode(pending.address);
     } finally {
       deadline.cancel();
@@ -232,12 +322,16 @@ class PairingListener {
 
 /// A connection to a [PairingListener] that is setting up.
 class _Pending {
-  new(this.socket, this.address) : input = PairingByteReader(socket);
+  new(this.socket, this.address, this.since)
+    : input = PairingByteReader(socket);
 
   final Socket socket;
 
   /// The other end's address (a closed socket no longer tells).
   final String address;
+
+  /// When it was taken on.
+  final DateTime since;
 
   final PairingByteReader input;
   bool dropped = false;
@@ -251,6 +345,24 @@ class _Pending {
   }
 }
 
+/// How long the sending phone waits before it tries again when the
+/// receiver closed the connection before answering (it was busy with
+/// other connections, see [PairingListener]): once after each delay, then
+/// every [pairingRetryInterval].
+const pairingRetryDelays = [
+  Duration(seconds: 1),
+  Duration(seconds: 2),
+  Duration(seconds: 4),
+  Duration(seconds: 8),
+];
+
+/// How often the sending phone tries again after [pairingRetryDelays].
+const pairingRetryInterval = Duration(seconds: 10);
+
+/// How long the sending phone goes on trying: as long as a code works
+/// (the receiver's `PairingListener.bind` default validity).
+const pairingRetryWindow = Duration(minutes: 5);
+
 /// The sending phone's side: connects to the receiver of [code] and sets
 /// up the encrypted channel (see [PairingListener]).
 ///
@@ -259,59 +371,165 @@ class _Pending {
 /// nothing answers within [connectTimeout], and the [PairingException]s
 /// of the set-up, which must complete within [handshakeTimeout] in all
 /// ([PairingTimeoutException]): a receiver that does not take the code
-/// closes the connection ([PairingClosedException]).
+/// closes the connection ([PairingClosedException]). A receiver that
+/// closes the connection before it sent its key (one that is busy with a
+/// flood of connections) is tried again after each of [retryDelays], then
+/// every [retryInterval] (null: no more), as long as the next try starts
+/// within [retryFor] of the first (the code has expired by then); one that
+/// closed it later (a wrong code) is not.
+///
+/// When [cancel] completes (the user gave up), the tries stop: the call
+/// fails at once with [PairingClosedException], and a connection still
+/// being set up is closed.
 Future<PairingChannel> connectPairing(
   PairingCode code, {
   PairingAddressPolicy policy = const PairingAddressPolicy(),
   Duration connectTimeout = pairingHandshakeTimeout,
   Duration handshakeTimeout = pairingHandshakeTimeout,
+  List<Duration> retryDelays = pairingRetryDelays,
+  Duration? retryInterval = pairingRetryInterval,
+  Duration retryFor = pairingRetryWindow,
+  Future<void>? cancel,
 }) async {
   final address = InternetAddress.fromRawAddress(code.address);
   if (!policy.allows(address)) throw const PairingAddressException();
+  final stopped = Completer<void>();
+  unawaited(
+    cancel?.then(
+      (_) {
+        if (!stopped.isCompleted) stopped.complete();
+      },
+      onError: (Object _) {
+        if (!stopped.isCompleted) stopped.complete();
+      },
+    ),
+  );
+  final elapsed = Stopwatch()..start();
+  final tries = () async {
+    for (var attempt = 0; ; attempt++) {
+      try {
+        return await _connectOnce(
+          code,
+          address,
+          connectTimeout: connectTimeout,
+          handshakeTimeout: handshakeTimeout,
+          stopped: stopped,
+        );
+      } on _Refused catch (refused) {
+        final delay = attempt < retryDelays.length
+            ? retryDelays[attempt]
+            : retryInterval;
+        if (stopped.isCompleted ||
+            delay == null ||
+            elapsed.elapsed + delay > retryFor) {
+          throw refused.error;
+        }
+        await Future.any([Future<void>.delayed(delay), stopped.future]);
+        if (stopped.isCompleted) throw refused.error;
+      }
+    }
+  }();
+  if (cancel == null) return await tries;
+  return await Future.any([
+    tries,
+    stopped.future.then<PairingChannel>(
+      (_) => throw const PairingClosedException('Cancelled'),
+    ),
+  ]).whenComplete(() {
+    // Whatever the tries still bring is nobody's.
+    if (stopped.isCompleted) {
+      unawaited(
+        tries.then((channel) => channel.destroy(), onError: (Object _) {}),
+      );
+    }
+  });
+}
+
+/// `ECONNRESET` (Linux, so Android).
+const _connectionReset = 104;
+
+/// The receiver closed the connection before it answered.
+class _Refused implements Exception {
+  const new(this.error);
+
+  final PairingClosedException error;
+}
+
+Future<PairingChannel> _connectOnce(
+  PairingCode code,
+  InternetAddress address, {
+  required Duration connectTimeout,
+  required Duration handshakeTimeout,
+  required Completer<void> stopped,
+}) async {
   final Socket socket;
   try {
     socket = await Socket.connect(address, code.port, timeout: connectTimeout);
   } on SocketException catch (error) {
+    // Closed as soon as it was taken: turned away, not unreachable (the
+    // timing decides whether the connect or the first read sees it).
+    // coverage:ignore-start
+    if (error.osError?.errorCode == _connectionReset) {
+      throw _Refused(PairingClosedException(error.message));
+    }
+    // coverage:ignore-end
     throw PairingUnreachableException(error.message);
+  }
+  if (stopped.isCompleted) {
+    socket.destroy();
+    throw const PairingClosedException('Cancelled');
   }
   socket.setOption(SocketOption.tcpNoDelay, true);
   final input = PairingByteReader(socket);
   var expired = false;
+  var connected = false;
+  unawaited(
+    stopped.future.then((_) {
+      if (connected) return;
+      socket.destroy();
+      unawaited(input.cancel());
+    }),
+  );
+  // The second write goes out once the receiver's key came.
+  var writes = 0;
   final deadline = Timer(handshakeTimeout, () {
     expired = true;
     socket.destroy();
     unawaited(input.cancel());
   });
+  PairingChannel? channel;
   try {
     final keys = await PairingHandshake.initiate(
       input: input,
-      output: socket.add,
+      output: (bytes) {
+        writes++;
+        socket.add(bytes);
+      },
       code: code,
       timeout: handshakeTimeout,
     );
-    final channel = PairingChannel(input: input, socket: socket, keys: keys);
-    await channel.send('hello', const {'v': pairingProtocolVersion});
-    checkHello(
-      await channel.receiveMessage(
+    final opened = channel = PairingChannel(
+      input: input,
+      socket: socket,
+      keys: keys,
+    );
+    await opened.sendHello();
+    opened.acceptHello(
+      await opened.receiveMessage(
         timeout: handshakeTimeout,
         expected: const {'hello'},
       ),
     );
-    return channel;
-  } on Object {
+    connected = true;
+    return opened;
+  } on Object catch (error) {
+    channel?.destroy();
     socket.destroy();
     await input.cancel();
     if (expired) throw const PairingTimeoutException();
+    if (error is PairingClosedException && writes < 2) throw _Refused(error);
     rethrow;
   } finally {
     deadline.cancel();
-  }
-}
-
-/// Throws [PairingProtocolException] unless [hello] speaks
-/// [pairingProtocolVersion].
-void checkHello(PairingMessage hello) {
-  if (hello.fields['v'] != pairingProtocolVersion) {
-    throw const PairingProtocolException('Unsupported protocol version');
   }
 }

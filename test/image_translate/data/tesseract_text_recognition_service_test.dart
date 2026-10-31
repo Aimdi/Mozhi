@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' show Color, Rect;
@@ -177,6 +178,119 @@ void main() {
     expect(requests, isEmpty);
     await service.downloadOcrLanguage('deu', wifiOnly: false);
     expect(requests, hasLength(1));
+  });
+
+  group('cancelOcrDownload', () {
+    late StreamController<List<int>> body;
+    late Completer<void> listened;
+    late Completer<bool> meteredAnswer;
+    late List<http.BaseRequest> sent;
+    late TesseractTextRecognitionService cancellable;
+
+    setUp(() {
+      listened = Completer<void>();
+      meteredAnswer = Completer<bool>()..complete(false);
+      sent = [];
+      body = StreamController<List<int>>(
+        onListen: () {
+          body.add(deuBytes.sublist(0, 1000));
+          listened.complete();
+        },
+      );
+      final client = MockClient.streaming((request, _) async {
+        sent.add(request);
+        return http.StreamedResponse(
+          body.stream,
+          200,
+          contentLength: deuBytes.length,
+        );
+      });
+      cancellable = TesseractTextRecognitionService(
+        open: () async => TesseractOcr(
+          catalog: catalog,
+          root: root,
+          httpClient: client,
+          engine: engine,
+        ),
+        isSupported: true,
+        isMeteredConnection: () => meteredAnswer.future,
+        decoder: decoder,
+      );
+    });
+
+    test('is offered by the Tesseract service', () {
+      expect(cancellable, isA<CancellableOcrDownloads>());
+    });
+
+    test('stops a download mid-stream and installs nothing', () async {
+      final changes = <void>[];
+      final subscription = cancellable.ocrLanguagesChanged.listen(changes.add);
+      addTearDown(subscription.cancel);
+      final download = cancellable.downloadOcrLanguage('deu', wifiOnly: true);
+      await listened.future;
+
+      await cancellable.cancelOcrDownload('deu');
+
+      await expectLater(
+        download,
+        throwsA(
+          isA<OfflineDownloadCancelledException>().having(
+            (e) => e.language,
+            'language',
+            'deu',
+          ),
+        ),
+      );
+      expect(await cancellable.installedOcrLanguages(), isEmpty);
+      expect(
+        File(p.join(root.path, 'tessdata', 'deu.traineddata')).existsSync(),
+        isFalse,
+      );
+      await pumpEventQueue();
+      expect(changes, isEmpty);
+    });
+
+    test('stops a download before its request is sent', () async {
+      meteredAnswer = Completer<bool>();
+      final download = expectLater(
+        cancellable.downloadOcrLanguage('deu', wifiOnly: true),
+        throwsA(isA<OfflineDownloadCancelledException>()),
+      );
+      await pumpEventQueue();
+      final cancelling = cancellable.cancelOcrDownload('deu');
+      meteredAnswer.complete(false);
+      await cancelling;
+      await download;
+      expect(sent, isEmpty);
+    });
+
+    test('does nothing when no download of the code runs', () async {
+      await cancellable.cancelOcrDownload('deu');
+      final download = cancellable.downloadOcrLanguage('deu', wifiOnly: true);
+      await listened.future;
+      await cancellable.cancelOcrDownload('eng');
+      body
+        ..add(deuBytes.sublist(1000))
+        ..unawaitedClose();
+      await download;
+      expect(await cancellable.installedOcrLanguages(), {
+        'deu': deuBytes.length,
+      });
+    });
+
+    test('does not throw when the engine cannot start', () async {
+      final broken = TesseractTextRecognitionService(
+        open: () async => throw StateError('no engine'),
+        isSupported: true,
+        isMeteredConnection: () async => false,
+      );
+      final download = expectLater(
+        broken.downloadOcrLanguage('deu', wifiOnly: false),
+        throwsStateError,
+      );
+      await broken.cancelOcrDownload('deu');
+      await download;
+    });
   });
 
   group('recognize', () {
@@ -459,4 +573,8 @@ void main() {
     await expectLater(flaky.ocrLanguages(), throwsStateError);
     expect(await flaky.ocrLanguages(), hasLength(3));
   });
+}
+
+extension on StreamController<List<int>> {
+  void unawaitedClose() => unawaited(close());
 }

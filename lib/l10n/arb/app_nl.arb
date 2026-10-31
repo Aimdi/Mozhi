@@ -2763,5 +2763,9 @@
   "liveCaptionsBarLocked": "Mozhi is vergrendeld",
   "offlineCancelDownloadTooltip": "Downloaden van {language} annuleren",
   "offlineCancelling": "Wordt gestopt…",
-  "documentsPdfProgressCooling": "Pagina {page} van {total}: de telefoon is heet, wachten tot hij is afgekoeld…"
+  "documentsPdfProgressCooling": "Pagina {page} van {total}: de telefoon is heet, wachten tot hij is afgekoeld…",
+  "onboardingLanguagesSuggestionPicked": "Je koos eerder {language}.",
+  "offlineManualMirrorNote": "De links gaan naar je modelbron, {host}, waar Mozhi van downloadt. Ontbreekt daar een bestand, gebruik dan de link van de uitgever.",
+  "offlineManualPublisherLink": "Link van de uitgever, als de mirror het bestand niet heeft",
+  "offlineManualCopyPublisherLink": "Link van de uitgever naar {file} kopiëren"
 }

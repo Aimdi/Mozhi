@@ -1,3 +1,6 @@
+import 'dart:convert';
+
+import 'package:cryptography/dart.dart';
 import 'package:mozhi/presets/models/tombstone.dart';
 
 /// What [mergeCopies] returns: the merged `items`, in order, and the
@@ -8,7 +11,14 @@ typedef MergedCopies<T> = ({List<T> items, Map<String, DateTime> tombstones});
 /// [local] one and the [other], from a backup or sync) and their
 /// tombstones, as backups merge presets and glossaries:
 ///
-/// * per id, the newer copy wins ([modifiedAt]; [local] on a tie);
+/// * per id, the newer copy wins ([modifiedAt]). Two copies changed at
+///   the same time (also: neither has a change time, presets and
+///   glossaries saved before they had one) that differ ([contentOf])
+///   are decided by [tieBreak], the same on every device, and the winner
+///   is passed through [resolved] (which gives one without a change time
+///   [resolvedChangeTime], so that it also wins on devices with older
+///   versions, which keep their own copy on a tie). Without [contentOf],
+///   [local] wins a tie;
 /// * a tombstone in either copy deletes the item when it is at least as
 ///   new as the item's winning copy; an item changed after its tombstone
 ///   (edited, or put back) stays, and its tombstone goes;
@@ -28,6 +38,8 @@ MergedCopies<T> mergeCopies<T>({
   Map<String, DateTime> localTombstones = const {},
   Map<String, DateTime> otherTombstones = const {},
   bool otherOrder = false,
+  String Function(T item)? contentOf,
+  T Function(T item)? resolved,
 }) {
   final tombstones = {...localTombstones};
   for (final MapEntry(:key, :value) in otherTombstones.entries) {
@@ -51,6 +63,14 @@ MergedCopies<T> mergeCopies<T>({
     final kept = winners[id];
     if (kept == null || modifiedAt(item).isAfter(modifiedAt(kept))) {
       winners[id] = item;
+    } else if (contentOf != null &&
+        modifiedAt(item).isAtSameMomentAs(modifiedAt(kept))) {
+      final mine = contentOf(kept);
+      final other = contentOf(item);
+      if (mine != other) {
+        final winner = tieBreak(mine, other) ? item : kept;
+        winners[id] = resolved?.call(winner) ?? winner;
+      }
     }
   }
 
@@ -103,3 +123,66 @@ bool sameRelativeOrder(List<String> before, List<String> after) {
   }
   return true;
 }
+
+/// The change time given to the copy that won a tie between two copies
+/// without one ([mergeCopies], [pickChange]): just after
+/// [unknownChangeTime], so it wins over copies without a change time
+/// (also on devices with older versions) and loses to every real change
+/// and deletion.
+final DateTime resolvedChangeTime = unknownChangeTime.add(
+  const Duration(milliseconds: 1),
+);
+
+/// Whether, of two different copies of something whose change times tie,
+/// the [other] one wins: the one whose content ([mine], [other], e.g.
+/// [canonicalJson]) has the smaller SHA-256. Every device decides the
+/// same way, whichever copy it holds.
+bool tieBreak(String mine, String other) =>
+    _digest(other).compareTo(_digest(mine)) < 0;
+
+/// What a merge keeps of one value (an order, a default) that two copies
+/// changed at [localAt] and [otherAt] (null: not since there were change
+/// times), when the copies hold [localKey] and [otherKey]: whether the
+/// other copy's value wins, and the change time the result keeps.
+///
+/// The later change wins. On a tie, copies that differ are decided by
+/// [tieBreak]; when neither had a change time the result gets
+/// [resolvedChangeTime], so that devices that already differ agree
+/// (older versions included) instead of each keeping its own. Equal
+/// copies keep this device's.
+({bool otherWins, DateTime? changedAt}) pickChange({
+  required DateTime? localAt,
+  required DateTime? otherAt,
+  required String localKey,
+  required String otherKey,
+}) {
+  final latest = laterOf(localAt, otherAt);
+  if (isLaterChange(otherAt, localAt)) {
+    return (otherWins: true, changedAt: latest);
+  }
+  if (isLaterChange(localAt, otherAt) || localKey == otherKey) {
+    return (otherWins: false, changedAt: latest);
+  }
+  return (
+    otherWins: tieBreak(localKey, otherKey),
+    changedAt: latest ?? resolvedChangeTime,
+  );
+}
+
+/// [value] (JSON-encodable) as JSON with the keys of every object sorted:
+/// the same data gives the same text however its maps were built.
+String canonicalJson(Object? value) => jsonEncode(_canonical(value));
+
+Object? _canonical(Object? value) => switch (value) {
+  final Map<Object?, Object?> map => {
+    for (final key in map.keys.map((key) => '$key').toList()..sort())
+      key: _canonical(map[key]),
+  },
+  final List<Object?> list => [for (final item in list) _canonical(item)],
+  _ => value,
+};
+
+String _digest(String text) => [
+  for (final byte in const DartSha256().hashSync(utf8.encode(text)).bytes)
+    byte.toRadixString(16).padLeft(2, '0'),
+].join();

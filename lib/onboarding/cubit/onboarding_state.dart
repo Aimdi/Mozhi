@@ -1,4 +1,6 @@
 import 'package:equatable/equatable.dart';
+import 'package:translation_repository/translation_repository.dart'
+    show Language;
 
 /// The pages of the first-run flow, in order: after the welcome, at most
 /// three screens: the privacy mode, the default languages (with their
@@ -82,6 +84,7 @@ class OnboardingState extends Equatable {
     this.preselectDownloads = false,
     this.freeBytes,
     this.downloadChoices = const {},
+    this.pickedSource,
   });
 
   final OnboardingStep step;
@@ -117,6 +120,12 @@ class OnboardingState extends Equatable {
   /// The user's own answers for the offline downloads of the languages
   /// step, by language code (true: download it when they tap Next).
   final Map<String, bool> downloadChoices;
+
+  /// The source language the user last picked on the languages step (never
+  /// "Detect language"), kept when they go back to detecting: it is
+  /// suggested again when none of [deviceLanguages] differs from the
+  /// target.
+  final Language? pickedSource;
 
   // Translation service
 
@@ -186,6 +195,7 @@ class OnboardingState extends Equatable {
     bool? onDevice,
     int? Function()? freeBytes,
     Map<String, bool>? downloadChoices,
+    Language? pickedSource,
   }) {
     return OnboardingState(
       step: step ?? this.step,
@@ -208,6 +218,7 @@ class OnboardingState extends Equatable {
       preselectDownloads: preselectDownloads,
       freeBytes: freeBytes != null ? freeBytes() : this.freeBytes,
       downloadChoices: downloadChoices ?? this.downloadChoices,
+      pickedSource: pickedSource ?? this.pickedSource,
     );
   }
 
@@ -227,5 +238,6 @@ class OnboardingState extends Equatable {
     preselectDownloads,
     freeBytes,
     downloadChoices,
+    pickedSource,
   ];
 }

@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:cryptography/dart.dart';
 import 'package:equatable/equatable.dart';
 import 'package:mozhi/backup/data/backup_registry.dart';
 import 'package:mozhi/pairing/data/pairing_packs.dart';
@@ -74,7 +73,8 @@ class PairingOfferedItem extends Equatable {
 }
 
 /// The sending phone's side of a transfer (docs/pairing.md): [offer]
-/// what the user chose, then [send] what the other phone asked for.
+/// what the user chose, then [send] what the other phone asked for. A
+/// failure of either ends the connection.
 class PairingSender {
   new(this._channel, {this.timeouts = const PairingTimeouts()});
 
@@ -91,49 +91,57 @@ class PairingSender {
   Future<List<PairingRequestedItem>> offer(
     List<PairingOutgoingItem> items,
   ) async {
-    final offered = {for (final outgoing in items) outgoing.item.id: outgoing};
-    await _channel.send('offer', {
-      'items': [for (final outgoing in items) outgoing.item.toJson()],
-    });
-    final answer = await _channel.receiveMessage(
-      timeout: timeouts.decision,
-      expected: const {'accept', 'decline'},
-    );
-    if (answer.type == 'decline') {
-      await _channel.close();
-      throw const PairingDeclinedException();
-    }
-    final wanted = answer.fields['items'];
-    if (wanted is! List<Object?>) {
-      throw const PairingProtocolException('Invalid answer');
-    }
-    final requested = <PairingRequestedItem>[];
-    final ids = <String>{};
-    for (final entry in wanted) {
-      final (id, names) = switch (entry) {
-        {'id': final String id, 'files': final List<Object?> names} => (
-          id,
-          names,
-        ),
-        _ => throw const PairingProtocolException('Invalid answer'),
+    try {
+      final offered = {
+        for (final outgoing in items) outgoing.item.id: outgoing,
       };
-      final outgoing = offered[id];
-      if (outgoing == null || !ids.add(id)) {
-        throw PairingProtocolException('Not offered: $id');
+      await _channel.send('offer', {
+        'items': [for (final outgoing in items) outgoing.item.toJson()],
+      });
+      final answer = await _channel.receiveMessage(
+        timeout: timeouts.decision,
+        expected: const {'accept', 'decline'},
+      );
+      if (answer.type == 'decline') {
+        await _channel.close();
+        throw const PairingDeclinedException();
       }
-      final files = <PairingFile>[];
-      for (final name in names) {
-        final file = name is String ? outgoing.item.file(name) : null;
-        if (file == null || files.contains(file)) {
-          throw PairingProtocolException('Not offered: $id/$name');
+      final wanted = answer.fields['items'];
+      if (wanted is! List<Object?>) {
+        throw const PairingProtocolException('Invalid answer');
+      }
+      final requested = <PairingRequestedItem>[];
+      final ids = <String>{};
+      for (final entry in wanted) {
+        final (id, names) = switch (entry) {
+          {'id': final String id, 'files': final List<Object?> names} => (
+            id,
+            names,
+          ),
+          _ => throw const PairingProtocolException('Invalid answer'),
+        };
+        final outgoing = offered[id];
+        if (outgoing == null || !ids.add(id)) {
+          throw PairingProtocolException('Not offered: $id');
         }
-        files.add(file);
+        final files = <PairingFile>[];
+        for (final name in names) {
+          final file = name is String ? outgoing.item.file(name) : null;
+          if (file == null || files.contains(file)) {
+            throw PairingProtocolException('Not offered: $id/$name');
+          }
+          files.add(file);
+        }
+        if (files.isNotEmpty) {
+          requested.add(PairingRequestedItem(outgoing, files));
+        }
       }
-      if (files.isNotEmpty) {
-        requested.add(PairingRequestedItem(outgoing, files));
-      }
+      return requested;
+    } on Object {
+      // The transfer is over: so is the connection (and its worker).
+      _channel.destroy();
+      rethrow;
     }
-    return requested;
   }
 
   /// Sends the files of [requested], item by item, waiting after each
@@ -143,64 +151,74 @@ class PairingSender {
     List<PairingRequestedItem> requested, {
     void Function(PairingProgress progress)? onProgress,
   }) async {
-    final total = requested.fold(
-      0,
-      (sum, item) => sum + item.files.fold(0, (sum, file) => sum + file.size),
-    );
-    var sent = 0;
-    final results = <PairingItemResult>[];
-    for (final request in requested) {
-      final id = request.item.id;
-      for (final file in request.files) {
-        await _channel.send('file', {
-          'item': id,
-          'name': file.name,
-          'size': file.size,
-        });
-        var bytes = 0;
-        await for (final chunk in _chunks(
-          request.outgoing.readers[file.name]!,
-        )) {
-          bytes += chunk.length;
-          if (bytes > file.size) break;
-          await _channel.sendData(chunk);
-          sent += chunk.length;
-          onProgress?.call(
-            PairingProgress(bytes: sent, totalBytes: total, itemId: id),
-          );
-        }
-        if (bytes != file.size) {
-          // The file changed since it was offered: the other phone could
-          // not tell where it ends, so the transfer stops.
-          await _channel.cancel('changed');
-          throw const PairingProtocolException('A file changed');
-        }
-      }
-      onProgress?.call(
-        PairingProgress(
-          bytes: sent,
-          totalBytes: total,
-          itemId: id,
-          installing: true,
-        ),
+    try {
+      final total = requested.fold(
+        0,
+        (sum, item) => sum + item.files.fold(0, (sum, file) => sum + file.size),
       );
-      final result = await _channel.receiveMessage(
-        timeout: timeouts.install,
-        expected: const {'result'},
-      );
-      final outcome = PairingItemOutcome.tryParse(result.fields['status']);
-      if (result.fields['item'] != id || outcome == null) {
-        throw const PairingProtocolException('Invalid result');
+      var sent = 0;
+      final results = <PairingItemResult>[];
+      for (final request in requested) {
+        final id = request.item.id;
+        for (final file in request.files) {
+          await _channel.send('file', {
+            'item': id,
+            'name': file.name,
+            'size': file.size,
+          });
+          var bytes = 0;
+          final compression = _Compression();
+          await for (final chunk in _chunks(
+            request.outgoing.readers[file.name]!,
+          )) {
+            bytes += chunk.length;
+            if (bytes > file.size) break;
+            compression.sent(
+              chunk.length,
+              await _channel.sendFileData(chunk, compress: compression.worthIt),
+            );
+            sent += chunk.length;
+            onProgress?.call(
+              PairingProgress(bytes: sent, totalBytes: total, itemId: id),
+            );
+          }
+          if (bytes != file.size) {
+            // The file changed since it was offered: the other phone could
+            // not tell where it ends, so the transfer stops.
+            await _channel.cancel('changed');
+            throw const PairingProtocolException('A file changed');
+          }
+        }
+        onProgress?.call(
+          PairingProgress(
+            bytes: sent,
+            totalBytes: total,
+            itemId: id,
+            installing: true,
+          ),
+        );
+        final result = await _channel.receiveMessage(
+          timeout: timeouts.install,
+          expected: const {'result'},
+        );
+        final outcome = PairingItemOutcome.tryParse(result.fields['status']);
+        if (result.fields['item'] != id || outcome == null) {
+          throw const PairingProtocolException('Invalid result');
+        }
+        results.add(PairingItemResult(id, outcome));
       }
-      results.add(PairingItemResult(id, outcome));
+      await _channel.send('done');
+      await _channel.receiveMessage(
+        timeout: timeouts.transfer,
+        expected: const {'done'},
+      );
+      await _channel.close();
+      return results;
+    } on Object {
+      // The transfer is over: so is the connection (and its worker).
+      _channel.destroy();
+      rethrow;
     }
-    await _channel.send('done');
-    await _channel.receiveMessage(
-      timeout: timeouts.transfer,
-      expected: const {'done'},
-    );
-    await _channel.close();
-    return results;
   }
 
   /// Stops the transfer and tells the other phone.
@@ -227,9 +245,32 @@ class PairingSender {
   static const int _chunkSize = 64 * 1024;
 }
 
+/// Whether the data of one file is worth compressing: it is, unless its
+/// first [_sample] bytes saved less than a [_minSaving] fraction (model
+/// weights that hardly compress then go as they are, without the work).
+class _Compression {
+  static const int _sample = 1 << 20;
+  static const _minSaving = 0.05;
+
+  int _raw = 0;
+  int _sent = 0;
+  bool _worthIt = true;
+
+  bool get worthIt => _worthIt;
+
+  /// [raw] bytes of the file went across as [sent].
+  void sent(int raw, int sent) {
+    if (!_worthIt || _raw >= _sample) return;
+    _raw += raw;
+    _sent += sent;
+    if (_raw >= _sample && _sent > _raw * (1 - _minSaving)) _worthIt = false;
+  }
+}
+
 /// The receiving phone's side of a transfer (docs/pairing.md): [offer]
 /// waits for what the other phone offers and plans each item with the
-/// [PairingLibrary]; then [decline] or [accept].
+/// [PairingLibrary]; then [decline] or [accept]. A failure of [offer] or
+/// [accept] ends the connection.
 ///
 /// Offline files are written into [workDirectory] (which it creates and
 /// removes) while their size and hashes are checked against this phone's
@@ -259,26 +300,32 @@ class PairingReceiver {
 
   /// Waits for the other phone's offer and plans each item.
   Future<List<PairingOfferedItem>> offer() async {
-    final message = await _channel.receiveMessage(
-      timeout: timeouts.decision,
-      expected: const {'offer'},
-    );
-    final items = message.fields['items'];
-    if (items is! List<Object?> || items.length > maxItems) {
-      throw const PairingProtocolException('Invalid offer');
+    try {
+      final message = await _channel.receiveMessage(
+        timeout: timeouts.decision,
+        expected: const {'offer'},
+      );
+      final items = message.fields['items'];
+      if (items is! List<Object?> || items.length > maxItems) {
+        throw const PairingProtocolException('Invalid offer');
+      }
+      final parsed = [
+        for (final item in items)
+          // Kinds of a newer Mozhi are left out, so the rest still moves.
+          if (!_newerKind(item)) PairingItem.fromJson(item),
+      ];
+      if ({for (final item in parsed) item.id}.length != parsed.length) {
+        throw const PairingProtocolException('Duplicate item');
+      }
+      return _offered = [
+        for (final item in parsed)
+          PairingOfferedItem(item, await _library.plan(item)),
+      ];
+    } on Object {
+      // The transfer is over: so is the connection (and its worker).
+      _channel.destroy();
+      rethrow;
     }
-    final parsed = [
-      for (final item in items)
-        // Kinds of a newer Mozhi are left out, so the rest still moves.
-        if (!_newerKind(item)) PairingItem.fromJson(item),
-    ];
-    if ({for (final item in parsed) item.id}.length != parsed.length) {
-      throw const PairingProtocolException('Duplicate item');
-    }
-    return _offered = [
-      for (final item in parsed)
-        PairingOfferedItem(item, await _library.plan(item)),
-    ];
   }
 
   /// Whether [item] names a kind this version doesn't know (a string that
@@ -303,94 +350,104 @@ class PairingReceiver {
     required BackupRestoreMode mode,
     void Function(PairingProgress progress)? onProgress,
   }) async {
-    final accepted = [
-      for (final offered in _offered)
-        if (ids.contains(offered.item.id) &&
-            offered.plan.status == PairingItemStatus.available &&
-            offered.plan.files.isNotEmpty)
-          offered,
-    ];
-    await _channel.send('accept', {
-      'items': [
-        for (final offered in accepted)
-          {
-            'id': offered.item.id,
-            'files': [for (final file in offered.plan.files) file.name],
-          },
-      ],
-    });
-    final total = accepted.fold(0, (sum, offered) => sum + offered.plan.size);
-    var received = 0;
-    final results = <PairingItemResult>[];
-    await workDirectory.create(recursive: true);
     try {
-      for (final (index, offered) in accepted.indexed) {
-        final id = offered.item.id;
-        final folder = Directory('${workDirectory.path}/$index');
-        final files = <File>[];
-        // The data (a backup, with secrets when included) is kept in
-        // memory rather than in the cache folder.
-        final data = offered.item.kind == PairingItemKind.data
-            ? BytesBuilder(copy: false)
-            : null;
-        PairingItemOutcome? outcome;
-        for (final expected in offered.plan.files) {
-          final header = await _channel.receiveMessage(
-            timeout: timeouts.transfer,
-            expected: const {'file'},
-          );
-          if (header.fields['item'] != id ||
-              header.fields['name'] != expected.name ||
-              header.fields['size'] != expected.size) {
-            throw const PairingProtocolException('Unexpected file');
-          }
-          final file = data == null
-              ? File('${folder.path}/${expected.name}')
-              : null;
-          if (file != null) files.add(file);
-          final failure = await _receiveFile(
-            expected,
-            file: outcome == null ? file : null,
-            memory: outcome == null ? data : null,
-            onBytes: (bytes) {
-              received += bytes;
-              onProgress?.call(
-                PairingProgress(bytes: received, totalBytes: total, itemId: id),
-              );
+      final accepted = [
+        for (final offered in _offered)
+          if (ids.contains(offered.item.id) &&
+              offered.plan.status == PairingItemStatus.available &&
+              offered.plan.files.isNotEmpty)
+            offered,
+      ];
+      await _channel.send('accept', {
+        'items': [
+          for (final offered in accepted)
+            {
+              'id': offered.item.id,
+              'files': [for (final file in offered.plan.files) file.name],
             },
-          );
-          outcome ??= failure;
-        }
-        if (outcome == null) {
-          onProgress?.call(
-            PairingProgress(
-              bytes: received,
-              totalBytes: total,
-              itemId: id,
-              installing: true,
-            ),
-          );
-          outcome = data == null
-              ? await _library.install(offered.item, files, mode: mode)
-              : await _library.restore(
-                  offered.item,
-                  data.takeBytes(),
-                  mode: mode,
+        ],
+      });
+      final total = accepted.fold(0, (sum, offered) => sum + offered.plan.size);
+      var received = 0;
+      final results = <PairingItemResult>[];
+      await workDirectory.create(recursive: true);
+      try {
+        for (final (index, offered) in accepted.indexed) {
+          final id = offered.item.id;
+          final folder = Directory('${workDirectory.path}/$index');
+          final files = <File>[];
+          // The data (a backup, with secrets when included) is kept in
+          // memory rather than in the cache folder.
+          final data = offered.item.kind == PairingItemKind.data
+              ? BytesBuilder(copy: false)
+              : null;
+          PairingItemOutcome? outcome;
+          for (final expected in offered.plan.files) {
+            final header = await _channel.receiveMessage(
+              timeout: timeouts.transfer,
+              expected: const {'file'},
+            );
+            if (header.fields['item'] != id ||
+                header.fields['name'] != expected.name ||
+                header.fields['size'] != expected.size) {
+              throw const PairingProtocolException('Unexpected file');
+            }
+            final file = data == null
+                ? File('${folder.path}/${expected.name}')
+                : null;
+            if (file != null) files.add(file);
+            final failure = await _receiveFile(
+              expected,
+              file: outcome == null ? file : null,
+              memory: outcome == null ? data : null,
+              onBytes: (bytes) {
+                received += bytes;
+                onProgress?.call(
+                  PairingProgress(
+                    bytes: received,
+                    totalBytes: total,
+                    itemId: id,
+                  ),
                 );
+              },
+            );
+            outcome ??= failure;
+          }
+          if (outcome == null) {
+            onProgress?.call(
+              PairingProgress(
+                bytes: received,
+                totalBytes: total,
+                itemId: id,
+                installing: true,
+              ),
+            );
+            outcome = data == null
+                ? await _library.install(offered.item, files, mode: mode)
+                : await _library.restore(
+                    offered.item,
+                    data.takeBytes(),
+                    mode: mode,
+                  );
+          }
+          await _deleteQuietly(folder);
+          await _channel.send('result', {'item': id, 'status': outcome.name});
+          results.add(PairingItemResult(id, outcome));
         }
-        await _deleteQuietly(folder);
-        await _channel.send('result', {'item': id, 'status': outcome.name});
-        results.add(PairingItemResult(id, outcome));
+        await _channel.receiveMessage(
+          timeout: timeouts.transfer,
+          expected: const {'done'},
+        );
+        await _channel.send('done');
+        await _channel.close();
+        return results;
+      } finally {
+        await _deleteQuietly(workDirectory);
       }
-      await _channel.receiveMessage(
-        timeout: timeouts.transfer,
-        expected: const {'done'},
-      );
-      await _channel.send('done');
-      await _channel.close();
-      return results;
-    } finally {
-      await _deleteQuietly(workDirectory);
+    } on Object {
+      // The transfer is over: so is the connection (and its worker).
+      _channel.destroy();
+      rethrow;
     }
   }
 
@@ -409,10 +466,14 @@ class PairingReceiver {
     File? file,
     BytesBuilder? memory,
   }) async {
-    final sha256 = expected.sha256 == null
-        ? null
-        : const DartSha256().newHashSink();
-    final sha1 = expected.sha1 == null ? null : const DartSha1().newHashSink();
+    // The data is hashed where it is decrypted (off the UI isolate).
+    final hashed = expected.sha256 != null || expected.sha1 != null;
+    if (hashed) {
+      await _channel.startHash(
+        sha256: expected.sha256 != null,
+        sha1: expected.sha1 != null,
+      );
+    }
     // Plans name their files after this phone's catalogue; anything else
     // is never written.
     var failure = PairingFile.isValidName(expected.name)
@@ -446,8 +507,6 @@ class PairingReceiver {
         if (received > expected.size) {
           throw const PairingProtocolException('File longer than announced');
         }
-        sha256?.add(bytes);
-        sha1?.add(bytes);
         if (failure == null) memory?.add(bytes);
         if (output != null && failure == null) {
           try {
@@ -467,23 +526,13 @@ class PairingReceiver {
         failure ??= PairingItemOutcome.failed;
       }
     }
+    final digests = hashed ? await _channel.finishHash() : null;
     if (failure != null) return failure;
-    if (sha256 != null && _hex(sha256) != expected.sha256) {
-      return PairingItemOutcome.damaged;
-    }
-    if (sha1 != null && _hex(sha1) != expected.sha1) {
+    if (digests != null &&
+        (digests.sha256 != expected.sha256 || digests.sha1 != expected.sha1)) {
       return PairingItemOutcome.damaged;
     }
     return null;
-  }
-
-  static String _hex(DartHashSink sink) {
-    sink.close();
-    final buffer = StringBuffer();
-    for (final byte in sink.hashSync().bytes) {
-      buffer.write(byte.toRadixString(16).padLeft(2, '0'));
-    }
-    return buffer.toString();
   }
 
   static Future<void> _deleteQuietly(Directory directory) async {

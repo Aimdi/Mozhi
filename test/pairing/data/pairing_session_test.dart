@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -67,6 +68,16 @@ void main() {
     receiverChannel.destroy();
     if (temp.existsSync()) temp.deleteSync(recursive: true);
   });
+
+  /// A new pair of channels (the old ones are closed with the test).
+  Future<void> fresh() async {
+    final (oldSender, oldReceiver) = (senderChannel, receiverChannel);
+    addTearDown(() {
+      oldSender.destroy();
+      oldReceiver.destroy();
+    });
+    (senderChannel, receiverChannel) = await channelPair();
+  }
 
   PairingSender sender({PairingTimeouts? timeouts}) => PairingSender(
     senderChannel,
@@ -356,8 +367,121 @@ void main() {
     });
   });
 
+  group('compression', () {
+    Future<(RecordingChannel, PairingSender, PairingReceiver)> pair({
+      List<String>? receiverFeatures = const [PairingFeature.deflate],
+    }) async {
+      final (a, b) = await recordingPair(receiverFeatures: receiverFeatures);
+      addTearDown(() {
+        a.destroy();
+        b.destroy();
+      });
+      return (
+        a,
+        PairingSender(a),
+        PairingReceiver(
+          b,
+          PairingLibrary(backup: receiverBackup, packs: [receiverPacks]),
+          workDirectory: Directory('${temp.path}/work'),
+        ),
+      );
+    }
+
+    Future<List<PairingItemResult>> transfer(
+      PairingSender sending,
+      PairingReceiver receiving,
+      Set<String> ids,
+    ) async {
+      final requested = sending.offer(await offerAll());
+      await receiving.offer();
+      final received = receiving.accept(ids, mode: BackupRestoreMode.merge);
+      final sent = await sending.send(await requested);
+      expect(await received, sent);
+      return sent;
+    }
+
+    int raw(RecordingChannel channel) =>
+        channel.sends.fold(0, (sum, send) => sum + send.raw);
+
+    int sent(RecordingChannel channel) =>
+        channel.sends.fold(0, (sum, send) => sum + send.sent);
+
+    test('packs and data go compressed and arrive the same', () async {
+      final (channel, sending, receiving) = await pair();
+      final results = await transfer(sending, receiving, {
+        'data:backup',
+        'translation:de',
+      });
+      expect(results, const [
+        PairingItemResult('data:backup', PairingItemOutcome.installed),
+        PairingItemResult('translation:de', PairingItemOutcome.installed),
+      ]);
+      expect(receiverHistory.restores.single.$1, {
+        'value': ['hola'],
+      });
+      expect(receiverPacks.installs['de'], {
+        'model.bin': german['de-en/model.bin'],
+        'vocab.spm': german['de-en/vocab.spm'],
+      });
+      expect(sent(channel), lessThan(raw(channel) ~/ 5));
+    });
+
+    test('a phone of an earlier version gets them as they are', () async {
+      final (channel, sending, receiving) = await pair(receiverFeatures: null);
+      final results = await transfer(sending, receiving, {'translation:de'});
+      expect(results, const [
+        PairingItemResult('translation:de', PairingItemOutcome.installed),
+      ]);
+      expect(
+        receiverPacks.installs['de']!['model.bin'],
+        german['de-en/model.bin'],
+      );
+      expect(sent(channel), raw(channel));
+    });
+
+    test('data that hardly compresses goes as it is after a MiB', () async {
+      final random = Random(5);
+      final noise = Uint8List.fromList([
+        for (var i = 0; i < 3 << 20; i++) random.nextInt(256),
+      ]);
+      senderPacks = FakePacks(
+        contents: {
+          'it': {'it-en/model.bin': noise},
+        },
+      );
+      final (channel, sending, receiving) = await pair();
+      final results = await transfer(sending, receiving, {'translation:it'});
+      expect(results, const [
+        PairingItemResult('translation:it', PairingItemOutcome.installed),
+      ]);
+      expect(receiverPacks.installs['it']!['model.bin'], noise);
+      final asked = [for (final send in channel.sends) send.compress];
+      expect(asked.take(16), everyElement(isTrue));
+      expect(asked.skip(16), everyElement(isFalse));
+      expect(asked, hasLength(48));
+    });
+
+    test('a compressed file that does not match installs nothing', () async {
+      receiverPacks.plans['de'] = PairingPlan.available([
+        PairingFile(
+          name: 'de-en/model.bin',
+          size: 150000,
+          sha256: sha256Of(bytesOf(150000, 9)),
+        ),
+      ]);
+      final (_, sending, receiving) = await pair();
+      final results = await transfer(sending, receiving, {'translation:de'});
+      expect(results, const [
+        PairingItemResult('translation:de', PairingItemOutcome.damaged),
+      ]);
+      expect(receiverPacks.installs, isEmpty);
+    });
+  });
+
   group('the sending phone refuses answers', () {
     Future<Object?> answer(Map<String, Object?> fields) async {
+      // A refused answer ends the connection: each gets its own.
+      await fresh();
       final sending = sender();
       final requested = sending.offer(await offerAll());
       await receiverChannel.receiveMessage(timeout: const Duration(seconds: 5));
@@ -372,6 +496,11 @@ void main() {
 
     test('that are not a list', () async {
       expect(await answer({'items': 'all'}), isA<PairingProtocolException>());
+      // And the connection ends, so the other phone doesn't wait.
+      await expectLater(
+        receiverChannel.receive(timeout: const Duration(seconds: 5)),
+        throwsA(isA<PairingClosedException>()),
+      );
     });
 
     test('with malformed entries', () async {
@@ -459,6 +588,8 @@ void main() {
 
   group('the receiving phone refuses offers', () {
     Future<Object?> offer(Map<String, Object?> fields) async {
+      // A refused offer ends the connection: each gets its own.
+      await fresh();
       await senderChannel.send('offer', fields);
       try {
         await receiver().offer();

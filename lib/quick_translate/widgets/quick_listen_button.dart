@@ -25,10 +25,12 @@ import 'package:translation_repository/translation_repository.dart'
 ///   browser that shows its own context menu);
 /// * the "Listen slowly" custom accessibility action.
 ///
-/// Failures call [onError], as a normal listen does, with the error and,
-/// when a Mozhi instance could read the text with the user's consent
-/// (`SpeechUnavailableException.onlineConsent`), a callback that listens
-/// again with that consent.
+/// Failures call [onError], as a normal listen does, with the error, a
+/// callback that listens again with the user's consent when a Mozhi
+/// instance could read the text with it
+/// (`SpeechUnavailableException.onlineConsent`; asked once), and one that
+/// tries the same reading again (normal or slow, with the consent it had),
+/// for an error worth retrying (`speechServersFailed`).
 class QuickListenButton extends StatefulWidget {
   const new({
     required this.speech,
@@ -49,8 +51,14 @@ class QuickListenButton extends StatefulWidget {
   final String? languageCode;
   final String id;
 
-  /// Called when the audio could not be fetched or played.
-  final void Function(Object error, VoidCallback? listenOnline)? onError;
+  /// Called when the audio could not be fetched or played: `listenOnline`
+  /// (null when not offered) and `retry` read the text again.
+  final void Function(
+    Object error,
+    VoidCallback? listenOnline,
+    VoidCallback retry,
+  )?
+  onError;
 
   @override
   State<QuickListenButton> createState() => _QuickListenButtonState();
@@ -111,8 +119,19 @@ class _QuickListenButtonState extends State<QuickListenButton> {
         allowOnline: allowOnline,
       );
     } on Object catch (error) {
-      _failed(error, allowOnline, (consent) => _toggle(allowOnline: consent));
+      _failed(
+        error,
+        allowOnline,
+        (consent) => _listenAgain(allowOnline: consent),
+      );
     }
+  }
+
+  /// [_toggle] again after a failure: starts the reading (nothing plays
+  /// then) unless it started meanwhile.
+  Future<void> _listenAgain({ConsentRequiredException? allowOnline}) async {
+    if (_playing || !_enabled) return;
+    await _toggle(allowOnline: allowOnline);
   }
 
   Future<void> _speakSlowly({ConsentRequiredException? allowOnline}) async {
@@ -136,11 +155,12 @@ class _QuickListenButtonState extends State<QuickListenButton> {
   }
 
   /// Reports [error]; offers to listen through the Mozhi instance it names
-  /// (asked once: not after a refusal with consent).
+  /// (asked once: not after a refusal with consent), and to try again
+  /// with the consent it had ([asked]).
   void _failed(
     Object error,
     ConsentRequiredException? asked,
-    Future<void> Function(ConsentRequiredException consent) again,
+    Future<void> Function(ConsentRequiredException? consent) again,
   ) {
     if (!mounted) return;
     final consent = switch (error) {
@@ -151,6 +171,9 @@ class _QuickListenButtonState extends State<QuickListenButton> {
     widget.onError?.call(
       error,
       consent == null ? null : () => unawaited(again(consent)),
+      () {
+        if (mounted) unawaited(again(asked));
+      },
     );
   }
 

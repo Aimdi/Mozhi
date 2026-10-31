@@ -106,6 +106,61 @@ void main() {
         isNull,
       );
     });
+
+    group('when the phone speaks the target only', () {
+      const german = Language(code: 'de', name: 'German');
+
+      test('is the source the user picked before', () {
+        expect(
+          suggestedSourceLanguage(['en-GB'], target: _english, picked: german),
+          german,
+        );
+        expect(
+          suggestedSourceLanguage(const [], target: _english, picked: german),
+          german,
+        );
+      });
+
+      test('the phone wins over the picked source otherwise', () {
+        expect(
+          suggestedSourceLanguage(
+            ['en-GB', 'fr-FR'],
+            target: _english,
+            picked: german,
+          )?.code,
+          'fr',
+        );
+      });
+
+      test('is nothing without a picked language', () {
+        expect(suggestedSourceLanguage(['en-GB'], target: _english), isNull);
+        expect(
+          suggestedSourceLanguage(
+            ['en-GB'],
+            target: _english,
+            picked: Language.auto,
+          ),
+          isNull,
+        );
+        expect(
+          suggestedSourceLanguage(
+            ['en-GB'],
+            target: _english,
+            picked: const Language.custom('Pirate'),
+          ),
+          isNull,
+        );
+        // Never the target itself.
+        expect(
+          suggestedSourceLanguage(
+            ['en-GB'],
+            target: _english,
+            picked: const Language(code: 'en-US', name: 'English (US)'),
+          ),
+          isNull,
+        );
+      });
+    });
   });
 
   group('onboardingOfflinePair', () {
@@ -562,6 +617,36 @@ void main() {
         find.text('Checked languages download when you tap Next.'),
         findsNothing,
       );
+    });
+
+    testWidgets('suggests the source picked before when the phone speaks '
+        'the target only', (tester) async {
+      final (onboarding, _) = await pumpFlow(
+        tester,
+        deviceLanguages: const ['en-GB'],
+      );
+      onboarding.setSourceLanguage(const Language(code: 'fr', name: 'French'));
+      await tester.pumpAndSettle();
+      // Picked: nothing to suggest.
+      expect(
+        find.byKey(const Key('onboarding_source_suggestion')),
+        findsNothing,
+      );
+
+      onboarding.setSourceLanguage(Language.auto);
+      await tester.pumpAndSettle();
+      expect(find.text('Detect language'), findsOneWidget);
+      expect(find.text('You picked French before.'), findsOneWidget);
+      expect(find.textContaining('phone’s languages'), findsNothing);
+      // Its download is offered with the target's.
+      expect(find.byKey(const ValueKey('onboarding_offline_fr')), findsOne);
+
+      final use = find.byKey(const Key('onboarding_source_suggestion_use'));
+      expect(tester.getSize(use).height, greaterThanOrEqualTo(48));
+      await tester.tap(use);
+      await tester.pumpAndSettle();
+      expect(find.text('Detect language'), findsNothing);
+      expect(onboarding.state.pickedSource?.code, 'fr');
     });
 
     testWidgets('a suggestion the device can’t translate has no download', (

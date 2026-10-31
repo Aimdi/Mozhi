@@ -8,3 +8,4 @@ export 'http_client_factory.dart';
 export 'mozhi_instance_checker.dart';
 export 'network_policy.dart';
 export 'network_session.dart';
+export 'tailnet_resolver.dart';

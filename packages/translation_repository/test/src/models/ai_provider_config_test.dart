@@ -270,7 +270,6 @@ void main() {
         'http://nas.lan/v1',
         'http://server.home.arpa',
         'http://box.internal',
-        'http://my-pc.tail1234.ts.net:11434',
         'http://ollama:11434',
         'http://mypc',
         'localhost:1234/v1',
@@ -289,6 +288,9 @@ void main() {
         'http://[::ffff:8.8.8.8]',
         'https://example.com',
         'http://localhost.example.com',
+        // Unless a lookup showed Tailscale's addresses (a Funnel name is
+        // public).
+        'http://my-pc.tail1234.ts.net:11434',
         '',
         '   ',
       ];
@@ -303,6 +305,26 @@ void main() {
           expect(config(baseUrl: url).isLocal, isFalse);
         });
       }
+
+      test('a Tailscale name is local once it resolved to Tailscale', () {
+        addTearDown(TailnetHosts.forget);
+        const url = 'http://my-pc.tail1234.ts.net:11434';
+        TailnetHosts.record('my-pc.tail1234.ts.net', ['100.101.102.103']);
+        expect(config(baseUrl: url).isLocal, isTrue);
+        expect(AiProviderConfig.isLocalHost('MY-PC.tail1234.ts.net.'), isTrue);
+        expect(
+          config(baseUrl: 'my-pc.tail1234.ts.net').toEndpoint().baseUrl,
+          Uri.parse('http://my-pc.tail1234.ts.net'),
+        );
+
+        // A Funnel name resolves to public relays.
+        TailnetHosts.record('my-pc.tail1234.ts.net', ['203.0.113.5']);
+        expect(config(baseUrl: url).isLocal, isFalse);
+        expect(
+          config(baseUrl: 'my-pc.tail1234.ts.net').toEndpoint().baseUrl,
+          Uri.parse('https://my-pc.tail1234.ts.net'),
+        );
+      });
 
       test('isLocalHost handles brackets and trailing dots', () {
         expect(AiProviderConfig.isLocalHost('[::1]'), isTrue);

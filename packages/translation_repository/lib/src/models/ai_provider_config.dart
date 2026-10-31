@@ -2,6 +2,7 @@ import 'package:collection/collection.dart';
 import 'package:llm_api/llm_api.dart';
 import 'package:meta/meta.dart';
 import 'package:translation_repository/src/models/prompt_profile.dart';
+import 'package:translation_repository/src/models/tailnet_hosts.dart';
 
 /// The kind of service an [AiProviderConfig] talks to.
 enum MtService {
@@ -148,9 +149,10 @@ class AiProviderConfig {
   /// True for `localhost`, loopback (127.0.0.0/8, ::1), private ranges
   /// (10/8, 172.16/12, 192.168/16, link-local, IPv6 ULA), the CGNAT range
   /// used by Tailscale (100.64/10), LAN suffixes (`.local`, `.lan`,
-  /// `.home.arpa`, `.internal`, `.ts.net`, ...) and bare host names without
-  /// dots (e.g. a Docker service name). Always true for models on this
-  /// device ([isOnDevice]).
+  /// `.home.arpa`, `.internal`, ...), bare host names without dots (e.g. a
+  /// Docker service name) and Tailscale `.ts.net` names that resolve to
+  /// Tailscale's addresses ([TailnetHosts.isPrivate]; a public Funnel name
+  /// does not). Always true for models on this device ([isOnDevice]).
   bool get isLocal => isOnDevice || isLocalHost(_hostOf(baseUrl));
 
   /// Where the model is reached. On-device models ([isOnDevice]) get
@@ -291,6 +293,10 @@ class AiProviderConfig {
     if (ipv4 != null) return _isPrivateIpv4(ipv4);
     if (h.contains(':')) return _isPrivateIpv6(h);
 
+    // A Tailscale name may also be a public Funnel address: private only
+    // once a lookup showed Tailscale's addresses.
+    if (TailnetHosts.isTailnetName(h)) return TailnetHosts.isPrivate(h);
+
     const lanSuffixes = [
       '.local',
       '.lan',
@@ -301,7 +307,6 @@ class AiProviderConfig {
       '.home',
       '.corp',
       '.private',
-      '.ts.net',
     ];
     if (lanSuffixes.any(h.endsWith)) return true;
     // Bare host names (no dots) only resolve on the local network.

@@ -27,6 +27,7 @@ class PairingByteReader {
   final int maxBuffered;
 
   late final StreamSubscription<List<int>> _subscription;
+  final Completer<void> _closed = Completer();
   final Queue<Uint8List> _chunks = Queue();
   int _buffered = 0;
   bool _done = false;
@@ -35,6 +36,10 @@ class PairingByteReader {
 
   /// Bytes received and not read yet.
   int get buffered => _buffered;
+
+  /// Completes when the stream ends or fails, or at [cancel] (a socket
+  /// whose other end went away: its writes may then never complete).
+  Future<void> get closed => _closed.future;
 
   /// The next [length] bytes. Throws [StateError] while another read is
   /// pending.
@@ -58,6 +63,7 @@ class PairingByteReader {
   Future<void> cancel() async {
     _done = true;
     _fail();
+    _close();
     await _subscription.cancel();
   }
 
@@ -87,11 +93,17 @@ class PairingByteReader {
   void _onError(Object error) {
     _error = error;
     _fail();
+    _close();
   }
 
   void _onDone() {
     _done = true;
     _fail();
+    _close();
+  }
+
+  void _close() {
+    if (!_closed.isCompleted) _closed.complete();
   }
 
   void _fail() {

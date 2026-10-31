@@ -346,6 +346,36 @@ void main() {
         }
       }
 
+      test('lists the mirror links to download by hand first', () {
+        final details = BergamotModelDetails(
+          translator(),
+          modelSource: () => mirror,
+        );
+        final built = catalog.build();
+        final model = built.model('de', 'en')!;
+        final file = model.files.values.first;
+
+        final files = details.manualFiles('de');
+
+        expect(files, hasLength(6));
+        expect(files.first.url, '${file.url}');
+        expect(
+          files.first.mirrorUrl,
+          '${bergamotMirrorUrl(mirror.mirror()!, model, file)}',
+        );
+        expect(files.first.mirrorUrl, startsWith('https://mirror.example/'));
+        expect(files.first.preferredUrl, files.first.mirrorUrl);
+        expect(files.every((file) => file.mirrorUrl != null), isTrue);
+        // Without a mirror, the publishers' links only.
+        expect(
+          BergamotModelDetails(
+            translator(),
+            modelSource: () => ModelSource.defaultHosts,
+          ).manualFiles('de').map((file) => file.mirrorUrl).toSet(),
+          {null},
+        );
+      });
+
       test('downloads from the mirror of the source in use', () async {
         mirrorAll();
         final details = BergamotModelDetails(

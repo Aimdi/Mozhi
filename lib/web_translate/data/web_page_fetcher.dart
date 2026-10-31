@@ -6,7 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:mozhi/core/network/network_session.dart';
 import 'package:mozhi/web_translate/core/charset.dart';
 import 'package:translation_repository/translation_repository.dart'
-    show AiProviderConfig;
+    show AiProviderConfig, TailnetHosts;
 
 /// Why a page could not be loaded.
 enum WebPageError {
@@ -122,8 +122,9 @@ class FetchedWebPage {
 ///   browsers do not allow it) so that sites serve their full layout.
 /// * Follows up to [maxRedirects] redirects (manually, to know the final
 ///   address; on the web the browser follows them). A redirect from a
-///   public address to this device or the local network is refused
-///   ([WebPageError.blockedRedirect], see [isLocalNetworkHost]).
+///   public address to this device, the local network or a Tailscale
+///   `.ts.net` name is refused ([WebPageError.blockedRedirect], see
+///   [isLocalNetworkHost]).
 /// * Reads at most [maxBytes] of the body (larger pages are truncated).
 /// * Decodes the body with [decodeHtmlBytes] (HTTP charset, `<meta>`
 ///   charset, UTF-8 / windows-1252 fallback).
@@ -215,7 +216,10 @@ class WebPageFetcher {
         if (!_isHttp(next)) {
           throw WebPageException(WebPageError.invalidUrl, uri: next);
         }
-        if (!isLocalNetworkHost(uri.host) && isLocalNetworkHost(next.host)) {
+        // Any Tailscale name may be on the user's tailnet.
+        if (!isLocalNetworkHost(uri.host) &&
+            (isLocalNetworkHost(next.host) ||
+                TailnetHosts.isTailnetName(next.host))) {
           throw WebPageException(WebPageError.blockedRedirect, uri: next);
         }
         current = next;

@@ -2763,5 +2763,9 @@
   "liveCaptionsBarLocked": "Mozhi लॉक है",
   "offlineCancelDownloadTooltip": "{language} का डाउनलोड रद्द करें",
   "offlineCancelling": "रोका जा रहा है…",
-  "documentsPdfProgressCooling": "{total} में से पेज {page}: फ़ोन गर्म है, उसके ठंडा होने का इंतज़ार किया जा रहा है…"
+  "documentsPdfProgressCooling": "{total} में से पेज {page}: फ़ोन गर्म है, उसके ठंडा होने का इंतज़ार किया जा रहा है…",
+  "onboardingLanguagesSuggestionPicked": "आपने पहले {language} चुनी थी।",
+  "offlineManualMirrorNote": "ये लिंक आपके मॉडल स्रोत {host} पर ले जाते हैं, जहाँ से Mozhi डाउनलोड करता है। अगर वहाँ कोई फ़ाइल न हो, तो प्रकाशक का लिंक इस्तेमाल करें।",
+  "offlineManualPublisherLink": "प्रकाशक का लिंक, अगर मिरर पर फ़ाइल न हो",
+  "offlineManualCopyPublisherLink": "{file} का प्रकाशक वाला लिंक कॉपी करें"
 }

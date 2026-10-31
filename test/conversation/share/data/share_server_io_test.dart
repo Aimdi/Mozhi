@@ -110,6 +110,25 @@ void main() {
     return ShareJoined(guest, body['key']! as String);
   }
 
+  /// The device token the server set in [response], if any.
+  String? deviceOf(_Response response) {
+    final cookies = response.headers[HttpHeaders.setCookieHeader] ?? const [];
+    for (final header in cookies) {
+      final cookie = Cookie.fromSetCookieValue(header);
+      if (cookie.name == io.IoShareServer.deviceCookie) return cookie.value;
+    }
+    return null;
+  }
+
+  /// The headers of a request from the device [token].
+  Map<String, String> from(String token) => {
+    'cookie': '${io.IoShareServer.deviceCookie}=$token',
+  };
+
+  /// A new device: the token the page's first response sets.
+  Future<String> device() async =>
+      deviceOf(await send('GET', path('/api/hello')))!;
+
   Map<String, String> auth(ShareJoined joined) => {
     'X-Mozhi-Guest': joined.guest.id,
     'X-Mozhi-Key': joined.key,
@@ -123,7 +142,7 @@ void main() {
   });
 
   group('the page', () {
-    test('is served with strict headers and no cookies', () async {
+    test('is served with strict headers and a device cookie', () async {
       final response = await send('GET', path(''));
 
       expect(response.status, HttpStatus.ok);
@@ -141,7 +160,20 @@ void main() {
       expect(response.headers.value('referrer-policy'), 'no-referrer');
       expect(response.headers.value('cache-control'), 'no-store');
       expect(response.headers.value('x-frame-options'), 'DENY');
-      expect(response.headers.value('set-cookie'), isNull);
+      final cookie = Cookie.fromSetCookieValue(
+        response.headers.value('set-cookie')!,
+      );
+      expect(cookie.name, io.IoShareServer.deviceCookie);
+      expect(cookie.value, matches(RegExp(r'^[A-Za-z0-9_-]{22}$')));
+      expect(cookie.httpOnly, isTrue);
+      expect(cookie.sameSite, SameSite.strict);
+      expect(cookie.path, '/s/abcdefghijklmnopqrstuv');
+      expect(cookie.secure, isFalse);
+      expect(cookie.maxAge, isNull);
+      expect(cookie.expires, isNull);
+      // A browser that sends it back keeps it.
+      final again = await send('GET', path(''), headers: from(cookie.value));
+      expect(again.headers.value('set-cookie'), isNull);
       expect(response.headers.value('server'), isNull);
       expect(
         response.body,
@@ -266,14 +298,97 @@ void main() {
       expect(room.guests, isEmpty);
     });
 
-    test('too many requests from one address', () async {
-      var limited = false;
-      for (var i = 0; i <= io.IoShareServer.maxRequestsPerMinute; i++) {
-        final response = await send('GET', path('/api/hello'));
-        limited = response.status == HttpStatus.tooManyRequests;
+    test('too many requests from one device', () async {
+      final token = await device();
+      for (var i = 1; i < io.IoShareServer.maxRequestsPerMinute; i++) {
+        final response = await send(
+          'GET',
+          path('/api/hello'),
+          headers: from(token),
+        );
+        expect(response.status, HttpStatus.ok);
       }
+      final limited = await send(
+        'GET',
+        path('/api/hello'),
+        headers: from(token),
+      );
+      expect(limited.status, HttpStatus.tooManyRequests);
+      // Another device behind the same address has its own limit.
+      expect((await send('GET', path('/api/hello'))).status, HttpStatus.ok);
+    });
 
-      expect(limited, isTrue);
+    test('too many requests from one address', () async {
+      // Five devices, none at its own limit, use up the address's.
+      const devices = 5;
+      final tokens = [for (var i = 0; i < devices; i++) await device()];
+      const each = io.IoShareServer.maxAddressRequestsPerMinute ~/ devices;
+      expect(each, lessThan(io.IoShareServer.maxRequestsPerMinute));
+      for (final token in tokens) {
+        for (var i = 1; i < each; i++) {
+          final response = await send(
+            'GET',
+            path('/api/hello'),
+            headers: from(token),
+          );
+          expect(response.status, HttpStatus.ok);
+        }
+      }
+      final limited = await send(
+        'GET',
+        path('/api/hello'),
+        headers: from(tokens.last),
+      );
+      expect(limited.status, HttpStatus.tooManyRequests);
+    });
+
+    test('requests without a valid token count as new devices, then as '
+        'their address', () async {
+      // A forged token is a new device: it gets a token of its own.
+      final forged = await send(
+        'GET',
+        path('/api/hello'),
+        headers: from('AAAAAAAAAAAAAAAAAAAAAA'),
+      );
+      expect(forged.status, HttpStatus.ok);
+      expect(deviceOf(forged), isNot('AAAAAAAAAAAAAAAAAAAAAA'));
+      // So is a request without one, while new devices are allowed…
+      for (
+        var i = 1;
+        i < io.IoShareServer.maxNewDevicesPerAddressPerMinute;
+        i++
+      ) {
+        expect(deviceOf(await send('GET', path('/api/hello'))), isNotNull);
+      }
+      // …then they share one device for their address.
+      for (var i = 0; i < io.IoShareServer.maxRequestsPerMinute; i++) {
+        final response = await send('GET', path('/api/hello'));
+        expect(response.status, HttpStatus.ok);
+        expect(deviceOf(response), isNull);
+      }
+      expect(
+        (await send('GET', path('/api/hello'))).status,
+        HttpStatus.tooManyRequests,
+      );
+      // A device that has its token goes on.
+      expect(
+        (await send(
+          'GET',
+          path('/api/hello'),
+          headers: from(deviceOf(forged)!),
+        )).status,
+        HttpStatus.ok,
+      );
+    });
+
+    test('a malformed cookie is no token', () async {
+      final response = await send(
+        'GET',
+        path('/api/hello'),
+        headers: {'cookie': 'bad(name=1'},
+      );
+      expect(response.status, HttpStatus.ok);
+      expect(deviceOf(response), isNotNull);
     });
 
     test('connections beyond the limits', () async {
@@ -435,22 +550,60 @@ void main() {
       expect(room.guests.single.language, spanish);
     });
 
-    test('limits wrong PINs per address', () async {
+    test('limits wrong PINs per device and per address', () async {
+      Future<int> attempt(String token, String pin) async => (await send(
+        'POST',
+        path('/api/join'),
+        headers: from(token),
+        json: {'language': 'fr', 'pin': pin},
+      )).status;
+
+      final first = await device();
       for (var i = 0; i < io.IoShareServer.maxWrongPinsPerMinute; i++) {
+        expect(await attempt(first, '0000'), HttpStatus.forbidden);
+      }
+      expect(await attempt(first, '1234'), HttpStatus.tooManyRequests);
+      // Another guest behind the same address may still try…
+      final second = await device();
+      expect(await attempt(second, '1234'), HttpStatus.ok);
+      for (
+        var i = io.IoShareServer.maxWrongPinsPerMinute;
+        i < io.IoShareServer.maxAddressWrongPinsPerMinute;
+        i++
+      ) {
+        expect(await attempt(second, '0000'), HttpStatus.forbidden);
+      }
+      // …until the address had its share: a new device doesn't reset it.
+      expect(await attempt(await device(), '1234'), HttpStatus.tooManyRequests);
+    });
+
+    test('limits joins per device and per address', () async {
+      room.pin = null;
+      Future<int> attempt(String token) async {
         final response = await send(
           'POST',
           path('/api/join'),
-          json: {'language': 'fr', 'pin': '0000'},
+          headers: from(token),
+          json: {'language': 'fr'},
         );
-        expect(response.status, HttpStatus.forbidden);
+        if (response.status == HttpStatus.ok) {
+          final body = jsonDecode(response.body) as Map<String, Object?>;
+          room.leave(
+            room.authenticate(
+              body['guest']! as String,
+              body['key']! as String,
+            )!,
+          );
+        }
+        return response.status;
       }
 
-      final response = await send(
-        'POST',
-        path('/api/join'),
-        json: {'language': 'fr', 'pin': '1234'},
-      );
-      expect(response.status, HttpStatus.tooManyRequests);
+      final first = await device();
+      for (var i = 0; i < io.IoShareServer.maxJoinsPerMinute; i++) {
+        expect(await attempt(first), HttpStatus.ok);
+      }
+      expect(await attempt(first), HttpStatus.tooManyRequests);
+      expect(await attempt(await device()), HttpStatus.ok);
     });
 
     test('names the languages a guest can pick when no more fit', () async {
@@ -505,19 +658,26 @@ void main() {
       expect(jsonDecode(change.body), containsPair('error', 'languageLimit'));
     });
 
-    test('limits joins in all', () async {
+    test('limits joins in all, whatever the token', () async {
       for (var i = 0; i < ShareRoom.maxRoomJoinsPerMinute; i++) {
         final joined =
             room.join(languageCode: 'fr', pin: '1234') as ShareJoined;
         room.leave(joined.guest);
       }
 
-      final response = await send(
-        'POST',
-        path('/api/join'),
-        json: {'language': 'fr', 'pin': '1234'},
-      );
-      expect(response.status, HttpStatus.tooManyRequests);
+      for (final headers in [
+        const <String, String>{},
+        from('AAAAAAAAAAAAAAAAAAAAAA'),
+        from(await device()),
+      ]) {
+        final response = await send(
+          'POST',
+          path('/api/join'),
+          headers: headers,
+          json: {'language': 'fr', 'pin': '1234'},
+        );
+        expect(response.status, HttpStatus.tooManyRequests);
+      }
     });
 
     test('reports a full, locked or ended room', () async {
@@ -624,6 +784,44 @@ void main() {
       expect(await reply('x', signed: false), HttpStatus.unauthorized);
       room.repliesAllowed = false;
       expect(await reply('Bonjour'), HttpStatus.forbidden);
+    });
+
+    test('two guests behind one address have their own limits', () async {
+      Future<ShareJoined> joinFrom(String token) async {
+        final response = await send(
+          'POST',
+          path('/api/join'),
+          headers: from(token),
+          json: {'language': 'fr', 'pin': '1234'},
+        );
+        final body = jsonDecode(response.body) as Map<String, Object?>;
+        return ShareJoined(
+          room.authenticate(body['guest']! as String, body['key']! as String)!,
+          body['key']! as String,
+        );
+      }
+
+      final first = await device();
+      final second = await device();
+      final anna = await joinFrom(first);
+      final ben = await joinFrom(second);
+      Future<int> reply(ShareJoined joined, String token) async => (await send(
+        'POST',
+        path('/api/reply'),
+        headers: {...auth(joined), ...from(token)},
+        json: {'text': 'hi'},
+      )).status;
+
+      // One reply every 2 seconds per device, not per address.
+      expect(await reply(anna, first), HttpStatus.noContent);
+      expect(await reply(ben, second), HttpStatus.noContent);
+      expect(await reply(anna, first), HttpStatus.tooManyRequests);
+      expect(await reply(ben, second), HttpStatus.tooManyRequests);
+      expect(replies, hasLength(2));
+      // Joining again from a device keeps its limits.
+      room.leave(anna.guest);
+      final again = await joinFrom(first);
+      expect(await reply(again, first), HttpStatus.tooManyRequests);
     });
 
     test('leaves', () async {

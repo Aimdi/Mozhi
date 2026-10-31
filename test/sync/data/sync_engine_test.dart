@@ -76,6 +76,31 @@ FakeWebDavServer _server({
   sendsEtags: sendsEtags,
 );
 
+/// A [MemorySection] that keeps a value of the file's copy for other
+/// devices ([BackupSyncSection]), like the history does.
+class _KeepingSection extends MemorySection implements BackupSyncSection {
+  new() : super('history');
+
+  /// What this device adds when the file keeps nothing yet.
+  String kept = 'first';
+  Exception? syncError;
+  final calls = <(Object?, int?)>[];
+
+  @override
+  Future<Object?> syncData(
+    Object? local, {
+    required Object? remote,
+    required int? remoteVersion,
+  }) async {
+    calls.add((remote, remoteVersion));
+    if (syncError case final error?) throw error;
+    return {
+      ...local! as Map<String, Object?>,
+      'kept': remote is Map ? remote['kept'] ?? kept : kept,
+    };
+  }
+}
+
 Matcher _fails(SyncFailure failure) =>
     throwsA(isA<SyncException>().having((e) => e.failure, 'failure', failure));
 
@@ -511,5 +536,58 @@ void main() {
       }),
       isNot(a),
     );
+  });
+
+  group('a section that keeps part of the file (BackupSyncSection)', () {
+    late BackupRegistry registry;
+    late SyncEngine engine;
+    late _KeepingSection section;
+
+    setUp(() {
+      section = _KeepingSection()..set('a', 'hello', 1);
+      registry = registryOf([section]);
+      engine = SyncEngine(registry: registry, codec: testCodec);
+    });
+
+    Future<SyncRun> run(FakeWebDavServer server, {SyncCursor? cursor}) => engine
+        .run(dav: _dav(server), key: key, config: _config, cursor: cursor);
+
+    test(
+      'writes what it keeps, and stops writing once the file holds it',
+      () async {
+        final server = _server();
+        final first = await run(server);
+        expect(first.result, SyncResult.sent);
+        expect(section.calls.single, (null, null));
+        final remote = await _remote(server, key);
+        expect((remote.sections['history']!.data! as Map)['kept'], 'first');
+        // The file is not this device's data: the cursor says so.
+        expect(first.cursor!.remoteFingerprint, isNotNull);
+        expect(first.cursor!.fileFingerprint, isNot(first.cursor!.fingerprint));
+
+        server.requests.clear();
+        section.kept = 'second';
+        final second = await run(server, cursor: first.cursor);
+        expect(second.result, SyncResult.unchanged);
+        expect(server.methods, ['GET']);
+        // Nothing merged: the file held what this device last left there.
+        expect(section.restores, isEmpty);
+
+        server.requests.clear();
+        final changed = await run(server);
+        expect(changed.result, SyncResult.unchanged);
+        expect(server.methods, ['GET']);
+        expect((section.calls.last.$1! as Map)['kept'], 'first');
+        expect(section.calls.last.$2, 1);
+      },
+    );
+
+    test('a failure of the section is one of local data, and nothing is '
+        'written', () async {
+      final server = _server();
+      section.syncError = Exception('broken');
+      await expectLater(run(server), _fails(SyncFailure.localData));
+      expect(server.files, isEmpty);
+    });
   });
 }

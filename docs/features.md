@@ -955,7 +955,9 @@ hotspot) scan its QR code, or open the link, in their browser.
   languages at a time; replies of up to 500 characters, at most one every
   2 seconds and 12 a minute per phone (also after leaving and joining
   again) and 20 a minute from all guests together; after 20 wrong PINs
-  nobody new can join until you set a new PIN. A guest's page that stops
+  nobody new can join until you set a new PIN. Guests' phones are told
+  apart by a cookie the page sets (a random token, gone when the browser
+  closes), so guests behind the same router each have their own limits. A guest's page that stops
   taking in updates for 20 seconds is disconnected and connects again by
   itself.
 - **Privacy:** only devices on the local network can open the page, but it
@@ -1652,8 +1654,12 @@ internet (Android; details in [Phone to phone](pairing.md)):
   file is checked against the receiving phone's own catalogue before it is
   installed.
 - Both phones show the progress and keep the screen on, then what became of
-  each item. Clear errors say when the phones aren't on the same network,
-  the code expired, the other phone said no, or storage ran out.
+  each item. Files go compressed when the receiving phone has this version
+  or later (text-like data and translation models shrink; a phone of an
+  earlier version gets them as they are), and the encryption runs in the
+  background, so the screen stays responsive during a large transfer.
+  Clear errors say when the phones aren't on the same network, the code
+  expired, the other phone said no, or storage ran out.
 
 ## Privacy controls
 

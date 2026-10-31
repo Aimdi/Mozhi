@@ -801,6 +801,13 @@ class _LanguagePickerSheetState extends State<LanguagePickerSheet> {
                   pending: models?.pending.containsKey(download) ?? false,
                   progress: models?.progress[download],
                   onPressed: () => unawaited(_download(download)),
+                  cancelLabel: context.l10n.offlineCancelDownloadTooltip(
+                    language.name,
+                  ),
+                  onCancel: (models?.canCancelDownload(download) ?? false)
+                      ? () => unawaited(_models?.cancelDownload(download))
+                      : null,
+                  cancellable: models?.canCancel ?? false,
                 ),
         );
     }
@@ -1148,12 +1155,18 @@ class _DetectedChip extends StatelessWidget {
 
 /// The download of a [_LanguageTile]'s offline models: the button's
 /// `label` ("Download German (25 MB)"), whether it is `pending` (with its
-/// `progress`, 0 to 1, when known) and what starts it.
+/// `progress`, 0 to 1, when known) and what starts it. While it runs and
+/// the engine can stop it (`cancellable`), the progress ring is a Cancel
+/// button (`cancelLabel`: "Cancel downloading German") that calls
+/// `onCancel` (null while it is being stopped: disabled).
 typedef _OfflineDownloadAction = ({
   String label,
   bool pending,
   double? progress,
   VoidCallback onPressed,
+  String cancelLabel,
+  bool cancellable,
+  VoidCallback? onCancel,
 });
 
 /// A language: its name (with the offline mark when it works offline) and
@@ -1248,7 +1261,14 @@ class _LanguageTileState extends State<_LanguageTile> {
           )
         : Text(language.name, maxLines: lines, overflow: overflow);
     final buttons = [
-      if (download != null && download.pending)
+      if (download != null && download.pending && download.cancellable)
+        _CancelDownloadButton(
+          key: ValueKey('translate_language_cancel_download:${language.code}'),
+          label: download.cancelLabel,
+          progress: download.progress,
+          onPressed: download.onCancel,
+        )
+      else if (download != null && download.pending)
         SizedBox.square(
           key: ValueKey('translate_language_downloading:${language.code}'),
           dimension: kMinInteractiveDimension,
@@ -1360,6 +1380,75 @@ class _LanguageTileState extends State<_LanguageTile> {
                 child: Row(mainAxisSize: MainAxisSize.min, children: buttons),
               ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Cancel for a running download in a picker row: its progress ring with
+/// a stop mark inside, in a 48 dp button whose tooltip and screen reader
+/// label say what it stops ("Cancel downloading German"; the progress is
+/// its value). [onPressed] null disables it (the download is stopping).
+class _CancelDownloadButton extends StatelessWidget {
+  const new({
+    required this.label,
+    required this.progress,
+    required this.onPressed,
+    super.key,
+  });
+
+  final String label;
+
+  /// Fraction received (null: not known yet).
+  final double? progress;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final fraction = progress;
+    final stopping = onPressed == null;
+    final status = stopping
+        ? l10n.offlineCancelling
+        : fraction == null
+        ? l10n.offlineDownloading
+        : l10n.offlineDownloadingProgress((fraction * 100).floor());
+    return Tooltip(
+      message: label,
+      excludeFromSemantics: true,
+      child: Semantics(
+        button: true,
+        label: label,
+        value: status,
+        enabled: !stopping,
+        onTap: onPressed,
+        excludeSemantics: true,
+        child: IconButton(
+          onPressed: onPressed,
+          icon: SizedBox.square(
+            dimension: 24,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                SizedBox.square(
+                  dimension: 22,
+                  child: CircularProgressIndicator(
+                    value: stopping ? null : fraction,
+                    strokeWidth: 2.5,
+                  ),
+                ),
+                Icon(
+                  Icons.close,
+                  size: 14,
+                  color: stopping
+                      ? theme.disabledColor
+                      : theme.colorScheme.primary,
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

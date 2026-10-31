@@ -1553,43 +1553,181 @@ abstract final class ResponseParsers {
       if (_acceptable(_decode(inner)) case final value?) return value;
     }
 
-    // Scan for the first balanced object/array that decodes. An opening
-    // bracket that is never closed may be output truncated by a token
-    // limit: close what is open, dropping an incomplete tail.
-    //
-    // Each candidate costs a scan and decoding attempts over the rest of
-    // the reply, so a hostile reply (thousands of brackets that never
-    // close, or nested ones that never decode) would take quadratic time:
-    // the work is capped at a multiple of the reply's length
-    // ([_searchWork]), after which the search gives up (linear time). A
-    // reply with JSON in it never comes near the cap.
-    var work = _searchWork * trimmed.length + _searchWorkBase;
-    for (var i = 0; i < trimmed.length && work > 0; i++) {
-      final c = trimmed[i];
-      if (c != '{' && c != '[') continue;
-      if (c == '{' && !_mayStartObject(trimmed, i)) continue;
-      final (:end, :scanned) = _balancedEnd(trimmed, i);
-      work -= scanned;
-      final Object? candidate;
-      if (end < 0) {
-        final (:value, :cost) = _decodeTruncated(trimmed.substring(i));
-        candidate = value;
-        work -= cost;
-      } else {
-        // A decode, its repair and a second decode.
-        work -= 3 * (end + 1 - i);
-        candidate = _decode(trimmed.substring(i, end + 1));
+    // The first object or array that decodes, found with one pass over
+    // the brackets ([_scanBrackets]); with a second one that ignores
+    // quotes when quotes in prose may have hidden it.
+    return _searchBrackets(trimmed, strings: true) ??
+        (trimmed.contains('"')
+            ? _searchBrackets(trimmed, strings: false)
+            : null);
+  }
+
+  /// The first acceptable value ([_acceptable]) among the bracket spans of
+  /// [s], in the order they start: a balanced span is decoded (and
+  /// repaired); one that decodes is searched for its first acceptable
+  /// value ([_firstAcceptable]), one that does not is looked into
+  /// ([_firstInSpan]). An opening bracket that is never closed may be
+  /// output truncated by a token limit: what is open is closed and an
+  /// incomplete tail dropped ([_decodeTruncated]), for the first
+  /// [_truncatedCandidates] of them (with [strings] only).
+  ///
+  /// Linear time also for hostile replies (mostly brackets, nested ones
+  /// that never decode): the scan is one pass, the outermost balanced
+  /// spans are disjoint (each character is decoded once), a decoded value
+  /// is searched instead of the spans inside it, and looking into spans
+  /// that do not decode is bounded by [_searchWork]: only valid JSON
+  /// nested in dozens of brackets that do not decode is missed.
+  static Object? _searchBrackets(String s, {required bool strings}) {
+    final work = _Work(_searchWork * s.length + _searchWorkBase);
+    var truncated = 0;
+    for (final (span, :closed) in _scanBrackets(s, strings: strings)) {
+      if (closed) {
+        if (_firstInSpan(s, span, work) case final value?) return value;
+        continue;
       }
-      if (_acceptable(candidate) case final value?) return value;
+      if (!strings ||
+          !_isCandidate(s, span.start) ||
+          truncated++ >= _truncatedCandidates) {
+        continue;
+      }
+      final (:value, cost: _) = _decodeTruncated(s.substring(span.start));
+      if (_firstAcceptable(value) case final found?) return found;
     }
     return null;
   }
 
-  /// Characters of work [_findJson]'s candidate scan may do per character
-  /// of the reply (plus [_searchWorkBase]): a few dozen candidates that
-  /// span the whole reply.
+  /// The bracket spans of [s], in one pass with a stack, in the order they
+  /// start: the outermost balanced spans (`closed`, with the balanced
+  /// spans inside them as [_Span.children]) and the brackets still open at
+  /// the end (not `closed`), each followed by the balanced spans directly
+  /// inside it.
+  ///
+  /// With [strings], quotes inside brackets start and end strings (with
+  /// `\` escapes), whose brackets do not count; quotes outside brackets
+  /// are prose. A closing bracket that does not match the innermost open
+  /// one ends every open bracket (no candidate: neither balanced nor
+  /// truncated); the balanced spans inside them stay.
+  static List<(_Span, {bool closed})> _scanBrackets(
+    String s, {
+    required bool strings,
+  }) {
+    final spans = <(_Span, {bool closed})>[];
+    final open = <_Span>[];
+    void abandon() {
+      for (final span in open) {
+        for (final child in span.children) {
+          spans.add((child, closed: true));
+        }
+      }
+      open.clear();
+    }
+
+    var inString = false;
+    for (var i = 0; i < s.length; i++) {
+      final unit = s.codeUnitAt(i);
+      if (inString) {
+        if (unit == _backslash) {
+          i++;
+        } else if (unit == _quote) {
+          inString = false;
+        }
+        continue;
+      }
+      switch (unit) {
+        case _quote when strings && open.isNotEmpty:
+          inString = true;
+        case _openBrace || _openBracket:
+          open.add(_Span(i));
+        case _closeBrace || _closeBracket when open.isNotEmpty:
+          final span = open.last;
+          final opener = s.codeUnitAt(span.start);
+          if ((opener == _openBrace) != (unit == _closeBrace)) {
+            abandon();
+            continue;
+          }
+          open.removeLast();
+          span.end = i;
+          if (open.isEmpty) {
+            spans.add((span, closed: true));
+          } else {
+            open.last.children.add(span);
+          }
+      }
+    }
+    for (final span in open) {
+      spans
+        ..add((span, closed: false))
+        ..addAll([for (final child in span.children) (child, closed: true)]);
+    }
+    return spans;
+  }
+
+  static const _quote = 0x22;
+  static const _backslash = 0x5C;
+  static const _openBrace = 0x7B;
+  static const _closeBrace = 0x7D;
+  static const _openBracket = 0x5B;
+  static const _closeBracket = 0x5D;
+
+  /// The first acceptable value of the balanced [root] span of [s] or the
+  /// spans inside it, in the order they start: a span that decodes gives
+  /// its first acceptable value ([_firstAcceptable]) or nothing (the spans
+  /// inside it are parts of that value); the spans inside one that cannot
+  /// start JSON or does not decode are tried next, while [work] lasts.
+  static Object? _firstInSpan(String s, _Span root, _Work work) {
+    final pending = [root];
+    while (pending.isNotEmpty) {
+      final span = pending.removeLast();
+      if (_isCandidate(s, span.start)) {
+        final length = span.end + 1 - span.start;
+        // The outermost spans do not overlap: each is decoded once.
+        if (!identical(span, root)) {
+          // A decode, its repair and a second decode.
+          if ((work.left -= 3 * length) < 0) return null;
+        }
+        final value = _decode(s.substring(span.start, span.end + 1));
+        if (value != null) {
+          if (_firstAcceptable(value) case final found?) return found;
+          continue;
+        }
+      }
+      if ((work.left -= span.children.length) < 0) return null;
+      pending.addAll(span.children.reversed);
+    }
+    return null;
+  }
+
+  /// The first acceptable value ([_acceptable]) of [value] and the values
+  /// inside it, in the order they appear in its JSON (an outer value
+  /// first). Without recursion: deeply nested values are fine.
+  static Object? _firstAcceptable(Object? value) {
+    final pending = [value];
+    while (pending.isNotEmpty) {
+      final next = pending.removeLast();
+      if (_acceptable(next) case final found?) return found;
+      switch (next) {
+        case final Map<dynamic, dynamic> map:
+          pending.addAll(map.values.toList().reversed);
+        case final List<dynamic> list:
+          pending.addAll(list.reversed);
+      }
+    }
+    return null;
+  }
+
+  /// Whether the bracket at [index] of [s] may start JSON: a `[`, or a `{`
+  /// that [_mayStartObject].
+  static bool _isCandidate(String s, int index) =>
+      s.codeUnitAt(index) == _openBracket || _mayStartObject(s, index);
+
+  /// Characters of work [_firstInSpan] may spend, per character of the
+  /// reply (plus [_searchWorkBase]), looking into spans that do not decode.
   static const int _searchWork = 48;
   static const int _searchWorkBase = 1 << 16;
+
+  /// How many brackets left open [_searchBrackets] tries as truncated
+  /// output (each costs a few decodes of the rest of the reply).
+  static const _truncatedCandidates = 3;
 
   /// Whether the `{` at [start] may begin an object that decodes (also
   /// after [_repair]): a key in quotes (straight or smart) or `}` follows
@@ -1631,38 +1769,6 @@ abstract final class ResponseParsers {
         return null;
       }
     }
-  }
-
-  /// The index of the bracket closing the one at [start] (-1 when none
-  /// does), and how many characters were looked at to tell.
-  static ({int end, int scanned}) _balancedEnd(String s, int start) {
-    final stack = <String>[];
-    var inString = false;
-    for (var i = start; i < s.length; i++) {
-      final c = s[i];
-      if (inString) {
-        if (c == r'\') {
-          i++;
-        } else if (c == '"') {
-          inString = false;
-        }
-        continue;
-      }
-      switch (c) {
-        case '"':
-          inString = true;
-        case '{':
-          stack.add('}');
-        case '[':
-          stack.add(']');
-        case '}' || ']':
-          if (stack.isEmpty || stack.removeLast() != c) {
-            return (end: -1, scanned: i + 1 - start);
-          }
-          if (stack.isEmpty) return (end: i, scanned: i + 1 - start);
-      }
-    }
-    return (end: -1, scanned: s.length - start);
   }
 
   static const _smartOpen = {'“', '„', '‟', '”', '″'};
@@ -2336,6 +2442,24 @@ final class _AlignmentText {
 /// `ResponseParsers._decodeTruncated`): its closing character and the
 /// brackets open below it. Immutable, so a cut point keeps the brackets
 /// open there.
+/// A bracket span of a reply (see `ResponseParsers._scanBrackets`): from
+/// the bracket at [start] to the one at [end] that closes it (-1 while
+/// it is open), with the balanced spans directly inside it.
+final class _Span {
+  new(this.start);
+
+  final int start;
+  int end = -1;
+  final List<_Span> children = [];
+}
+
+/// Work left to a search (see `ResponseParsers._firstInSpan`).
+final class _Work {
+  new(this.left);
+
+  int left;
+}
+
 final class _OpenBracket {
   const new(this.closer, this.below);
 

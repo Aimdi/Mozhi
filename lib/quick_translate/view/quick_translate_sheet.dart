@@ -310,6 +310,34 @@ class _QuickTranslateViewState extends State<QuickTranslateView> {
     );
   }
 
+  /// Says why Listen failed ([speechErrorMessage]) with what may help: to
+  /// listen through the Mozhi instance it names ([listenOnline], when
+  /// offered), or Retry when the Mozhi servers failed or did not answer
+  /// ([speechServersFailed]: trying again later may work).
+  void _onListenError(
+    Object error, {
+    required VoidCallback? listenOnline,
+    required VoidCallback retry,
+  }) {
+    final l10n = context.l10n;
+    if (listenOnline != null) {
+      _showNotice(
+        speechErrorMessage(l10n, error),
+        action: (
+          label: speechListenOnlineLabel(l10n, error)!,
+          onPressed: listenOnline,
+        ),
+      );
+      return;
+    }
+    _showNotice(
+      speechErrorMessage(l10n, _withoutConsent(error)),
+      action: speechServersFailed(error)
+          ? (label: l10n.commonRetry, onPressed: retry)
+          : null,
+    );
+  }
+
   /// [error] as reported when nothing can be offered: without the Mozhi
   /// instance it could have used.
   static Object _withoutConsent(Object error) => switch (error) {
@@ -449,24 +477,14 @@ class _QuickTranslateViewState extends State<QuickTranslateView> {
                               languageCode: target.isCustom
                                   ? null
                                   : target.code,
-                              onError: (error, listenOnline) => _showNotice(
-                                listenOnline == null || state.offlineOnly
-                                    ? speechErrorMessage(
-                                        context.l10n,
-                                        _withoutConsent(error),
-                                      )
-                                    : speechErrorMessage(context.l10n, error),
-                                action:
-                                    listenOnline == null || state.offlineOnly
-                                    ? null
-                                    : (
-                                        label: speechListenOnlineLabel(
-                                          context.l10n,
-                                          error,
-                                        )!,
-                                        onPressed: listenOnline,
-                                      ),
-                              ),
+                              onError: (error, listenOnline, retry) =>
+                                  _onListenError(
+                                    error,
+                                    listenOnline: state.offlineOnly
+                                        ? null
+                                        : listenOnline,
+                                    retry: retry,
+                                  ),
                             ),
                       onReplace: replaceAvailable
                           ? () => _replace(translation)

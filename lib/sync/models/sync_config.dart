@@ -3,8 +3,9 @@ import 'package:mozhi/sync/data/webdav_client.dart';
 
 /// Where and what this device syncs: the WebDAV [server] and [folder], the
 /// account's [username] (its app password is kept in secure storage, see
-/// `SyncStore`) and the choices of what to sync. Kept in the plain
-/// preferences: none of it is secret.
+/// `SyncStore`), the choices of what to sync and when this device joined
+/// the folder ([joinedAt]). Kept in the plain preferences: none of it is
+/// secret.
 class SyncConfig extends Equatable {
   const new({
     required this.server,
@@ -13,6 +14,7 @@ class SyncConfig extends Equatable {
     this.excludedSections = defaultExcludedSections,
     this.includeSecrets = false,
     this.wifiOnly = false,
+    this.joinedAt,
   });
 
   /// Parses [toJson] output; null when [json] is not a valid config.
@@ -36,6 +38,10 @@ class SyncConfig extends Equatable {
         },
         includeSecrets: json['includeSecrets'] == true,
         wifiOnly: json['wifiOnly'] == true,
+        joinedAt: switch (json['joinedAt']) {
+          final String iso => DateTime.tryParse(iso)?.toUtc(),
+          _ => null,
+        },
       );
     }
     return null;
@@ -77,6 +83,13 @@ class SyncConfig extends Equatable {
   /// **Sync now** always runs.
   final bool wifiOnly;
 
+  /// When this device started syncing with this folder: set up (or set up
+  /// again, with another server, account, folder or passphrase). A Clear
+  /// history from before it never deletes this device's own entries
+  /// (`HistoryBackupSection`). Null for a setup stored before join times
+  /// were recorded: such a device counts as syncing all along.
+  final DateTime? joinedAt;
+
   /// The folder's URL.
   Uri get folderUrl => WebDavClient.folderUrl(server, folder);
 
@@ -96,6 +109,7 @@ class SyncConfig extends Equatable {
     Set<String>? excludedSections,
     bool? includeSecrets,
     bool? wifiOnly,
+    DateTime? joinedAt,
   }) => SyncConfig(
     server: server ?? this.server,
     username: username ?? this.username,
@@ -103,6 +117,7 @@ class SyncConfig extends Equatable {
     excludedSections: excludedSections ?? this.excludedSections,
     includeSecrets: includeSecrets ?? this.includeSecrets,
     wifiOnly: wifiOnly ?? this.wifiOnly,
+    joinedAt: joinedAt ?? this.joinedAt,
   );
 
   Map<String, Object?> toJson() => {
@@ -112,6 +127,7 @@ class SyncConfig extends Equatable {
     'excludedSections': [...excludedSections]..sort(),
     'includeSecrets': includeSecrets,
     'wifiOnly': wifiOnly,
+    if (joinedAt case final at?) 'joinedAt': at.toUtc().toIso8601String(),
   };
 
   @override
@@ -122,6 +138,7 @@ class SyncConfig extends Equatable {
     excludedSections,
     includeSecrets,
     wifiOnly,
+    joinedAt?.microsecondsSinceEpoch,
   ];
 }
 
@@ -130,8 +147,14 @@ class SyncConfig extends Equatable {
 /// device's synced data afterwards. With both unchanged, a sync costs one
 /// `GET` answered `304 Not Modified`, and a change elsewhere in the app
 /// that didn't touch synced data costs no request at all.
+///
+/// [remoteFingerprint] is the fingerprint of the synced parts of the file
+/// as it was left, when that differs from this device's data (the file
+/// keeps history this device's "Delete history automatically" dropped,
+/// see `BackupSyncSection`); null when they are the same, and in cursors
+/// stored by earlier versions.
 class SyncCursor extends Equatable {
-  const new({required this.fingerprint, this.etag});
+  const new({required this.fingerprint, this.etag, this.remoteFingerprint});
 
   static SyncCursor? tryParse(Object? json) {
     if (json case {'fingerprint': final String fingerprint}) {
@@ -141,6 +164,10 @@ class SyncCursor extends Equatable {
           final String etag => etag,
           _ => null,
         },
+        remoteFingerprint: switch (json['remote']) {
+          final String remote => remote,
+          _ => null,
+        },
       );
     }
     return null;
@@ -148,9 +175,17 @@ class SyncCursor extends Equatable {
 
   final String fingerprint;
   final String? etag;
+  final String? remoteFingerprint;
 
-  Map<String, Object?> toJson() => {'fingerprint': fingerprint, 'etag': etag};
+  /// The fingerprint of the file's synced parts as this sync left them.
+  String get fileFingerprint => remoteFingerprint ?? fingerprint;
+
+  Map<String, Object?> toJson() => {
+    'fingerprint': fingerprint,
+    'etag': etag,
+    if (remoteFingerprint != null) 'remote': remoteFingerprint,
+  };
 
   @override
-  List<Object?> get props => [fingerprint, etag];
+  List<Object?> get props => [fingerprint, etag, remoteFingerprint];
 }

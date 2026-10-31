@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:meta/meta.dart';
 import 'package:tesseract_ocr/src/catalog.dart';
+import 'package:tesseract_ocr/src/download_cancel.dart';
 import 'package:tesseract_ocr/src/engine/engine_factory.dart';
 import 'package:tesseract_ocr/src/engine/ocr_engine.dart';
 import 'package:tesseract_ocr/src/model_manager.dart';
@@ -133,8 +134,9 @@ class TesseractOcr {
   }
 
   /// Downloads and installs the data of [code] (or a newer version of it).
-  /// Throws [ArgumentError] for a code not in [catalog] and
-  /// [TessdataInstallException] when the download fails.
+  /// Throws [ArgumentError] for a code not in [catalog],
+  /// [TessdataInstallException] when the download fails and
+  /// [TessdataDownloadCancelledException] once [cancelDownload] stopped it.
   Future<InstalledTessdata> download(
     String code, {
     void Function(TessdataDownloadProgress progress)? onProgress,
@@ -147,6 +149,12 @@ class TesseractOcr {
     await _release();
     return installed;
   }
+
+  /// Stops the running [download]s of [code] (see
+  /// [TessdataManager.cancelInstall]): nothing is installed by them, and
+  /// what was received is kept for the next download to resume. Completes
+  /// once they have stopped. Never throws.
+  Future<void> cancelDownload(String code) => data.cancelInstall(code);
 
   /// Installs language data from files copied to the device by hand; see
   /// [TessdataManager.importFiles]. Never uses the network.

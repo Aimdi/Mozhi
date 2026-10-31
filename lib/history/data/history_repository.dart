@@ -5,9 +5,11 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter/foundation.dart';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/history/data/history_cipher.dart';
+import 'package:mozhi/history/models/history_cleared.dart';
 import 'package:mozhi/history/models/history_entry.dart';
 import 'package:mozhi/history/models/history_tombstone.dart';
 
+export '../models/history_cleared.dart';
 export '../models/history_tombstone.dart';
 export 'history_cipher.dart';
 
@@ -144,6 +146,17 @@ class HistoryImport extends Equatable {
 /// leave none. Tombstones are best effort: when they can't be read or
 /// written the history change still happens.
 ///
+/// [clear] also records when it ran ([HistoryCleared], encrypted under
+/// [clearedStorageKey]), and sync carries that record (see [mergeBackup]
+/// with `sync`): a clear on a device of a sync folder also reaches the
+/// entries the other devices of that folder held then, also those this
+/// device never had. Backups and phone-to-phone transfers carry it too,
+/// but it never deletes anything of the device they are restored on. An
+/// entry that [add], [restore], [restoreFavorite], [importJson],
+/// [replaceAll] or a [mergeBackup] of a backup brings in although a clear
+/// recorded here covers it is stamped as changed now
+/// ([HistoryEntry.updatedAt]), so that the clear doesn't take it again.
+///
 /// [store] defaults to [PreferencesStore], [cipher] to [HistoryCipher] and
 /// `clock` (the current time for retention) to [DateTime.now]. Operations
 /// are serialised and every mutation is written through; the returned lists
@@ -187,6 +200,13 @@ class HistoryRepository {
   /// The associated data the tombstones are encrypted with (the history
   /// itself uses [HistoryCipher.associatedData]).
   static const tombstonesAssociatedData = 'mozhi.history.tombstones';
+
+  /// Key of the encrypted record of the last clears ([HistoryCleared]) in
+  /// [store].
+  static const clearedStorageKey = 'history.v1.cleared';
+
+  /// The associated data the record of the clears is encrypted with.
+  static const clearedAssociatedData = 'mozhi.history.cleared';
 
   /// Where the history key is kept by default: secure storage (Android
   /// Keystore), or on the web [preferences] (the browser storage the
@@ -233,6 +253,17 @@ class HistoryRepository {
 
   /// Whether [_tombstones] has changes that could not be written yet.
   bool _tombstonesDirty = false;
+
+  /// The record of the last clears, once read.
+  HistoryCleared? _cleared;
+
+  /// Whether [_cleared] (or [_joined]) has changes that could not be
+  /// written yet.
+  bool _clearedDirty = false;
+
+  /// The sync join time ([HistorySyncMerge.joinedAt]) this device's own
+  /// entries were stamped for (see [mergeBackup]), read with [_cleared].
+  DateTime? _joined;
   Future<void> _lock = Future.value();
 
   /// The key, once read or created.
@@ -281,8 +312,12 @@ class HistoryRepository {
       }
       // Encrypted with the same key: unreadable too.
       await store.delete(tombstonesStorageKey);
+      await store.delete(clearedStorageKey);
       _tombstones = {};
       _tombstonesDirty = false;
+      _cleared = HistoryCleared.none;
+      _clearedDirty = false;
+      _joined = null;
       return _entries = const [];
     }
   });
@@ -300,26 +335,31 @@ class HistoryRepository {
       await store.read(unreadableStorageKey) != null;
 
   /// Deletes everything this repository stores: the history, its
-  /// tombstones, the copy set aside by [discardUnreadable] and the
-  /// encryption key.
+  /// tombstones and record of clears, the copy set aside by
+  /// [discardUnreadable] and the encryption key.
   Future<void> deleteAll() => _synchronized(() async {
     _entries = const [];
     _key = null;
     _tombstones = {};
     _tombstonesDirty = false;
+    _cleared = HistoryCleared.none;
+    _clearedDirty = false;
+    _joined = null;
     await store.delete(storageKey);
     await store.delete(tombstonesStorageKey);
+    await store.delete(clearedStorageKey);
     await store.delete(unreadableStorageKey);
     await keyStore.delete(keyStorageKey);
   });
 
   /// How much the history takes in [store]: the length (UTF-16 code
-  /// units) of the stored values, including its tombstones and a copy set
-  /// aside by [discardUnreadable].
+  /// units) of the stored values, including its tombstones, its record of
+  /// clears and a copy set aside by [discardUnreadable].
   Future<int> storedLength() async {
     final values = [
       await store.read(storageKey),
       await store.read(tombstonesStorageKey),
+      await store.read(clearedStorageKey),
       await store.read(unreadableStorageKey),
     ];
     return values.fold<int>(0, (sum, value) => sum + (value?.length ?? 0));
@@ -415,12 +455,20 @@ class HistoryRepository {
   Future<List<HistoryEntry>> delete(String id) =>
       _mutate((entries) => entries..removeWhere((e) => e.id == id), cap: false);
 
-  /// Removes everything, or only non-favourites when [keepFavorites].
-  Future<List<HistoryEntry>> clear({bool keepFavorites = false}) => _mutate(
-    (entries) =>
-        keepFavorites ? entries.where((e) => e.isFavorite).toList() : [],
-    cap: false,
-  );
+  /// Removes everything, or only non-favourites when [keepFavorites], and
+  /// records when ([HistoryCleared]): backups and sync take the clear to
+  /// the entries other devices hold (see [mergeBackup]).
+  Future<List<HistoryEntry>> clear({bool keepFavorites = false}) {
+    final now = _clock().toUtc();
+    return _mutate(
+      (entries) =>
+          keepFavorites ? entries.where((e) => e.isFavorite).toList() : [],
+      cap: false,
+      cleared: keepFavorites
+          ? HistoryCleared(nonFavorites: now)
+          : HistoryCleared(all: now),
+    );
+  }
 
   /// Pretty JSON array of all entries.
   Future<String> exportJson() => _synchronized(() async {
@@ -493,12 +541,23 @@ class HistoryRepository {
     );
   }
 
-  /// The history (newest first) and its tombstones, for a backup.
-  Future<({List<HistoryEntry> entries, List<HistoryTombstone> tombstones})>
+  /// The history (newest first), its tombstones and the record of the last
+  /// clears ([HistoryCleared.none] when there is none), for a backup.
+  Future<
+    ({
+      List<HistoryEntry> entries,
+      List<HistoryTombstone> tombstones,
+      HistoryCleared cleared,
+    })
+  >
   backupData() => _synchronized(() async {
     final entries = await _current();
     final tombstones = _bounded(await _currentTombstones());
-    return (entries: entries, tombstones: _tombstoneList(tombstones));
+    return (
+      entries: entries,
+      tombstones: _tombstoneList(tombstones),
+      cleared: await _currentCleared(),
+    );
   });
 
   /// Replaces the history with [entries] and its tombstones with
@@ -509,7 +568,10 @@ class HistoryRepository {
   /// [importJson] (an id given twice is kept once; two look-ups of the same
   /// word are merged, see [mergeBackup]); no retention is applied (the
   /// next [load] does). What was here before leaves no tombstones: the
-  /// backup becomes this device's history.
+  /// backup becomes this device's history. A backup's record of clears is
+  /// not taken (it never deletes anything here); this device keeps its
+  /// own, and an entry of the backup that it covers is stamped as changed
+  /// now (see the class docs), so the backup's entries stay.
   Future<List<HistoryEntry>> replaceAll(
     List<HistoryEntry> entries, {
     List<HistoryTombstone> tombstones = const [],
@@ -521,7 +583,10 @@ class HistoryRepository {
       byId.putIfAbsent(entry.id, () => _limited(entry));
     }
     final dropped = <String, DateTime>{};
-    final next = _capped(_normalized(byId.values, dropped));
+    final clears = await _clearsOrNone();
+    final next = _capped(
+      _normalized(byId.values.map((e) => _uncovered(e, clears)), dropped),
+    );
     final written = _entries = await _write(next);
     _tombstones = {
       for (final tombstone in tombstones)
@@ -544,6 +609,30 @@ class HistoryRepository {
   /// either was; the other leaves a tombstone. The tombstones of both sides
   /// are kept (bounded by [tombstoneMaxAge] and [maxTombstones]).
   ///
+  /// Clears ([HistoryCleared]; one more than
+  /// [HistoryCleared.maxClockSkew] ahead of this device's clock is left
+  /// out, one ahead by less counts as now) apply only to a merge of the
+  /// sync file ([sync]: its record and when this device joined the
+  /// folder). There every clear of the file, and every clear made here
+  /// since this device joined (or all of them when its join time is
+  /// unknown: it synced all along), deletes every entry it covers
+  /// ([HistoryCleared.covers]: created and last changed at or before it,
+  /// not a favourite when it kept them), from either side, with a
+  /// tombstone from the time of the clear, so that devices that don't know
+  /// the record delete it too. The file's clears are kept here.
+  ///
+  /// This device's own history from before it joined is never taken by a
+  /// clear: at its first merge of the sync file after joining, every entry
+  /// it holds that was last changed before then counts as changed when it
+  /// joined ([HistoryEntry.updatedAt]), later than any clear made before
+  /// (and no clear made here before joining reaches the file's entries).
+  /// The file's entries a clear covers are never taken in.
+  ///
+  /// Without [sync] (a backup, phone to phone) the other side's clears
+  /// are ignored, and an entry it brings in that a clear known here covers
+  /// is stamped as changed now (see the class docs), so that no clear
+  /// deletes anything this device holds or took in.
+  ///
   /// The result is sorted newest first, and this device's limits apply to
   /// it as they would right after the merge: with [maxAge] (this device's
   /// "Delete history automatically"), non-favourites created more than
@@ -556,8 +645,29 @@ class HistoryRepository {
     List<HistoryEntry> entries, {
     List<HistoryTombstone> tombstones = const [],
     Duration? maxAge,
+    HistorySyncMerge? sync,
   }) => _synchronized(() async {
     final local = await _current();
+    final now = _clock();
+    final own = await _clearsOrNone();
+    final theirs = sync?.cleared.validAt(now) ?? HistoryCleared.none;
+    final joinedAt = sync?.joinedAt;
+    // The first merge since joining: this device's own history is from
+    // before, which no clear before takes.
+    final stampFor =
+        joinedAt != null && !(_joined?.isAtSameMomentAs(joinedAt) ?? false)
+        ? joinedAt
+        : null;
+    final mine = <HistoryEntry>[
+      for (final entry in local)
+        if (stampFor != null && entry.modifiedAt.isBefore(stampFor))
+          entry.copyWith(updatedAt: stampFor)
+        else
+          entry,
+    ];
+    final applied = sync == null
+        ? HistoryCleared.none
+        : own.since(joinedAt).union(theirs);
     final deleted = {...await _currentTombstones()};
     for (final tombstone in tombstones) {
       final known = deleted[tombstone.id];
@@ -565,7 +675,8 @@ class HistoryRepository {
         deleted[tombstone.id] = tombstone.deletedAt.toUtc();
       }
     }
-    final byId = {for (final entry in local) entry.id: entry};
+    final byId = {for (final entry in mine) entry.id: entry};
+    final held = Set<HistoryEntry>.identity()..addAll(mine);
     for (final entry in entries.map(_limited)) {
       final existing = byId[entry.id];
       if (existing == null || entry.modifiedAt.isAfter(existing.modifiedAt)) {
@@ -577,11 +688,24 @@ class HistoryRepository {
       final at? => !entry.modifiedAt.isAfter(at),
       null => false,
     };
-    final alive = byId.values.where((entry) => !isDeleted(entry));
+    final alive = <HistoryEntry>[];
+    for (final entry in byId.values) {
+      if (isDeleted(entry)) continue;
+      if (sync == null) {
+        alive.add(held.contains(entry) ? entry : _uncovered(entry, own));
+      } else if (applied.coveredAt(entry) case final at?) {
+        // A clear wins over the entries created and last changed before it.
+        final known = deleted[entry.id];
+        if (known == null || at.isAfter(known)) deleted[entry.id] = at;
+      } else {
+        alive.add(entry);
+      }
+    }
     final next = _capped(_withoutExpired(_normalized(alive, deleted), maxAge));
     final written = _entries = await _write(next);
     _tombstones = deleted;
     await _updateTombstones(deleted: const [], present: written, force: true);
+    if (sync != null) await _updateCleared(theirs, joined: stampFor);
     return written;
   });
 
@@ -693,6 +817,67 @@ class HistoryRepository {
         if (attempt >= _quotaRetries || !_isQuotaError(error)) rethrow;
         next = _newest(next, next.length ~/ 2);
       }
+    }
+  }
+
+  /// The record of the last clears, read once ([HistoryCleared.none] when
+  /// there is none, or it cannot be decrypted). Throws when the store
+  /// fails.
+  Future<HistoryCleared> _currentCleared() async {
+    if (_cleared case final cleared?) return cleared;
+    final raw = await store.read(clearedStorageKey);
+    final key = raw == null ? null : (_key ?? await _readKey());
+    if (raw == null || key == null) return _cleared = HistoryCleared.none;
+    try {
+      final json = jsonDecode(
+        await cipher.decrypt(raw, key, aad: clearedAssociatedData),
+      );
+      _joined = switch (json) {
+        {'joinedAt': final String iso} => DateTime.tryParse(iso)?.toUtc(),
+        _ => null,
+      };
+      return _cleared = HistoryCleared.fromJson(json);
+    } on Object {
+      // Damaged: the next clear (or merge of one) writes it anew.
+      return _cleared = HistoryCleared.none;
+    }
+  }
+
+  /// Adds [cleared] to the record of the last clears (and sets the join
+  /// time [joined] the own entries were stamped for), then writes it when
+  /// it changed (or when an earlier write failed). Never throws: the
+  /// history change it follows has been written.
+  Future<void> _updateCleared(
+    HistoryCleared cleared, {
+    DateTime? joined,
+  }) async {
+    try {
+      final current = await _currentCleared();
+      final next = current.union(cleared);
+      final nextJoined = (joined ?? _joined)?.toUtc();
+      if (next == current && nextJoined == _joined && !_clearedDirty) return;
+      _cleared = next;
+      _joined = nextJoined;
+      _clearedDirty = true;
+      if (next.isEmpty && nextJoined == null) {
+        await store.delete(clearedStorageKey);
+      } else {
+        await store.write(
+          clearedStorageKey,
+          await cipher.encrypt(
+            jsonEncode({
+              ...next.toJson(),
+              if (nextJoined != null)
+                'joinedAt': nextJoined.toUtc().toIso8601String(),
+            }),
+            await _writeKey(),
+            aad: clearedAssociatedData,
+          ),
+        );
+      }
+      _clearedDirty = false;
+    } on Object {
+      // Kept in memory; the next change writes it again.
     }
   }
 
@@ -925,13 +1110,21 @@ class HistoryRepository {
 
   /// Applies [change] to the history and writes it. Entries [change] took
   /// out leave tombstones; entries left out by the caps or [maxAge] don't.
+  /// Entries [change] put in that a recorded clear covers are stamped as
+  /// changed now (see the class docs); [cleared] is added to the record
+  /// (after that, so the clear it records takes what it removed).
   Future<List<HistoryEntry>> _mutate(
     List<HistoryEntry> Function(List<HistoryEntry> entries) change, {
     bool cap = true,
     Duration? maxAge,
+    HistoryCleared? cleared,
   }) => _synchronized(() async {
     final before = await _current();
-    final changed = change([...before]);
+    final changed = _uncleared(
+      change([...before]),
+      before: before,
+      clears: await _clearsOrNone(),
+    );
     final next = cap
         ? _capped(_withoutExpired(changed, maxAge))
         : List<HistoryEntry>.unmodifiable(changed);
@@ -944,8 +1137,48 @@ class HistoryRepository {
       ],
       present: written,
     );
+    if (cleared != null) await _updateCleared(cleared);
     return written;
   });
+
+  /// The record of the last clears; [HistoryCleared.none] when it can't be
+  /// read (the change then goes ahead as without one).
+  Future<HistoryCleared> _clearsOrNone() async {
+    try {
+      return await _currentCleared();
+    } on Object {
+      return HistoryCleared.none;
+    }
+  }
+
+  /// [entries] with those that are not in [before] (by identity) and that
+  /// [clears] covers stamped as changed now (at least a millisecond after
+  /// the clear, which may have been at this very time).
+  List<HistoryEntry> _uncleared(
+    List<HistoryEntry> entries, {
+    required List<HistoryEntry> before,
+    required HistoryCleared clears,
+  }) {
+    if (clears.isEmpty) return entries;
+    final known = Set<HistoryEntry>.identity()..addAll(before);
+    return [
+      for (final entry in entries)
+        if (known.contains(entry)) entry else _uncovered(entry, clears),
+    ];
+  }
+
+  /// [entry], stamped as changed now when [clears] covers it (at least a
+  /// millisecond after the clear, which may have been at this very time).
+  HistoryEntry _uncovered(HistoryEntry entry, HistoryCleared clears) {
+    final at = clears.coveredAt(entry);
+    if (at == null) return entry;
+    final now = _clock();
+    return entry.copyWith(
+      updatedAt: now.isAfter(at)
+          ? now
+          : at.add(const Duration(milliseconds: 1)),
+    );
+  }
 
   /// Writes [entries] and returns what was written: on a full quota, older
   /// non-favourites are evicted and the write is retried.

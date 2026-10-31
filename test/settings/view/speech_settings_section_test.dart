@@ -354,6 +354,97 @@ void main() {
       });
     });
 
+    group('rate preview Retry', () {
+      final serversFailed = SpeechUnavailableException(
+        'en',
+        cause: AllInstancesFailedException(
+          'boom',
+          engine: TranslationEngine.mozhi('google', 'Google'),
+          instances: const [MozhiInstance(url: 'https://mozhi.example')],
+          statusCode: 502,
+        ),
+      );
+
+      void failFirstToggle(Exception error) {
+        var calls = 0;
+        when(
+          () => speech.toggle(
+            id: any(named: 'id'),
+            text: any(named: 'text'),
+            languageCode: any(named: 'languageCode'),
+            remember: any(named: 'remember'),
+          ),
+        ).thenAnswer((_) async {
+          if (calls++ == 0) throw error;
+        });
+      }
+
+      testWidgets('plays it again when the servers failed', (tester) async {
+        final semantics = tester.ensureSemantics();
+        failFirstToggle(serversFailed);
+        await pump(tester);
+
+        await tester.tap(find.byTooltip('Preview speech rate'));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 750));
+
+        expect(
+          find.textContaining("The volunteer servers couldn't read this"),
+          findsOneWidget,
+        );
+        expect(find.textContaining('502'), findsNothing);
+        final retry = find.widgetWithText(SnackBarAction, 'Retry');
+        expect(retry, findsOneWidget);
+        expect(tester.getSize(retry).height, greaterThanOrEqualTo(48));
+        expect(find.bySemanticsLabel('Retry'), findsOneWidget);
+
+        await tester.tap(retry);
+        await tester.pump();
+        verify(
+          () => speech.toggle(
+            id: SpeechSettingsCubit.ratePreviewId,
+            text: 'This is how fast translations will be read aloud.',
+            languageCode: 'en',
+            remember: false,
+          ),
+        ).called(2);
+        semantics.dispose();
+      });
+
+      testWidgets('does not stop a preview that plays again', (tester) async {
+        failFirstToggle(serversFailed);
+        await pump(tester);
+        await tester.tap(find.byTooltip('Preview speech rate'));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 750));
+        speaking.add(SpeechSettingsCubit.ratePreviewId);
+        await tester.pump();
+
+        await tester.tap(find.widgetWithText(SnackBarAction, 'Retry'));
+        await tester.pump();
+        verify(
+          () => speech.toggle(
+            id: SpeechSettingsCubit.ratePreviewId,
+            text: any(named: 'text'),
+            languageCode: any(named: 'languageCode'),
+            remember: false,
+          ),
+        ).called(1);
+      });
+
+      testWidgets('offers no Retry for a language no voice reads', (
+        tester,
+      ) async {
+        failFirstToggle(const SpeechUnavailableException('en'));
+        await pump(tester);
+        await tester.tap(find.byTooltip('Preview speech rate'));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 750));
+        expect(find.byType(SnackBar), findsOneWidget);
+        expect(find.byType(SnackBarAction), findsNothing);
+      });
+    });
+
     group('online voices', () {
       testWidgets('say which were allowed and can be forgotten', (
         tester,

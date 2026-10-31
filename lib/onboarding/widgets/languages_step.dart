@@ -48,11 +48,14 @@ String? offlineCodeFor(
 
 /// A source language to suggest while the source is "Detect language": the
 /// first of [deviceLanguages] (the phone's languages, BCP 47 tags) that is
-/// in the catalogue and is not [target]'s language. Null when there is
-/// none.
+/// in the catalogue and is not [target]'s language; when there is none
+/// (the phone speaks the target only), the source the user [picked] before
+/// (unless it is "Detect language", custom or the target's language). Null
+/// otherwise: no language is made up.
 Language? suggestedSourceLanguage(
   List<String> deviceLanguages, {
   required Language target,
+  Language? picked,
 }) {
   String primary(String code) =>
       LanguageMatcher.normalize(code).split('-').first.toLowerCase();
@@ -67,7 +70,13 @@ Language? suggestedSourceLanguage(
     if (primary(language.code) == into) continue;
     return language;
   }
-  return null;
+  if (picked == null ||
+      picked.isAuto ||
+      picked.isCustom ||
+      primary(picked.code) == into) {
+    return null;
+  }
+  return picked;
 }
 
 /// The offline rows of the languages step for [source] (while detecting:
@@ -144,7 +153,9 @@ Set<String> onboardingCheckedDownloads(
 ///
 /// While the source is "Detect language", a source language from the
 /// phone's languages is suggested ([suggestedSourceLanguage]: "Translate
-/// from French") and its download offered with the target's. The downloads
+/// from French"), or, when the phone speaks the target only, the source the
+/// user picked before ([OnboardingState.pickedSource]), and its download
+/// offered with the target's. The downloads
 /// of the pair are checkboxes, checked for the user on Android when the
 /// phone has room ([onboardingCheckedDownloads]); they start when the user
 /// taps Next (the flow moves on to the service step), never by themselves.
@@ -160,7 +171,11 @@ class LanguagesStep extends StatelessWidget {
     required Language source,
     required Language target,
   }) => source.isAuto
-      ? suggestedSourceLanguage(onboarding.deviceLanguages, target: target)
+      ? suggestedSourceLanguage(
+          onboarding.deviceLanguages,
+          target: target,
+          picked: onboarding.pickedSource,
+        )
       : null;
 
   /// Starts the checked downloads: the user tapped Next.
@@ -221,11 +236,13 @@ class LanguagesStep extends StatelessWidget {
     final target = context.select<SettingsCubit, Language>(
       (c) => c.state.target,
     );
-    final suggested = _suggested(
-      context.watch<OnboardingCubit>().state,
-      source: source,
-      target: target,
-    );
+    final onboarding = context.watch<OnboardingCubit>().state;
+    final suggested = _suggested(onboarding, source: source, target: target);
+    // From the phone's languages, or the source picked before.
+    final fromPhone =
+        suggested != null &&
+        suggestedSourceLanguage(onboarding.deviceLanguages, target: target) ==
+            suggested;
     return MultiBlocListener(
       listeners: [
         BlocListener<OfflineModelsCubit, OfflineModelsState>(
@@ -253,7 +270,8 @@ class LanguagesStep extends StatelessWidget {
             language: source,
             source: true,
           ),
-          if (suggested != null) _SourceSuggestion(language: suggested),
+          if (suggested != null)
+            _SourceSuggestion(language: suggested, fromPhone: fromPhone),
           const SizedBox(height: 12),
           _LanguageField(
             key: const Key('onboarding_target_language'),
@@ -273,12 +291,16 @@ class LanguagesStep extends StatelessWidget {
   }
 }
 
-/// "French is one of your phone's languages." with "Translate from French"
-/// (makes it the source language).
+/// "French is one of your phone's languages." (or, not [fromPhone], "You
+/// picked French before.") with "Translate from French" (makes it the
+/// source language).
 class _SourceSuggestion extends StatelessWidget {
-  const new({required this.language});
+  const new({required this.language, required this.fromPhone});
 
   final Language language;
+
+  /// Suggested from the phone's languages, not as the source picked before.
+  final bool fromPhone;
 
   @override
   Widget build(BuildContext context) {
@@ -304,7 +326,9 @@ class _SourceSuggestion extends StatelessWidget {
               ),
               Expanded(
                 child: Text(
-                  l10n.onboardingLanguagesSuggestion(language.name),
+                  fromPhone
+                      ? l10n.onboardingLanguagesSuggestion(language.name)
+                      : l10n.onboardingLanguagesSuggestionPicked(language.name),
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: palette.secondaryText,
                   ),

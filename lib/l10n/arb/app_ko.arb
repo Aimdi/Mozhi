@@ -2763,5 +2763,9 @@
   "liveCaptionsBarLocked": "Mozhi가 잠겨 있습니다",
   "offlineCancelDownloadTooltip": "{language} 다운로드 취소",
   "offlineCancelling": "중지하는 중…",
-  "documentsPdfProgressCooling": "{total}페이지 중 {page}페이지: 휴대전화가 뜨거워 식을 때까지 기다리는 중…"
+  "documentsPdfProgressCooling": "{total}페이지 중 {page}페이지: 휴대전화가 뜨거워 식을 때까지 기다리는 중…",
+  "onboardingLanguagesSuggestionPicked": "앞에서 {language}을(를) 선택했습니다.",
+  "offlineManualMirrorNote": "이 링크는 Mozhi가 다운로드하는 모델 출처 {host}(으)로 연결됩니다. 파일이 없으면 게시자 링크를 사용하세요.",
+  "offlineManualPublisherLink": "게시자 링크(미러에 파일이 없을 때)",
+  "offlineManualCopyPublisherLink": "{file}의 게시자 링크 복사"
 }

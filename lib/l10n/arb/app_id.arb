@@ -2763,5 +2763,9 @@
   "liveCaptionsBarLocked": "Mozhi terkunci",
   "offlineCancelDownloadTooltip": "Batalkan unduhan {language}",
   "offlineCancelling": "Menghentikan…",
-  "documentsPdfProgressCooling": "Halaman {page} dari {total}: ponsel panas, menunggu hingga dingin…"
+  "documentsPdfProgressCooling": "Halaman {page} dari {total}: ponsel panas, menunggu hingga dingin…",
+  "onboardingLanguagesSuggestionPicked": "Anda memilih {language} sebelumnya.",
+  "offlineManualMirrorNote": "Tautan ini mengarah ke sumber model Anda, {host}, tempat Mozhi mengunduh. Jika file tidak ada di sana, gunakan tautan penerbitnya.",
+  "offlineManualPublisherLink": "Tautan penerbit, jika mirror tidak memiliki file ini",
+  "offlineManualCopyPublisherLink": "Salin tautan penerbit ke {file}"
 }

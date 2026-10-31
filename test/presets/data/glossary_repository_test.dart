@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/presets/data/glossary_repository.dart';
+import 'package:mozhi/presets/data/merge_copies.dart';
 import 'package:mozhi/presets/models/glossary.dart';
 
 class _FailingOnceStore extends MemoryStore {
@@ -352,20 +353,56 @@ void main() {
     });
 
     group('mergeBackup', () {
-      test('keeps the newer copy, this one on a tie', () async {
-        await repository.replaceAll([
+      test('keeps the newer copy; a tie is decided by content the same '
+          'way on both devices', () async {
+        final mine = [
           at(tech.copyWith(name: 'mine'), 1),
           at(names.copyWith(name: 'mine'), 5),
-        ]);
-
-        final merged = await repository.mergeBackup([
+        ];
+        final theirs = [
           at(tech.copyWith(name: 'theirs'), 2),
           at(names.copyWith(name: 'theirs'), 5),
-        ]);
+        ];
+        await repository.replaceAll(mine);
+        final merged = await repository.mergeBackup(theirs);
+        final other = GlossaryRepository(store: MemoryStore());
+        await other.replaceAll(theirs);
+        final mergedThere = await other.mergeBackup(mine);
 
-        expect(merged.map((g) => g.name), ['theirs', 'mine']);
+        final namesWinner =
+            tieBreak(
+              canonicalJson(mine[1].toJson()),
+              canonicalJson(theirs[1].toJson()),
+            )
+            ? 'theirs'
+            : 'mine';
+        expect(merged.map((g) => g.name), ['theirs', namesWinner]);
+        expect(mergedThere.map((g) => g.name), ['theirs', namesWinner]);
+        // A tie between real change times keeps the change time.
+        expect(merged[1].updatedAt, mine[1].updatedAt);
         expect(repository.glossaries, merged);
         expect(await build().load(), merged);
+      });
+
+      test('a tie without change times is marked as decided', () async {
+        await repository.replaceAll([tech.copyWith(name: 'mine')]);
+        final merged = await repository.mergeBackup([
+          tech.copyWith(name: 'theirs'),
+        ]);
+        expect(merged.single.updatedAt, resolvedChangeTime);
+      });
+
+      test('two conflicting orders without change times are decided the '
+          'same way on both devices', () async {
+        await repository.replaceAll([tech, names]);
+        final here = await repository.mergeBackup([names, tech]);
+        await repository.replaceAll([names, tech]);
+        final there = await repository.mergeBackup([tech, names]);
+        expect(here.map((g) => g.id), there.map((g) => g.id));
+        expect(
+          GlossaryRepository.parseOrderUpdatedAt(storedDocument()),
+          resolvedChangeTime,
+        );
       });
 
       test('tombstones of either copy delete older glossaries', () async {

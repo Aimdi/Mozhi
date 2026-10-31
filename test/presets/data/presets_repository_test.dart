@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mozhi/core/key_value_store.dart';
+import 'package:mozhi/presets/data/merge_copies.dart';
 import 'package:mozhi/presets/data/presets_repository.dart';
 import 'package:mozhi/presets/models/preset.dart';
 import 'package:translation_repository/translation_repository.dart';
@@ -328,29 +329,72 @@ void main() {
     });
 
     group('mergeBackup', () {
-      test('keeps the newer copy of a preset, this one on a tie', () async {
-        await repository.replaceAll(
-          PresetCollection(
-            presets: [
-              at(a.copyWith(name: 'mine'), 1),
-              at(b.copyWith(name: 'mine'), 5),
-              const Preset(id: 'c', name: 'mine'),
-            ],
-          ),
-        );
-
+      test('keeps the newer copy of a preset; a tie is decided by content '
+          'the same way on both devices', () async {
+        final mine = [
+          at(a.copyWith(name: 'mine'), 1),
+          at(b.copyWith(name: 'mine'), 5),
+          const Preset(id: 'c', name: 'mine'),
+          const Preset(id: 'd', name: 'same'),
+        ];
+        final theirs = [
+          at(a.copyWith(name: 'theirs'), 2),
+          at(b.copyWith(name: 'theirs'), 4),
+          const Preset(id: 'c', name: 'theirs'),
+          const Preset(id: 'd', name: 'same'),
+        ];
+        await repository.replaceAll(PresetCollection(presets: mine));
         final merged = await repository.mergeBackup(
-          PresetCollection(
-            presets: [
-              at(a.copyWith(name: 'theirs'), 2),
-              at(b.copyWith(name: 'theirs'), 4),
-              const Preset(id: 'c', name: 'theirs'),
-            ],
-          ),
+          PresetCollection(presets: theirs),
         );
 
-        expect(merged.presets.map((p) => p.name), ['theirs', 'mine', 'mine']);
+        final other = PresetsRepository(store: MemoryStore());
+        await other.replaceAll(PresetCollection(presets: theirs));
+        final mergedThere = await other.mergeBackup(
+          PresetCollection(presets: mine),
+        );
+
+        final cName =
+            tieBreak(
+              canonicalJson(mine[2].toJson()),
+              canonicalJson(theirs[2].toJson()),
+            )
+            ? 'theirs'
+            : 'mine';
+        expect(merged.presets.map((p) => p.name), [
+          'theirs',
+          'mine',
+          cName,
+          'same',
+        ]);
+        expect(mergedThere.presets.map((p) => p.name), [
+          'theirs',
+          'mine',
+          cName,
+          'same',
+        ]);
+        // The tie's winner is marked, so devices with older versions (this
+        // device's copy on a tie) take it too; equal copies stay as they
+        // are.
+        expect(merged.presets[2].updatedAt, resolvedChangeTime);
+        expect(mergedThere.presets[2].updatedAt, resolvedChangeTime);
+        expect(merged.presets[3].updatedAt, isNull);
         expect(await repository.load(), merged);
+
+        // The marked winner beats an unmarked copy, and loses to a change.
+        await other.replaceAll(
+          const PresetCollection(
+            presets: [Preset(id: 'c', name: 'old')],
+          ),
+        );
+        expect((await other.mergeBackup(merged)).byId('c')!.name, cName);
+        await other.replaceAll(
+          PresetCollection(presets: [at(const Preset(id: 'c'), 3)]),
+        );
+        expect(
+          (await other.mergeBackup(merged)).byId('c')!.updatedAt,
+          at(const Preset(id: 'c'), 3).updatedAt,
+        );
       });
 
       test("a backup's tombstone deletes presets not changed since", () async {
@@ -483,18 +527,8 @@ void main() {
         expect(merged.defaultUpdatedAt, now);
       });
 
-      test('without change times keeps the default here, else the '
-          "backup's", () async {
-        await repository.replaceAll(
-          const PresetCollection(presets: [a, b], defaultId: 'a'),
-        );
-        expect(
-          (await repository.mergeBackup(
-            const PresetCollection(presets: [a, b], defaultId: 'b'),
-          )).defaultId,
-          'a',
-        );
-
+      test('without change times: a default on one side only stays, two '
+          'different ones are decided the same way on both devices', () async {
         await repository.replaceAll(const PresetCollection(presets: [a, b]));
         expect(
           (await repository.mergeBackup(
@@ -502,6 +536,52 @@ void main() {
           )).defaultId,
           'b',
         );
+        await repository.replaceAll(
+          const PresetCollection(presets: [a, b], defaultId: 'a'),
+        );
+        final kept = await repository.mergeBackup(
+          const PresetCollection(presets: [a, b]),
+        );
+        expect(kept.defaultId, 'a');
+        expect(kept.defaultUpdatedAt, isNull);
+
+        final expected = tieBreak('a', 'b') ? 'b' : 'a';
+        await repository.replaceAll(
+          const PresetCollection(presets: [a, b], defaultId: 'a'),
+        );
+        final here = await repository.mergeBackup(
+          const PresetCollection(presets: [a, b], defaultId: 'b'),
+        );
+        await repository.replaceAll(
+          const PresetCollection(presets: [a, b], defaultId: 'b'),
+        );
+        final there = await repository.mergeBackup(
+          const PresetCollection(presets: [a, b], defaultId: 'a'),
+        );
+        expect(here.defaultId, expected);
+        expect(there.defaultId, expected);
+        expect(here.defaultUpdatedAt, resolvedChangeTime);
+      });
+
+      test('without change times, two conflicting orders are decided the '
+          'same way on both devices', () async {
+        const c = Preset(id: 'c');
+        Future<PresetCollection> merge(
+          List<Preset> local,
+          List<Preset> other,
+        ) async {
+          await repository.replaceAll(PresetCollection(presets: local));
+          return await repository.mergeBackup(PresetCollection(presets: other));
+        }
+
+        final here = await merge(const [a, b, c], const [c, b, a]);
+        final there = await merge(const [c, b, a], const [a, b, c]);
+        expect(here.presets.map((p) => p.id), there.presets.map((p) => p.id));
+        expect(here.orderUpdatedAt, resolvedChangeTime);
+        // The same relative order is no conflict: this device's stays.
+        final same = await merge(const [a, c], const [a, b, c]);
+        expect(same.presets.map((p) => p.id), ['a', 'b', 'c']);
+        expect(same.orderUpdatedAt, isNull);
       });
 
       test('clears a default that was deleted', () async {

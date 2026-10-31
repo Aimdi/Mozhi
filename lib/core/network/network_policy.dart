@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:mozhi/core/network/http_client_factory.dart';
+import 'package:mozhi/core/network/tailnet_resolver.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -8,7 +9,19 @@ import 'package:translation_repository/translation_repository.dart';
 /// private network, Tor `.onion` and I2P `.i2p` hosts
 /// ([DataDestination.isPrivateHost]). Anything else must use `https`.
 /// Always true for other schemes.
+///
+/// For the addresses the user enters: a Tailscale `.ts.net` name that was
+/// not looked up yet ([TailnetHosts.isKnown]) is accepted too, since it may
+/// be on the tailnet. Requests are held to [isCleartextAllowedNow] after
+/// the lookup ([NetworkPolicy.check]), which refuses it when it turned out
+/// public (a Funnel name) or could not be looked up.
 bool isCleartextAllowed(Uri uri) =>
+    isCleartextAllowedNow(uri) ||
+    (TailnetHosts.isTailnetName(uri.host) && !TailnetHosts.isKnown(uri.host));
+
+/// [isCleartextAllowed] for a request about to be sent: a Tailscale name
+/// only when it is known to lead to the tailnet.
+bool isCleartextAllowedNow(Uri uri) =>
     !uri.isScheme('http') || DataDestination.isPrivateHost(uri.host);
 
 /// Whether [host] is a Tor `.onion` or I2P `.i2p` name, which only a proxy
@@ -41,7 +54,7 @@ class NetworkPolicy {
     if (hiddenServicesNeedProxy && !hasProxy && isHiddenServiceHost(url.host)) {
       throw ProxyRequiredException(_redact(url));
     }
-    if (!isCleartextAllowed(url)) {
+    if (!isCleartextAllowedNow(url)) {
       throw CleartextRefusedException(_redact(url));
     }
   }
@@ -143,7 +156,8 @@ class RedirectRefusedException extends http.ClientException {
 /// * a downgrade from `https` to `http`,
 /// * a hop from a public server to a private host
 ///   ([DataDestination.isPrivateHost]: this device, the local network, a
-///   Tailscale name, `.onion` or `.i2p`), or from a `.onion` or `.i2p`
+///   Tailscale name on a tailnet, `.onion` or `.i2p`; also any Tailscale
+///   `.ts.net` name), or from a `.onion` or `.i2p`
 ///   server to this device or the local network: such hosts are reached
 ///   around the proxy, so the redirect would probe the user's network or
 ///   reveal their address.
@@ -155,16 +169,30 @@ class RedirectRefusedException extends http.ClientException {
 /// that of the last hop: its `request` is that hop's request and it is an
 /// [http.BaseResponseWithUrl] with that hop's URL.
 ///
+/// A Tailscale `.ts.net` name is private only when it resolves to
+/// Tailscale's addresses ([TailnetHosts]) while the device has a Tailscale
+/// interface: it is checked and, after [TailnetHosts.ttl], looked up again
+/// ([TailnetResolver.resolve], or the client's own lookup) before the
+/// [policy] is applied to it, and the connection goes to the address that
+/// was checked (`routeConnections`). A redirect from a public server to any
+/// `.ts.net` name is refused without a lookup.
+///
 /// Other requests (POST, `followRedirects: false`, which the backend
 /// clients use to follow redirects manually or not at all) pass through
 /// unchanged; `dart:io` never follows a POST by itself. In a browser
 /// everything passes through: `fetch` follows redirects itself, cannot hand
 /// them over, and refuses `https` pages loading plain `http`.
 class BackendHttpClient extends http.BaseClient {
-  new(this._inner, {required this.policy});
+  /// `resolveHost` looks Tailscale names up (default:
+  /// [TailnetResolver.instance]'s [TailnetResolver.resolve]).
+  new(this._inner, {required this.policy, this._resolveHost});
 
   final http.Client _inner;
   final NetworkPolicy policy;
+  final Future<void> Function(String host)? _resolveHost;
+
+  Future<void> _resolve(String host) =>
+      (_resolveHost ?? TailnetResolver.instance.resolve)(host);
 
   /// Headers that are never sent to a backend.
   static const strippedHeaders = ['cookie', 'cookie2', 'referer'];
@@ -178,6 +206,7 @@ class BackendHttpClient extends http.BaseClient {
 
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    await _resolve(request.url.host);
     policy.check(request.url);
     // BaseRequest.headers ignores the case of names.
     strippedHeaders.forEach(request.headers.remove);
@@ -213,7 +242,7 @@ class BackendHttpClient extends http.BaseClient {
       if (redirects >= limit) {
         throw http.ClientException('Redirect limit exceeded', _redact(hop.url));
       }
-      _checkRedirect(hop.url, target);
+      await _checkRedirect(hop.url, target);
       if (!_isSameOrigin(hop.url, target)) {
         headers.removeWhere((name, _) => name.toLowerCase() == 'authorization');
       }
@@ -233,10 +262,16 @@ class BackendHttpClient extends http.BaseClient {
 
   /// Throws when a redirect from [from] to [to] must not be followed: the
   /// [policy]'s exceptions, or a [RedirectRefusedException].
-  void _checkRedirect(Uri from, Uri to) {
+  Future<void> _checkRedirect(Uri from, Uri to) async {
     if (!(to.isScheme('http') || to.isScheme('https')) || to.host.isEmpty) {
       throw RedirectRefusedException.unsupported(_redact(to));
     }
+    // It may be on a tailnet: not worth a lookup.
+    if (TailnetHosts.isTailnetName(to.host) &&
+        !DataDestination.isPrivateHost(from.host)) {
+      throw RedirectRefusedException.intoPrivateNetwork(_redact(to));
+    }
+    await _resolve(to.host);
     policy.check(to);
     if (from.isScheme('https') && to.isScheme('http')) {
       throw RedirectRefusedException.downgrade(_redact(to));
@@ -300,9 +335,11 @@ class _RedirectedResponse extends http.StreamedResponse
 /// and `Referer` headers are stripped. [close] does nothing: the owner of
 /// the wrapped client (`NetworkSession`) closes it.
 class WebsiteHttpClient extends http.BaseClient {
-  new(this._inner, {required this.policy});
+  /// `resolveHost`: as for [BackendHttpClient].
+  new(this._inner, {required this.policy, this._resolveHost});
 
   final http.Client _inner;
+  final Future<void> Function(String host)? _resolveHost;
 
   /// Only its proxy rule for `.onion` and `.i2p` applies.
   final NetworkPolicy policy;
@@ -314,6 +351,9 @@ class WebsiteHttpClient extends http.BaseClient {
         isHiddenServiceHost(request.url.host)) {
       throw ProxyRequiredException(_redact(request.url));
     }
+    // Whether it goes through the proxy depends on where a Tailscale name
+    // leads.
+    await (_resolveHost ?? TailnetResolver.instance.resolve)(request.url.host);
     BackendHttpClient.strippedHeaders.forEach(request.headers.remove);
     return await _inner.send(request);
   }

@@ -247,6 +247,187 @@ void main() {
     });
   });
 
+  group('cancelInstall', () {
+    test('stops a download mid-stream and installs nothing', () async {
+      server.stallAfter = 1000;
+      final install = manager.install(deu.language);
+      await server.stalled.future;
+
+      await manager.cancelInstall('deu');
+
+      await expectLater(
+        install,
+        throwsA(
+          isA<TessdataDownloadCancelledException>()
+              .having((e) => e.language, 'language', 'deu')
+              .having(
+                (e) => e.toString(),
+                'toString',
+                'TessdataDownloadCancelledException(deu)',
+              ),
+        ),
+      );
+      expect(server.closedStalls, 1);
+      expect(await manager.installed(), isEmpty);
+      expect(File(dataPath('deu')).existsSync(), isFalse);
+      expect(File(recordPath('deu')).existsSync(), isFalse);
+      // Kept for resuming.
+      expect(part('deu').lengthSync(), 1000);
+    });
+
+    test('the next install resumes what a cancelled one received', () async {
+      server.stallAfter = 1000;
+      final install = manager.install(deu.language);
+      await server.stalled.future;
+      await manager.cancelInstall('deu');
+      await expectLater(
+        install,
+        throwsA(isA<TessdataDownloadCancelledException>()),
+      );
+
+      final progress = <int>[];
+      await manager.install(
+        deu.language,
+        onProgress: (update) => progress.add(update.receivedBytes),
+      );
+      expect(server.requests.last.headers['Range'], 'bytes=1000-');
+      expect(progress.first, 1000);
+      expect(File(dataPath('deu')).readAsBytesSync(), deu.bytes);
+    });
+
+    test('aborts a request still waiting for its answer', () async {
+      server.hang = true;
+      final install = manager.install(deu.language);
+      await pumpEventQueue();
+      expect(server.requests, hasLength(1));
+      expect(server.requests.single, isA<http.Abortable>());
+
+      await manager.cancelInstall('deu');
+
+      await expectLater(
+        install,
+        throwsA(isA<TessdataDownloadCancelledException>()),
+      );
+      // No other URL is tried.
+      expect(server.requests, hasLength(1));
+      expect(await manager.installed(), isEmpty);
+    });
+
+    test('stops every caller sharing the download', () async {
+      server.stallAfter = 1000;
+      final first = manager.install(deu.language);
+      final second = manager.install(deu.language);
+      await server.stalled.future;
+      await manager.cancelInstall('deu');
+      await expectLater(
+        first,
+        throwsA(isA<TessdataDownloadCancelledException>()),
+      );
+      await expectLater(
+        second,
+        throwsA(isA<TessdataDownloadCancelledException>()),
+      );
+      expect(server.requests, hasLength(1));
+    });
+
+    test('an install after a cancel starts once it has stopped', () async {
+      server.stallAfter = 1000;
+      final cancelled = manager.install(deu.language);
+      await server.stalled.future;
+      final stopping = manager.cancelInstall('deu');
+      final again = manager.install(deu.language);
+
+      await expectLater(
+        cancelled,
+        throwsA(isA<TessdataDownloadCancelledException>()),
+      );
+      await stopping;
+      final installed = await again;
+      expect(installed.sha256, deu.language.sha256);
+      expect(server.requests, hasLength(2));
+      expect(server.requests.last.headers['Range'], 'bytes=1000-');
+    });
+
+    test('leaves other languages alone', () async {
+      server.stallAfter = 1000;
+      final german = manager.install(deu.language);
+      await server.stalled.future;
+      await manager.cancelInstall('eng');
+      expect(server.closedStalls, 0);
+      await manager.cancelInstall('deu');
+      await expectLater(
+        german,
+        throwsA(isA<TessdataDownloadCancelledException>()),
+      );
+    });
+
+    test('does nothing when no download runs', () async {
+      await manager.cancelInstall('deu');
+      await manager.install(deu.language);
+      await manager.cancelInstall('deu');
+      expect(await manager.isInstalled(deu.language), isTrue);
+    });
+
+    test('an import is not stopped', () async {
+      final copy = File(p.join(root.path, 'deu.traineddata'))
+        ..writeAsBytesSync(deu.bytes);
+      final import = manager.importFiles([copy], catalog: fakeCatalog([deu]));
+      await manager.cancelInstall('deu');
+      final result = await import;
+      expect(result.installed, [deu.language]);
+    });
+  });
+
+  group('resume', () {
+    test(
+      'restarts when the Content-Range is not the rest of the file',
+      () async {
+        server.cutAfter = 1000;
+        await expectLater(
+          manager.install(deu.language),
+          throwsA(isA<TessdataDownloadException>()),
+        );
+        server.contentRange =
+            'bytes 0-${deu.bytes.length - 1}/'
+            '${deu.bytes.length}';
+
+        await manager.install(deu.language);
+
+        expect(server.requests[1].headers['Range'], 'bytes=1000-');
+        expect(server.requests[2].headers['Range'], isNull);
+        expect(File(dataPath('deu')).readAsBytesSync(), deu.bytes);
+      },
+    );
+
+    test('accepts an unknown total size', () async {
+      server.cutAfter = 1000;
+      await expectLater(
+        manager.install(deu.language),
+        throwsA(isA<TessdataDownloadException>()),
+      );
+      server.contentRange = 'bytes 1000-${deu.bytes.length - 1}/*';
+
+      await manager.install(deu.language);
+
+      expect(server.requests, hasLength(2));
+      expect(File(dataPath('deu')).readAsBytesSync(), deu.bytes);
+    });
+
+    test('restarts without a Content-Range', () async {
+      server.cutAfter = 1000;
+      await expectLater(
+        manager.install(deu.language),
+        throwsA(isA<TessdataDownloadException>()),
+      );
+      server.contentRange = '';
+
+      await manager.install(deu.language);
+
+      expect(server.requests, hasLength(3));
+      expect(File(dataPath('deu')).readAsBytesSync(), deu.bytes);
+    });
+  });
+
   group('mirror', () {
     final mirror = Uri.parse('https://mirror.test/models/');
     String copyOf(FakeTessdata data) =>

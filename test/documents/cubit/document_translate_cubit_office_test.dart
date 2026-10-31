@@ -394,6 +394,20 @@ void main() {
       expect(parsed.last, (DocumentFormat.po, null));
     });
 
+    test('a paragraph with too many protected spans is refused', () {
+      ParsedDocument parser(
+        String text,
+        DocumentFormat format, {
+        String? targetLanguage,
+      }) => throw const TooManyPlaceholdersException();
+
+      for (final name in ['notes.txt', 'app.json']) {
+        final cubit = build(parser: parser)..loadFile(name, bytesOf('Hello'));
+        expect(cubit.state.error, DocumentError.unsafeFile, reason: name);
+        expect(cubit.state.document, isNull);
+      }
+    });
+
     test('other formats are parsed once', () {
       build(parser: fakeParser)
         ..loadFile('notes.txt', bytesOf('Hello'))

@@ -3,6 +3,56 @@
 All notable changes to Mozhi, by release tag on GitHub (pre-releases end
 in `-rc.N`).
 
+## 0.1.0-rc.8
+
+### Added
+
+- **Cancel any download:** text recognition languages and dictionary
+  packs can now be cancelled too, and the language picker's download has
+  a Cancel. A cancelled text recognition download resumes where it
+  stopped.
+- **Retry where it was missing:** Listen in quick translate and the voice
+  preview in Settings offer Retry when the volunteer servers fail. A
+  retry in Conversation uses the one-time approval you already gave for
+  that text, instead of asking again.
+- **The manual download lists** show the links Mozhi actually downloads
+  from (your model source), with the publisher's link as a fallback.
+
+### Changed
+
+- **Sync keeps every device's data straight:**
+  - Devices with different **Delete history automatically** settings no
+    longer keep re-uploading what the other dropped, and nothing is
+    deleted on the device that keeps history longer.
+  - An edit made while a sync is merging is kept.
+  - Presets and glossaries that two devices hold in different versions
+    settle on the same one.
+  - An AI provider from another device that shares an id with a different
+    one here is added under its own id, instead of being dropped or taking
+    the other's place; a provider you removed isn't added back.
+- **Phone to phone** stays responsive during large transfers (encryption
+  runs off the screen's thread), sends language packs compressed (to
+  phones on this version), and lets a phone through even while many
+  connection attempts arrive from other addresses.
+- **Shared conversation** tells guests apart by a cookie, so the limits
+  apply per guest and not only per address.
+
+### Fixed
+
+- **Tailscale Funnel addresses** (public `.ts.net` names) were treated as
+  private, so text went to them without the proxy, the consent or the
+  https rule. A `.ts.net` name now counts as private only when it leads
+  into the tailnet (looked up on the phone, never in **Offline only**),
+  and a public server can't redirect into the tailnet.
+- A connection given up while connecting through a proxy is closed at
+  once instead of staying open.
+- AI replies made mostly of brackets are searched for their answer in
+  linear time instead of giving up.
+- A document paragraph with more than 999,999 placeholders is refused
+  instead of leaking placeholder text into the result.
+- First run: when your phone's language is the target, the language you
+  picked earlier in setup is suggested for download.
+
 ## 0.1.0-rc.7
 
 ### Added

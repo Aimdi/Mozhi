@@ -97,6 +97,17 @@ typedef ConversationTimerFactory = Timer Function(
 ///   [ConversationSessionFailed].
 /// * A translation that needs consent or fails pauses the session at that
 ///   turn; [retry] (after consent) continues it.
+/// * The one-time approval ("Once") the user gave for a turn's text is
+///   used by the retry that follows it. When that retry then fails in
+///   another way (a server down), the next [retry] of the same turn may use
+///   that approval once more, so the user is not asked again for the same
+///   text going to the same place: only for the same text, engine and
+///   destination, only while no other translation runs, only once, and
+///   only within `TranslationRepository.consentOnceLifetime` of the retry
+///   it was given for (as long as the approval itself lasts; a retry later
+///   asks again). It is withdrawn (`TranslationRepository.revokeOnce`) as
+///   soon as that retry ends or another translation starts, so it never
+///   lets other text through.
 /// * The cubit owns the recogniser and disposes it in [close].
 class ConversationCubit extends Cubit<ConversationState> {
   new({
@@ -178,6 +189,15 @@ class ConversationCubit extends Cubit<ConversationState> {
   final int contextTurns;
 
   final Map<int, _TranslationJob> _jobs = {};
+
+  /// Per turn, the one-time approval of a retry that then failed in
+  /// another way: the turn's next [retry] may use it once more.
+  final Map<int, _OnceConsent> _onceConsents = {};
+
+  /// The approval left in the repository for the retry of a turn in
+  /// flight; withdrawn once that ends or another translation starts.
+  ({int turnId, ConsentRequiredException consent})? _retryGrant;
+
   late final StreamSubscription<String?> _speaking;
   int _nextId = 0;
 
@@ -381,9 +401,21 @@ class ConversationCubit extends Cubit<ConversationState> {
   /// Translates a failed turn again with the current engine. When the
   /// hands-free conversation paused at this turn (consent, a failed
   /// translation), it continues with it.
+  ///
+  /// A turn stopped for consent is retried once the user gave it (the
+  /// prompt records it in the repository, e.g. "Once"). When that retry
+  /// fails in another way, the next retry of the turn uses the same
+  /// one-time approval again, once (see the class documentation).
   Future<void> retry(int turnId) {
     final turn = state.turnById(turnId);
     if (turn == null || !turn.isFailed || isClosed) return Future.value();
+    final asked = switch (turn.error) {
+      final ConsentRequiredException consent => consent,
+      _ => null,
+    };
+    // Used at most once more, by this retry.
+    final kept = _onceConsents.remove(turnId);
+    final givenAt = _clock();
     final engine = _engine();
     final reset = _updateTurn(
       turnId,
@@ -416,10 +448,87 @@ class ConversationCubit extends Cubit<ConversationState> {
         ),
       );
     }
-    return _translate(reset, engine);
+    _withdrawRetryGrant();
+    final ConsentRequiredException? grant;
+    if (asked != null) {
+      // Given by the user just now.
+      grant = asked;
+    } else if (kept != null && _mayReuse(kept, reset, engine)) {
+      _repository.allowOnce(kept.consent);
+      grant = kept.consent;
+    } else {
+      grant = null;
+    }
+    if (grant == null) return _translate(reset, engine);
+    final retryGrant = (turnId: turnId, consent: grant);
+    _retryGrant = retryGrant;
+    return _translate(reset, engine).then((_) {
+      if (identical(_retryGrant, retryGrant)) _withdrawRetryGrant();
+      // Only an approval the user just gave is kept, so it is used at
+      // most twice (this retry and one more) and never more.
+      if (asked == null || isClosed) return;
+      final after = state.turnById(turnId);
+      if (after == null ||
+          !after.isFailed ||
+          after.error is ConsentRequiredException ||
+          after.original != reset.original) {
+        return;
+      }
+      _onceConsents[turnId] = _OnceConsent(
+        consent: asked,
+        engineId: engine.id,
+        text: reset.original,
+        givenAt: givenAt,
+      );
+    });
+  }
+
+  /// Whether the approval [kept] for [turn] may be used again for its
+  /// retry with [engine]: the same text and engine, the same destination
+  /// as when the user gave it (e.g. not another Mozhi instance), no other
+  /// translation running that could take it first, and less than
+  /// [TranslationRepository.consentOnceLifetime] since it was given.
+  bool _mayReuse(
+    _OnceConsent kept,
+    ConversationTurn turn,
+    TranslationEngine engine,
+  ) {
+    final consent = kept.consent;
+    final age = _clock().difference(kept.givenAt);
+    if (consent.kind == ConsentKind.offlineOnly ||
+        age.isNegative ||
+        age >= TranslationRepository.consentOnceLifetime ||
+        _jobs.isNotEmpty ||
+        turn.original != kept.text ||
+        engine.id != kept.engineId) {
+      return false;
+    }
+    try {
+      return _repository.destinationOf(consent.engineId) == consent.destination;
+    } on Object {
+      // Unknown now: ask again.
+      return false;
+    }
+  }
+
+  /// Withdraws the approval of the retry in flight ([_retryGrant]), if
+  /// any; nothing happens when its request used it.
+  void _withdrawRetryGrant() {
+    final grant = _retryGrant;
+    _retryGrant = null;
+    if (grant == null) return;
+    try {
+      _repository.revokeOnce(grant.consent);
+    } on Object {
+      // A repository test double without privacy settings.
+    }
   }
 
   Future<void> _translate(ConversationTurn turn, TranslationEngine engine) {
+    // Another translation must not take the approval of a retry.
+    if (_retryGrant case (:final turnId, consent: _) when turnId != turn.id) {
+      _withdrawRetryGrant();
+    }
     final request = TranslationRequest(
       text: turn.original,
       source: _resolve(turn.source),
@@ -633,6 +742,7 @@ class ConversationCubit extends Cubit<ConversationState> {
         speakingTurnId: speaking ? () => null : null,
       ),
     );
+    _onceConsents.remove(turnId);
     await _jobs.remove(turnId)?.cancel();
     if (session is ConversationSessionTranslating &&
         session.turnId == turnId &&
@@ -646,6 +756,8 @@ class ConversationCubit extends Cubit<ConversationState> {
   /// stops the hands-free conversation.
   Future<void> clear() async {
     await stopSession();
+    _onceConsents.clear();
+    _withdrawRetryGrant();
     final jobs = _jobs.values.toList();
     _jobs.clear();
     final speaking = state.speakingTurnId != null;
@@ -1261,6 +1373,8 @@ class ConversationCubit extends Cubit<ConversationState> {
     // (and be read aloud) while closing.
     final cancelled = [for (final job in _jobs.values) job.cancel()];
     _jobs.clear();
+    _onceConsents.clear();
+    _withdrawRetryGrant();
     final speaking =
         state.speakingTurnId != null ||
         _speakPending ||
@@ -1271,6 +1385,24 @@ class ConversationCubit extends Cubit<ConversationState> {
     if (speaking) await _stopSpeech();
     await super.close();
   }
+}
+
+/// A one-time approval the user gave for [text] going to the engine
+/// [engineId] (see [ConversationCubit.retry]).
+class _OnceConsent {
+  const new({
+    required this.consent,
+    required this.engineId,
+    required this.text,
+    required this.givenAt,
+  });
+
+  final ConsentRequiredException consent;
+  final String engineId;
+  final String text;
+
+  /// When the user gave it (the retry it was given for started).
+  final DateTime givenAt;
 }
 
 /// A translation in flight.

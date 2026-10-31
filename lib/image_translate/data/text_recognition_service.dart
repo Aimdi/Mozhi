@@ -60,6 +60,22 @@ abstract interface class TextRecognitionLanguageData {
   Stream<void> get ocrLanguagesChanged;
 }
 
+/// [TextRecognitionLanguageData] whose downloads can be stopped (the
+/// default build's Tesseract). Callers check for it
+/// (`data is CancellableOcrDownloads`) and offer no Cancel otherwise.
+abstract interface class CancellableOcrDownloads
+    implements TextRecognitionLanguageData {
+  /// Stops every running [TextRecognitionLanguageData.downloadOcrLanguage]
+  /// of [code]: the request is closed, nothing is installed, and those
+  /// calls fail with `OfflineDownloadCancelledException`. What was
+  /// received may be kept (never as installed data) so that the next
+  /// download of [code] resumes it.
+  ///
+  /// Completes once those downloads have stopped; does nothing when none
+  /// runs. Never throws.
+  Future<void> cancelOcrDownload(String code);
+}
+
 /// Text recognised in an image, with how sure the recognizer is and,
 /// when it reports it, where the text is.
 @immutable

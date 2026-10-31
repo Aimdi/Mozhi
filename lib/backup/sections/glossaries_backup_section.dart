@@ -16,8 +16,9 @@ import 'package:mozhi/presets/models/glossary.dart';
 /// ([GlossaryRepository.mergeBackup]) keeps the newer copy of each
 /// glossary, lets tombstones delete older copies, and takes the order from
 /// the copy reordered last; glossaries without change times (version 1, or
-/// not changed since) lose to every change and deletion, and on a tie this
-/// device's copy stays.
+/// not changed since) lose to every change and deletion, and a tie between
+/// two different copies is decided the same way on every device (by a
+/// hash of their contents, see [GlossaryRepository.mergeBackup]).
 class GlossariesBackupSection implements BackupSection, BackupItemCounter {
   const new(this._repository);
 

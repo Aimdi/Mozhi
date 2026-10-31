@@ -5,8 +5,10 @@ import 'package:mozhi/l10n/l10n.dart';
 
 /// The guest page of a shared conversation: one small self-contained page
 /// (this HTML, [guestPageCss] and [guestPageScript], served by the host's
-/// phone; nothing from anywhere else, no cookies), which works in any
-/// modern mobile browser.
+/// phone; nothing from anywhere else), which works in any modern mobile
+/// browser. Its requests carry the device cookie the server sets (see
+/// `IoShareServer`), and nothing else is stored but the guest's session in
+/// the tab's `sessionStorage`.
 ///
 /// Guests pick their language (and enter the PIN), then follow the
 /// conversation in their language over Server-Sent Events, and may reply.
@@ -295,7 +297,7 @@ const guestPageScript = r'''
     if (session) { headers['X-Mozhi-Guest'] = session.guest; headers['X-Mozhi-Key'] = session.key; }
     return fetch(base + '/api/' + path, {
       method: 'POST', headers: headers, body: JSON.stringify(body || {}),
-      cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer'
+      cache: 'no-store', credentials: 'same-origin', referrerPolicy: 'no-referrer'
     }).then(function (response) {
       return response.json().catch(function () { return {}; }).then(function (data) {
         return { ok: response.ok, code: response.status, body: data };
@@ -323,7 +325,7 @@ const guestPageScript = r'''
   // The update stream was refused: the guest is unknown (removed after a
   // long absence) or the conversation is gone.
   function check() {
-    fetch(base + '/api/hello', { cache: 'no-store', credentials: 'omit' }).then(function (response) {
+    fetch(base + '/api/hello', { cache: 'no-store', credentials: 'same-origin' }).then(function (response) {
       if (response.status === 200) rejoin(); else end();
     }, function () {
       setStatus(t('unreachable'));

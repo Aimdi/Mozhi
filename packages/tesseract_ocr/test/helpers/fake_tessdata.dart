@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
@@ -60,9 +61,26 @@ class FakeTessdataServer {
   /// Throws on [http.Client.send] (no connection).
   bool offline = false;
 
+  /// Sends this many bytes of a response, then nothing more until the
+  /// response is closed (a slow connection); [stalled] completes then.
+  int? stallAfter;
+
+  /// Completes once a response stalled ([stallAfter]).
+  Completer<void> stalled = Completer<void>();
+
+  /// How many stalled responses were closed by the client.
+  int closedStalls = 0;
+
+  /// The `Content-Range` of `206` answers; null sends the right one.
+  String? contentRange;
+
+  /// Never answers [http.Client.send] (a server that does not respond).
+  bool hang = false;
+
   late final http.Client client = MockClient.streaming((request, _) async {
     requests.add(request);
     if (offline) throw const SocketException('Network is unreachable');
+    if (hang) return await Completer<http.StreamedResponse>().future;
     final url = request.url.toString();
     final status = failures[url];
     if (status != null) {
@@ -80,10 +98,37 @@ class FakeTessdataServer {
       code = 206;
     }
     final bytes = Uint8List.fromList(body.sublist(start));
+    final headers = {
+      if (code == 206)
+        'content-range':
+            contentRange ?? 'bytes $start-${body.length - 1}/${body.length}',
+    };
+    final stall = stallAfter;
+    if (stall != null && stall < bytes.length) {
+      stallAfter = null;
+      late final StreamController<List<int>> controller;
+      controller = StreamController<List<int>>(
+        onListen: () {
+          controller.add(bytes.sublist(0, stall));
+          if (!stalled.isCompleted) stalled.complete();
+        },
+        onCancel: () => closedStalls++,
+      );
+      return http.StreamedResponse(
+        controller.stream,
+        code,
+        contentLength: bytes.length,
+        headers: headers,
+      );
+    }
     final cut = cutAfter;
     if (cut != null && cut < bytes.length) {
       cutAfter = null;
-      return http.StreamedResponse(_thenFail(bytes.sublist(0, cut)), code);
+      return http.StreamedResponse(
+        _thenFail(bytes.sublist(0, cut)),
+        code,
+        headers: headers,
+      );
     }
     return http.StreamedResponse(
       Stream.fromIterable([
@@ -92,6 +137,7 @@ class FakeTessdataServer {
       ]),
       code,
       contentLength: bytes.length,
+      headers: headers,
     );
   });
 

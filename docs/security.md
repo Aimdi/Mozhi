@@ -101,7 +101,11 @@ pick ones you trust, or self-host them ([guide](self-hosting-mozhi.md)).
   without asking), and providers it adds are used only once chosen
   (consents and engine choices left for their id are dropped, and those
   that need no consent of their own, on a private network or
-  LibreTranslate, come turned off). Replace
+  LibreTranslate, come turned off). A provider id never moves to another
+  server: Merge doesn't add back a provider removed on this device
+  (remembered by id and a hash of its server), and adds one on another
+  server than this device's provider, or removed provider, of that id
+  under an id of its own. Replace
   takes the backup's providers and instances, as the user chose; the
   review and the result list every provider and instance a restore adds,
   by host. Custom headers can't replace the key's auth header
@@ -266,11 +270,77 @@ pick ones you trust, or self-host them ([guide](self-hosting-mozhi.md)).
   too; `dart:io`'s own proxy support would time only the connection to
   the proxy. A proxy that answers with anything but `200`, or sends data
   before the TLS handshake, is refused. Without a proxy, `.onion` and
-  `.i2p` addresses are refused before a DNS lookup. One known limit: a
-  connection given up during the TLS handshake through the tunnel (a
-  server that never answers TLS) stays open until the server or the proxy
-  closes it, because `dart:io` offers no way to close a socket while it
-  is being secured; it has carried nothing but the handshake.
+  `.i2p` addresses are refused before a DNS lookup. A connection given up
+  during the TLS handshake through the tunnel (a server that never answers
+  TLS, the timeout passed or the request cancelled) is closed at once:
+  `dart:io` can't close a `Socket` once TLS has taken it over, so the
+  tunnel (`lib/core/network/http_proxy_tunnel.dart`) is opened on a
+  `RawSocket` that it closes itself until the handshake is done, and wraps
+  the resulting `RawSecureSocket` as the `SecureSocket` the HTTP client
+  uses.
+- **Tailscale names** (`*.ts.net`) are not private by name: a Tailscale
+  Funnel name resolves to Tailscale's public relays, which anyone on the
+  internet reaches, and once Tailscale is off the network's own resolver
+  answers for `ts.net` with whatever address it likes. A `.ts.net` host
+  counts as private (direct connection around the proxy, plain `http`
+  allowed, shown and asked about as your own server) only while all of
+  this holds (`TailnetResolver`, `lib/core/network/tailnet_resolver.dart`):
+
+  - **The phone is on its tailnet.** It has a Tailscale interface: an
+    address in `fd7a:115c:a1e0::/48` (Tailscale's own IPv6 range, which
+    carriers don't use; on Android Tailscale's interface is a `tun`), or
+    an interface named `tailscale…` with an address in `100.64.0.0/10`. A
+    `100.64.0.0/10` address on any other interface doesn't count: that is
+    also the range mobile carriers use for CGNAT. This is checked again
+    for every request, the answer reused for at most 2 seconds. Without a
+    Tailscale interface no `.ts.net` name is looked up for this check and
+    every one is public (a request resolves it like any public name, or
+    the proxy does); whenever the phone's Tailscale addresses change (Tailscale
+    turned on or off, another tailnet) every earlier answer is forgotten.
+  - **A recent lookup returned only Tailscale's addresses**
+    (`100.64.0.0/10`, `fd7a:115c:a1e0::/48`). An answer is used for 60
+    seconds, then the name is looked up again before the next request; a
+    failed or slow (over 5 seconds) lookup, or any other answer, makes the
+    name public.
+
+  The lookups run before every backend request and in the connection
+  factory of every connection, and for the configured servers at start.
+  The connection then goes to **the very address that was checked**
+  instead of resolving the name a second time (an `fd7a:` address first
+  when the phone has one): with a connection factory, `dart:io` uses the
+  socket the app returns as it is and adds no TLS of its own, so for
+  `https` the app opens the connection to that address and runs TLS with
+  the name itself (SNI and the certificate check use the name, never the
+  address); the `Host` header always carries the name. A private name
+  without a checked address fails to connect rather than being resolved.
+  The lookup uses the system's resolver (Tailscale's MagicDNS while
+  Tailscale is on), not the proxy, which therefore learns the name (as it
+  would without a proxy). A redirect from a public server to any `.ts.net`
+  name is refused without a lookup. Settings accept `http://` for a
+  `.ts.net` name that wasn't looked up yet (it may be on the tailnet); its
+  requests are refused unless it is. The web app does no lookups (a
+  browser can't see the interfaces or resolve names): there every
+  `.ts.net` name is public. **Offline only** looks nothing up.
+
+  What remains: the interface check is a few seconds old at most, so a
+  request in the seconds right after Tailscale is turned off may still be
+  sent directly (and over plain `http`, if the server uses it) to the
+  checked `100.64.0.0/10` or `fd7a:` address, which the network then routes,
+  a hostile network included. A connection to the checked address that is
+  kept open (idle connections stay open for 90 seconds) may be reused after
+  a later check found Tailscale off; for plain `http` the network policy
+  refuses the request first, so only `https` connections, whose certificate
+  was checked for the name, are reused that way. The translation screen and
+  the consent prompts use the last answer, so text may be sent without the
+  consent a public server needs when, between two lookups, a name stopped
+  leading to the tailnet; the request itself is then checked again (`https`
+  only, through the proxy when there is one, the certificate checked for the
+  name). A tailnet answer is trusted only because the phone has a Tailscale
+  interface: while Tailscale is on, its client routes `100.64.0.0/10` and
+  `fd7a:115c:a1e0::/48` into its tunnel, so the checked address leads into
+  your tailnet even when a resolver other than MagicDNS gave it. A server
+  entered by its `100.64.0.0/10` address rather than a name is treated as
+  your network without these checks.
 - **Headers:** requests carry `User-Agent: Mozhi`, no cookies and no
   `Referer`; the web app's page sets `referrer` to `no-referrer`.
 - **Certificates:** the app never disables certificate checks. Release
@@ -287,8 +357,9 @@ pick ones you trust, or self-host them ([guide](self-hosting-mozhi.md)).
   (offline models, dictionaries) follow at most five redirects, to other
   public `https` servers too (download sites hand files to their CDNs),
   and the network policy checks every hop: never from `https` to `http`,
-  and never from a public server to this device, your local network or a
-  `.onion` or `.i2p` address (which would also go around the proxy).
+  and never from a public server to this device, your local network, a
+  Tailscale `.ts.net` name or a `.onion` or `.i2p` address (which would
+  also go around the proxy).
 - **WebDAV sync** uses HTTP Basic authentication, so it follows the same
   rule: `https`, or plain `http` only to this device, the local network
   and `.onion`. It never follows a redirect (the `Authorization` header
@@ -342,9 +413,10 @@ pick ones you trust, or self-host them ([guide](self-hosting-mozhi.md)).
 `lib/conversation/share/`) runs a `dart:io` HTTP server while you share.
 Threat model: the page travels as plain `http` over the local network, so
 **anyone on the same network who can capture traffic can read the
-conversation, the link and the PIN**, and could join; we don't try to hide
-that, the sharing page says so, and the hotspot (a network only your guests
-are on) is the recommended way. What we do protect against:
+conversation, the link and the PIN**, and could join, or act as a guest
+whose key and device cookie they captured; we don't try to hide that, the
+sharing page says so, and the hotspot (a network only your guests are on)
+is the recommended way. What we do protect against:
 
 - **Reach:** the server listens only on the phone's private IPv4 address
   (10/8, 172.16/12, 192.168/16, Wi-Fi first; not mobile data, VPN or CGNAT
@@ -355,9 +427,9 @@ are on) is the recommended way. What we do protect against:
 - **Guessing the link:** the path holds a 128-bit random token
   (`Random.secure`); a wrong token is a plain 404, compared in constant
   time. With the PIN (on by default), joining also needs 4 random digits:
-  5 wrong PINs a minute per address, and after 20 wrong PINs in all nobody
-  new can join until a new PIN is set. Each guest gets its own 128-bit key
-  for its requests.
+  5 wrong PINs a minute per device and 10 per address, and after 20 wrong
+  PINs in all nobody new can join until a new PIN is set. Each guest gets
+  its own 128-bit key for its requests.
 - **Web pages in a guest's browser** (CSRF, DNS rebinding): requests must
   carry the server's own address in `Host` (a rebound name is refused), and
   every change is a JSON `POST` with the guest's key in custom headers,
@@ -367,19 +439,30 @@ are on) is the recommended way. What we do protect against:
   in the app), served with `Content-Security-Policy: default-src 'none';
   script-src 'self'; style-src 'self'; connect-src 'self'` (no inline
   script, nothing from other hosts, no framing), `nosniff`,
-  `no-referrer`, `no-store` and no cookies. It only ever sets
+  `no-referrer`, `no-store` and one cookie, the device token (below:
+  `HttpOnly`, `SameSite=Strict`, only for the link's path, gone when the
+  browser closes; not a credential). It only ever sets
   `textContent`, so nothing the host or a guest types becomes markup;
   the configuration it embeds escapes `<`.
-- **Flooding:** at most 8 guests, 20 joins a minute in all (and 10 per
-  address), one update stream per guest; at most 64 open connections (16
-  per address; more are closed as soon as they open), idle ones closed
-  after 10 seconds; 120 requests a minute per address; request bodies of
-  4 KiB that must arrive within 10 seconds; replies of 500 characters,
-  one every 2 seconds and 12 a minute per device and 20 a minute from all
-  guests together, language changes 10 a minute per device and 30 in all
-  (a device is counted by its address, so leaving and joining again
-  doesn't reset them); guests whose page is gone for 45 seconds are
-  removed. An update stream holds at most one snapshot: while a page
+- **Telling guests apart:** each browser gets a random 128-bit device
+  token in a cookie with its first answer, and the limits below count per
+  device, so guests behind one router (one address) don't share them; the
+  per-address limits are a few devices' worth on top. A request without a
+  token the phone issued (none, or a made-up one) is a new device with a
+  new token, at most 20 new devices a minute per address and 100 in all;
+  beyond that such requests count as one device for their address. So
+  someone who throws the cookie away, or keeps changing addresses, is
+  still held back by the per-address and room-wide limits, and leaving and
+  joining again from one browser doesn't reset a device's limits.
+- **Flooding:** at most 8 guests, 20 joins a minute in all (10 per device
+  and 30 per address), one update stream per guest; at most 64 open
+  connections (16 per address; more are closed as soon as they open),
+  idle ones closed after 10 seconds; 120 requests a minute per device and
+  480 per address; request bodies of 4 KiB that must arrive within 10
+  seconds; replies of 500 characters, one every 2 seconds and 12 a minute
+  per device and 20 a minute from all guests together, language changes
+  10 a minute per device and 30 in all; guests whose page is gone for 45
+  seconds are removed. An update stream holds at most one snapshot: while a page
   hasn't taken in the last one, changes wait and go out as one, and a
   page that takes in nothing for 20 seconds is disconnected (it connects
   again by itself), so a guest that stops reading can't make the phone
@@ -421,7 +504,8 @@ or malicious. What protects you:
   as a wrong code: three from one address shut that address out, 30 in
   all burn the code. So one device can neither guess the secret nor burn
   the code for everyone, and timeouts or garbage, which prove nothing,
-  count for nothing.
+  count for nothing. Encrypting, decrypting, compressing and hashing run
+  on a background isolate, so a long transfer doesn't freeze the screen.
 - **Someone in the middle** who did see the code (over your shoulder)
   shows up in the six-digit number both phones display: the sender commits
   to its key before it sees the receiver's, so they get one try in a
@@ -432,7 +516,10 @@ or malicious. What protects you:
   SHA-256 (and SHA-1 for speech models) while it arrives and installs only
   through each manager's import path, which checks again; file names come
   from the receiver's catalogue, never from the sender, and nothing is
-  run. A backup goes through the normal restore (64 MiB at most, newer
+  run. File data may come compressed (only to a phone that says it takes
+  it): each frame is inflated on its own and refused once it would grow
+  past 256 KiB, before its size and hashes are checked, so a
+  decompression bomb gets nowhere. A backup goes through the normal restore (64 MiB at most, newer
   formats refused), limited to the sections the offer listed, which are
   the ones you see; a backup holding any other section, or API keys and
   passwords the offer didn't announce, is refused whole. It stays in
@@ -443,19 +530,34 @@ or malicious. What protects you:
 - **Reach and limits:** the receiver listens only on its private IPv4
   address, for one connection and five minutes, and closes connections
   from any other address; the sender only connects to private addresses
-  (a `mozhi://pair` link only fills in the code). A few connections may
-  set up at once, so a device that connects and stalls can't keep the
-  real phone out. Every frame's length is checked before it is read
-  (256 KiB at most), with one deadline for the key agreement and `hello`
-  (10 seconds in all), timeouts between frames (30 seconds) and for the
-  people deciding (10 minutes).
+  (a `mozhi://pair` link only fills in the code). Eight connections may
+  set up at once (two per address), so a device that connects and stalls
+  can't keep the real phone out; a newer one pushes out the oldest only
+  after it had 2 seconds, so a flood from many addresses can't push out a
+  phone in the middle of its key agreement (which takes well under a
+  second). At most 6 key agreements are started a minute per address and
+  30 in all for addresses that started one in that minute already;
+  connections beyond that are closed at once and counted nowhere, so a
+  flood makes the phone do little work (one key agreement per address and
+  minute beyond the 30). An address's first connection in a minute is
+  always taken on, so a few addresses can't use up the minute for the
+  real phone. Every frame's length is checked before
+  it is read (256 KiB at most), with one deadline for the key agreement
+  and `hello` (10 seconds in all), timeouts between frames (30 seconds)
+  and for the people deciding (10 minutes).
 - **What it doesn't hide:** the phones' addresses and the port (they are in
-  the code), and the sizes and timing of what goes across. Someone with
-  the code can still connect first: the real sender is then turned away
-  and has no number to show, so the receiving phone's question gets a
-  no (make a new code). A device that keeps opening connections faster
-  than a phone completes the key agreement can delay pairing, as can
-  anyone who floods or jams the network.
+  the code), and the sizes and timing of what goes across (with
+  compression, sizes also hint at how well each 64 KiB piece compressed).
+  Someone with the code can still connect first: the real sender is then
+  turned away and has no number to show, so the receiving phone's
+  question gets a no (make a new code). Devices that keep opening
+  connections from many addresses can hold pairing back while they do, by
+  keeping every place taken (the sending phone tries again after 1, 2, 4
+  and 8 seconds, then every 10 seconds, for as long as the code works or
+  until you cancel, when it is turned away before the key agreement; a
+  wrong code stops it at once); once they stop, pairing works again
+  within a minute.
+  Anyone who floods or jams the network can delay it too.
 
 ## Web page translator
 

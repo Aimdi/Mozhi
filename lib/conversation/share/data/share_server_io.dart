@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -39,13 +40,30 @@ bool get shareServerSupported => true;
 /// rebinding); POSTs must be JSON from the page's own origin (no
 /// cross-site requests); a wrong token is a plain 404; every response
 /// carries a strict Content-Security-Policy, `no-store` and
-/// `no-referrer`, and no cookies.
+/// `no-referrer`.
+///
+/// Guests' devices are told apart by a random token in an `HttpOnly`,
+/// `SameSite=Strict` session cookie limited to the link's path
+/// ([deviceCookie]), which the server sets on the first response to a
+/// browser without a valid one. It is not a credential (the guest's key
+/// is): it only lets the limits count per device rather than per
+/// address, so that guests sharing an address (behind one router) don't
+/// share their limits. A request without a token this server issued
+/// (none, or a forged one) is a new device and gets a new token: at most
+/// [maxNewDevicesPerAddressPerMinute] per address and
+/// [maxNewDevicesPerMinute] in all, beyond which such requests count for
+/// their address as one device. Someone who throws the cookie away is
+/// therefore still held back by the per-address and room-wide limits.
+///
 /// Limits: [maxRequestsPerMinute] requests and [maxJoinsPerMinute] joins
-/// (of which [maxWrongPinsPerMinute] wrong PINs) per address, request
-/// bodies of [maxBodyBytes] arriving within `bodyTimeout`, one update
-/// stream per guest, and at most `maxConnections` connections at a time
+/// (of which [maxWrongPinsPerMinute] wrong PINs) per device, and
+/// [maxAddressRequestsPerMinute], [maxAddressJoinsPerMinute] and
+/// [maxAddressWrongPinsPerMinute] per address; request bodies of
+/// [maxBodyBytes] arriving within `bodyTimeout`, one update stream per
+/// guest, and at most `maxConnections` connections at a time
 /// (`maxConnectionsPerAddress` per address; more are closed as soon as
-/// they open). Idle connections close after [idleTimeout]. An update
+/// they open). The room's limits ([ShareRoom]) count per device too, and
+/// in all. Idle connections close after [idleTimeout]. An update
 /// stream sends one snapshot at a time: while the page has not taken in
 /// the last one, newer changes wait and are sent as one, and a page that
 /// takes in nothing for `maxFlushTime` is disconnected (so a guest that
@@ -60,23 +78,20 @@ class IoShareServer implements ShareServer {
     this._allowPeer,
     this._maxFlushTime,
     this._bodyTimeout,
+    this._secrets,
     DateTime Function()? clock,
   ) : port = _server.port,
-      _requests = ShareRateLimiter(
-        max: maxRequestsPerMinute,
-        per: const Duration(minutes: 1),
-        clock: clock,
-      ),
-      _joins = ShareRateLimiter(
-        max: maxJoinsPerMinute,
-        per: const Duration(minutes: 1),
-        clock: clock,
-      ),
-      _wrongPins = ShareRateLimiter(
-        max: maxWrongPinsPerMinute,
-        per: const Duration(minutes: 1),
-        clock: clock,
-      );
+      _requests = _perMinute(maxRequestsPerMinute, clock),
+      _addressRequests = _perMinute(maxAddressRequestsPerMinute, clock),
+      _joins = _perMinute(maxJoinsPerMinute, clock),
+      _addressJoins = _perMinute(maxAddressJoinsPerMinute, clock),
+      _wrongPins = _perMinute(maxWrongPinsPerMinute, clock),
+      _addressWrongPins = _perMinute(maxAddressWrongPinsPerMinute, clock),
+      _newDevices = _perMinute(maxNewDevicesPerAddressPerMinute, clock),
+      _allNewDevices = _perMinute(maxNewDevicesPerMinute, clock);
+
+  static ShareRateLimiter _perMinute(int max, DateTime Function()? clock) =>
+      ShareRateLimiter(max: max, per: const Duration(minutes: 1), clock: clock);
 
   /// Binds to [address] (a private IPv4 address of the phone) on a random
   /// free port. [allowPeer] decides which clients may connect (default:
@@ -85,7 +100,7 @@ class IoShareServer implements ShareServer {
   /// connections are open at a time, [maxConnectionsPerAddress] from one
   /// address; an update stream whose page takes in nothing for
   /// [maxFlushTime] is closed; a request body must arrive within
-  /// [bodyTimeout].
+  /// [bodyTimeout]. Device tokens come from [secrets].
   static Future<IoShareServer> bind({
     required String address,
     required ShareRoom room,
@@ -96,6 +111,7 @@ class IoShareServer implements ShareServer {
     int maxConnectionsPerAddress = defaultMaxConnectionsPerAddress,
     Duration maxFlushTime = defaultMaxFlushTime,
     Duration bodyTimeout = defaultBodyTimeout,
+    ShareSecrets? secrets,
     DateTime Function()? clock,
   }) async {
     final sockets = _ConnectionGate(
@@ -120,6 +136,7 @@ class IoShareServer implements ShareServer {
       allowPeer ?? _privatePeer,
       maxFlushTime,
       bodyTimeout,
+      secrets ?? ShareSecrets(),
       clock,
     ).._pingInterval = pingInterval;
     result
@@ -131,15 +148,36 @@ class IoShareServer implements ShareServer {
     return result;
   }
 
-  /// Requests per client address and minute (the update streams'
-  /// reconnections included).
+  /// Requests per device and minute (the update streams' reconnections
+  /// included).
   static const maxRequestsPerMinute = 120;
 
-  /// Join attempts per client address and minute.
+  /// Requests per client address and minute (a few devices').
+  static const maxAddressRequestsPerMinute = 480;
+
+  /// Join attempts per device and minute.
   static const maxJoinsPerMinute = 10;
 
-  /// Wrong PINs per client address and minute.
+  /// Join attempts per client address and minute.
+  static const maxAddressJoinsPerMinute = 30;
+
+  /// Wrong PINs per device and minute.
   static const maxWrongPinsPerMinute = 5;
+
+  /// Wrong PINs per client address and minute.
+  static const maxAddressWrongPinsPerMinute = 10;
+
+  /// New device tokens per client address and minute.
+  static const maxNewDevicesPerAddressPerMinute = 20;
+
+  /// New device tokens per minute in all.
+  static const maxNewDevicesPerMinute = 100;
+
+  /// Device tokens the server remembers (the oldest are forgotten).
+  static const maxDevices = 1024;
+
+  /// The cookie with the device token.
+  static const deviceCookie = 'mozhi_device';
 
   /// The largest request body.
   static const maxBodyBytes = 4096;
@@ -175,9 +213,18 @@ class IoShareServer implements ShareServer {
   final bool Function(InternetAddress peer) _allowPeer;
   final Duration _maxFlushTime;
   final Duration _bodyTimeout;
+  final ShareSecrets _secrets;
   final ShareRateLimiter _requests;
+  final ShareRateLimiter _addressRequests;
   final ShareRateLimiter _joins;
+  final ShareRateLimiter _addressJoins;
   final ShareRateLimiter _wrongPins;
+  final ShareRateLimiter _addressWrongPins;
+  final ShareRateLimiter _newDevices;
+  final ShareRateLimiter _allNewDevices;
+
+  /// The device tokens issued, oldest first.
+  final LinkedHashSet<String> _devices = LinkedHashSet();
   late Duration _pingInterval;
   late final StreamSubscription<HttpRequest> _requestsSubscription;
   late final StreamSubscription<void> _roomChanges;
@@ -237,7 +284,8 @@ class IoShareServer implements ShareServer {
       if (request.headers.host != _address || request.headers.port != port) {
         return await _status(response, HttpStatus.misdirectedRequest);
       }
-      if (!_requests.allow(peer.address)) {
+      final address = peer.address;
+      if (!_addressRequests.allow(address)) {
         return await _status(response, HttpStatus.tooManyRequests);
       }
       final segments = request.uri.pathSegments;
@@ -247,6 +295,10 @@ class IoShareServer implements ShareServer {
           segments[0] != 's' ||
           !constantTimeEquals(segments[1], _room.token)) {
         return await _status(response, HttpStatus.notFound);
+      }
+      final device = _deviceOf(request, address);
+      if (!_requests.allow(device)) {
+        return await _status(response, HttpStatus.tooManyRequests);
       }
       final path = segments.skip(2).where((s) => s.isNotEmpty).join('/');
       if (request.method == 'GET') {
@@ -277,7 +329,7 @@ class IoShareServer implements ShareServer {
       final body = await _readJson(request);
       if (body == null) return await _status(response, HttpStatus.badRequest);
       return await switch (path) {
-        'api/join' => _join(request, peer.address, body),
+        'api/join' => _join(request, address, device, body),
         'api/language' => _language(request, body),
         'api/reply' => _reply(request, body),
         'api/leave' => _leave(request),
@@ -437,6 +489,41 @@ class IoShareServer implements ShareServer {
     ContentType.html,
   );
 
+  /// The device [request] comes from (see [IoShareServer]): `d:<token>`
+  /// for a token this server issued, the cookie it sets for a new one, or
+  /// `a:<address>` when no new one is allowed now.
+  String _deviceOf(HttpRequest request, String address) {
+    final token = _cookieOf(request);
+    if (token != null && _devices.contains(token)) return 'd:$token';
+    if (!_newDevices.allows(address) || !_allNewDevices.allows('')) {
+      return 'a:$address';
+    }
+    _newDevices.allow(address);
+    _allNewDevices.allow('');
+    final fresh = _secrets.token();
+    _devices.add(fresh);
+    if (_devices.length > maxDevices) _devices.remove(_devices.first);
+    request.response.cookies.add(
+      Cookie(deviceCookie, fresh)
+        ..path = _base
+        ..httpOnly = true
+        ..sameSite = SameSite.strict,
+    );
+    return 'd:$fresh';
+  }
+
+  /// The device token in [request]'s cookie, if any.
+  static String? _cookieOf(HttpRequest request) {
+    try {
+      for (final cookie in request.cookies) {
+        if (cookie.name == deviceCookie) return cookie.value;
+      }
+    } on Object {
+      // A malformed Cookie header: no token.
+    }
+    return null;
+  }
+
   ShareGuest? _guestOf(HttpRequest request) => _room.authenticate(
     request.headers.value(_headerGuest),
     request.headers.value(_headerKey),
@@ -444,13 +531,19 @@ class IoShareServer implements ShareServer {
 
   Future<void> _join(
     HttpRequest request,
-    String peer,
+    String address,
+    String device,
     Map<String, Object?> body,
   ) {
     final response = request.response;
-    if (!_wrongPins.allows(peer) || !_joins.allow(peer)) {
+    if (!_wrongPins.allows(device) ||
+        !_addressWrongPins.allows(address) ||
+        !_joins.allows(device) ||
+        !_addressJoins.allows(address)) {
       return _status(response, HttpStatus.tooManyRequests);
     }
+    _joins.allow(device);
+    _addressJoins.allow(address);
     final language = body['language'];
     final pin = body['pin'];
     if (language is! String || (pin != null && pin is! String)) {
@@ -459,7 +552,7 @@ class IoShareServer implements ShareServer {
     final result = _room.join(
       languageCode: language,
       pin: pin as String?,
-      client: peer,
+      client: device,
     );
     switch (result) {
       case ShareJoined(:final guest, :final key):
@@ -472,7 +565,10 @@ class IoShareServer implements ShareServer {
       case ShareJoinRefused(error: ShareJoinError.languageLimit):
         return _languageLimit(response);
       case ShareJoinRefused(:final error):
-        if (error == ShareJoinError.wrongPin) _wrongPins.allow(peer);
+        if (error == ShareJoinError.wrongPin) {
+          _wrongPins.allow(device);
+          _addressWrongPins.allow(address);
+        }
         return _status(response, switch (error) {
           ShareJoinError.wrongPin => HttpStatus.forbidden,
           ShareJoinError.locked => HttpStatus.locked,

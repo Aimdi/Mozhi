@@ -39,6 +39,7 @@ class DictionaryPacksState extends Equatable {
     this.outcome,
     this.importing = false,
     this.importOutcome,
+    this.cancelling = const {},
   });
 
   final OfflineModelsStatus status;
@@ -71,6 +72,19 @@ class DictionaryPacksState extends Equatable {
 
   /// The latest finished import from files (null once a new one starts).
   final DictionaryImportOutcome? importOutcome;
+
+  /// Downloads and updates being cancelled, by pack id (still in [pending]
+  /// until they have stopped).
+  final Set<String> cancelling;
+
+  /// Whether [id]'s running download or update can be cancelled now (every
+  /// pack download can be).
+  bool canCancelDownload(String id) =>
+      !cancelling.contains(id) &&
+      switch (pending[id]) {
+        OfflineModelOperation.download || OfflineModelOperation.update => true,
+        _ => false,
+      };
 
   /// Whether packs can be imported from files (stored here, and a
   /// catalogue to check them against).
@@ -129,6 +143,7 @@ class DictionaryPacksState extends Equatable {
     ValueGetter<OfflineModelOutcome?>? outcome,
     bool? importing,
     ValueGetter<DictionaryImportOutcome?>? importOutcome,
+    Set<String>? cancelling,
   }) => DictionaryPacksState(
     status: status ?? this.status,
     isAvailable: isAvailable ?? this.isAvailable,
@@ -141,6 +156,7 @@ class DictionaryPacksState extends Equatable {
     outcome: outcome != null ? outcome() : this.outcome,
     importing: importing ?? this.importing,
     importOutcome: importOutcome != null ? importOutcome() : this.importOutcome,
+    cancelling: cancelling ?? this.cancelling,
   );
 
   @override
@@ -156,6 +172,7 @@ class DictionaryPacksState extends Equatable {
     outcome,
     importing,
     importOutcome,
+    cancelling,
   ];
 }
 

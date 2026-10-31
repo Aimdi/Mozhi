@@ -149,6 +149,8 @@ void main() {
         const PairingSendState(step: PairingSendStep.connecting),
       );
       expect(find.text('Connecting…'), findsOneWidget);
+      await tester.tap(find.text('Cancel'));
+      verify(() => cubit.cancelConnect()).called(1);
     });
 
     testWidgets('asks to compare the numbers', (tester) async {

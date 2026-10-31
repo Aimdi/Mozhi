@@ -32,12 +32,20 @@ class GlossaryCubit extends Cubit<GlossaryState> {
   final GlossaryRepository _repository;
   final DateTime Function() _clock;
 
+  /// How many changes were committed (a load that a change overtook reads
+  /// again, so the change is shown).
+  int _commits = 0;
+
+  /// Reads the glossaries (again when a change was made while reading:
+  /// the glossaries read may not hold it yet).
   Future<void> load() async {
     if (isClosed) return;
     emit(state.copyWith(status: GlossaryStatus.loading));
     try {
+      final commits = _commits;
       final glossaries = await _repository.load();
       if (isClosed) return;
+      if (_commits != commits) return await load();
       emit(GlossaryState(status: GlossaryStatus.ready, glossaries: glossaries));
     } on Object catch (error, stackTrace) {
       if (!isClosed) emit(state.copyWith(status: GlossaryStatus.failure));
@@ -249,6 +257,7 @@ class GlossaryCubit extends Cubit<GlossaryState> {
       for (final glossary in state.glossaries)
         if (!kept.contains(glossary.id)) glossary.id,
     ];
+    _commits++;
     emit(GlossaryState(status: GlossaryStatus.ready, glossaries: next));
     try {
       await _repository.save(next, deleted: deleted);
