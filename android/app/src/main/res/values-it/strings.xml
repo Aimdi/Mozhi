@@ -47,4 +47,7 @@
     <string name="live_captions_stop_description">Interrompi i sottotitoli dal vivo</string>
     <string name="live_captions_open_description">Apri Mozhi</string>
     <string name="live_captions_bar_description">Sottotitoli dal vivo</string>
+    <string name="tile_live_captions_label">Sottotitoli dal vivo</string>
+    <string name="tile_live_captions_description">Avvia o interrompi i sottotitoli dal vivo di Mozhi</string>
+    <string name="live_captions_locked">Mozhi è bloccato</string>
 </resources>

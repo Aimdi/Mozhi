@@ -197,9 +197,12 @@ else works with a Mozhi instance alone.
   then, with the same checks as **Offline languages** (free space,
   checksums, **Download over Wi-Fi only**: on mobile data it asks first),
   shows its progress, and then translates your text on the device.
-  **Manage languages** opens the offline languages instead. A download
-  that started can't be stopped; if it is interrupted, it resumes next
-  time.
+  **Manage languages** opens the offline languages instead. **Cancel**,
+  next to the progress (here, in **Offline languages** and on the first
+  run), stops a download; what was already downloaded is kept, so the
+  next download of that language, or one that was interrupted, goes on
+  where it stopped (when the server allows it; else it starts again).
+  Every file is checked before it is used.
 - **First run, nothing downloaded:** in **Offline first**, while you
   haven't chosen an engine, the engine button says **On device + Google**:
   text whose language is downloaded is translated on the device; for
@@ -1042,7 +1045,13 @@ in an app that allows it. Open **Transcribe > Caption other apps**
   on screen and while the phone is locked. It needs **Display over other
   apps**, which Mozhi explains and opens before the first start; without
   it, the captions show on Mozhi's screen only. A notification with
-  **Stop** shows while captions run.
+  **Stop** shows while captions run. With the app lock on, the bar says
+  only **Mozhi is locked** while Mozhi is locked; the captions come back
+  after the unlock.
+- **Quick Settings tile** (Android 10+): **Live captions** in the
+  notification shade's tiles starts captions (it opens Mozhi's captions
+  screen, which asks for the microphone and screen capture as usual;
+  after the phone's own unlock when it is locked) and stops them.
 - **In Mozhi** the captions are a transcript (time, original,
   translation; side by side from 840 dp), with Copy, Share, **Save as
   text (.txt)**, **Save as subtitles (.srt)** and **Save to History** in
@@ -1077,15 +1086,15 @@ result. Supported formats:
 | WebVTT subtitles | `.vtt` | Header, notes, styles, timings and cue settings |
 | JSON / ARB string tables | `.json`, `.arb` | Keys, `@` metadata and ICU placeholders/plurals; only string values are translated |
 | HTML and XHTML pages | `.html`, `.htm`, `.xhtml` | Markup, attributes, scripts, styles, code and `pre`; text, the title, `alt`/`title`/`placeholder`/`aria-label` and meta descriptions are translated |
-| XLIFF 1.2 and 2.x | `.xlf`, `.xliff` | Sources, notes, IDs and inline codes; sources are translated into targets |
-| Android string resources | `strings.xml` | Names, `translatable="false"`, `<xliff:g>`, styling tags, escapes and format arguments; strings, string arrays and plurals are translated |
-| Gettext catalogues | `.po`, `.pot` | Header, comments, references, flags, contexts and placeholders; `msgid`s are translated into `msgstr`s |
+| XLIFF 1.2 and 2.x | `.xlf`, `.xliff` | Sources, notes, IDs, inline codes and `<seg-source>` segmentation; sources are translated into targets |
+| Android string resources | `strings.xml` | Names, `translatable="false"`, `<xliff:g>`, styling tags, escapes and format arguments; strings, string arrays and plurals (with the target language's quantities) are translated |
+| Gettext catalogues | `.po`, `.pot` | Header, comments, references, flags, contexts, obsolete entries and placeholders; `msgid`s are translated into `msgstr`s, plurals with the target language's forms |
 | CSV and TSV tables | `.csv`, `.tsv`, `.tab` | Quoting, the header row, and columns of numbers, dates, URLs, e-mail addresses and IDs |
 | Apple strings | `.strings` | Keys, comments, escapes and format specifiers; values are translated |
 | Xcode string catalogues | `.xcstrings` | Every other language, comments, extraction state and variations; the target language is added |
-| Word documents | `.docx` | Paragraph and character formatting, styles, lists, tables, headers and footers, footnotes, endnotes, comments, text boxes, links, fields, images and tracked changes |
-| PowerPoint presentations | `.pptx` | Slides, speaker notes, tables, text boxes, chart titles and SmartArt with their formatting, links and slide numbers; layouts, images and animations |
-| Excel workbooks | `.xlsx` | Text cells (plain and rich text, each distinct text translated once); numbers, dates, formulas, sheet names and charts' data |
+| Word documents | `.docx` | Paragraph and character formatting, styles, lists, tables, headers and footers, footnotes, endnotes, comments, text boxes, links, fields, images (their alternative text is translated) and tracked changes |
+| PowerPoint presentations | `.pptx` | Slides, speaker notes, comments, tables, text boxes, chart and axis titles, SmartArt, alternative text and the text drawn on slide masters and layouts, with their formatting, links and slide numbers; layouts, placeholder prompts, images and animations |
+| Excel workbooks | `.xlsx` | Text cells (plain and rich text, each distinct text translated once), cell comments and threaded comments, sheet names, chart and axis titles and alternative text; numbers, dates, formulas (updated for renamed sheets) and charts' data |
 | OpenDocument text, presentations, spreadsheets | `.odt`, `.odp`, `.ods` | Headings, paragraphs, lists, tables, spans, links, notes, frames, headers and footers; spreadsheet cells with numbers, dates or formulas |
 | EPUB e-books | `.epub` | Every chapter in reading order, the table of contents and the title; inline markup, links, images, code, scripts, styles and `pre` blocks |
 | PDF documents (Android) | `.pdf` | Every page as it looks, with the translation written over the original text as real text; pages without text as they are (see [PDF documents](#pdf-documents)) |
@@ -1129,11 +1138,34 @@ they are translated with the engine and privacy mode you choose.
   files that unpack to far too much data, and ZIP files with symbolic
   links or overlapping entries (see
   [Security](security.md#documents-and-e-books)).
-- **Not translated:** text in images, alternative text, spreadsheet
-  comments, sheet names, the data behind charts, slide master and layout
-  prompts, and document properties other than the e-book's title. In a
-  spreadsheet, formulas that compare cells with a text (`=IF(A1="Yes";…)`)
-  may need the translated word.
+- **Alternative text:** the description and title of pictures, shapes and
+  charts (what screen readers say) are translated in Word, PowerPoint and
+  Excel files.
+- **Sheet names** are translated and made valid for Excel (at most 31
+  characters, none of `[]:*?/\`, not "History", unique: a number is added
+  to a repeated name). Formulas, shared formulas, defined names (print
+  areas, filters), conditional formats, data validations, chart series and
+  links inside the workbook that refer to a renamed sheet get its new
+  name. A sheet keeps its name when something else refers to it that
+  can't be rewritten safely: a pivot table's source, a form control, a
+  sheet name written as text in a formula (`INDIRECT("Data!A1")`), a part
+  too large to read, or macros (every sheet then keeps its name). Other
+  files that link to a renamed sheet need their links updated.
+- **Slide masters and layouts:** text drawn on them (a footer, a
+  "Confidential" mark, a caption) is translated, as it appears on every
+  slide; placeholder prompts ("Click to edit Master title style", custom
+  prompts) are kept, as PowerPoint only shows them in the editor while a
+  placeholder is empty.
+- **Comments:** spreadsheet comments and threaded comments are
+  translated (not their authors); a threaded reply that mentions someone
+  is kept, as the mention's position in the text would no longer fit.
+- **Not translated:** text in images, the data behind charts (a copy of
+  the cells, which Office reads again), and document properties other than
+  the e-book's title. In a spreadsheet, formulas that compare cells with a
+  text (`=IF(A1="Yes";…)`) may need the translated word.
+- **In the web app,** office files and e-books are read and written part
+  by part, so the page keeps responding between parts (one very large
+  part, such as a big worksheet, still takes a moment).
 
 ### PDF documents
 
@@ -1230,15 +1262,23 @@ with its line endings, byte order mark, indentation and comments.
   attributes other than `alt`, `title`, `placeholder`, `aria-label`,
   `aria-description`, the value of `<input>` buttons and `<meta>`
   descriptions.
-- **Plurals:** PO entries get every `msgstr[n]` of the plural rule:
-  the header's `Plural-Forms`, or, for a template or a catalogue moved to
-  another language, the target language's rule (written into the header).
-  The form for one item gets the singular translation and all others the
-  plural one, so languages with several plural forms (Russian, Arabic…)
-  need a review. `.xcstrings` plurals follow the target language's
-  categories (a missing one is filled from `other`). Android `<plurals>`
-  keep the source quantities: add `few`/`many` items by hand where the
-  target language needs them.
+- **Plurals:** PO entries get every `msgstr[n]` of the target language's
+  plural rule (Russian and Polish three, Arabic six, Japanese, Chinese,
+  Korean, Vietnamese, Thai and Indonesian one), written into the header's
+  `Plural-Forms` for a template, a catalogue moved to another language, or
+  one that names no language and has no translated plurals yet; otherwise
+  the header's own rule is kept. Languages Mozhi doesn't know get two
+  forms. The form for one item gets the singular translation and all
+  others the plural one (a language with one form gets the plural one);
+  where that form also counts other numbers (Russian 21, French 0) and the
+  singular has no number ("One file" / "%d files"), it gets the plural
+  text, so the number shows. `.xcstrings` plurals follow the target
+  language's categories (a missing one is filled from `other`). Android
+  `<plurals>` get the target language's quantities (`one`, `few`, `many`,
+  `other` for Russian; only `other` for Japanese): `one` from the source's
+  `one`, the others from its `other`. Forms the source doesn't have (few,
+  many) get the same plural text, so languages with several plural forms
+  need a review.
 - **CSV and TSV:** fields may be quoted (RFC 4180, also with line breaks);
   a CSV file may use `;` or tabs instead of commas. The first row is kept
   as a header when the file has at least two rows and every cell of the
@@ -1264,8 +1304,9 @@ with its line endings, byte order mark, indentation and comments.
   are recognised when pasted; choose **CSV** yourself.
 - **Limits:** a translation identical to the original (a name, "OK") is
   left out of bilingual files, which then use the source text anyway.
-  XLIFF targets are written as whole sentences, without the `<mrk>`
-  segmentation of a `<seg-source>`. XML files that declare entities in a
+  An XLIFF 1.2 unit whose `<seg-source>` marks its sentences
+  (`<mrk mtype="seg">`) is translated sentence by sentence into the same
+  markers in its target. XML files that declare entities in a
   document type declaration, and `.strings` files in property-list format,
   can't be opened. Legacy-charset files are always written back as UTF-8.
 

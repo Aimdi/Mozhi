@@ -17,6 +17,9 @@ class UnsupportedPdfPages implements PdfPages {
       Future.error(PdfRenderException(page: page, cause: 'unsupported'));
 
   @override
+  Future<List<PdfTextLine>?> readText(int page) async => null;
+
+  @override
   Future<void> write(String outputPath, List<PdfOutputPage> pages) =>
       Future.error(const PdfWriteException(cause: 'unsupported'));
 

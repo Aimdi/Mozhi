@@ -268,6 +268,10 @@ void main() {
         documentPdfProgressLabel(l10n, at(1, PdfStage.translating)),
         'Page 2 of 2: translating…',
       );
+      expect(
+        documentPdfProgressLabel(l10n, at(1, PdfStage.cooling)),
+        'Page 2 of 2: the phone is hot, waiting for it to cool down…',
+      );
       // A stage without a page names the pages done.
       expect(
         documentPdfProgressLabel(l10n, at(null, PdfStage.reading)),

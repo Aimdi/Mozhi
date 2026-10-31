@@ -9,7 +9,7 @@ import 'package:mozhi/offline/cubit/offline_models_cubit.dart';
 import 'package:mozhi/offline/view/offline_models_page.dart'
     show MeteredDownloadDialog, offlineOutcomeMessage;
 import 'package:mozhi/offline/widgets/offline_language_tile.dart'
-    show confirmDeleteOfflineLanguage;
+    show OfflineCancelDownloadButton, confirmDeleteOfflineLanguage;
 import 'package:mozhi/onboarding/cubit/onboarding_cubit.dart';
 import 'package:mozhi/onboarding/widgets/onboarding_language_picker.dart';
 import 'package:mozhi/onboarding/widgets/step_layout.dart';
@@ -487,6 +487,10 @@ class _OfflineDownloads extends StatelessWidget {
                   onboarding.chooseDownload(code, download: download),
               onDownload: () => unawaited(cubit.download(code)),
               onDelete: () => unawaited(cubit.delete(code)),
+              onCancel: state.canCancel
+                  ? () => unawaited(cubit.cancelDownload(code))
+                  : null,
+              cancelling: state.cancelling.contains(code),
             ),
           for (final language in unsupported)
             OnboardingInfoRow(
@@ -528,8 +532,10 @@ class _OfflineDownloads extends StatelessWidget {
 /// what is happening) and the action (Download, Update, Delete; nothing
 /// for built-in English). With [selected] (the languages step) a model
 /// that is not on the device has a checkbox instead of Download
-/// ([onSelected]: download it when the user taps Next). The action sits
-/// next to the name, or below it on narrow rows and with large text.
+/// ([onSelected]: download it when the user taps Next). With [onCancel], a
+/// running download or update shows Cancel next to its progress. The
+/// action sits next to the name, or below it on narrow rows and with large
+/// text.
 class OnboardingOfflineLanguageRow extends StatelessWidget {
   const new({
     required this.language,
@@ -544,8 +550,16 @@ class OnboardingOfflineLanguageRow extends StatelessWidget {
     this.builtIn = false,
     this.selected,
     this.onSelected,
+    this.onCancel,
+    this.cancelling = false,
     super.key,
   });
+
+  /// Cancels the running download or update; null: no Cancel.
+  final VoidCallback? onCancel;
+
+  /// The running download or update is being cancelled.
+  final bool cancelling;
 
   /// Whether the download is checked (to start on Next); null: a Download
   /// button instead.
@@ -577,6 +591,8 @@ class OnboardingOfflineLanguageRow extends StatelessWidget {
   String _details(AppLocalizations l10n) {
     final percent = progress == null ? null : (progress! * 100).floor();
     final status = switch (pending) {
+      OfflineModelOperation.download ||
+      OfflineModelOperation.update when cancelling => l10n.offlineCancelling,
       OfflineModelOperation.download =>
         percent == null
             ? l10n.offlineDownloading
@@ -611,7 +627,7 @@ class OnboardingOfflineLanguageRow extends StatelessWidget {
     final l10n = context.l10n;
     final theme = Theme.of(context);
     if (pending != null) {
-      return SizedBox.square(
+      final ring = SizedBox.square(
         dimension: 48,
         child: Center(
           child: SizedBox.square(
@@ -623,6 +639,19 @@ class OnboardingOfflineLanguageRow extends StatelessWidget {
             ),
           ),
         ),
+      );
+      if (onCancel == null || pending == OfflineModelOperation.delete) {
+        return ring;
+      }
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ring,
+          OfflineCancelDownloadButton(
+            language: language.name,
+            onPressed: cancelling ? null : onCancel,
+          ),
+        ],
       );
     }
     if (builtIn) return null;

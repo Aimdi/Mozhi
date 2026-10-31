@@ -287,6 +287,13 @@ class HistoryRepository {
     }
   });
 
+  /// Drops the decrypted copy of the history this repository keeps in
+  /// memory (the app lock engaged): the next call reads it from [store]
+  /// again. Waits for what is running; changes nothing stored.
+  Future<void> forgetCache() => _synchronized(() async {
+    _entries = null;
+  });
+
   /// Whether a history that could not be decrypted was set aside by
   /// [discardUnreadable] (and not deleted since).
   Future<bool> hasUnreadableCopy() async =>

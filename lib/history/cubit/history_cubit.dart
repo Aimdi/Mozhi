@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bloc/bloc.dart';
 import 'package:mozhi/history/cubit/history_state.dart';
 import 'package:mozhi/history/data/history_repository.dart';
@@ -43,7 +45,13 @@ class HistoryCubit extends Cubit<HistoryState> {
   /// Maximum age of non-favourite entries; null keeps them forever.
   Duration? _maxAge;
 
+  /// Whether the entries are dropped from memory while the app is locked
+  /// ([forgetForLock]).
+  bool _forgotten = false;
+
   Future<void> load() async {
+    // Read again once the app is unlocked (reloadAfterLock).
+    if (_forgotten) return;
     emit(state.copyWith(status: HistoryStatus.loading));
     try {
       final entries = await _repository.load(maxAge: _maxAge);
@@ -68,6 +76,33 @@ class HistoryCubit extends Cubit<HistoryState> {
       saved = entry.copyWith(favoriteOnly: true);
     }
     await _run(() => _repository.add(saved, maxAge: _maxAge));
+  }
+
+  /// The app lock engaged: the entries leave memory, here and in the
+  /// repository's decrypted copy ([HistoryRepository.forgetCache]); the
+  /// history stays on disk. Until [reloadAfterLock], [HistoryState.entries]
+  /// is empty and what is saved meanwhile ([add], ...) is written without
+  /// coming back into memory; [load] waits for the unlock.
+  Future<void> forgetForLock() async {
+    if (isClosed) return;
+    _forgotten = true;
+    if (state.entries.isNotEmpty) emit(state.copyWith(entries: const []));
+    await _forgetCache();
+  }
+
+  /// The app was unlocked after [forgetForLock]: reads the history again.
+  Future<void> reloadAfterLock() async {
+    if (!_forgotten || isClosed) return;
+    _forgotten = false;
+    await load();
+  }
+
+  Future<void> _forgetCache() async {
+    try {
+      await _repository.forgetCache();
+    } on Object catch (error, stackTrace) {
+      addError(error, stackTrace);
+    }
   }
 
   /// Turns incognito on or off: while on, [add] only saves favourites.
@@ -100,10 +135,12 @@ class HistoryCubit extends Cubit<HistoryState> {
   }
 
   /// Keeps non-favourite entries for at most [maxAge] (null: forever) from
-  /// now on, and deletes the ones that are already older.
+  /// now on, and deletes the ones that are already older. While the app is
+  /// locked ([forgetForLock]) the history is not read for it: the reload
+  /// after the unlock deletes them ([load] applies [maxAge]).
   Future<void> applyRetention(Duration? maxAge) async {
     _maxAge = maxAge;
-    if (maxAge == null) return;
+    if (maxAge == null || _forgotten) return;
     await _run(() => _repository.prune(maxAge));
   }
 
@@ -181,6 +218,11 @@ class HistoryCubit extends Cubit<HistoryState> {
 
   void _emitEntries(List<HistoryEntry> entries) {
     if (isClosed) return;
+    if (_forgotten) {
+      // Written while locked: kept on disk only.
+      unawaited(_forgetCache());
+      return;
+    }
     emit(state.copyWith(status: HistoryStatus.ready, entries: entries));
   }
 }

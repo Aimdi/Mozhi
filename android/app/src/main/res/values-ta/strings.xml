@@ -47,4 +47,7 @@
     <string name="live_captions_stop_description">நேரலை வசனங்களை நிறுத்து</string>
     <string name="live_captions_open_description">Mozhi-ஐத் திற</string>
     <string name="live_captions_bar_description">நேரலை வசனங்கள்</string>
+    <string name="tile_live_captions_label">நேரலை வசனங்கள்</string>
+    <string name="tile_live_captions_description">Mozhi-இன் நேரலை வசனங்களைத் தொடங்கு அல்லது நிறுத்து</string>
+    <string name="live_captions_locked">Mozhi பூட்டப்பட்டுள்ளது</string>
 </resources>

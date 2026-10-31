@@ -21,6 +21,8 @@ import 'package:mozhi/translate/widgets/translate_layout.dart';
 import 'package:mozhi/usage/usage.dart' show TokenEstimateLabel;
 import 'package:mozhi/voice/voice.dart'
     show SpeechInputService, VoiceInputButton;
+import 'package:mozhi/word_lookup/widgets/input_word_lookup.dart'
+    show WebFieldContextMenu, inputLookUpMenuItem;
 
 /// Direction of the source text: the chosen source language's, or (when
 /// detecting) the direction of the typed characters, falling back to the
@@ -132,6 +134,11 @@ SpeechInputService? _speechInputServiceOf(BuildContext context) {
 /// (`TranslateCubit.focusAlignment`), and any edit clears the alignment.
 /// The difference highlighted in the meaning check
 /// (`TranslateState.focusedMeaningIssue`) is highlighted the same way.
+///
+/// "Look up" in the field's selection menu opens the word card of a
+/// selected word or short phrase ([inputLookUpMenuItem]); in the web app
+/// the field shows that menu instead of the browser's
+/// ([WebFieldContextMenu]). Taps keep placing the cursor.
 class InputCard extends StatefulWidget {
   const new({
     this.minLines = 4,
@@ -194,12 +201,16 @@ class _InputCardState extends State<InputCard> {
     PasteTextIntent: _MarkPasteAction(_markPaste),
   };
 
+  /// The field's own menu (with "Look up") in the web app.
+  late final WebFieldContextMenu _webMenu;
+
   @override
   void initState() {
     super.initState();
     _showAlignment(_cubit.state);
     _lastValue = _controller.value;
     _controller.addListener(_onValueChanged);
+    _webMenu = WebFieldContextMenu(focusNode: _focusNode);
   }
 
   @override
@@ -207,6 +218,7 @@ class _InputCardState extends State<InputCard> {
     _controller
       ..removeListener(_onValueChanged)
       ..dispose();
+    _webMenu.dispose();
     _ownFocusNode?.dispose();
     super.dispose();
   }
@@ -306,8 +318,11 @@ class _InputCardState extends State<InputCard> {
   }
 
   /// The field's context menu, with its Paste marked as a paste (so the
-  /// pasted text is translated without waiting for a typing pause).
+  /// pasted text is translated without waiting for a typing pause), and
+  /// "Look up" for a selected word or short phrase.
   Widget _contextMenu(BuildContext context, EditableTextState field) {
+    // The card's context: the menu's own is above the screen's providers.
+    final lookUp = inputLookUpMenuItem(this.context, field, _cubit.state);
     return AdaptiveTextSelectionToolbar.buttonItems(
       anchors: field.contextMenuAnchors,
       buttonItems: [
@@ -321,6 +336,7 @@ class _InputCardState extends State<InputCard> {
             )
           else
             item,
+        ?lookUp,
       ],
     );
   }
@@ -479,6 +495,8 @@ class _InputCardState extends State<InputCard> {
         return TapRegion(
           groupId: _tapGroup,
           onTapOutside: _onTapOutside,
+          onTapInside: _webMenu.onPointerDown,
+          onTapUpInside: _webMenu.onPointerUp,
           child: TranslateFlatCard(
             key: const Key('translate_input_card'),
             look: TranslateCardLook.plain,

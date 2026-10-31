@@ -2757,5 +2757,11 @@
   "conversationTurnPauseHintAny": "Giliran berakhir jika hening selama ini setelah berbicara.",
   "translateOfflineManageLanguages": "Kelola bahasa",
   "translateOfflineDownloadingLanguage": "Mendownload {language}… {percent}%",
-  "translateOfflineDownloadingLanguageStarted": "Mendownload {language}…"
+  "translateOfflineDownloadingLanguageStarted": "Mendownload {language}…",
+  "translateErrorDetectionServersFailed": "Server relawan tidak dapat mendeteksi bahasa saat ini. Pilih bahasa yang digunakan dalam teks.",
+  "speechErrorServersUnavailable": "Server relawan tidak dapat membacakan ini saat ini. Server gratis ini terkadang tidak aktif.",
+  "liveCaptionsBarLocked": "Mozhi terkunci",
+  "offlineCancelDownloadTooltip": "Batalkan unduhan {language}",
+  "offlineCancelling": "Menghentikan…",
+  "documentsPdfProgressCooling": "Halaman {page} dari {total}: ponsel panas, menunggu hingga dingin…"
 }

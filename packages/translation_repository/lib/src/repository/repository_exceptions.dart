@@ -109,7 +109,12 @@ final class InstanceDoesNotTranslateException extends MozhiApiException {
 /// `MozhiPool.canFailOver`).
 ///
 /// Thrown (as a stream error of `TranslationRepository.translate`) for
-/// translations with a Mozhi engine. A [MozhiApiException], so code that
+/// translations with a Mozhi engine, and by the other requests that go to
+/// the Mozhi servers: `TranslationRepository.translateImage` (naming the
+/// Google engine Mozhi translates photos with), `detectLanguage` (Google;
+/// as the `SourceLanguageRequiredException.cause` when a translation had to
+/// detect the source language) and `textToSpeech` (the engine reading
+/// aloud). A [MozhiApiException], so code that
 /// handles those keeps working: its [message], [statusCode] and [uri] are
 /// those of the last failure ([cause] when that was a
 /// [MozhiApiException], sanitised like every Mozhi error). The app should

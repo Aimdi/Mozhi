@@ -12,6 +12,7 @@ import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.util.Base64
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.embedding.engine.plugins.activity.ActivityAware
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
@@ -19,6 +20,8 @@ import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.PluginRegistry
+import java.security.MessageDigest
+import java.security.SecureRandom
 
 /**
  * Live captions of other apps' sound for Dart
@@ -34,6 +37,9 @@ import io.flutter.plugin.common.PluginRegistry
  *   `{status: "declined"}` or `{status: "failed", reason}`.
  * - `show({translation, original})`: the caption bar's text.
  * - `stop()`: ends the captions.
+ * - `consumeStartToken(token)`: whether `token` is the start request the
+ *   Quick Settings tile made last ([LiveCaptions.newStartToken]); a match
+ *   is used up. Dart starts the captions for a start request only then.
  * - [AUDIO_CHANNEL]: 16 kHz mono float blocks (`Float32List`) of about
  *   100 ms while the captions run.
  * - [EVENTS_CHANNEL]: `stopTapped`, `openTapped`, `ended`, `locked`,
@@ -135,6 +141,8 @@ class LiveCaptionsPlugin :
                 if (LiveCaptions.listener === this) LiveCaptions.service?.show(translation, original)
                 result.success(null)
             }
+            "consumeStartToken" ->
+                result.success(LiveCaptions.consumeStartToken(call.arguments as? String))
             "stop" -> {
                 if (LiveCaptions.listener === this) {
                     LiveCaptions.listener = null
@@ -354,6 +362,56 @@ object LiveCaptions {
     /** The service was started and has not said whether it runs. Main thread. */
     var awaitingService = false
         private set
+
+    /** Whether captions run (the Quick Settings tile shows it). Main thread. */
+    val isRunning: Boolean
+        get() = service?.isCapturing == true
+
+    /**
+     * The app lock engaged or was lifted ([AppLockSession.setUnlocked]): the
+     * caption bar says "Mozhi is locked" instead of captions. Main thread.
+     */
+    fun onAppLockChanged(locked: Boolean) {
+        service?.onAppLockChanged(locked)
+    }
+
+    // ---------------------------------------------------------------------
+    // The Quick Settings tile's start requests
+    // ---------------------------------------------------------------------
+
+    private val random = SecureRandom()
+
+    /** The tile's last start request, until Dart uses it. */
+    private var startToken: String? = null
+
+    /**
+     * A new start request of the Quick Settings tile
+     * ([LiveCaptionsTileService.startIntent]): a random token, in this
+     * process only, that replaces the previous one. The link
+     * `mozhi://transcribe/captions?start=<token>` carries it to Dart, which
+     * starts the captions only when [consumeStartToken] says so: any other
+     * app can open that link (MainActivity is exported), but cannot know the
+     * token.
+     */
+    @Synchronized
+    fun newStartToken(): String {
+        val bytes = ByteArray(START_TOKEN_BYTES).also(random::nextBytes)
+        val token = Base64.encodeToString(bytes, Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP)
+        startToken = token
+        return token
+    }
+
+    /** Whether [token] is the tile's last start request; a match is used up. */
+    @Synchronized
+    fun consumeStartToken(token: String?): Boolean {
+        val expected = startToken ?: return false
+        if (token == null) return false
+        val matches = MessageDigest.isEqual(expected.toByteArray(), token.toByteArray())
+        if (matches) startToken = null
+        return matches
+    }
+
+    private const val START_TOKEN_BYTES = 32
 
     /** A new session for [owner]; returns its id. Main thread. */
     fun begin(owner: Listener): Int {

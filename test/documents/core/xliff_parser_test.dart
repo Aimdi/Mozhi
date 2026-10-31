@@ -110,7 +110,8 @@ void main() {
       expect(
         output,
         contains(
-          '</seg-source><target state="needs-review-translation">Non</target>',
+          '</seg-source><target state="needs-review-translation">'
+          '<mrk mtype="seg" mid="1">Non</mrk></target>',
         ),
       );
       expect(output, contains('target-language="fr"'));

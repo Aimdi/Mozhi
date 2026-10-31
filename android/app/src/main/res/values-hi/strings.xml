@@ -47,4 +47,7 @@
     <string name="live_captions_stop_description">लाइव कैप्शन रोकें</string>
     <string name="live_captions_open_description">Mozhi खोलें</string>
     <string name="live_captions_bar_description">लाइव कैप्शन</string>
+    <string name="tile_live_captions_label">लाइव कैप्शन</string>
+    <string name="tile_live_captions_description">Mozhi के लाइव कैप्शन शुरू या बंद करें</string>
+    <string name="live_captions_locked">Mozhi लॉक है</string>
 </resources>

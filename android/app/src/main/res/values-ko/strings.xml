@@ -47,4 +47,7 @@
     <string name="live_captions_stop_description">실시간 자막 중지</string>
     <string name="live_captions_open_description">Mozhi 열기</string>
     <string name="live_captions_bar_description">실시간 자막</string>
+    <string name="tile_live_captions_label">실시간 자막</string>
+    <string name="tile_live_captions_description">Mozhi 실시간 자막 시작 또는 중지</string>
+    <string name="live_captions_locked">Mozhi가 잠겨 있습니다</string>
 </resources>

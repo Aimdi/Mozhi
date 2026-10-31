@@ -2757,5 +2757,11 @@
   "conversationTurnPauseHintAny": "A vez termina após esse tempo de silêncio depois da fala.",
   "translateOfflineManageLanguages": "Gerenciar idiomas",
   "translateOfflineDownloadingLanguage": "Baixando {language}… {percent}%",
-  "translateOfflineDownloadingLanguageStarted": "Baixando {language}…"
+  "translateOfflineDownloadingLanguageStarted": "Baixando {language}…",
+  "translateErrorDetectionServersFailed": "Os servidores voluntários não conseguiram detectar o idioma agora. Escolha o idioma em que o texto está escrito.",
+  "speechErrorServersUnavailable": "Os servidores voluntários não conseguiram ler isto em voz alta agora. Esses servidores gratuitos às vezes ficam fora do ar.",
+  "liveCaptionsBarLocked": "O Mozhi está bloqueado",
+  "offlineCancelDownloadTooltip": "Cancelar o download de {language}",
+  "offlineCancelling": "Parando…",
+  "documentsPdfProgressCooling": "Página {page} de {total}: o telefone está quente, aguardando esfriar…"
 }

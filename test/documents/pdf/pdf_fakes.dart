@@ -37,7 +37,8 @@ PdfPageImage whiteImage(
 
 /// In-memory [PdfPages]: page n renders as [renderPage] says (default: a
 /// white image `100 + 10 n` pixels wide and 200 high, so the fake
-/// recognizer can tell pages apart by their width).
+/// recognizer can tell pages apart by their width). Its text layers are
+/// [textLayers] (by page; default: none, as before Android 15).
 class FakePdfPages implements PdfPages {
   new({this.pageSizes = const [Size(612, 792)], this.scratch});
 
@@ -49,6 +50,17 @@ class FakePdfPages implements PdfPages {
   Exception? writeError;
   Uint8List written = Uint8List.fromList(utf8.encode('%PDF-1.4 translated'));
   PdfPageImage Function(int page, int maxPixels)? renderPage;
+
+  /// Page -> its text layer; a page not in it has none (null: text layers
+  /// are not read, as before Android 15, unless [textLayersRead]).
+  final Map<int, List<PdfTextLine>> textLayers = {};
+
+  /// Whether text layers are read here (Android 15+): pages without one in
+  /// [textLayers] then have an empty one.
+  bool textLayersRead = false;
+
+  /// The pages whose text layer was asked for.
+  final List<int> textReads = [];
 
   /// While set, renders wait for it.
   Completer<void>? renderGate;
@@ -79,6 +91,13 @@ class FakePdfPages implements PdfPages {
     if (renderGate case final gate?) await gate.future;
     if (renderErrors[page] case final error?) throw error;
     return renderPage?.call(page, maxPixels) ?? whiteImage(widthOf(page), 200);
+  }
+
+  @override
+  Future<List<PdfTextLine>?> readText(int page) async {
+    textReads.add(page);
+    if (!textLayersRead && textLayers.isEmpty) return null;
+    return textLayers[page] ?? const [];
   }
 
   @override

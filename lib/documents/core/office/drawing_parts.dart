@@ -2,17 +2,56 @@ import 'package:mozhi/documents/core/office/part_template.dart';
 import 'package:mozhi/documents/core/office/xml_source.dart';
 
 /// DrawingML text (`a:p` paragraphs with `a:r` runs): slides and notes in
-/// presentations, chart titles, SmartArt and text boxes in any Office
-/// document. With [translate] false, only language marks are rewritten
-/// (slide masters, `presentation.xml`).
+/// presentations, chart and axis titles, SmartArt and text boxes in any
+/// Office document, and the alternative text and titles of pictures and
+/// shapes (`p:cNvPr`, `xdr:cNvPr`, ...). With [translate] false, only
+/// language marks are rewritten (`presentation.xml`, notes masters).
+///
+/// With [masters] (slide masters and layouts) only the text of shapes
+/// that are not placeholders is translated: logos, footers and captions
+/// drawn on the master appear on every slide. Placeholders on masters and
+/// layouts hold prompts ("Click to edit Master title style", or a custom
+/// prompt), which PowerPoint shows only while a slide's placeholder is
+/// empty in the editor (never in a slide show or print, and in its own
+/// language for the built-in prompts), so they are kept.
 ///
 /// Runs with other formatting (including hyperlinks, which DrawingML keeps
 /// in the run properties) keep it through placeholders; fields such as
-/// slide numbers and dates and embedded math are kept as they are.
+/// slide numbers and dates and embedded math are kept as they are. Chart
+/// data (cached values and series names, `c:v`) is not translated: it is
+/// a copy of the cells, which Office reads again.
 final class DrawingPartBuilder extends PartBuilder {
-  new(super.document, super.table, {this.translate = true});
+  new(
+    super.document,
+    super.table, {
+    this.translate = true,
+    this.masters = false,
+  });
 
   final bool translate;
+  final bool masters;
+
+  static const _shapes = {'sp', 'pic', 'graphicFrame', 'cxnSp', 'grpSp'};
+
+  /// Whether [element] is inside a placeholder shape of a presentation.
+  static bool _inPlaceholder(SourceElement element) {
+    for (SourceElement? e = element; e != null; e = e.parent) {
+      if (e.inNamespace(Ns.presentation) && _shapes.contains(e.localName)) {
+        final properties = e.elements.firstOrNull;
+        return properties
+                ?.child(Ns.presentation, 'nvPr')
+                ?.child(Ns.presentation, 'ph') !=
+            null;
+      }
+    }
+    return false;
+  }
+
+  bool _translates(SourceElement element) =>
+      translate && (!masters || !_inPlaceholder(element));
+
+  @override
+  bool translatesAltText(SourceElement element) => _translates(element);
 
   /// Attributes that do not split runs.
   static const _ignored = {
@@ -30,7 +69,7 @@ final class DrawingPartBuilder extends PartBuilder {
 
   @override
   bool isParagraph(SourceElement element) =>
-      translate && element.isA(Ns.drawing, 'p');
+      element.isA(Ns.drawing, 'p') && _translates(element);
 
   @override
   LanguageMarkKind? languageMark(SourceElement element) =>

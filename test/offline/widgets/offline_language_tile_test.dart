@@ -30,6 +30,8 @@ void main() {
       bool enabled = true,
       OfflineLanguage language = german,
       bool showFiles = false,
+      bool cancellable = false,
+      bool cancelling = false,
     }) => tester.pumpApp(
       Scaffold(
         body: OfflineLanguageTile(
@@ -45,6 +47,8 @@ void main() {
           onDownload: () => taps.add('download'),
           onDelete: () => taps.add('delete'),
           onShowFiles: showFiles ? () => taps.add('files') : null,
+          onCancel: cancellable ? () => taps.add('cancel') : null,
+          cancelling: cancelling,
         ),
       ),
     );
@@ -130,6 +134,97 @@ void main() {
       );
       expect(find.text('Downloading… 42%'), findsOneWidget);
       expect(tester.widget<CircularProgressIndicator>(spinner).value, 0.426);
+    });
+
+    group('Cancel', () {
+      final cancel = find.byKey(const Key('offline_cancel_download'));
+
+      testWidgets('sits next to the progress of a download', (tester) async {
+        final handle = tester.ensureSemantics();
+        await pump(
+          tester,
+          pending: OfflineModelOperation.download,
+          progress: 0.3,
+          cancellable: true,
+        );
+        expect(find.byType(CircularProgressIndicator), findsOneWidget);
+        expect(find.widgetWithText(TextButton, 'Cancel'), findsOneWidget);
+        expect(find.text('Downloading… 30%'), findsOneWidget);
+        final size = tester.getSize(cancel);
+        expect(size.width, greaterThanOrEqualTo(48));
+        expect(size.height, greaterThanOrEqualTo(48));
+        expect(
+          find.bySemanticsLabel('Cancel downloading German'),
+          findsOneWidget,
+        );
+        expect(
+          tester.getSemantics(
+            find.bySemanticsLabel('Cancel downloading German'),
+          ),
+          isSemantics(isButton: true, isEnabled: true, hasTapAction: true),
+        );
+        expect(
+          find.byWidgetPredicate(
+            (widget) =>
+                widget is Tooltip &&
+                widget.message == 'Cancel downloading German',
+          ),
+          findsOneWidget,
+        );
+        await tester.tap(cancel);
+        expect(taps, ['cancel']);
+        handle.dispose();
+      });
+
+      testWidgets('cancels an update too', (tester) async {
+        await pump(
+          tester,
+          downloaded: true,
+          outdated: true,
+          pending: OfflineModelOperation.update,
+          cancellable: true,
+        );
+        await tester.tap(cancel);
+        expect(taps, ['cancel']);
+      });
+
+      testWidgets('is disabled while stopping', (tester) async {
+        await pump(
+          tester,
+          pending: OfflineModelOperation.download,
+          cancellable: true,
+          cancelling: true,
+        );
+        expect(find.text('Stopping…'), findsOneWidget);
+        expect(tester.widget<TextButton>(cancel).onPressed, isNull);
+        await tester.tap(cancel, warnIfMissed: false);
+        expect(taps, isEmpty);
+      });
+
+      testWidgets('is disabled where the engine does not run', (tester) async {
+        await pump(
+          tester,
+          pending: OfflineModelOperation.download,
+          cancellable: true,
+          enabled: false,
+        );
+        expect(tester.widget<TextButton>(cancel).onPressed, isNull);
+      });
+
+      testWidgets('is not offered for a deletion or without onCancel', (
+        tester,
+      ) async {
+        await pump(
+          tester,
+          downloaded: true,
+          pending: OfflineModelOperation.delete,
+          cancellable: true,
+        );
+        expect(cancel, findsNothing);
+        expect(find.text('Deleting…'), findsOneWidget);
+        await pump(tester, pending: OfflineModelOperation.download);
+        expect(cancel, findsNothing);
+      });
     });
 
     testWidgets('shows progress while updating', (tester) async {

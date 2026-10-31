@@ -4,7 +4,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:mozhi/speech/speech_service.dart';
 import 'package:mozhi/translate/widgets/listen_button.dart';
+import 'package:translation_repository/translation_repository.dart';
 
 import '../helpers/helpers.dart';
 
@@ -185,6 +187,48 @@ void main() {
       await tester.longPress(find.byType(IconButton));
       await tester.pump();
       expect(find.text("Couldn't play audio."), findsOneWidget);
+    });
+
+    testWidgets('a read the servers failed offers Retry, which reads the '
+        'text again', (tester) async {
+      var calls = 0;
+      when(
+        () => harness.speech.toggle(
+          id: any(named: 'id'),
+          text: any(named: 'text'),
+          languageCode: any(named: 'languageCode'),
+        ),
+      ).thenAnswer((_) async {
+        if (calls++ > 0) return;
+        throw SpeechUnavailableException(
+          'fr',
+          cause: AllInstancesFailedException(
+            'boom',
+            engine: TranslationEngine.mozhi('google', 'Google'),
+            instances: const [MozhiInstance(url: 'https://mozhi.example')],
+            statusCode: 502,
+          ),
+        );
+      });
+      await pump(tester);
+      await tester.tap(find.byType(IconButton));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 750));
+      expect(
+        find.textContaining("The volunteer servers couldn't read this"),
+        findsOneWidget,
+      );
+      expect(find.textContaining('502'), findsNothing);
+
+      await tester.tap(find.text('Retry'));
+      await tester.pump();
+      verify(
+        () => harness.speech.toggle(
+          id: 'target',
+          text: 'Bonjour',
+          languageCode: 'fr',
+        ),
+      ).called(2);
     });
 
     group('semantics', () {

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:bloc/bloc.dart';
+import 'package:mozhi/app_lock/data/app_lock.dart';
 import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/history/models/history_entry.dart';
 import 'package:mozhi/live_captions/cubit/live_captions_state.dart';
@@ -29,6 +30,9 @@ enum LiveCaptionsBarText {
 
   /// Paused: the phone is hot.
   hot,
+
+  /// The app lock engaged: no caption shows until Mozhi is unlocked.
+  appLocked,
 }
 
 /// Put into an entry that was not translated because newer phrases were
@@ -71,6 +75,12 @@ final class LiveCaptionsBehindException implements Exception {
 /// * Captions go on while the app is in the background: that is what they
 ///   are for. They stop with [stop], from the caption bar or the
 ///   notification, when the capture ends by itself and in [close].
+/// * While the app is locked (`lock`, [AppLock.isLocked]) the captions go
+///   on into the transcript (hidden behind the lock), but the bar shows
+///   only "Mozhi is locked" ([LiveCaptionsBarText.appLocked]): no caption
+///   text goes to it. Once the phone is unlocked the app lock checks
+///   again right away ([AppLockController.checkAway]: its timer may have
+///   slept) before the bar shows a caption again.
 class LiveCaptionsCubit extends Cubit<LiveCaptionsState> {
   new({
     required this._host,
@@ -82,12 +92,14 @@ class LiveCaptionsCubit extends Cubit<LiveCaptionsState> {
     this._overlay,
     this._conditions,
     this._history,
+    this._lock,
     String Function(LiveCaptionsBarText text)? describe,
     DateTime Function()? clock,
   }) : _describe = describe ?? _english,
        _clock = clock ?? DateTime.now,
        super(LiveCaptionsState(source: source, target: target)) {
     _events = _host.events.listen(_onEvent);
+    _lockChanges = _lock?.changes.listen(_onAppLock);
   }
 
   /// Sound below this level (dBFS) counts as silence for the hint.
@@ -111,10 +123,18 @@ class LiveCaptionsCubit extends Cubit<LiveCaptionsState> {
   final ScreenTranslateControls? _overlay;
   final DeviceConditions? _conditions;
   final HistoryCubit? _history;
+  final AppLock? _lock;
   final String Function(LiveCaptionsBarText text) _describe;
   final DateTime Function() _clock;
 
   late final StreamSubscription<CaptionBarEvent> _events;
+  StreamSubscription<bool>? _lockChanges;
+
+  /// The bar shows "Mozhi is locked" since the app locked.
+  bool _lockedLineShown = false;
+
+  /// [requestStart] came while [load] was still finding out.
+  bool _startWhenLoaded = false;
   StreamSubscription<Float32List>? _audio;
   StreamSubscription<DeviceConditionsSnapshot>? _heat;
   CaptionRecording? _recording;
@@ -155,6 +175,7 @@ class LiveCaptionsCubit extends Cubit<LiveCaptionsState> {
       'No sound: this app may not allow '
           'capturing its sound',
     LiveCaptionsBarText.hot => 'Paused: the phone is hot',
+    LiveCaptionsBarText.appLocked => 'Mozhi is locked',
   };
 
   /// Finds out whether captions can run here.
@@ -170,6 +191,22 @@ class LiveCaptionsCubit extends Cubit<LiveCaptionsState> {
     }
     if (isClosed || state.isActive) return;
     emit(state.copyWith(status: status));
+    if (_startWhenLoaded) {
+      _startWhenLoaded = false;
+      await start();
+    }
+  }
+
+  /// Starts the captions as [start] does, once [load] found out that they
+  /// can run (the Quick Settings tile opens the screen with this): the
+  /// microphone permission and the capture consent are asked as always.
+  Future<void> requestStart() async {
+    if (isClosed) return;
+    if (state.status == LiveCaptionsStatus.loading) {
+      _startWhenLoaded = true;
+      return;
+    }
+    await start();
   }
 
   /// Starts the captions (see the class): asks what needs asking, then
@@ -342,6 +379,8 @@ class LiveCaptionsCubit extends Cubit<LiveCaptionsState> {
         if (state.isRunning && state.pause == LiveCaptionsPause.locked) {
           final hot = _conditions?.latest.thermal.isHot ?? false;
           emit(state.copyWith(pause: () => hot ? LiveCaptionsPause.hot : null));
+          // The bar cleared its text while the phone was locked.
+          unawaited(_afterDeviceUnlock());
         }
       case CaptionBarEvent.openTapped:
         // Mozhi is in front: the transcript shows.
@@ -393,7 +432,58 @@ class LiveCaptionsCubit extends Cubit<LiveCaptionsState> {
   }
 
   void _showNotice(LiveCaptionsBarText text) =>
-      unawaited(_host.show(CaptionLine.notice(_describe(text))));
+      _showOnBar(CaptionLine.notice(_describe(text)));
+
+  /// Whether the app is locked: the bar shows no captions.
+  bool get _appLocked => _lock?.isLocked ?? false;
+
+  /// [line] on the bar; "Mozhi is locked" instead while the app is locked.
+  void _showOnBar(CaptionLine line) {
+    if (_appLocked) {
+      _showLockedLine();
+      return;
+    }
+    _lockedLineShown = false;
+    unawaited(_host.show(line));
+  }
+
+  /// "Mozhi is locked" on the bar, once per lock.
+  void _showLockedLine() {
+    if (_lockedLineShown) return;
+    _lockedLineShown = true;
+    unawaited(
+      _host.show(CaptionLine.notice(_describe(LiveCaptionsBarText.appLocked))),
+    );
+  }
+
+  void _onAppLock(bool locked) {
+    if (isClosed || !state.isActive) return;
+    if (locked) {
+      _showLockedLine();
+    } else {
+      _refreshBar();
+    }
+  }
+
+  /// The phone was unlocked: the app lock checks first (its timer does
+  /// not count while the phone sleeps), then the bar shows what it would.
+  Future<void> _afterDeviceUnlock() async {
+    if (_lock case final AppLockController lock) await lock.checkAway();
+    if (isClosed || !state.isRunning) return;
+    _refreshBar();
+  }
+
+  /// What the bar shows now: the pause or silence notice, else the last
+  /// caption (or "Listening…").
+  void _refreshBar() {
+    if (state.pause == LiveCaptionsPause.hot) {
+      _showNotice(LiveCaptionsBarText.hot);
+    } else if (state.silenceHint) {
+      _showNotice(LiveCaptionsBarText.silence);
+    } else {
+      _restoreBar();
+    }
+  }
 
   /// After a notice: the last caption again, or "Listening…".
   void _restoreBar() {
@@ -441,7 +531,7 @@ class LiveCaptionsCubit extends Cubit<LiveCaptionsState> {
     );
     if (!translate) return;
     // Heard, not translated yet: the original for now.
-    unawaited(_host.show(CaptionLine(translation: entry.text, isFinal: false)));
+    _showOnBar(CaptionLine(translation: entry.text, isFinal: false));
     _enqueue(entry.id);
   }
 
@@ -538,14 +628,12 @@ class LiveCaptionsCubit extends Cubit<LiveCaptionsState> {
     if (entry == null || isClosed || !state.isRunning) return;
     final newest = state.entries.where((other) => other.hasText).lastOrNull;
     if (newest?.id != id && !force) return;
-    unawaited(
-      _host.show(
-        CaptionLine(
-          original: state.showOriginal && entry.translation != entry.text
-              ? entry.text
-              : '',
-          translation: entry.translation,
-        ),
+    _showOnBar(
+      CaptionLine(
+        original: state.showOriginal && entry.translation != entry.text
+            ? entry.text
+            : '',
+        translation: entry.translation,
       ),
     );
   }
@@ -753,6 +841,7 @@ class LiveCaptionsCubit extends Cubit<LiveCaptionsState> {
       if (running) _host.stop(),
       ?recording?.cancel(),
       _events.cancel(),
+      ?_lockChanges?.cancel(),
       ?_audio?.cancel(),
       ?_heat?.cancel(),
       ?_translation?.cancel(),

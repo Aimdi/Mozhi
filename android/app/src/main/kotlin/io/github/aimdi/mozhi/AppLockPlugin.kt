@@ -40,9 +40,11 @@ import java.util.WeakHashMap
  * - `authenticate({title, subtitle, fallback})` shows the system prompt and
  *   answers `success`, `cancelled`, `unavailable` (no secure lock screen),
  *   `busy` (a prompt of this window is showing) or `error`. Android 11+:
- *   [BiometricPrompt] with `BIOMETRIC_WEAK or DEVICE_CREDENTIAL` (a
- *   fingerprint, face or the screen lock); Android 10: [BiometricPrompt] with
- *   the device credential allowed; Android 9: [BiometricPrompt] whose
+ *   [BiometricPrompt] with `BIOMETRIC_STRONG or DEVICE_CREDENTIAL` (a
+ *   Class 3 fingerprint or face, else the screen lock: a "weak" Class 2
+ *   face unlock, which the lock screen accepts, is not enough to unlock
+ *   Mozhi); Android 10: [BiometricPrompt] with the device credential allowed
+ *   (which biometrics it takes is the system's choice there); Android 9: [BiometricPrompt] whose
  *   negative button ([fallback]), or the lack of enrolled biometrics, goes
  *   to the screen lock; Android 7 and 8: the screen lock
  *   ([KeyguardManager.createConfirmDeviceCredentialIntent]). Framework APIs
@@ -216,10 +218,7 @@ class AppLockPlugin :
             val builder = BiometricPrompt.Builder(activity).setTitle(title)
             if (subtitle != null) builder.setSubtitle(subtitle)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                builder.setAllowedAuthenticators(
-                    BiometricManager.Authenticators.BIOMETRIC_WEAK or
-                        BiometricManager.Authenticators.DEVICE_CREDENTIAL,
-                )
+                builder.setAllowedAuthenticators(ALLOWED_AUTHENTICATORS)
             } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 builder.setDeviceCredentialAllowed(true)
             } else {
@@ -326,6 +325,17 @@ class AppLockPlugin :
         private const val RESULT_BUSY = "busy"
         private const val RESULT_ERROR = "error"
         private const val DEFAULT_TITLE = "Mozhi"
+
+        /**
+         * What unlocks Mozhi on Android 11+: a strong (Class 3) biometric or
+         * the screen lock (PIN, pattern or password). Not
+         * `BIOMETRIC_WEAK`, which the lock screen accepts (most face unlocks
+         * that use only the front camera).
+         */
+        @TargetApi(Build.VERSION_CODES.R)
+        const val ALLOWED_AUTHENTICATORS =
+            BiometricManager.Authenticators.BIOMETRIC_STRONG or
+                BiometricManager.Authenticators.DEVICE_CREDENTIAL
         private const val DEFAULT_FALLBACK = "PIN"
 
         // BiometricPrompt.BIOMETRIC_ERROR_* (the values are part of the API).
@@ -458,6 +468,16 @@ internal object AppLockSession : Application.ActivityLifecycleCallbacks {
     /** Whether the app is unlocked ([setUnlocked]). */
     private var unlockedFlag = false
 
+    /**
+     * Whether Dart locked the app ([setUnlocked] false) and has not unlocked
+     * it since. Unlike [unlockedFlag] (false at start until Dart unlocks the
+     * app, also with the lock off), true only once a lock engaged: what
+     * shows outside Mozhi's windows (the caption bar, [LiveCaptions]) hides
+     * its content then.
+     */
+    var locked = false
+        private set
+
     /** Whether an unlock prompt shows (absences are not counted then). */
     var authenticating = false
 
@@ -485,6 +505,10 @@ internal object AppLockSession : Application.ActivityLifecycleCallbacks {
         unlockedFlag = value
         longestAway = NONE
         longestOwnTrip = NONE
+        if (locked != !value) {
+            locked = !value
+            LiveCaptions.onAppLockChanged(locked)
+        }
     }
 
     /** The prompt ended; if no window is in front, the absence starts now. */

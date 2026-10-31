@@ -255,6 +255,17 @@ void main() {
         constant('MAX_PIXELS').replaceAll('_', ''),
         '${PdfLimits.maxPixels}L',
       );
+      expect(
+        constant('MAX_TEXT_LINES').replaceAll('_', ''),
+        '${PdfLimits.maxTextLines}',
+      );
+      expect(
+        constant('MAX_TEXT_LINE_CHARS').replaceAll('_', ''),
+        '${PdfLimits.maxTextLineLength}',
+      );
+      // The text layer only on Android 15 and later.
+      expect(constant('SDK'), '35');
+      expect(kotlin, contains('Build.VERSION.SDK_INT < TextLayer.SDK'));
       // Password-protected files are refused, not opened.
       expect(kotlin, contains('catch (e: SecurityException)'));
       expect(kotlin, contains('"encrypted"'));

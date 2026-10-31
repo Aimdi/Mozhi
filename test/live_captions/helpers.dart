@@ -37,8 +37,8 @@ Float32List block([double value = 0.3]) => Float32List.fromList([
 ]);
 
 /// A [CaptionsHost] the test drives: [startResult] answers [start],
-/// [sendAudio] and [sendEvent] play the platform side; what was shown and
-/// stopped is recorded.
+/// [sendAudio] and [sendEvent] play the platform side, [startTokens] are
+/// the tile's start requests; what was shown and stopped is recorded.
 class FakeCaptionsHost implements CaptionsHost {
   new({this.isSupported = true});
 
@@ -80,6 +80,17 @@ class FakeCaptionsHost implements CaptionsHost {
 
   @override
   Future<void> stop() async => stops++;
+
+  /// The start tokens the tile made ([consumeStartToken] uses each up);
+  /// the tokens asked about are recorded.
+  final Set<String> startTokens = {};
+  final List<String> consumedTokens = [];
+
+  @override
+  Future<bool> consumeStartToken(String token) async {
+    consumedTokens.add(token);
+    return startTokens.remove(token);
+  }
 
   Future<void> dispose() async {
     await _audio.close();

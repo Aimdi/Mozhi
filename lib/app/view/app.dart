@@ -108,6 +108,14 @@ class _AppState extends State<App> {
       incognito: _settingsCubit.state.incognito,
       saveHistory: _settingsCubit.state.saveHistory,
     );
+    // With the app lock on, the history is not read (decrypted into
+    // memory) behind the lock screen of a cold start: it waits for the
+    // first unlock, as after a later lock (the lock gate's
+    // `forgetForLock`). The lock off (also on the web): read at once.
+    if (_appLock.isLocked) {
+      unawaited(_historyCubit.forgetForLock());
+      unawaited(_reloadHistoryWhenUnlocked());
+    }
     // The phrasebook's Favorites collection is the history's favourites.
     _deps.phrasebookRepository?.attachFavorites(
       HistoryCubitFavorites(_historyCubit),
@@ -174,7 +182,8 @@ class _AppState extends State<App> {
   }
 
   /// Reads what the first screen does not need once it is on screen: the
-  /// history (decoding up to 1000 entries, tens of milliseconds) and the
+  /// history (decoding up to 1000 entries, tens of milliseconds; while the
+  /// app is locked, only once it is unlocked) and the
   /// usage counters (they also load on first use). Both would otherwise
   /// compete with the first frame whenever the store answers quickly (web,
   /// cached preferences).
@@ -183,6 +192,13 @@ class _AppState extends State<App> {
     unawaited(_historyCubit.load());
     unawaited(_deps.usageTracker.load().then<void>((_) {}, onError: (_) {}));
     unawaited(_recoverLostPhoto());
+  }
+
+  /// Reads the history (held since the start, see [initState]) once the
+  /// app is unlocked.
+  Future<void> _reloadHistoryWhenUnlocked() async {
+    await _appLock.untilUnlocked();
+    if (mounted) await _historyCubit.reloadAfterLock();
   }
 
   /// Android may end the app while the camera is open (it needs a lot of

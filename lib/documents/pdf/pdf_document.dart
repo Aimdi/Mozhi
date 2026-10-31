@@ -51,7 +51,8 @@ class PdfParagraph extends Equatable {
 }
 
 /// What was read on page [page] (0-based) of [size] points with the text
-/// recognition data [codes].
+/// recognition data [codes], or taken from the page's text layer
+/// ([fromTextLayer]).
 @immutable
 class PdfPageText extends Equatable {
   const new({
@@ -59,6 +60,7 @@ class PdfPageText extends Equatable {
     required this.size,
     required this.codes,
     this.paragraphs = const [],
+    this.fromTextLayer = false,
   });
 
   final int page;
@@ -66,6 +68,10 @@ class PdfPageText extends Equatable {
 
   /// The recognition languages it was read with (read again with others).
   final List<String> codes;
+
+  /// The text is the file's own (its text layer, [PdfPages.readText]), not
+  /// recognised: the same whatever the recognition data.
+  final bool fromTextLayer;
 
   /// In reading order; none on a page without text.
   final List<PdfParagraph> paragraphs;
@@ -77,15 +83,24 @@ class PdfPageText extends Equatable {
     for (final paragraph in paragraphs) Segment(paragraph.text),
   ];
 
-  /// Whether this page was read with [codes].
-  bool readWith(List<String> codes) => listEquals(this.codes, codes);
+  /// Whether this page was read with [codes] (a page taken from its text
+  /// layer reads the same with any).
+  bool readWith(List<String> codes) =>
+      fromTextLayer || listEquals(this.codes, codes);
 
   @override
-  List<Object?> get props => [page, size, codes, paragraphs];
+  List<Object?> get props => [page, size, codes, paragraphs, fromTextLayer];
 }
 
 /// What happens to the page [PdfSource.currentPage].
-enum PdfStage { reading, translating }
+enum PdfStage {
+  reading,
+  translating,
+
+  /// The phone is hot: text recognition waits before it reads the page,
+  /// then goes on.
+  cooling,
+}
 
 /// Why the pages of a PDF cannot be read now.
 enum PdfReadIssue {

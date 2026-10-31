@@ -274,6 +274,37 @@ void main() {
       expect(deepLinkLocation(Uri.parse('mozhi://web?')), '/web');
     });
 
+    test('stays below the screen: no dot segments or backslashes', () {
+      for (final link in [
+        r'mozhi://translate/..\transcribe/captions?start=1',
+        'mozhi://translate/x/../../transcribe/captions?start=1',
+        'mozhi://translate/.%2e/transcribe/captions?start=1',
+        'mozhi://translate/%2E%2E/transcribe/captions?start=1',
+      ]) {
+        final location = deepLinkLocation(Uri.parse(link));
+        expect(location, startsWith('/translate'), reason: link);
+        expect(
+          Uri.parse(location!).pathSegments.first,
+          'translate',
+          reason: link,
+        );
+      }
+      expect(
+        deepLinkLocation(Uri.parse('mozhi://translate/a%5Cb/c%2Fd/e')),
+        '/translate/e',
+      );
+      expect(
+        deepLinkLocation(
+          Uri(
+            scheme: 'mozhi',
+            host: 'translate',
+            pathSegments: ['.', 'x', r'y\z'],
+          ),
+        ),
+        '/translate/x',
+      );
+    });
+
     test('ignores other locations', () {
       expect(deepLinkLocation(Uri.parse('/translate?text=hi')), isNull);
       expect(deepLinkLocation(Uri.parse('https://mozhi.test/image')), isNull);
@@ -331,6 +362,22 @@ void main() {
         '/translate?text=hi&to=fr',
       );
       expect(redirect('mozhi://dictionary?word=x'), '/dictionary?word=x');
+      expect(links, isEmpty);
+    });
+
+    test("sends deep links to screens outside the manifest's to /", () {
+      for (final host in AppRoutes.deepLinkHosts) {
+        expect(redirect('mozhi://$host'), '/$host', reason: host);
+      }
+      expect(redirect('MOZHI://Image'), '/image');
+      expect(redirect('mozhi://transcribe/captions?start=1'), '/');
+      expect(redirect('mozhi://settings/about'), '/');
+      expect(redirect('mozhi:///transcribe/captions?start=1'), '/');
+      // Dart reads the backslashes as slashes, below the host.
+      expect(
+        redirect(r'mozhi://translate\..\transcribe/captions'),
+        '/translate/transcribe/captions',
+      );
       expect(links, isEmpty);
     });
 

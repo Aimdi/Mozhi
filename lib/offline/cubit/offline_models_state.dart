@@ -138,6 +138,8 @@ class OfflineModelsState extends Equatable {
     this.importing = false,
     this.importOutcome,
     this.manualDownloads = const {},
+    this.canCancel = false,
+    this.cancelling = const {},
   });
 
   final OfflineModelsStatus status;
@@ -185,6 +187,23 @@ class OfflineModelsState extends Equatable {
   /// Per language, the files to download by hand for an import, when the
   /// engine supports imports.
   final Map<String, List<OfflineManualDirection>> manualDownloads;
+
+  /// Whether running downloads and updates can be cancelled (the engine
+  /// has `CancellableDownloads`).
+  final bool canCancel;
+
+  /// Downloads and updates being cancelled, by language code (still in
+  /// [pending] until they have stopped).
+  final Set<String> cancelling;
+
+  /// Whether [code]'s running download or update can be cancelled now.
+  bool canCancelDownload(String code) =>
+      canCancel &&
+      !cancelling.contains(code) &&
+      switch (pending[code]) {
+        OfflineModelOperation.download || OfflineModelOperation.update => true,
+        _ => false,
+      };
 
   /// Whether the engine reports sizes (and with them which languages are
   /// built in).
@@ -250,6 +269,8 @@ class OfflineModelsState extends Equatable {
     bool? importing,
     ValueGetter<OfflineImportOutcome?>? importOutcome,
     Map<String, List<OfflineManualDirection>>? manualDownloads,
+    bool? canCancel,
+    Set<String>? cancelling,
   }) => OfflineModelsState(
     status: status ?? this.status,
     isAvailable: isAvailable ?? this.isAvailable,
@@ -266,6 +287,8 @@ class OfflineModelsState extends Equatable {
     importing: importing ?? this.importing,
     importOutcome: importOutcome != null ? importOutcome() : this.importOutcome,
     manualDownloads: manualDownloads ?? this.manualDownloads,
+    canCancel: canCancel ?? this.canCancel,
+    cancelling: cancelling ?? this.cancelling,
   );
 
   @override
@@ -285,5 +308,7 @@ class OfflineModelsState extends Equatable {
     importing,
     importOutcome,
     manualDownloads,
+    canCancel,
+    cancelling,
   ];
 }

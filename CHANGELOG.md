@@ -3,6 +3,55 @@
 All notable changes to Mozhi, by release tag on GitHub (pre-releases end
 in `-rc.N`).
 
+## 0.1.0-rc.7
+
+### Added
+
+- **Cancel a language download**, on the Offline languages page, next to
+  a translation and on the first run. What was downloaded is kept, so the
+  next download of that language, or one that was cut off, goes on where
+  it stopped (when the server allows it); every file is still checked
+  before it is used.
+- **Look up a word you typed:** select it in the input and choose
+  **Look up** (the offline dictionary first, an AI model only when you
+  ask).
+- **Quick Settings tile for live captions** (Android 10+). It opens the
+  captions screen, which asks for the microphone and screen capture as
+  usual, and stops captions with one tap.
+- **PDFs keep their own text on Android 15:** a page with a text layer is
+  read from the file instead of with text recognition (sharper, faster,
+  no text recognition download needed); scanned pages still use it. Text
+  recognition pauses while the phone is hot.
+- **A Camera launcher shortcut**, and the four shortcuts Pixel launchers
+  show are now Translate clipboard, Camera, Conversation and Translate
+  screen.
+
+### Changed
+
+- **Volunteer server failures look the same everywhere.** Image
+  translation, read-aloud and language detection say in plain words when
+  every server failed, with Retry where it fits, instead of an error
+  code.
+- **Documents keep more of their structure:** gettext and Android plural
+  forms follow the target language's rules, spreadsheet sheet names (with
+  the formulas that refer to them), cell comments, chart and axis titles,
+  and image descriptions (alt text) in Word, PowerPoint and Excel files
+  are translated; XLIFF files split into sentences keep their sentences.
+- **The app lock** asks for a strong fingerprint or face on Android 11+
+  (or the PIN), keeps the decrypted history out of memory while locked
+  (also right after a start), and the live caption bar shows only
+  **Mozhi is locked** while Mozhi is locked. The translate screen and a
+  conversation stay as they were, hidden.
+
+### Fixed
+
+- `mozhi://` links with `..` or `\` in their path now open the start
+  page instead of another screen, and live captions start only from the
+  Quick Settings tile or the captions screen.
+- A crafted gettext file can no longer stall document translation, and a
+  download server's malformed answer to a resumed download restarts the
+  download instead of failing with an internal error.
+
 ## 0.1.0-rc.6
 
 ### Changed

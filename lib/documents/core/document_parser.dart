@@ -31,7 +31,10 @@ ParsedDocument parseDocument(
   DocumentFormat.json => parseJson(text),
   DocumentFormat.html => parseHtml(text, targetLanguage: targetLanguage),
   DocumentFormat.xliff => parseXliff(text, targetLanguage: targetLanguage),
-  DocumentFormat.androidStrings => parseAndroidStrings(text),
+  DocumentFormat.androidStrings => parseAndroidStrings(
+    text,
+    targetLanguage: targetLanguage,
+  ),
   DocumentFormat.po => parsePo(text, targetLanguage: targetLanguage),
   DocumentFormat.csv || DocumentFormat.tsv => parseDelimited(text, format),
   DocumentFormat.appleStrings => parseAppleStrings(text),

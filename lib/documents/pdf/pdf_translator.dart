@@ -15,6 +15,7 @@ import 'package:mozhi/documents/pdf/unsupported_pdf_pages.dart';
 import 'package:mozhi/image_translate/data/text_recognition_plan.dart';
 import 'package:mozhi/image_translate/data/text_recognition_service.dart';
 import 'package:mozhi/image_translate/models/models.dart';
+import 'package:mozhi/platform/device_conditions.dart';
 import 'package:mozhi/platform/text_recognition.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -84,12 +85,20 @@ class PdfProgress extends Equatable {
   ];
 }
 
-/// Translates PDFs on the device, page by page: renders a page, reads it
-/// ([PdfPageReader]: Tesseract with its layout), translates its paragraphs
+/// Translates PDFs on the device, page by page: reads a page
+/// ([PdfPageReader]: its text layer on Android 15 and later when it has
+/// one, else Tesseract with its layout), translates its paragraphs
 /// with the document's engine through the [DocumentTranslator] (the same
 /// options, chunking, retries, privacy routing and, for on-device AI, the
 /// pause while the phone is hot as other documents), and writes the
 /// translated PDF ([PdfPages.write]).
+///
+/// A PDF whose pages have a text layer needs no recognition data: [plan]
+/// is then ready without any (no codes) and only a page without one asks
+/// for the data ([OcrDataMissingException]). While the phone is hot
+/// ([ThermalStatus.isHot] of [DeviceConditions]), text recognition waits
+/// before each page ([PdfStage.cooling]), checking again every
+/// [coolingCheck], then goes on; reading a text layer never waits.
 ///
 /// The PDF is copied to the app's private cache only for the platform to
 /// open it ([PdfScratch]; the copy is deleted once it is open), the
@@ -105,18 +114,17 @@ class PdfTranslator {
     this._chunker = const Chunker(),
     int minConfidence = 40,
     this.maxFailedPagesInARow = 3,
-  }) : _reader = switch (textRecognitionPixelsOf(_recognizer)) {
-         final pixels? => PdfPageReader(
-           pages: _pages,
-           recognizer: pixels,
-           minConfidence: minConfidence,
-         ),
-         null => null,
-       };
+    this._conditions,
+    this.coolingCheck = const Duration(seconds: 30),
+  }) : _reader = PdfPageReader(
+         pages: _pages,
+         recognizer: textRecognitionPixelsOf(_recognizer),
+         minConfidence: minConfidence,
+       );
 
   /// The app's: the platform's pages ([defaultPdfPages]), its Tesseract
-  /// recognizer ([defaultTextRecognitionService], in every Android build)
-  /// and [translator].
+  /// recognizer ([defaultTextRecognitionService], in every Android build),
+  /// the phone's heat ([DeviceConditions.instance]) and [translator].
   factory platform({
     required DocumentTranslator translator,
     Chunker chunker = const Chunker(),
@@ -126,6 +134,7 @@ class PdfTranslator {
     translator: translator,
     scratch: defaultPdfScratch(),
     chunker: chunker,
+    conditions: DeviceConditions.instance,
   );
 
   final PdfPages _pages;
@@ -133,7 +142,28 @@ class PdfTranslator {
   final DocumentTranslator _translator;
   final PdfScratch _scratch;
   final Chunker _chunker;
-  final PdfPageReader? _reader;
+  final PdfPageReader _reader;
+
+  /// The phone's heat (null: recognition never waits).
+  final DeviceConditions? _conditions;
+
+  /// How often a recognition waiting for the phone to cool down checks
+  /// again (it also goes on as soon as a change says it cooled down).
+  final Duration coolingCheck;
+
+  /// Pages probed for a text layer by [plan].
+  static const textLayerProbePages = 3;
+
+  /// Page count of the open PDF (null: none open).
+  int? _pageCount;
+
+  /// Whether one of the open PDF's first pages has a text layer (null: not
+  /// probed yet).
+  bool? _hasTextLayer;
+
+  /// The recognition plan of the last [plan] (for a page without a text
+  /// layer when the plan needs no data).
+  TextRecognitionPlan? _recognitionPlan;
 
   /// A run stops after this many pages in a row whose translation failed
   /// (an engine that answers nothing would otherwise have every page read
@@ -143,8 +173,11 @@ class PdfTranslator {
   /// Whether PDFs are opened here (the platform reads them).
   bool get isSupported => _pages.isSupported;
 
-  /// Whether pages can be read here (text recognition works).
-  bool get canRead => _reader != null && _recognizer.isSupported;
+  /// Whether pages can be read here: text recognition works, or the open
+  /// PDF has a text layer (once [plan] found one).
+  bool get canRead => _canRecognize || (_hasTextLayer ?? false);
+
+  bool get _canRecognize => _reader.canRecognize && _recognizer.isSupported;
 
   /// The recognizer's downloadable language data (for the offer to get
   /// the data of a language), when it has some.
@@ -166,45 +199,82 @@ class PdfTranslator {
       throw const PdfOpenException(kind: PdfOpenErrorKind.damaged);
     }
     final path = await _scratch.write(bytes);
+    _forget();
     try {
       final info = await _pages.open(path);
       if (info.pageCount > PdfLimits.maxPages) {
         await _pages.close();
         throw const PdfOpenException(kind: PdfOpenErrorKind.tooLarge);
       }
+      _pageCount = info.pageCount;
       return info;
     } finally {
       await _scratch.delete(path);
     }
   }
 
+  void _forget() {
+    _reader.forget();
+    _pageCount = null;
+    _hasTextLayer = null;
+    _recognitionPlan = null;
+  }
+
   /// Which recognition data reads a PDF in [source] (see
-  /// [planTextRecognition]; [preferred] for "Detect language").
+  /// [planTextRecognition]; [preferred] for "Detect language"). When that
+  /// data is missing or there is none, but one of the open PDF's first
+  /// [textLayerProbePages] pages has a text layer, the PDF is read from
+  /// its text layers: [TextRecognitionReady] without codes.
   Future<TextRecognitionPlan> plan(
     Language source, {
     List<String> preferred = const [],
   }) async {
     final data = languageData;
-    if (data == null || !canRead) return const TextRecognitionUnsupported();
-    return await planTextRecognition(
-      data,
-      source: source,
-      preferred: preferred,
-    );
+    final recognition = data == null || !_canRecognize
+        ? const TextRecognitionUnsupported()
+        : await planTextRecognition(data, source: source, preferred: preferred);
+    _recognitionPlan = recognition;
+    if (recognition is TextRecognitionReady) return recognition;
+    if (await _probeTextLayer()) return const TextRecognitionReady([]);
+    return recognition;
   }
 
-  /// Reads page [page] (of [size] points) with [codes]. Throws as
+  Future<bool> _probeTextLayer() async {
+    final known = _hasTextLayer;
+    if (known != null) return known;
+    final count = _pageCount;
+    if (count == null) return false;
+    for (var page = 0; page < count && page < textLayerProbePages; page++) {
+      if (await _reader.hasTextLayer(page)) return _hasTextLayer = true;
+    }
+    return _hasTextLayer = false;
+  }
+
+  /// Reads page [page] (of [size] points): from its text layer when it has
+  /// one, else with text recognition in [codes] ([beforeRecognition] runs
+  /// first). Without [codes] (a PDF read from its text layers, see [plan])
+  /// a page without one throws the missing data of the last plan
+  /// ([OcrDataMissingException]), or [ImageTranslateException]
+  /// (`recognitionFailed`) when none reads it. Throws as
   /// [PdfPageReader.read].
-  Future<PdfPageText> read(int page, Size size, List<String> codes) {
-    final reader = _reader;
-    if (reader == null) {
-      return Future.error(
-        const ImageTranslateException(
+  Future<PdfPageText> read(
+    int page,
+    Size size,
+    List<String> codes, {
+    Future<void> Function()? beforeRecognition,
+  }) async {
+    final layer = await _reader.readTextLayer(page, size, codes: codes);
+    if (layer != null) return layer;
+    if (codes.isEmpty || !_canRecognize) {
+      throw switch (_recognitionPlan) {
+        TextRecognitionNeedsData(:final missing) when _canRecognize => missing,
+        _ => const ImageTranslateException(
           ImageTranslateErrorKind.recognitionFailed,
         ),
-      );
+      };
     }
-    return reader.read(page, size, codes);
+    await beforeRecognition?.call();
+    return await _reader.recognize(page, size, codes);
   }
 
   /// Translates the pages of a PDF of [pageSizes] that are not in
@@ -263,7 +333,10 @@ class PdfTranslator {
   }
 
   /// Closes the open PDF.
-  Future<void> close() => _pages.close();
+  Future<void> close() {
+    _forget();
+    return _pages.close();
+  }
 }
 
 /// One [PdfTranslator.translate] run.
@@ -311,13 +384,50 @@ class _PdfRun {
   late final StreamController<PdfProgress> _controller;
   StreamSubscription<DocumentProgress>? _chunks;
   bool _cancelled = false;
+
+  /// Completed to stop waiting for the phone to cool down.
+  Completer<void>? _wake;
   int _masked = 0;
 
   Stream<PdfProgress> get stream => _controller.stream;
 
   Future<void> _cancel() async {
     _cancelled = true;
+    _wakeUp();
     await _chunks?.cancel();
+  }
+
+  void _wakeUp() {
+    final wake = _wake;
+    if (wake != null && !wake.isCompleted) wake.complete();
+  }
+
+  /// While the phone is hot: reports page [index] as
+  /// [PdfStage.cooling] and waits until a change says it cooled down (or
+  /// for [PdfTranslator.coolingCheck], then looks again), then reports it
+  /// as being read again. Returns at once otherwise; throws when the run
+  /// was cancelled meanwhile.
+  Future<void> _coolDown(int index) async {
+    final conditions = _owner._conditions;
+    if (conditions == null || !conditions.latest.thermal.isHot) return;
+    _report(page: index, stage: PdfStage.cooling);
+    while (!_cancelled && conditions.latest.thermal.isHot) {
+      final wake = _wake = Completer<void>();
+      final changes = conditions.changes.listen((snapshot) {
+        if (!snapshot.thermal.isHot) _wakeUp();
+      });
+      final timer = Timer(_owner.coolingCheck, _wakeUp);
+      try {
+        await wake.future;
+      } finally {
+        timer.cancel();
+        await changes.cancel();
+        _wake = null;
+      }
+    }
+    // Cancelled: the page is not recognised ([_pageText] ignores this).
+    if (_cancelled) throw const _Cancelled();
+    _report(page: index, stage: PdfStage.reading);
   }
 
   void _report({int? page, PdfStage? stage, bool complete = false}) =>
@@ -398,7 +508,12 @@ class _PdfRun {
     if (known != null && known.readWith(codes)) return known;
     _report(page: index, stage: PdfStage.reading);
     try {
-      final page = await _owner.read(index, pageSizes[index], codes);
+      final page = await _owner.read(
+        index,
+        pageSizes[index],
+        codes,
+        beforeRecognition: () => _coolDown(index),
+      );
       if (_cancelled) return null;
       _pages[index] = page;
       // Read with other data: chunks of the earlier text do not fit it.
@@ -439,4 +554,9 @@ class _PdfRun {
         );
     return finished.future;
   }
+}
+
+/// A run was cancelled while its page waited.
+class _Cancelled implements Exception {
+  const new();
 }

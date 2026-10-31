@@ -253,4 +253,64 @@ void main() {
       expect(find.byKey(const Key('translate_error_fix')), findsOneWidget);
     });
   });
+
+  group('when the servers could not detect the source language', () {
+    const undetected = SourceLanguageRequiredException(
+      engineId: 'ai:gemma',
+      cause: _allFailed,
+    );
+
+    test('says the servers failed and asks for the language', () {
+      final info = describeTranslateError(l10n, undetected);
+      expect(info.message, l10n.translateErrorDetectionServersFailed);
+      expect(info.message, isNot(contains('500')));
+      expect(info.title, l10n.translateErrorTitleAllServers);
+      expect(info.chooseSourceLanguage, isTrue);
+      expect(info.fix, TranslateErrorFix.none);
+      expect(
+        info.details,
+        startsWith(
+          l10n.translateErrorServersTried(
+            'mozhi.one.example, mozhi.two.example',
+          ),
+        ),
+      );
+      expect(info.details, isNot(contains('secret')));
+    });
+
+    test('other detection failures keep their wording', () {
+      final info = describeTranslateError(
+        l10n,
+        const SourceLanguageRequiredException(
+          cause: MozhiApiException('Connection refused'),
+        ),
+      );
+      expect(info.message, l10n.translateErrorSourceLanguageRequired);
+      expect(info.title, l10n.translateErrorTitleLanguage);
+    });
+
+    testWidgets('offers the language and Retry', (tester) async {
+      var chosen = 0;
+      var retried = 0;
+      final harness = TranslateHarness(state: _failed(undetected));
+      await harness.pump(
+        tester,
+        child: TranslateErrorView(
+          error: undetected,
+          onRetry: () => retried++,
+          onChooseSourceLanguage: () => chosen++,
+        ),
+        offline: FakeOfflineTranslator(downloaded: {'fr'}),
+      );
+      await tester.pump();
+      expect(find.text(l10n.translateErrorTitleAllServers), findsOneWidget);
+      expect(
+        find.text(l10n.translateErrorDetectionServersFailed),
+        findsOneWidget,
+      );
+      await tester.tap(find.byKey(const Key('translate_error_choose_source')));
+      await tester.tap(find.byKey(const Key('translate_error_retry')));
+      expect((chosen, retried), (1, 1));
+    });
+  });
 }

@@ -2,18 +2,23 @@ import 'package:mozhi/documents/core/office/part_template.dart';
 import 'package:mozhi/documents/core/office/xml_source.dart';
 
 /// SpreadsheetML strings: the shared strings table (`si`, each translated
-/// once however many cells use it) and inline strings in worksheets
-/// (`is`). Plain and rich text (`r` runs with their own `rPr`) are
-/// supported; phonetic readings (`rPh`) are dropped from translated
-/// strings. Numbers, dates, formulas and their cached results are never
-/// strings here, so they stay untouched.
+/// once however many cells use it), inline strings in worksheets (`is`)
+/// and the text of cell comments (`comment/text`; the authors stay).
+/// Plain and rich text (`r` runs with their own `rPr`) are supported;
+/// phonetic readings (`rPh`) are dropped from translated strings.
+/// Numbers, dates, formulas and their cached results are never strings
+/// here, so they stay untouched. Drawings in worksheets (`xdr:cNvPr`) are
+/// another part, whose alternative text is translated there.
 final class SheetPartBuilder extends PartBuilder {
   new(super.document, super.table);
 
   @override
   bool isParagraph(SourceElement element) =>
       element.inNamespace(Ns.sheet) &&
-      (element.localName == 'si' || element.localName == 'is');
+      (element.localName == 'si' ||
+          element.localName == 'is' ||
+          (element.localName == 'text' &&
+              (element.parent?.isA(Ns.sheet, 'comment') ?? false)));
 
   @override
   bool skip(SourceElement element) =>
@@ -56,6 +61,63 @@ final class SheetPartBuilder extends PartBuilder {
       ],
     );
   }
+}
+
+/// Elements that hold nothing but plain text ([paragraph] decides which),
+/// written back as escaped text with their line breaks: threaded comments
+/// in spreadsheets and legacy comments in presentations.
+final class PlainElementPartBuilder extends PartBuilder {
+  new(super.document, super.table, {required this.paragraphs});
+
+  /// Threaded comments: the `text` of a comment, unless it mentions people
+  /// (`mentions` give the mentions' character positions in the text,
+  /// which a translation would move).
+  factory threadedComments(SourceDocument document, SegmentTable table) =>
+      PlainElementPartBuilder(
+        document,
+        table,
+        paragraphs: (element) {
+          final comment = element.parent;
+          return element.isA(Ns.threadedComments, 'text') &&
+              comment != null &&
+              comment.isA(Ns.threadedComments, 'threadedComment') &&
+              comment.child(Ns.threadedComments, 'mentions') == null;
+        },
+      );
+
+  /// Legacy presentation comments (`p:cm/p:text`).
+  factory presentationComments(SourceDocument document, SegmentTable table) =>
+      PlainElementPartBuilder(
+        document,
+        table,
+        paragraphs: (element) =>
+            element.isA(Ns.presentation, 'text') &&
+            (element.parent?.isA(Ns.presentation, 'cm') ?? false),
+      );
+
+  final bool Function(SourceElement element) paragraphs;
+
+  @override
+  bool isParagraph(SourceElement element) =>
+      element.elements.isEmpty && paragraphs(element);
+
+  @override
+  List<PartNode>? paragraph(SourceElement element) => slotOrPlain(element, [
+    TextAtom(element.text.replaceAll('\r\n', '\n'), RunContext.plain),
+  ], writer: const _EscapedTextWriter());
+}
+
+final class _EscapedTextWriter extends RunWriter {
+  const new();
+
+  @override
+  void writeText(
+    StringBuffer out,
+    String text,
+    RunStyle style,
+    WriterState state,
+    PartRenderer renderer,
+  ) => out.write(escapeXmlText(text));
 }
 
 /// Writes SpreadsheetML string content: one `t` for plain strings, `r`

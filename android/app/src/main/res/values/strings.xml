@@ -68,4 +68,7 @@
     <string name="live_captions_stop_description">Stop live captions</string>
     <string name="live_captions_open_description">Open Mozhi</string>
     <string name="live_captions_bar_description">Live captions</string>
+    <string name="tile_live_captions_label">Live captions</string>
+    <string name="tile_live_captions_description">Start or stop Mozhi\'s live captions</string>
+    <string name="live_captions_locked">Mozhi is locked</string>
 </resources>

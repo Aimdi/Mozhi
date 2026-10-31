@@ -1,7 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app_lock/view/app_lock_settings_tile.dart'
+    show maybeAppLock;
 import 'package:mozhi/documents/data/document_file_service.dart';
 import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/l10n/l10n.dart';
@@ -35,7 +38,16 @@ import 'package:translation_repository/translation_repository.dart';
 /// (tests): [host] (default [platformCaptionsHost]), [recognizer]
 /// (default Whisper over [OfflineSpeech]), [overlay] ("Display over other
 /// apps"), [conditions] (the phone's heat) and [openEnginePicker]
-/// (default `showLiveEnginePicker`).
+/// (default `showLiveEnginePicker`). The app lock (`maybeAppLock`) keeps
+/// captions off the caption bar while the app is locked.
+///
+/// Opened with a start request (`?start=<token>`, [startParameter]: the
+/// Quick Settings tile, `LiveCaptionsTileService.kt`), the captions start
+/// as with Start, once the screen found out that they can run: the
+/// microphone permission and the system's capture consent are asked as
+/// always. Only the tile's own token starts them, once
+/// ([CaptionsHost.consumeStartToken]): any other `start` value (the same
+/// link from another app) only opens the screen.
 class LiveCaptionsPage extends StatefulWidget {
   const new({
     this.host,
@@ -56,8 +68,28 @@ class LiveCaptionsPage extends StatefulWidget {
   final TranscribeShareCallback share;
   final LiveEnginePickerOpener? openEnginePicker;
 
+  /// The query parameter of a start request (see the class).
+  static const startParameter = 'start';
+
   @override
   State<LiveCaptionsPage> createState() => _LiveCaptionsPageState();
+}
+
+/// The start requests already handled in this app process: a page built
+/// again at the same location does not start the captions again.
+final _handledStarts = <String>{};
+
+/// The start request of the page's location, if any: none outside a page
+/// of the router (as in tests).
+String? _startRequest(BuildContext context) {
+  if (GoRouter.maybeOf(context) == null ||
+      ModalRoute.of(context)?.settings is! Page<Object?>) {
+    return null;
+  }
+  final token = GoRouterState.of(context)
+      .uri
+      .queryParameters[LiveCaptionsPage.startParameter];
+  return token == null || token.isEmpty ? null : token;
 }
 
 class _LiveCaptionsPageState extends State<LiveCaptionsPage> {
@@ -84,6 +116,7 @@ class _LiveCaptionsPageState extends State<LiveCaptionsPage> {
         );
       }
       final l10n = context.l10n;
+      final startRequest = _startRequest(context);
       return BlocProvider(
         create: (context) {
           final translate = context.read<TranslateCubit>();
@@ -107,19 +140,25 @@ class _LiveCaptionsPageState extends State<LiveCaptionsPage> {
                 widget.overlay ?? MethodChannelScreenTranslateControls.instance,
             conditions: widget.conditions ?? DeviceConditions.instance,
             history: _maybe<HistoryCubit>(context),
+            lock: maybeAppLock(context),
             describe: (text) => switch (text) {
               LiveCaptionsBarText.listening => l10n.liveCaptionsBarListening,
               LiveCaptionsBarText.silence => l10n.liveCaptionsBarSilence,
               LiveCaptionsBarText.hot => l10n.liveCaptionsBarHot,
+              LiveCaptionsBarText.appLocked => l10n.liveCaptionsBarLocked,
             },
           );
           unawaited(cubit.load());
           return cubit;
         },
-        child: LiveCaptionsView(
-          files: widget.files,
-          share: widget.share,
-          openEnginePicker: widget.openEnginePicker ?? showLiveEnginePicker,
+        child: _StartOnRequest(
+          token: startRequest,
+          host: host,
+          child: LiveCaptionsView(
+            files: widget.files,
+            share: widget.share,
+            openEnginePicker: widget.openEnginePicker ?? showLiveEnginePicker,
+          ),
         ),
       );
     },
@@ -507,4 +546,47 @@ class _MenuButton extends StatelessWidget {
     enabled: enabled,
     child: ListTile(leading: Icon(icon), title: Text(label)),
   );
+}
+
+/// Starts the captions for a new start request [token] of the page's
+/// location ([LiveCaptionsPage.startParameter]) when [host] knows it as the
+/// tile's ([CaptionsHost.consumeStartToken]).
+class _StartOnRequest extends StatefulWidget {
+  const new({required this.token, required this.host, required this.child});
+
+  final String? token;
+  final CaptionsHost host;
+  final Widget child;
+
+  @override
+  State<_StartOnRequest> createState() => _StartOnRequestState();
+}
+
+class _StartOnRequestState extends State<_StartOnRequest> {
+  @override
+  void initState() {
+    super.initState();
+    _handle();
+  }
+
+  @override
+  void didUpdateWidget(_StartOnRequest oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.token != widget.token) _handle();
+  }
+
+  void _handle() {
+    final token = widget.token;
+    if (token == null || !_handledStarts.add(token)) return;
+    unawaited(_startFor(token));
+  }
+
+  Future<void> _startFor(String token) async {
+    // Not the tile's: the screen only opens.
+    if (!await widget.host.consumeStartToken(token) || !mounted) return;
+    unawaited(context.read<LiveCaptionsCubit>().requestStart());
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }

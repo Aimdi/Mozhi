@@ -2757,5 +2757,11 @@
   "conversationTurnPauseHintAny": "Một lượt kết thúc khi có khoảng lặng dài chừng này sau khi nói.",
   "translateOfflineManageLanguages": "Quản lý ngôn ngữ",
   "translateOfflineDownloadingLanguage": "Đang tải xuống {language}… {percent}%",
-  "translateOfflineDownloadingLanguageStarted": "Đang tải xuống {language}…"
+  "translateOfflineDownloadingLanguageStarted": "Đang tải xuống {language}…",
+  "translateErrorDetectionServersFailed": "Các máy chủ tình nguyện hiện không thể nhận diện ngôn ngữ. Hãy chọn ngôn ngữ của văn bản.",
+  "speechErrorServersUnavailable": "Các máy chủ tình nguyện hiện không thể đọc to nội dung này. Các máy chủ miễn phí này đôi khi không hoạt động.",
+  "liveCaptionsBarLocked": "Mozhi đang khóa",
+  "offlineCancelDownloadTooltip": "Hủy tải xuống {language}",
+  "offlineCancelling": "Đang dừng…",
+  "documentsPdfProgressCooling": "Trang {page}/{total}: điện thoại đang nóng, đang chờ máy nguội…"
 }

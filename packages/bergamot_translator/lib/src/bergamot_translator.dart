@@ -40,9 +40,13 @@ final class MeteredConnectionException implements Exception {
 ///   in a background isolate) and decides with [Cld2Decision]; where the
 ///   engine cannot run it falls back to the [LanguageIdentifier] heuristic.
 ///
+/// * [downloadLanguage] can be stopped with [cancelDownload]; what was
+///   received is kept, and the next download of the language resumes it.
+///
 /// [isAvailable] is true on Android (arm64-v8a, x86_64, armeabi-v7a with
 /// VFPv4) and false elsewhere (web, desktop) unless overridden.
-class BergamotTranslator implements DetailedOfflineTranslator {
+class BergamotTranslator
+    implements DetailedOfflineTranslator, CancellableDownloads {
   new({
     required this.catalog,
     required Directory root,
@@ -110,6 +114,9 @@ class BergamotTranslator implements DetailedOfflineTranslator {
   final bool? _isAvailable;
   final _progress = StreamController<ModelDownloadProgress>.broadcast();
 
+  /// The running [downloadLanguage] calls by language code.
+  final _downloads = <String, List<_Download>>{};
+
   /// Progress of [downloadLanguage] (one event per received chunk).
   Stream<ModelDownloadProgress> get downloadProgress => _progress.stream;
 
@@ -166,7 +173,9 @@ class BergamotTranslator implements DetailedOfflineTranslator {
   /// downloading over a metered connection. Throws
   /// [OfflineLanguageUnsupportedException] for languages without models and
   /// [ModelInstallException] when a download fails or does not match its
-  /// checksum.
+  /// checksum. [cancelDownload] stops it with an
+  /// [OfflineDownloadCancelledException]; models installed before that
+  /// stay.
   @override
   Future<void> downloadLanguage(String code, {bool wifiOnly = true}) async {
     _ensureAvailable();
@@ -175,17 +184,50 @@ class BergamotTranslator implements DetailedOfflineTranslator {
       if (router.targetCode(code) == ModelRouter.english) return;
       throw OfflineLanguageUnsupportedException(code);
     }
-    final missing = [
-      for (final model in needed)
-        if (!await models.isInstalled(model)) model,
-    ];
-    if (missing.isEmpty) return;
-    if (wifiOnly && await _isMeteredConnection()) {
-      throw const MeteredConnectionException();
+    final download = _Download();
+    (_downloads[code] ??= []).add(download);
+    try {
+      final missing = [
+        for (final model in needed)
+          if (!await models.isInstalled(model)) model,
+      ];
+      if (missing.isEmpty) return;
+      if (wifiOnly && await _isMeteredConnection()) {
+        throw const MeteredConnectionException();
+      }
+      for (final model in missing) {
+        if (download.isCancelled) {
+          throw OfflineDownloadCancelledException(code);
+        }
+        await models.install(
+          model,
+          onProgress: _progress.add,
+          abort: download.abort.future,
+        );
+      }
+    } on OfflineDownloadCancelledException {
+      throw OfflineDownloadCancelledException(code);
+    } finally {
+      final running = _downloads[code];
+      if (running != null && running.remove(download) && running.isEmpty) {
+        _downloads.remove(code);
+      }
+      download.done.complete();
     }
-    for (final model in missing) {
-      await models.install(model, onProgress: _progress.add);
+  }
+
+  /// Stops the running [downloadLanguage] calls of [code] (see
+  /// [CancellableDownloads.cancelDownload]): their requests are aborted
+  /// and they fail with an [OfflineDownloadCancelledException]. A model
+  /// that another running download still needs keeps downloading for it.
+  /// The bytes received so far stay for resuming; nothing is installed.
+  @override
+  Future<void> cancelDownload(String code) async {
+    final running = [...?_downloads[code]];
+    for (final download in running) {
+      download.cancel();
     }
+    await Future.wait([for (final download in running) download.done.future]);
   }
 
   /// Deletes both directions of [code] (English: nothing to delete).
@@ -525,6 +567,19 @@ final class _Piece {
   final String trail;
 
   static final _padding = RegExp(r'^(\s*)([\s\S]*?)(\s*)$');
+}
+
+/// One running [BergamotTranslator.downloadLanguage]: [abort] completes
+/// when it is cancelled, [done] when it has ended.
+final class _Download {
+  final abort = Completer<void>();
+  final done = Completer<void>();
+
+  bool get isCancelled => abort.isCompleted;
+
+  void cancel() {
+    if (!abort.isCompleted) abort.complete();
+  }
 }
 
 /// Whether a request's `abort` future has completed.

@@ -139,6 +139,71 @@ void main() {
       );
     });
 
+    group('when the servers failed', () {
+      final allFailed = AllInstancesFailedException(
+        'Post "https://translate.google.com/?q=Bonjour": boom',
+        engine: TranslationEngine.mozhi('google', 'Google'),
+        instances: const [MozhiInstance(url: 'https://mozhi.example')],
+        statusCode: 502,
+      );
+
+      test('says so in plain words, without a status', () {
+        final message = speechErrorMessage(
+          l10n,
+          SpeechUnavailableException('fr', cause: allFailed),
+        );
+        expect(message, l10n.speechErrorServersUnavailable);
+        expect(message, isNot(contains('502')));
+        expect(message, isNot(contains('HTTP')));
+      });
+
+      test('also when the server got no answer through', () {
+        for (final cause in const [
+          MozhiApiException('Connection refused'),
+          MozhiApiException('No response within 30000 ms'),
+        ]) {
+          final error = SpeechUnavailableException('fr', cause: cause);
+          expect(
+            speechErrorMessage(l10n, error),
+            l10n.speechErrorServersUnavailable,
+            reason: '$cause',
+          );
+          expect(speechServersFailed(error), isTrue, reason: '$cause');
+        }
+      });
+
+      test('speechServersFailed only for server failures', () {
+        expect(
+          speechServersFailed(
+            SpeechUnavailableException('fr', cause: allFailed),
+          ),
+          isTrue,
+        );
+        for (final error in <Object>[
+          const SpeechUnavailableException('fr'),
+          const SpeechUnavailableException(
+            'fr',
+            cause: MozhiApiException(
+              "google doesn't support TTS for this language",
+              statusCode: 500,
+            ),
+          ),
+          const SpeechUnavailableException(
+            'fr',
+            cause: MozhiApiException(CleartextRefusedException.defaultMessage),
+          ),
+          SpeechUnavailableException(
+            'fr',
+            cause: _consent(const PublicInstanceDestination('mozhi.example')),
+          ),
+          SpeechUnavailableException('fr', cause: StateError('voice')),
+          allFailed,
+        ]) {
+          expect(speechServersFailed(error), isFalse, reason: '$error');
+        }
+      });
+    });
+
     test('falls back to the generic playback error', () {
       expect(
         speechErrorMessage(l10n, StateError('codec')),

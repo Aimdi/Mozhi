@@ -19,20 +19,26 @@ Future<ParsedDocument> parseTextInBackground(
   String? targetLanguage,
 }) => compute(_parseText, (parser, text, format, targetLanguage));
 
-/// Parses an office document or e-book in a background isolate (see
-/// [parseTextInBackground]). Errors ([PackageParseException]) arrive as
-/// they were thrown.
+/// Parses an office document or e-book in a background isolate (on the
+/// web, part by part on the same thread, yielding between parts). Errors
+/// ([PackageParseException]) arrive as they were thrown.
 Future<PackagedDocument> parsePackageInBackground(
   Uint8List bytes,
   DocumentFormat format, {
   String? targetLanguage,
-}) => compute(_parsePackage, (bytes, format, targetLanguage));
+}) => kIsWeb
+    // No isolates: parse part by part, letting the page paint in between.
+    ? OfficePackage.parseAsync(bytes, format, targetLanguage: targetLanguage)
+    : compute(_parsePackage, (bytes, format, targetLanguage));
 
-/// Renders [document] with [translations] in a background isolate.
+/// Renders [document] with [translations] in a background isolate (on the
+/// web, part by part on the same thread).
 Future<Uint8List> renderPackageInBackground(
   PackagedDocument document,
   List<String?> translations,
-) => compute(_render, (document, translations));
+) => kIsWeb && document is OfficePackage
+    ? document.renderAsync(translations)
+    : compute(_render, (document, translations));
 
 ParsedDocument _parseText(
   (TextDocumentParser parser, String text, DocumentFormat format, String?) job,

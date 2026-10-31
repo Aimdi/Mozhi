@@ -20,8 +20,9 @@ const _fontObfuscation = {
 /// document and the NCX table of contents.
 ///
 /// Refuses books with DRM (`META-INF/rights.xml`, or encrypted resources
-/// other than obfuscated fonts).
-List<PartTemplate> epubParts(ZipPackage zip, SegmentTable table) {
+/// other than obfuscated fonts). Each part is read when its function is
+/// called.
+List<PartTemplate Function()> epubParts(ZipPackage zip, SegmentTable table) {
   if (zip.file('META-INF/rights.xml') != null) {
     throw const PackageParseException(
       PackageProblem.encrypted,
@@ -96,7 +97,7 @@ List<PartTemplate> epubParts(ZipPackage zip, SegmentTable table) {
   const html5 = XmlDefaultEntityMapping.html5();
 
   return [
-    readPart(
+    () => readPart(
       zip,
       opfEntry,
       table,
@@ -114,7 +115,7 @@ List<PartTemplate> epubParts(ZipPackage zip, SegmentTable table) {
         if (value.properties.split(' ').contains('nav')) key,
     ])
       if (item(id, xhtml) case final file?)
-        readPart(
+        () => readPart(
           zip,
           file,
           table,
@@ -125,7 +126,7 @@ List<PartTemplate> epubParts(ZipPackage zip, SegmentTable table) {
     for (final id in items.keys)
       if (item(id, (type) => type == 'application/x-dtbncx+xml')
           case final file?)
-        readPart(
+        () => readPart(
           zip,
           file,
           table,
