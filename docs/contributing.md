@@ -282,8 +282,8 @@ own and fails the job when it does not work:
   `Download/` (`ACTION_SEND text/plain`), then taps Translate. The result
   screen must show the English text.
 - **Cancel**: opens Settings › Translation engines › Offline languages,
-  searches for Azerbaijani (about 25 MB) and taps Download, then "Cancel
-  downloading Azerbaijani". The row must go back to Download with no
+  searches for Greek (about 30 MB) and taps Download, then "Cancel
+  downloading Greek". The row must go back to Download with no
   error. Meanwhile the emulator's network is slowed (`adb emu network
   speed gsm`), so the download is still running when Cancel is tapped.
 - **Voice**: allows the microphone (`pm grant ... RECORD_AUDIO`), opens
