@@ -235,9 +235,10 @@ an Android 14 emulator without Google APIs and uses it like a new user:
 it opens Mozhi, accepts the first-run defaults, types a French sentence
 and follows what the app offers, downloading French for offline use first
 and else allowing the text to be sent once
-(`tool/android_smoke.py <apk> <out-dir>`, with `adb` and a running
-emulator or phone). It fails when Mozhi crashes or stops or the sentence
-can't be typed; the job summary says whether and how it got translated,
+(`tool/android_smoke.py <apk> <out-dir>`, with `adb` and a fresh
+emulator: it refuses a device where Mozhi is already installed, and it
+clears the device log). It fails when Mozhi crashes or stops or the
+sentence can't be typed; the job summary says whether and how it got translated,
 the log lists the text on screen at each step and the screenshots are in
 the job's `android-smoke` artifact.
 
@@ -254,7 +255,7 @@ Conventions:
 ## Web end-to-end tests
 
 `e2e/` holds a small [Playwright](https://playwright.dev) suite that drives
-a release web build in Chromium. It covers start-up, the More tools menu,
+a release web build in Chromium, Firefox and WebKit (Safari's engine). It covers start-up, the More tools menu,
 the Settings, Quality modes, Usage, Dictionary and Documents routes
 (several of them deferred, i.e. separate downloads), typing a translation
 with an AI provider, a refinement chip, the meaning check, translate
@@ -264,9 +265,14 @@ writing statistics), History (favorites, search, delete with Undo),
 settings round trips (Save history off, the dark theme after a reload),
 swapping languages and the recent language pairs, translation memory
 ("From your history") and friendly errors when the servers are
-unreachable. CI runs it in the `Web end-to-end tests` job; on
-failure the HTML report, screenshots, videos and traces are uploaded as the
-`e2e-report` artifact.
+unreachable. CI runs it in the `Web end-to-end tests` job (Chromium, every
+spec) and in `Web end-to-end tests (Firefox)` and `(WebKit)` (the core
+specs: `CORE_SPECS` in `e2e/playwright.config.js`); on failure the HTML
+report, screenshots, videos and traces are uploaded as the `e2e-report`
+artifact (`e2e-report-firefox`, `e2e-report-webkit`). A spec that needs
+what a browser lacks (the on-device engine's storage, service workers)
+skips itself there and says why (`skipWithoutOnDeviceEngine` in
+`e2e/tests/helpers.js`).
 
 Nothing real is contacted: `e2e/mock_server.py` (Python standard library
 only) answers as a Mozhi instance (`/api/*`) and an OpenAI-compatible
@@ -284,14 +290,20 @@ flutter build web --release -t lib/main_development.dart \
 python3 tool/web_fallback_fonts.py build/web-e2e
 python3 tool/web_shell_manifest.py build/web-e2e
 
-# 2. Install Playwright and its Chromium (once)
+# 2. Install Playwright and its browsers (once; firefox and webkit are
+#    optional)
 cd e2e
 npm ci
-npx playwright install --with-deps chromium
+npx playwright install --with-deps chromium firefox webkit
 
 # 3. Run (Playwright starts the web server and the mock server itself)
-E2E_WEB_DIR=../build/web-e2e npx playwright test
+E2E_WEB_DIR=../build/web-e2e npx playwright test --project=chromium
+E2E_WEB_DIR=../build/web-e2e npx playwright test --project=firefox
 npx playwright show-report        # after a failure: screenshots and traces
+
+# The on-device engine's worker (web/bergamot/worker.js) in Node.js, no
+# build or browser needed
+npm run test:unit
 ```
 
 Environment variables: `E2E_WEB_DIR` (the build to serve, default
@@ -318,7 +330,10 @@ Writing tests:
   coordinates.
 - A read-only text, such as the translation, is not in the DOM: the
   `copiedTranslation` helper presses Copy and reads the clipboard. An
-  editable field exposes its value only while focused.
+  editable field exposes its value only while focused. Read the clipboard
+  with `clearClipboard` / `readClipboard`, not `navigator.clipboard`
+  directly: Firefox and WebKit allow tests less of it (see the projects in
+  `playwright.config.js`).
 - Type with `fillField` / `typeSource`: Flutter creates the DOM input
   only once the field has focus, so a plain `fill` right after a click can
   be lost.
@@ -431,8 +446,11 @@ Rules:
    </resources>
    ```
 
-4. Optionally translate the store listing in
-   `fastlane/metadata/android/<locale>/` (same files as `en-US`).
+4. Translate the store listing in `fastlane/metadata/android/<locale>/`
+   (same files as `en-US`, in the Google Play locale of the language) and
+   add the language to `APP_LOCALES` in `fastlane/validate_metadata.py`:
+   CI fails when an app language has no complete listing (see
+   [Store listings](store/README.md#listing-files)).
 5. Check the app in that language, including a right-to-left check for
    Arabic, Hebrew, Persian or Urdu: use `EdgeInsetsDirectional` and
    `AlignmentDirectional` in layouts.

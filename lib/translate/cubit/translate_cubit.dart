@@ -111,6 +111,13 @@ typedef _Languages = ({List<Language> sources, List<Language> targets});
 ///   original text. Translated on this device."); when none is, the
 ///   suspect result is shown with its warnings. The suspect result is
 ///   shown (unfinished) while the fallback runs.
+/// * Offline first with the on-device engine the app picked by itself (no
+///   engine chosen, see [onlineFallbackOf]): text the device can't
+///   translate (its language is not downloaded) goes to the default online
+///   engine instead, through the repository's consent check, so for a pair
+///   the user has not allowed [TranslateState.consent] asks first
+///   (`ConsentRequest.fromOnDevice`, with the language to download). The
+///   result names the engine that translated.
 /// * The personal data shield (`AppSettings.maskPersonalData`) is pushed to
 ///   the repository (`TranslationRepository.maskPersonalData`) from the
 ///   first [loadEngines] on.
@@ -349,6 +356,10 @@ class TranslateCubit extends Cubit<TranslateState> {
 
   /// Runs the translation [TranslateState.consent] stopped again.
   Future<void> Function()? _consentRetry;
+
+  /// The consent of the retry in flight ([retryAfterConsent]) and its main
+  /// translation: the approval is withdrawn when that ends or is cancelled.
+  ({ConsentRequiredException consent, Completer<void> main})? _retryConsent;
 
   StreamSubscription<CompareEntry>? _compare;
   Completer<void>? _compareDone;
@@ -1880,13 +1891,46 @@ class TranslateCubit extends Cubit<TranslateState> {
   /// gave consent (recorded in the settings and the repository, e.g. with
   /// `requestConsent`). Without a stopped translation, translates the
   /// input.
-  Future<void> retryAfterConsent() {
-    final retry = state.consent == null
-        ? translate
-        : _consentRetry ?? translate;
+  ///
+  /// The one-request approval the answer left in the repository
+  /// (`TranslationRepository.allowOnce`, also given with "Always") is for
+  /// this retry only: it is withdrawn (`TranslationRepository.revokeOnce`,
+  /// nothing happens when the retry used it) as soon as the retry's main
+  /// translation ends or is cancelled (more typing, Stop, another
+  /// translation). So when the retry does not need it, e.g. the on-device
+  /// engine tried first translates now because the language was downloaded
+  /// meanwhile, a later text is asked about again instead of going online
+  /// on the leftover approval.
+  Future<void> retryAfterConsent() async {
+    final consent = state.consent?.exception;
+    final retry = consent == null ? translate : _consentRetry ?? translate;
     _consentRetry = null;
-    if (state.consent != null) emit(state.copyWith(consent: () => null));
-    return retry();
+    if (consent != null) emit(state.copyWith(consent: () => null));
+    _withdrawRetryConsent();
+    final running = retry();
+    if (consent != null) {
+      // The retry's main translation, when it started one.
+      final main = _translationDone;
+      if (main == null || main.isCompleted) {
+        _repository.revokeOnce(consent);
+      } else {
+        _retryConsent = (consent: consent, main: main);
+        unawaited(
+          main.future.then((_) {
+            if (identical(_retryConsent?.main, main)) _withdrawRetryConsent();
+          }),
+        );
+      }
+    }
+    await running;
+  }
+
+  /// Withdraws the approval of the retry in flight ([_retryConsent]), if
+  /// any (see [retryAfterConsent]).
+  void _withdrawRetryConsent() {
+    final grant = _retryConsent;
+    _retryConsent = null;
+    if (grant != null) _repository.revokeOnce(grant.consent);
   }
 
   /// Hides [TranslateState.consent] without translating.
@@ -2014,6 +2058,14 @@ class TranslateCubit extends Cubit<TranslateState> {
           .copyWith(status: TranslateStatus.translating, error: () => null),
     );
 
+    // Offline first: the on-device engine lacked the language and the
+    // online engine was asked instead (see onlineFallbackOf).
+    var fromOnDevice = false;
+    String? onDeviceSource;
+    // The online engine that translated then: usage and a fallback notice
+    // name it, not the on-device engine.
+    TranslationEngine? routedTo;
+
     void fail(Object error) {
       _translation = null;
       if (error is ConsentRequiredException) {
@@ -2027,6 +2079,8 @@ class TranslateCubit extends Cubit<TranslateState> {
               exception: error,
               id: ++_consentRequests,
               automatic: !userAsked || auto || external,
+              fromOnDevice: fromOnDevice,
+              onDeviceSource: onDeviceSource,
             ),
           ),
         );
@@ -2056,8 +2110,17 @@ class TranslateCubit extends Cubit<TranslateState> {
       stream = _withFallback(
         selected,
         request,
-        _repository.translate(selected, request),
+        _onDeviceThenOnline(
+          selected,
+          request,
+          onRouted: (source, online) {
+            fromOnDevice = true;
+            onDeviceSource = source;
+            routedTo = online;
+          },
+        ),
         onFallback: (value) => fallback = value,
+        translatedBy: () => routedTo ?? selected,
       );
     } on Object catch (error) {
       fail(error);
@@ -2158,11 +2221,16 @@ class TranslateCubit extends Cubit<TranslateState> {
     // An extra target in the detected language of the input is dropped
     // (cancelled when in flight).
     _pruneExtraTranslations();
+    // A fallback's result, or the online engine's after the on-device one
+    // lacked the language (onlineFallbackOf), names the engine that
+    // translated.
+    final own =
+        fallback == null && !(engine.isOffline && result.engineId != engine.id);
     _record(
       request,
       result,
-      engineId: fallback == null ? engine.id : result.engineId,
-      engineName: fallback == null ? engine.name : result.engineName,
+      engineId: own ? engine.id : result.engineId,
+      engineName: own ? engine.name : result.engineName,
       auto: auto,
     );
     _settings.recordPair(
@@ -2173,6 +2241,135 @@ class TranslateCubit extends Cubit<TranslateState> {
     unawaited(loadUncertainty());
   }
 
+  /// In Offline first, the online engine the app asks about when the
+  /// on-device engine it picked by itself can't translate the text (its
+  /// language is not downloaded, or the engine has no model for it): the
+  /// default Mozhi engine (Google) on the first instance of the user's list
+  /// (as listed in [state], or as it will be once the lists are loaded).
+  ///
+  /// Null unless all of these hold: the privacy mode is
+  /// [PrivacyMode.offlineFirst], the selected engine is the on-device one,
+  /// the user has not chosen an engine (`AppSettings.engineId` is null:
+  /// picking the on-device engine keeps the text on the device), no quality
+  /// mode is on and there is an instance.
+  ///
+  /// The online engine gets the text only through the repository's consent
+  /// check (`TranslationRepository.translate`): for a language pair the user
+  /// has not allowed, it stops before anything is sent and the screen asks
+  /// (Once, Always for the pair) next to the download of the language.
+  static TranslationEngine? onlineFallbackOf(
+    TranslateState state,
+    AppSettings settings,
+  ) {
+    final engine = state.engine;
+    if (engine == null ||
+        !engine.isOffline ||
+        settings.privacyMode != PrivacyMode.offlineFirst ||
+        settings.engineId != null ||
+        state.qualityMode != QualityMode.off ||
+        settings.instances.isEmpty) {
+      return null;
+    }
+    return _engineIn(state.engines, _defaultEngineId) ??
+        TranslationEngine(
+          id: _defaultEngineId,
+          kind: EngineKind.mozhi,
+          name: 'Google',
+          subtitle: settings.instances.first.displayName,
+          mozhiEngine: 'google',
+        );
+  }
+
+  /// Whether the on-device engine failed with [error] because it can't
+  /// translate the text on this device: a language whose models are not
+  /// downloaded, or one it has no model for (also when the platform wraps
+  /// the exception).
+  static bool _lacksOnDevice(Object error) => switch (error) {
+    OfflineModelMissingException() ||
+    OfflineLanguageUnsupportedException() => true,
+    _ =>
+      '$error'.contains('OfflineModelMissingException') ||
+          '$error'.contains('OfflineLanguageUnsupportedException'),
+  };
+
+  /// The source language the on-device engine recognised before [error]
+  /// (the missing language of [request] that is not its target), or null.
+  static String? _recognisedSource(Object error, TranslationRequest request) {
+    if (!request.source.isAuto) return request.source.code;
+    if (error is! OfflineModelMissingException) return null;
+    final target = LanguageMatcher.normalize(request.target.code)
+        .split('-')
+        .first
+        .toLowerCase();
+    for (final code in error.languages) {
+      final key = LanguageMatcher.normalize(code).split('-').first;
+      if (key.toLowerCase() != target) return code;
+    }
+    return null;
+  }
+
+  /// [selected]'s translation of [request]; in Offline first with the
+  /// on-device engine the app picked ([onlineFallbackOf]), when the device
+  /// can't translate it ([_lacksOnDevice]), the online engine's translation
+  /// instead, through the repository's consent check (a
+  /// [ConsentRequiredException] before anything is sent unless the pair is
+  /// allowed). [onRouted] gets the source language the device recognised
+  /// and the online engine asked when that happens.
+  Stream<TranslationResult> _onDeviceThenOnline(
+    TranslationEngine selected,
+    TranslationRequest request, {
+    required void Function(String? onDeviceSource, TranslationEngine online)
+    onRouted,
+  }) {
+    final local = _repository.translate(selected, request);
+    final online = selected.id == state.engine?.id
+        ? onlineFallbackOf(state, _settings.state)
+        : null;
+    if (online == null) return local;
+    late final StreamController<TranslationResult> controller;
+    StreamSubscription<TranslationResult>? subscription;
+    void fail(Object error, [StackTrace? stackTrace]) {
+      if (controller.isClosed) return;
+      controller.addError(error, stackTrace);
+      unawaited(controller.close());
+    }
+
+    controller = StreamController<TranslationResult>(
+      onListen: () {
+        subscription = local.listen(
+          controller.add,
+          onError: (Object error, StackTrace stackTrace) {
+            // The settings may have changed meanwhile (an engine picked,
+            // another privacy mode): then it is a plain failure.
+            if (!_lacksOnDevice(error) ||
+                onlineFallbackOf(state, _settings.state)?.id != online.id) {
+              return fail(error, stackTrace);
+            }
+            onRouted(_recognisedSource(error, request), online);
+            final Stream<TranslationResult> remote;
+            try {
+              remote = _repository.translate(online, request);
+            } on Object catch (error, stackTrace) {
+              return fail(error, stackTrace);
+            }
+            subscription = remote.listen(
+              controller.add,
+              onError: fail,
+              onDone: () => unawaited(controller.close()),
+              cancelOnError: true,
+            );
+          },
+          onDone: () => unawaited(controller.close()),
+          cancelOnError: true,
+        );
+      },
+      onPause: () => subscription?.pause(),
+      onResume: () => subscription?.resume(),
+      onCancel: () => subscription?.cancel(),
+    );
+    return controller.stream;
+  }
+
   /// [results], [selected]'s translation of [request], with the fallback of
   /// the class documentation: a final result that is suspect is forwarded
   /// unfinished while the engines of [_fallbackEngines] are tried in turn
@@ -2181,15 +2378,23 @@ class TranslateCubit extends Cubit<TranslateState> {
   /// suspect one. Usage is recorded for every final result that did not
   /// come from the cache (once per engine). Cancelling cancels the request
   /// in flight.
+  ///
+  /// [translatedBy] is the engine that made [results] (default [selected]):
+  /// the online engine when the on-device engine lacked the language
+  /// ([_onDeviceThenOnline]); usage and the notice's "from" engine are its.
+  /// The engines tried next are still chosen for [selected], so text the
+  /// app meant to keep on the device only goes on to on-device engines.
   Stream<TranslationResult> _withFallback(
     TranslationEngine selected,
     TranslationRequest request,
     Stream<TranslationResult> results, {
     required void Function(TranslationFallback fallback) onFallback,
+    TranslationEngine Function()? translatedBy,
   }) {
     late final StreamController<TranslationResult> controller;
     StreamSubscription<TranslationResult>? subscription;
     TranslationResult? suspect;
+    var suspectEngine = selected;
     var candidates = const <TranslationEngine>[];
     var counted = false;
 
@@ -2227,7 +2432,7 @@ class TranslateCubit extends Cubit<TranslateState> {
           final first = suspect!;
           onFallback(
             TranslationFallback(
-              fromEngineName: selected.name,
+              fromEngineName: suspectEngine.name,
               reason: first.warnings
                   .firstWhere((warning) => warning.isSuspect)
                   .kind,
@@ -2254,12 +2459,13 @@ class TranslateCubit extends Cubit<TranslateState> {
               // fallback follows (but not for results served from the
               // cache).
               counted = true;
-              count(selected, result);
+              count(translatedBy?.call() ?? selected, result);
             }
             if (result.isComplete && result.isSuspect && suspect == null) {
               final next = _fallbackEngines(selected, request);
               if (next.isNotEmpty) {
                 suspect = result;
+                suspectEngine = translatedBy?.call() ?? selected;
                 candidates = next;
                 controller.add(result.copyWith(isComplete: false));
                 return;
@@ -2512,6 +2718,8 @@ class TranslateCubit extends Cubit<TranslateState> {
   bool _isCurrentTranslation(int id) => !isClosed && id == _translationRequest;
 
   void _cancelTranslation() {
+    // A retry after consent that is cancelled leaves no approval behind.
+    _withdrawRetryConsent();
     _translationRequest++;
     unawaited(_translation?.cancel());
     _translation = null;

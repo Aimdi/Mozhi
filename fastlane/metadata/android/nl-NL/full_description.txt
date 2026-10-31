@@ -1,0 +1,39 @@
+Mozhi Translate is een privévertaler zonder account, zonder advertenties en zonder tracking. Vertaal op je telefoon, via Mozhi-servers (een opensource-frontend voor Google, DeepL en meer) of met het AI-model dat je zelf kiest, in de cloud of op je eigen computer.
+
+STANDAARD PRIVÉ
+• Eerst offline: vertaald op de telefoon als het taalpaar is geïnstalleerd; anders vraagt Mozhi het eerst voordat je tekst online gaat. Of kies ‘Alleen offline’ of ‘Online’
+• Je tekst gaat alleen naar plekken die je hebt toegestaan, en bij elke vertaling staat wie die heeft ontvangen
+• Standaard blijven in tekst die je vertaalt e-mailadressen, telefoonnummers, IBAN's, kaartnummers en IP-adressen op de telefoon als de tekst online gaat
+• Versleutelde geschiedenis, buiten de cloudback-up van Android gehouden; incognitomodus, app-vergrendeling en een lijst van elk verzoek dat de app verstuurt
+• Geen analytics, geen telemetrie, geen crashrapporten, geen Google-code
+
+OFFLINE OP DE TELEFOON
+• Ongeveer 55 talen met de Bergamot-engine van Mozilla en de modellen van Firefox Translations
+• Spraakherkenning met Whisper, tekstherkenning met Tesseract en AI-modellen op het apparaat
+• Alleen gedownload als je erop tikt en vóór gebruik gecontroleerd, of geïmporteerd uit bestanden. Hun uitgevers (Mozilla op Google Cloud, Hugging Face, GitHub) zien je IP-adres, tenzij je een mirror gebruikt
+
+ONLINE ALS JIJ DAT WILT
+• Openbare Mozhi-servers ingebouwd, of je eigen, met automatische failover. Openbare servers worden door anderen beheerd: zij en hun engine kunnen lezen wat je ze stuurt
+• OpenAI, Anthropic, Gemini, OpenRouter, Mistral of elke OpenAI-compatibele server met je eigen sleutel; lokale modellen met Ollama, LM Studio of llama.cpp; de DeepL API en LibreTranslate
+• Engines vergelijken, naast elkaar; een engine voor ‘Snel’ en een voor ‘Beste’, één tik van elkaar verwijderd
+
+AI-EXTRA'S
+• Toon, leesniveau (CEFR A1 tot C2), geslacht, context, woordenlijsten en presets; eigen doelen zoals ‘Piratentaal’
+• Verfijnen (Formeler, Korter, Eenvoudiger en meer), alternatieven, nuances en uitleg
+• Betekenis controleren: een terugvertaling die betekenisverschillen markeert
+• Nakijken en een woordenboek
+
+CAMERA, DOCUMENTEN EN SPRAAK
+• Livecamera en foto's: de tekst wordt op de telefoon gelezen en de vertaling eroverheen geplaatst, of een foto wordt naar de Mozhi- of AI-engine van je keuze gestuurd
+• Documenten behouden hun opmaak en lay-out: PDF, Word, PowerPoint, Excel, OpenDocument, EPUB, ondertitels en lokalisatiebestanden
+• Gesprek van aangezicht tot aangezicht, of gedeeld met de telefoons van gasten op hetzelfde wifinetwerk
+• Lezingen transcriberen en het geluid van andere apps ondertitelen (Android 10 en hoger), herkend op de telefoon
+
+DAGELIJKS GEBRUIK
+• Directe vertaling terwijl je typt, taalherkenning, op een woord tikken om het op te zoeken
+• ‘Vertalen met Mozhi’ en ‘Offline vertalen’ in het selectiemenu van andere apps; het scherm vertalen, delen met Mozhi, tegels voor Snelle instellingen en een widget
+• Favorieten, taalgidsen en oefenen met flashcards
+• Versleutelde back-ups, synchronisatie via je eigen WebDAV-server, overzetten van telefoon naar telefoon
+• Material You, donkere thema's, tabletindelingen en labels voor schermlezers
+
+Mozhi Translate is vrije en opensourcesoftware (MIT), een onafhankelijke en onofficiële client: de Mozhi-frontend (codeberg.org/aryak/mozhi) is een apart project, en de app is niet gelieerd aan Google, DeepL of een AI-aanbieder.

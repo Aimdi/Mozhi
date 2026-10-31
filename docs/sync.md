@@ -134,7 +134,18 @@ The **passphrase is never stored**. The key derived from it once (with the
 salt and Argon2id parameters of the sync file, which every device reads
 from the file's header) is kept in secure storage: the Android Keystore,
 or in the web app the tab's session storage. The app password is kept
-there too.
+there too. Accented letters count the same however a keyboard types them
+(the passphrase is normalised to Unicode NFC, as for
+[backups](backup.md#file-format)); a sync file set up before 0.1.0-rc.6
+still opens with the passphrase typed the way it was then. The device
+that opens it that way (setting sync up, or entering the passphrase
+again) writes it once more with the key of the passphrase in NFC and a
+new salt, like a passphrase change, so the passphrase works however it is
+typed from then on. Your other devices then ask for the passphrase once
+(**passphrase changed**) and open it with the same passphrase; a device
+still on 0.1.0-rc.5 or earlier needs the update first. When that write
+fails (no network, the server refused it), sync goes on with the old key
+and tries again the next time the passphrase is entered.
 
 A device that finds the file encrypted with **another key** (the
 passphrase was changed elsewhere), a file that **doesn't decrypt** (damaged

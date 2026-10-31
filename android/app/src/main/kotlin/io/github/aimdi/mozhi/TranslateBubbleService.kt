@@ -1,8 +1,6 @@
 package io.github.aimdi.mozhi
 
 import android.animation.ValueAnimator
-import android.app.Activity
-import android.app.Application
 import android.app.Notification
 import android.app.PendingIntent
 import android.app.Service
@@ -49,9 +47,10 @@ import kotlin.math.roundToInt
  *
  * Accessible: a content description, 56 dp (more than 48 dp), the long
  * press and "Remove the bubble" as accessibility actions (no dragging
- * needed). It hides while any Mozhi window is on screen (translating Mozhi
- * itself makes no sense, and the screenshot must not show it) and comes
- * back afterwards.
+ * needed). It hides while any Mozhi window is on screen ([AppWindows]:
+ * translating Mozhi itself makes no sense, and the screenshot must not show
+ * it), from the start when it is turned on from Mozhi, and comes back
+ * afterwards.
  *
  * A foreground service of the type `specialUse` (Android 14+; the manifest
  * names the use in `PROPERTY_SPECIAL_USE_FGS_SUBTYPE`) with a quiet
@@ -73,37 +72,18 @@ class TranslateBubbleService : Service() {
     private var overTarget = false
     private var snap: ValueAnimator? = null
 
-    /** The Mozhi activities on screen (started, not stopped). */
-    private val visibleActivities = mutableSetOf<Int>()
-
-    private val activityCallbacks = object : Application.ActivityLifecycleCallbacks {
-        override fun onActivityStarted(activity: Activity) {
-            visibleActivities.add(System.identityHashCode(activity))
-            updateBubbleVisibility()
-        }
-
-        override fun onActivityStopped(activity: Activity) {
-            visibleActivities.remove(System.identityHashCode(activity))
-            updateBubbleVisibility()
-        }
-
-        override fun onActivityDestroyed(activity: Activity) {
-            visibleActivities.remove(System.identityHashCode(activity))
-            updateBubbleVisibility()
-        }
-
-        override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {}
-        override fun onActivityResumed(activity: Activity) {}
-        override fun onActivityPaused(activity: Activity) {}
-        override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
-    }
+    /** A Mozhi window came on screen or went ([AppWindows]). */
+    private val windowsListener = AppWindows.Listener { updateBubbleVisibility() }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
         isRunning = true
-        application.registerActivityLifecycleCallbacks(activityCallbacks)
+        // Followed for the whole process (from the Flutter window's
+        // creation on), so the window that turned the bubble on counts.
+        AppWindows.follow(application)
+        AppWindows.addListener(windowsListener)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -137,7 +117,7 @@ class TranslateBubbleService : Service() {
 
     override fun onDestroy() {
         isRunning = false
-        application.unregisterActivityLifecycleCallbacks(activityCallbacks)
+        AppWindows.removeListener(windowsListener)
         snap?.cancel()
         hideTarget()
         detachBubble()
@@ -293,6 +273,9 @@ class TranslateBubbleService : Service() {
         }
         bubble = view
         bubbleParams = params
+        // Over a Mozhi window (turned on in the settings): it shows when
+        // that window goes.
+        if (AppWindows.inFront) return true
         if (!attachBubble()) {
             bubble = null
             bubbleParams = null
@@ -332,7 +315,7 @@ class TranslateBubbleService : Service() {
     /** Hidden while a Mozhi window is on screen, shown otherwise. */
     private fun updateBubbleVisibility() {
         if (bubble == null) return
-        if (visibleActivities.isEmpty()) {
+        if (!AppWindows.inFront) {
             if (!bubbleAttached && attachBubble()) snapToSide(animate = false)
         } else {
             snap?.cancel()

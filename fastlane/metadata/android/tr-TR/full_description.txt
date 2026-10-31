@@ -1,0 +1,39 @@
+Mozhi Çeviri; hesap, reklam ve izleme olmadan çalışan, gizlilik odaklı bir çevirmendir. Telefonunuzda, Mozhi sunucuları (Google, DeepL ve diğerleri için açık kaynaklı bir arayüz) üzerinden ya da seçtiğiniz yapay zekâ modeliyle, bulutta veya kendi bilgisayarınızda çevirin.
+
+VARSAYILAN OLARAK GİZLİ
+• Önce çevrimdışı: dil çifti yüklüyse metin telefonda çevrilir; değilse Mozhi, metniniz çevrimiçine gitmeden önce size sorar. Ya da Yalnızca çevrimdışı veya Çevrimiçi modunu seçin
+• Metniniz yalnızca izin verdiğiniz yerlere gider ve her çeviri, metni kimin aldığını belirtir
+• Varsayılan olarak, çevirdiğiniz metin çevrimiçine gittiğinde içindeki e-posta adresleri, telefon numaraları, IBAN'lar, kart numaraları ve IP adresleri telefonda kalır
+• Android'in bulut yedeğine dahil edilmeyen şifreli geçmiş; gizli mod, uygulama kilidi ve uygulamanın gönderdiği her isteğin listesi
+• Analiz yok, telemetri yok, çökme raporu yok, Google kodu yok
+
+TELEFONDA ÇEVRİMDIŞI
+• Mozilla'nın Bergamot motoru ve Firefox Translations modelleriyle yaklaşık 55 dil
+• Whisper ile konuşma tanıma, Tesseract ile metin tanıma ve cihaz üzerinde çalışan yapay zekâ modelleri
+• Yalnızca siz dokunduğunuzda indirilir ve kullanılmadan önce denetlenir ya da dosyalardan içe aktarılır. Yayıncıları (Google Cloud üzerinde Mozilla, Hugging Face, GitHub), yansı kullanmadığınız sürece IP adresinizi görür
+
+İSTEDİĞİNİZDE ÇEVRİMİÇİ
+• Hazır gelen herkese açık Mozhi sunucuları veya kendi sunucunuz, otomatik yedek sunucuya geçişle. Herkese açık sunucuları başkaları işletir: onlar ve kullandıkları motor, gönderdiğiniz metni okuyabilir
+• Kendi anahtarınızla OpenAI, Anthropic, Gemini, OpenRouter, Mistral veya OpenAI uyumlu herhangi bir sunucu; Ollama, LM Studio veya llama.cpp ile yerel modeller; DeepL API ve LibreTranslate
+• Motorları karşılaştır: motorlar yan yana; Hızlı ve En iyi motor arasında tek dokunuş
+
+YAPAY ZEKÂ EKSTRALARI
+• Ton, okuma düzeyi (CEFR A1'den C2'ye), cinsiyet, bağlam, sözlükçeler ve hazır ayarlar; "Korsan ağzı" gibi özel hedefler
+• İyileştir (Daha resmi, Daha kısa, Daha basit ve daha fazlası), alternatifler, içgörüler ve açıklamalar
+• Anlamı kontrol et: anlam farklılıklarını işaretleyen bir geri çeviri
+• Düzeltme ve sözlük
+
+KAMERA, BELGELER VE SES
+• Canlı kamera ve fotoğraflar: metin telefonda okunur ve çeviri üzerine çizilir ya da fotoğraf seçtiğiniz Mozhi veya yapay zekâ motoruna gönderilir
+• Belgeler biçimini ve düzenini korur: PDF, Word, PowerPoint, Excel, OpenDocument, EPUB, altyazılar ve yerelleştirme dosyaları
+• Yüz yüze Sohbet ya da aynı Wi-Fi ağındaki misafirlerin telefonlarıyla paylaşım
+• Konuşmaları yazıya dökme ve diğer uygulamaların sesi için altyazı (Android 10 ve üzeri), tanıma telefonda yapılır
+
+GÜNLÜK KULLANIM
+• Yazarken anında çeviri, dil algılama ve aramak için sözcüğe dokunma
+• Diğer uygulamaların seçim menüsünde "Mozhi ile çevir" ve "Çevrimdışı çevir"; ekranı çevirme, Mozhi'ye paylaşma, Hızlı Ayarlar kutucukları ve bir widget
+• Favoriler, konuşma kılavuzları ve bilgi kartlarıyla alıştırma
+• Şifreli yedekler, kendi WebDAV sunucunuz üzerinden eşitleme, telefondan telefona aktarım
+• Material You, koyu temalar, tablet düzenleri ve ekran okuyucu etiketleri
+
+Mozhi Çeviri, ücretsiz ve açık kaynaklı bir yazılımdır (MIT), bağımsız ve resmî olmayan bir istemcidir: Mozhi arayüzü (codeberg.org/aryak/mozhi) ayrı bir projedir ve uygulamanın Google, DeepL veya herhangi bir yapay zekâ sağlayıcısıyla bağlantısı yoktur.

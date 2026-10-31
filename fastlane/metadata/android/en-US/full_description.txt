@@ -1,46 +1,39 @@
-Mozhi Translate is a fast, private translator with no account, no ads and no tracking. Translate through Mozhi instances (an open-source front-end for Google, DeepL, Reverso, Yandex, LibreTranslate, DuckDuckGo and MyMemory) or through the AI model you choose, in the cloud or on your own computer, with the extras you know from Kagi Translate.
+Mozhi Translate is a private translator with no account, no ads and no tracking. Translate on your phone, through Mozhi servers (an open-source front-end for Google, DeepL and more) or with the AI model you choose, in the cloud or on your own computer.
 
-TRANSLATION ENGINES
-• Every engine of your Mozhi instance: public instances built in, your own server too (plain http on your home network is fine), with automatic failover
-• AI providers: OpenAI, Anthropic (Claude), Google Gemini, OpenRouter, Groq, DeepSeek, Mistral, xAI, Together or any OpenAI-compatible server
-• Local models with Ollama, LM Studio or llama.cpp, marked "Local"; translation models such as TranslateGemma get their own prompt format
-• DeepL API and LibreTranslate with your own key or server
-• Compare engines side by side and keep the best result
-• Quality modes: pick a Fast and a Best engine once, switch with one tap
+PRIVATE BY DEFAULT
+• Offline first: translated on the phone when the language pair is installed; otherwise Mozhi asks before your text goes online. Or choose Offline only or Online
+• Your text goes only where you allowed it, and each translation names who received it
+• By default, for text you translate, e-mail addresses, phone numbers, IBANs, card numbers and IP addresses stay on the phone when the text goes online
+• Encrypted history, kept out of Android's cloud backup; incognito, an app lock and a list of every request the app makes
+• No analytics, no telemetry, no crash reporting, no Google code
+
+OFFLINE ON THE PHONE
+• About 55 languages with Mozilla's Bergamot engine and the Firefox Translations models
+• Speech recognition with Whisper, text recognition with Tesseract and on-device AI models
+• Downloaded only when you tap them and checked before use, or imported from files. Their publishers (Mozilla on Google Cloud, Hugging Face, GitHub) see your IP address unless you use a mirror
+
+ONLINE WHEN YOU WANT
+• Public Mozhi servers built in, or your own, with automatic failover. Public servers are run by other people: they and their engine can read what you send them
+• OpenAI, Anthropic, Gemini, OpenRouter, Mistral or any OpenAI-compatible server with your own key; local models with Ollama, LM Studio or llama.cpp; the DeepL API and LibreTranslate
+• Compare engines side by side; a Fast and a Best engine one tap apart
 
 AI EXTRAS
-• Natural or literal style, formality, reading level (CEFR A1 to C2), speaker and addressee gender, context and glossaries, saved as presets
-• Custom targets such as "Pirate speak", "Plain English" or a dialect
-• Alternatives, insights, "Explain this translation" and a dictionary
-• Refine: More formal, Shorter, Simpler and more, stackable and undoable
-• Alignment: tap a phrase to highlight it in both texts; romanization under non-Latin scripts
-• Check meaning: a back-translation that flags omissions, additions and other differences in meaning
-• Proofread: corrections with explanations, writing style, regional variety and writing statistics
-• AI extras also work while a Mozhi engine translates
+• Tone, reading level (CEFR A1 to C2), gender, context, glossaries and presets; custom targets such as "Pirate speak"
+• Refine (More formal, Shorter, Simpler and more), alternatives, insights and explanations
+• Check meaning: a back-translation that flags differences in meaning
+• Proofreading and a dictionary
 
-MORE WAYS TO TRANSLATE
-• Images and camera: AI vision, Google Lens through Mozhi, or on-device text recognition
-• Documents: text, Markdown, SRT/VTT subtitles, JSON/ARB string tables
-• Web pages in a translated reader view
-• Conversation mode for two people, with voice input and read-aloud
-• Also translate into up to four more languages at once
-• Offline languages: on-device language packs for translating without a network
+CAMERA, DOCUMENTS AND VOICE
+• Live camera and photos: the text is read on the phone and the translation drawn over it, or a photo is sent to the Mozhi or AI engine you pick
+• Documents keep their format and layout: PDF, Word, PowerPoint, Excel, OpenDocument, EPUB, subtitles and localisation files
+• Conversation face to face, or shared with guests' phones on the same Wi-Fi
+• Transcribe talks and caption other apps' sound (Android 10 and later), recognised on the phone
 
 EVERYDAY USE
-• Instant translation as you type, language detection, smart swap, recent language pairs
-• Read aloud with Mozhi or device voices, adjustable speed
-• "Translate with Mozhi" in the text selection menu of any app, with Replace for editable fields
-• Share target, Quick Settings tile, home-screen widget and app shortcuts
-• Links like /translate?text=hola&from=es&to=en open pre-filled
-• Searchable history and favourites, JSON export and import, automatic deletion after 1, 7 or 30 days
-• Usage & costs: characters and estimated tokens per AI provider, with optional monthly budgets
-• Material You colours, dark and pure-black themes, layouts for phones, tablets and foldables, screen-reader labels throughout
+• Instant translation as you type, language detection, tap a word to look it up
+• "Translate with Mozhi" and "Translate offline" in the selection menu of other apps; translate the screen, share to Mozhi, Quick Settings tiles and a widget
+• Favorites, phrasebooks and flashcard practice
+• Encrypted backups, sync through your own WebDAV server, phone-to-phone transfer
+• Material You, dark themes, tablet layouts and screen-reader labels
 
-PRIVACY
-• No account, no ads, no analytics, no telemetry, no crash reporting
-• History and settings stay on your device; API keys are kept in secure storage
-• Your text only goes to the Mozhi instance or AI provider you select, or nowhere at all with local and offline models
-• Shared text and links never start a paid AI request on their own
-• Offline translation and on-device text recognition use Google's ML Kit (only in builds that include it): your text and images stay on the device, but ML Kit downloads language packs from Google and reports API usage metrics to Google
-
-Mozhi Translate is free and open-source software (MIT). It is an independent, unofficial client: the Mozhi translation front-end (codeberg.org/aryak/mozhi) is a separate project by its own authors, and the app is not affiliated with Google, DeepL, Kagi or any AI provider.
+Mozhi Translate is free and open-source software (MIT), an independent and unofficial client: the Mozhi front-end (codeberg.org/aryak/mozhi) is a separate project, and the app is not affiliated with Google, DeepL or any AI provider.

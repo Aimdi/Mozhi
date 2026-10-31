@@ -86,10 +86,9 @@ typedef ConversationTimerFactory = Timer Function(
 ///   detect, keeps the side whose turn it is. Off, the side whose turn it
 ///   is is listened for in its own language.
 /// * A turn ends at a real pause: [ConversationState.turnPause] (0.8 s by
-///   default, 0.5 to 2 s, [setTurnPause]) of silence after speech for a
-///   recogniser that tells speech from silence itself (on-device Whisper
-///   with its voice activity detection); the system recogniser keeps its
-///   own end of speech.
+///   default, 0.5 to 2 s, [setTurnPause]) of silence after speech, measured
+///   by on-device Whisper's voice activity detection, or as that long
+///   without new words from the system recogniser.
 /// * Without speech for `silenceTimeout` the session pauses; silence or
 ///   unintelligible speech before that listens again. Speech is what the
 ///   recogniser recognised or detected ([ConversationHeardPartial],

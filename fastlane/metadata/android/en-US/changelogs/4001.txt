@@ -1,7 +1,5 @@
 First release.
-
-• Mozhi engines (public or self-hosted), failover, compare and Fast/Best modes
-• AI translation with cloud or local models (Ollama, LM Studio, llama.cpp), DeepL API, LibreTranslate
-• Kagi-style extras: formality, reading level, glossaries, presets, alternatives, insights, refine, check meaning, dictionary
-• Proofread; image, document, web page and conversation translation; offline languages
-• "Translate with Mozhi" in the selection menu, widget, history and favourites
+• Translate offline on the phone (about 55 languages), through Mozhi servers or with your AI model
+• AI extras: tone, reading level, glossaries, refine, check meaning, proofreading
+• Live camera, photos, PDF and office documents, conversation, transcription, live captions
+• Private by default: Offline first, encrypted history, no tracking

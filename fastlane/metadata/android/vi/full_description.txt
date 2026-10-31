@@ -1,0 +1,39 @@
+Mozhi Dịch là trình dịch riêng tư, không cần tài khoản, không quảng cáo, không theo dõi. Dịch ngay trên điện thoại, qua máy chủ Mozhi (giao diện mã nguồn mở cho Google, DeepL và nhiều công cụ khác) hoặc bằng mô hình AI bạn chọn, trên đám mây hay trên máy tính của chính bạn.
+
+RIÊNG TƯ THEO MẶC ĐỊNH
+• Ưu tiên ngoại tuyến: dịch trên điện thoại khi đã cài cặp ngôn ngữ; nếu chưa, Mozhi sẽ hỏi trước khi văn bản của bạn được gửi lên mạng. Hoặc chọn Chỉ ngoại tuyến hay Trực tuyến
+• Văn bản của bạn chỉ được gửi đến nơi bạn đã cho phép, và mỗi bản dịch đều ghi rõ ai đã nhận văn bản
+• Theo mặc định, trong văn bản bạn dịch, địa chỉ email, số điện thoại, IBAN, số thẻ và địa chỉ IP vẫn ở lại trên điện thoại khi văn bản được gửi lên mạng
+• Lịch sử được mã hóa, không nằm trong bản sao lưu đám mây của Android; chế độ ẩn danh, khóa ứng dụng và danh sách mọi yêu cầu mà ứng dụng gửi đi
+• Không phân tích, không đo từ xa, không báo cáo sự cố, không có mã của Google
+
+NGOẠI TUYẾN TRÊN ĐIỆN THOẠI
+• Khoảng 55 ngôn ngữ với công cụ Bergamot của Mozilla và các mô hình Firefox Translations
+• Nhận dạng giọng nói bằng Whisper, nhận dạng chữ bằng Tesseract và các mô hình AI chạy trên thiết bị
+• Chỉ tải xuống khi bạn nhấn vào và được kiểm tra trước khi dùng, hoặc nhập từ tệp. Các nhà phát hành (Mozilla trên Google Cloud, Hugging Face, GitHub) thấy địa chỉ IP của bạn, trừ khi bạn dùng máy chủ nhân bản
+
+TRỰC TUYẾN KHI BẠN MUỐN
+• Có sẵn máy chủ Mozhi công cộng, hoặc dùng máy chủ của riêng bạn, với khả năng tự động chuyển sang máy chủ khác. Máy chủ công cộng do người khác vận hành: họ và công cụ dịch của họ có thể đọc những gì bạn gửi
+• OpenAI, Anthropic, Gemini, OpenRouter, Mistral hoặc bất kỳ máy chủ nào tương thích OpenAI với khóa của riêng bạn; mô hình cục bộ với Ollama, LM Studio hoặc llama.cpp; DeepL API và LibreTranslate
+• So sánh công cụ cạnh nhau; công cụ Nhanh và Tốt nhất chỉ cách nhau một lần nhấn
+
+TÍNH NĂNG AI
+• Giọng điệu, trình độ đọc (CEFR A1 đến C2), giới tính, ngữ cảnh, bảng thuật ngữ và cấu hình sẵn; đích dịch tùy chỉnh như "Giọng cướp biển"
+• Tinh chỉnh (Trang trọng hơn, Ngắn hơn, Đơn giản hơn và nhiều hơn nữa), bản dịch khác, chú giải và lời giải thích
+• Kiểm tra nghĩa: bản dịch ngược để đánh dấu những chỗ khác nghĩa
+• Soát lỗi và từ điển
+
+MÁY ẢNH, TÀI LIỆU VÀ GIỌNG NÓI
+• Máy ảnh trực tiếp và ảnh: chữ được đọc trên điện thoại và bản dịch được vẽ đè lên, hoặc ảnh được gửi đến công cụ Mozhi hay AI mà bạn chọn
+• Tài liệu giữ nguyên định dạng và bố cục: PDF, Word, PowerPoint, Excel, OpenDocument, EPUB, phụ đề và tệp bản địa hóa
+• Hội thoại trực tiếp, hoặc chia sẻ với điện thoại của khách trong cùng mạng Wi-Fi
+• Chép lời bài nói và phụ đề cho âm thanh của ứng dụng khác (Android 10 trở lên), nhận dạng trên điện thoại
+
+SỬ DỤNG HẰNG NGÀY
+• Dịch tức thì khi gõ, phát hiện ngôn ngữ, nhấn vào từ để tra
+• "Dịch bằng Mozhi" và "Dịch ngoại tuyến" trong menu chọn văn bản của các ứng dụng khác; dịch màn hình, chia sẻ tới Mozhi, ô Cài đặt nhanh và tiện ích
+• Yêu thích, sổ tay cụm từ và luyện tập bằng thẻ ghi nhớ
+• Bản sao lưu được mã hóa, đồng bộ qua máy chủ WebDAV của riêng bạn, chuyển dữ liệu giữa hai điện thoại
+• Material You, giao diện tối, bố cục cho máy tính bảng và nhãn cho trình đọc màn hình
+
+Mozhi Dịch là phần mềm miễn phí và mã nguồn mở (MIT), một ứng dụng khách độc lập và không chính thức: giao diện Mozhi (codeberg.org/aryak/mozhi) là một dự án riêng, và ứng dụng này không liên kết với Google, DeepL hay bất kỳ nhà cung cấp AI nào.

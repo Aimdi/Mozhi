@@ -25,19 +25,30 @@ fastlane/metadata/android/
     images/icon.png           512 x 512, from assets/branding/icon-512.png
     images/featureGraphic.png 1024 x 500, made by assets/store/make_feature_graphic.py
     images/phoneScreenshots/  01-…08-*.png, made by assets/store/make_screenshots.py
-  de-DE/ fr-FR/ es-ES/ it-IT/ pt-BR/
+  ar/ de-DE/ es-ES/ fr-FR/ hi-IN/ id/ it-IT/ ja-JP/ ko-KR/ nl-NL/ pl-PL/
+  pt-BR/ ru-RU/ ta-IN/ tr-TR/ uk/ vi/ zh-CN/
     title.txt short_description.txt full_description.txt changelogs/
 ```
 
-- Locale folders use Google Play's codes (`de-DE`, `pt-BR`, …). F-Droid
-  accepts them too.
+- Every language of the app (`lib/l10n/arb/app_<code>.arb`) has a listing,
+  in its Google Play locale (`APP_LOCALES` in
+  `fastlane/validate_metadata.py`: `de` → `de-DE`, `pt` → `pt-BR`, `zh` →
+  `zh-CN`, `id`, `uk` and `vi` without a region, …). F-Droid accepts these
+  codes too. A new app language needs its listing and an `APP_LOCALES`
+  entry, or CI fails.
+- English is the source; keep the translations to its meaning and never
+  make a claim stronger than the English one, above all about privacy
+  (the privacy lines follow [docs/privacy.md](../privacy.md)). Leave room
+  for translations: the English description stays under about 3,200
+  characters and the short description under 70 (a test checks this).
 - The descriptions are plain text with `•` bullets and capitalised section
   headings, so they look the same in both stores. Terms follow the app's ARB
   files (`lib/l10n/arb`): for example *Nuancen* / *Nuances* / *Matices* for
   Insights, *Vorlagen* / *Préréglages* / *Preajustes* for Presets.
-  *Translate with Mozhi* stays in English because the Android
-  text-selection label (`android/app/src/main/res/values/strings.xml`) is not
-  translated yet; update the listings if it gets translated.
+  *Translate with Mozhi* and *Translate offline* are the Android
+  text-selection labels, translated in
+  `android/app/src/main/res/values-<language>/strings.xml`; the listings
+  use those translations.
 - The store title is *Mozhi Translate* (better for search); the launcher
   label is *Mozhi*.
 - Only 8 screenshots are listed because Play accepts at most 8 per device
@@ -68,6 +79,28 @@ python3 assets/store/make_feature_graphic.py  # -> images/featureGraphic.png
   fall back to it. For translated graphics add lines to `TAGLINES` and run it
   with `--all`.
 
+**Fresh phone screenshots** come from the emulator smoke test of CI (job
+*Android emulator smoke test*, artifact `store-screenshots`), or from a
+fresh emulator with `adb` (never a personal phone: the script refuses a
+device where Mozhi is installed, since it would use that device's data,
+and it clears the device log):
+
+```sh
+python3 tool/android_smoke.py mozhi-x86_64.apk smoke --screenshots store-screenshots
+```
+
+After the usual smoke test (first run with its defaults, a French sentence
+translated into English), it saves the translate screen with that
+translation, the image screen (without the camera), Documents,
+Conversation and Settings, in the light and the dark theme
+(`01-translate-light.png` … `05-settings-dark.png`). It sets the screen to
+1080 × 2160 (2:1) and the status bar to Android's demo mode (10:00, full
+battery, no notifications) and writes 24-bit PNGs, so the files meet
+Play's rules as they are; the screen size, theme and status bar are put
+back afterwards. The ten files are a pool: pick at most 8, copy them to
+`assets/screenshots` and add them to `SHOTS`. A screen that couldn't be
+taken is listed in the run's `summary.md` and doesn't fail the test.
+
 **Validate** after every change:
 
 ```sh
@@ -82,6 +115,13 @@ change.
 
 It counts characters the way the stores do (Unicode code points, trimmed)
 and checks that a changelog exists for the `versionCode` in `pubspec.yaml`.
+It also checks that every app language has a complete listing: the
+title, both descriptions and the changelog of that `versionCode` (with the
+split-APK copies en-US has), none of them a copy of the English text. The
+split-APK copies of a changelog must match it, and a description with
+another number of `•` bullets than the English one is reported as a
+warning. CI runs it with `--strict` (and its tests,
+`fastlane/validate_metadata_test.py`) in *Test build scripts*.
 
 ---
 
@@ -195,13 +235,24 @@ the feature graphic exists (see [Listing files](#listing-files)).
 - [ ] App access: everything works without an account. Reviewers need no
       credentials (public Mozhi instances are built in; AI features need the
       reviewer's own key, so say that AI features are optional).
-- [ ] Permissions: `INTERNET` and `RECORD_AUDIO` (dictation, only when the
-      microphone button is pressed). The camera is used through the system
-      camera app (`IMAGE_CAPTURE` intent), so there is no `CAMERA`
-      permission. `PROCESS_TEXT`, `SEND` and the Quick Settings tile need no
-      declarations. `USE_BIOMETRIC` (a normal permission) is for the
-      optional app lock (the system's fingerprint, face or screen lock
-      prompt).
+- [ ] Permissions (see the comments in `AndroidManifest.xml`):
+      `INTERNET` and `ACCESS_NETWORK_STATE` (Wi-Fi-only downloads);
+      `RECORD_AUDIO` (dictation when the microphone is pressed, and live
+      captions, which Android requires it for although the microphone isn't
+      used); `CAMERA` (the live camera, asked when it opens; also makes
+      **Take photo** ask first); `USE_BIOMETRIC` (the optional app lock);
+      `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MEDIA_PROJECTION`
+      (Translate screen's one screenshot and live captions, after Android's
+      capture consent each time), `FOREGROUND_SERVICE_SPECIAL_USE` and
+      `SYSTEM_ALERT_WINDOW` (the opt-in translate bubble and the caption
+      bar, "Display over other apps"), `POST_NOTIFICATIONS` (their
+      notifications with Stop). Play asks for a declaration of the
+      foreground service types: *media projection* for Translate screen and
+      live captions, and *special use* for the bubble (the manifest's
+      `PROPERTY_SPECIAL_USE_FGS_SUBTYPE` text explains it). None is a
+      camera, microphone or screen use in the background without the user
+      starting it. `PROCESS_TEXT`, `SEND` and the Quick Settings tiles need
+      no declarations.
 - [ ] Ads: no. Target audience: not designed for children (13+ or 18+ is
       the safer choice because of unfiltered AI output).
 

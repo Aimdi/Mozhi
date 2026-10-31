@@ -175,6 +175,9 @@ memory-hungry, but only a long passphrase makes guessing hopeless:
   calls a passphrase **Strong** from four words and 16 characters, or 24
   characters.
 - Don't reuse a password you use elsewhere.
+- Accented letters are fine: "é" typed on another keyboard, as one
+  character or as a letter and an accent, is the same passphrase
+  ([details](#file-format)).
 - Write it down and keep it apart from the file. Without the passphrase the
   backup can't be opened, by you or by anyone else.
 
@@ -238,9 +241,17 @@ The header:
 ```
 
 - **Key:** Argon2id (RFC 9106, version 0x13) of the passphrase's UTF-8
-  bytes, exactly as typed, with the file's random salt and the header's
-  parameters, 32 bytes long. A new salt and nonce are drawn for every
-  file.
+  bytes in Unicode Normalization Form C, with the file's random salt and
+  the header's parameters, 32 bytes long. A new salt and nonce are drawn
+  for every file. NFC makes an accented letter the same passphrase however
+  the keyboard types it ("é" as one character, or "e" and a combining
+  accent); Mozhi composes Latin (Vietnamese's stacked accents included),
+  Greek, Cyrillic, Hangul and kana, from tables generated from Unicode's
+  data (`tool/passphrase_nfc.py`), and leaves other scripts as typed.
+  Backups made before 0.1.0-rc.6 used the passphrase exactly as typed:
+  when the normalised one doesn't open a file, Mozhi also tries it as
+  typed, so such a backup opens when the passphrase is typed the way it
+  was then.
 - **Encryption:** AES-256-GCM with the header's nonce. The associated data
   is everything before the ciphertext (magic, format byte, length and
   header), so the header can't be changed without the tag failing.

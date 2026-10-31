@@ -3,6 +3,55 @@
 All notable changes to Mozhi, by release tag on GitHub (pre-releases end
 in `-rc.N`).
 
+## 0.1.0-rc.6
+
+### Changed
+
+- **A first run that ends in a translation.** With the default settings
+  (Offline first, nothing downloaded yet) the engine button now says
+  **On device + Google**: Mozhi translates on the phone when the language
+  is downloaded, and otherwise asks before sending the text to Google
+  through a volunteer Mozhi server (**Download** keeps it on the phone,
+  **Once** sends only this text). The first-run language step suggests a
+  language from the phone's settings and offers its download with its
+  size; it starts only when you tap **Next**.
+- **"Download French" downloads French.** The download button next to a
+  translation now downloads the language right there, with progress (on
+  mobile data it asks first, as the Offline languages page does), and
+  then translates on the phone. Before, it only opened the Offline
+  languages page.
+- **When the volunteer servers fail**, Mozhi says so in plain words
+  instead of showing an HTTP error, and offers to translate on the phone,
+  try another engine (it never switches on its own) or choose another
+  server. A server that just failed is tried last for 12 hours (kept on
+  the phone only; no request is made just to test a server).
+- **Conversation** ends a turn at the pause you chose with the phone's
+  own speech recognition too, not only with the offline voice models.
+- **Long transcripts** from Transcribe and live captions are saved to
+  History in numbered parts instead of being cut at 20,000 characters.
+- **The floating bubble** waits until you leave Mozhi before it appears.
+- **Store listings** in all 18 app languages, describing what the app
+  does today.
+
+### Fixed
+
+- **Backup passphrases with accented letters.** A passphrase typed with a
+  keyboard that composes accents differently (for example "é" as one
+  character or as "e" plus an accent) now opens the backup or sync file;
+  older backups still open with the passphrase as typed then. A sync file
+  made before is moved to the new key the first time a device of this
+  version joins it; the other devices ask for the passphrase once, and a
+  device still on 0.1.0-rc.5 or older needs this update to open it.
+- **A one-time approval on the Translate screen** that the phone ended up
+  not needing (the language was downloaded meanwhile) is withdrawn, so a
+  later text is asked about again.
+- **Web app in Firefox and Safari:** offline language downloads no longer
+  wait on Firefox's storage prompt, offline languages work in Safari 16
+  and Chrome before 108, encrypted backups work without the browser's
+  compression support (older Firefox and Safari), and dictionary packs in
+  a private window say they can't be stored instead of failing. The web
+  tests now also run in Firefox and WebKit.
+
 ## 0.1.0-rc.5
 
 ### Added

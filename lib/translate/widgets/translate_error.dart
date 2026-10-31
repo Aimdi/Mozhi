@@ -12,8 +12,12 @@ import 'package:mozhi/offline/data/bergamot_model_details.dart'
     show offlineModelDetailsOf;
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
+import 'package:mozhi/translate/widgets/engine_selector.dart'
+    show showEngineSheet;
 import 'package:mozhi/translate/widgets/instance_switcher.dart'
     show currentInstanceUrl;
+import 'package:mozhi/translate/widgets/offline_download_action.dart'
+    show OfflineDownloadAction;
 import 'package:mozhi/translate/widgets/offline_offer.dart';
 import 'package:mozhi/translate/widgets/offline_only_notice.dart';
 import 'package:mozhi/translate/widgets/translate_error_offline_io.dart'
@@ -119,6 +123,12 @@ TranslateErrorInfo describeTranslateError(
     LlmApiException(:final int statusCode) => TranslateErrorInfo(
       l10n.translateErrorProvider('$statusCode'),
     ),
+    // Every server failed: say so in plain words (never "HTTP 500").
+    AllInstancesFailedException(:final instances, :final engine) =>
+      TranslateErrorInfo(
+        l10n.translateErrorAllServersFailed(instances.length, engine.name),
+        fix: TranslateErrorFix.instances,
+      ),
     final MozhiApiException mozhi => _describeMozhi(l10n, mozhi),
     TimeoutException() => TranslateErrorInfo(l10n.translateErrorTimeout),
     // The offline engine may wrap the exception (e.g. in a platform error).
@@ -134,7 +144,7 @@ TranslateErrorInfo describeTranslateError(
       ),
     _ => TranslateErrorInfo(l10n.translateErrorGeneric),
   };
-  final details = sanitizeErrorDetails(error);
+  final details = _detailsOf(l10n, error);
   return TranslateErrorInfo(
     info.message,
     fix: info.fix,
@@ -146,6 +156,22 @@ TranslateErrorInfo describeTranslateError(
   );
 }
 
+/// [sanitizeErrorDetails] of [error], after the servers tried (their host
+/// names only) for an [AllInstancesFailedException].
+String? _detailsOf(AppLocalizations l10n, Object? error) {
+  final details = sanitizeErrorDetails(error);
+  if (error is! AllInstancesFailedException) return details;
+  final hosts = {
+    for (final instance in error.instances)
+      if (Uri.tryParse(instance.url)?.host case final host?
+          when host.isNotEmpty)
+        host,
+  };
+  if (hosts.isEmpty) return details;
+  final tried = l10n.translateErrorServersTried(hosts.join(', '));
+  return details == null ? tried : '$tried $details';
+}
+
 /// The short title of [error] described by [info]: what kind of problem
 /// it is, so the message can say what to do.
 String? _titleOf(
@@ -153,6 +179,9 @@ String? _titleOf(
   Object? error,
   TranslateErrorInfo info,
 ) {
+  if (error is AllInstancesFailedException) {
+    return l10n.translateErrorTitleAllServers;
+  }
   if (info.chooseSourceLanguage) return l10n.translateErrorTitleLanguage;
   if (info.offlineModels) return l10n.translateErrorTitleDownload;
   if (isNetworkFailure(error)) return l10n.translateErrorTitleConnection;
@@ -173,6 +202,8 @@ String _languageName(String code) => LanguageCatalog.byCode(code)?.name ?? code;
 /// on-device engine may still translate then. A cancelled request, a
 /// refusal or a truncated answer is not one.
 bool isNetworkFailure(Object? error) => switch (error) {
+  // Every server failed (down, overloaded, blocked upstream).
+  AllInstancesFailedException() => true,
   // isRetryable is false for a request the user cancelled.
   MozhiApiException(statusCode: null, isRetryable: true) => true,
   MozhiApiException(:final int statusCode) => statusCode >= 500,
@@ -406,9 +437,21 @@ String? nextInstanceUrl(String? current, List<MozhiInstance> instances) {
 ///   their list the preferred one (`SettingsCubit.preferInstance`) and
 ///   translates again. Their consent covers every instance of the list.
 ///
+/// When every Mozhi server failed for the chosen engine
+/// ([AllInstancesFailedException]), the message says the volunteer servers
+/// failed, and the Translate screen's own error offers, in this order:
+/// "Translate on this device" (or the download of the pair, see
+/// [OfflinePairOffer]), "Try another engine" (the engine picker,
+/// [showEngineSheet]: the engine is never switched on its own, another
+/// engine sends the text somewhere else) and "Choose another server" (the
+/// instance settings), then Retry.
+///
 /// Missing offline models are offered as "Download German (25 MB)" (the
-/// size when the device's offline engine knows it), which opens the
-/// offline languages. A Mozhi instance error offers "Switch instance"
+/// size when the device's offline engine knows it): for the Translate
+/// screen's own translation it downloads them right there and then
+/// translates on the device ([OfflineDownloadAction], with "Manage
+/// languages"); elsewhere it opens the offline languages. A Mozhi instance
+/// error offers "Switch instance"
 /// instead of "Manage instances" when [onSwitchInstance] is given.
 ///
 /// When the Translate screen's translation failed on the network
@@ -491,6 +534,15 @@ class TranslateErrorView extends StatelessWidget {
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final info = describeTranslateError(l10n, error);
+    // Every server failed: the ways on that need no Mozhi server.
+    final allFailed =
+        error is AllInstancesFailedException &&
+        !dense &&
+        _translateOf(context) != null;
+    final anotherEngine = allFailed && !offline
+        ? _anotherEngine(context)
+        : null;
+    final anotherServer = allFailed && !offline;
     // Every fix is pushed above the tabs, so back returns here.
     final (fixLabel, fixRoute) = switch (info.fix) {
       _ when info.offlineModels => (
@@ -507,15 +559,24 @@ class TranslateErrorView extends StatelessWidget {
       ),
       TranslateErrorFix.none => (null, null),
     };
-    final switchInstance = info.fix == TranslateErrorFix.instances && !dense
+    final switchInstance =
+        info.fix == TranslateErrorFix.instances && !dense && !allFailed
         ? onSwitchInstance
+        : null;
+    // Missing offline models of the Translate screen's translation: the
+    // download right here (W8-B), then the text is translated on the
+    // device.
+    final downloadHere = info.offlineModels && !dense && !offline
+        ? _offlineDownload(context)
         : null;
     final showFix =
         fixRoute != null &&
         fixLabel != null &&
         !dense &&
+        !allFailed &&
         switchInstance == null &&
-        !offline;
+        !offline &&
+        downloadHere == null;
     final chooseSource = info.chooseSourceLanguage
         ? onChooseSourceLanguage
         : null;
@@ -532,7 +593,7 @@ class TranslateErrorView extends StatelessWidget {
     };
     // Another engine or instance (none while the device is offline: they
     // need the network too; the on-device engine has its own offer).
-    final alternative = chooseSource != null || offline || dense
+    final alternative = chooseSource != null || offline || dense || allFailed
         ? null
         : _alternative(context, info);
     // Retrying a detection that found nothing to go on (no failed request
@@ -545,9 +606,10 @@ class TranslateErrorView extends StatelessWidget {
     final title = offline ? l10n.translateErrorTitleOffline : info.title;
     final message = offline ? l10n.translateErrorOfflineBody : info.message;
     final details = info.details;
+    final offlineOffer = _offlineOffer(context);
     final retryButton = retry == null
         ? null
-        : chooseSource != null || alternative != null
+        : chooseSource != null || alternative != null || allFailed
         ? TextButton.icon(
             key: const Key('translate_error_retry'),
             onPressed: retry,
@@ -604,13 +666,17 @@ class TranslateErrorView extends StatelessWidget {
             ),
           ],
         ),
+        // First of the ways on when every server failed.
+        if (allFailed) ?offlineOffer,
         if (retry != null ||
             chooseSource != null ||
             alternative != null ||
+            anotherEngine != null ||
+            anotherServer ||
             showFix ||
             switchInstance != null ||
             details != null) ...[
-          const SizedBox(height: 8),
+          SizedBox(height: allFailed && offlineOffer != null ? 4 : 8),
           Wrap(
             spacing: 8,
             runSpacing: 4,
@@ -645,6 +711,21 @@ class TranslateErrorView extends StatelessWidget {
                   icon: Icon(alternative.icon),
                   label: Text(alternative.label),
                 ),
+              if (anotherEngine != null)
+                TextButton.icon(
+                  key: const Key('translate_error_another_engine'),
+                  onPressed: anotherEngine,
+                  icon: const Icon(Icons.translate),
+                  label: Text(l10n.translateErrorTryAnotherEngine),
+                ),
+              if (anotherServer)
+                TextButton.icon(
+                  key: const Key('translate_error_another_server'),
+                  onPressed: () =>
+                      unawaited(context.push<void>(AppRoutes.instances)),
+                  icon: const Icon(Icons.dns_outlined),
+                  label: Text(l10n.translateErrorChooseAnotherServer),
+                ),
               ?retryButton,
               if (switchInstance != null)
                 TextButton.icon(
@@ -662,7 +743,8 @@ class TranslateErrorView extends StatelessWidget {
             ],
           ),
         ],
-        ?_offlineOffer(context),
+        ?downloadHere,
+        if (!allFailed) ?offlineOffer,
         if (details != null) TranslateErrorDetails(details: details),
       ],
     );
@@ -705,7 +787,9 @@ class TranslateErrorView extends StatelessWidget {
         key: const Key('translate_error_next_instance'),
         label: l10n.translateErrorTryNextInstance,
         icon: Icons.dns_outlined,
-        onPressed: () => unawaited(_tryInstance(settings, cubit, next)),
+        onPressed: () => unawaited(
+          _tryInstance(settings, cubit, next, _repositoryOf(context)),
+        ),
       );
     }
     if (!failed.isAi && !failed.isMt) return null;
@@ -722,14 +806,30 @@ class TranslateErrorView extends StatelessWidget {
     );
   }
 
+  /// Opens the engine picker when the Translate screen has another engine
+  /// than the one that failed (not the on-device one: it has its own
+  /// offer), else null. Picking one is the user's choice.
+  VoidCallback? _anotherEngine(BuildContext context) {
+    final state = _translateOf(context)?.state;
+    if (state == null) return null;
+    final failed = state.engine?.id;
+    if (!state.engines.any((e) => e.id != failed && !e.isOffline)) return null;
+    return () => unawaited(showEngineSheet(context));
+  }
+
   /// Makes [url] the preferred instance and translates again once the app
   /// handed the new order to the repository (like `switchInstanceAndRetry`).
+  /// The [repository] starts there and forgets its recent failure, also
+  /// when it is first in the list already
+  /// (`TranslationRepository.preferInstance`).
   static Future<void> _tryInstance(
     SettingsCubit settings,
     TranslateCubit cubit,
     String url,
+    TranslationRepository? repository,
   ) async {
     settings.preferInstance(url);
+    repository?.preferInstance(url);
     // The app applies the new order to the repository when the settings
     // stream delivers it (a microtask): retry after that.
     await Future<void>.delayed(Duration.zero);
@@ -770,6 +870,40 @@ class TranslateErrorView extends StatelessWidget {
   /// "Download German (25 MB)" for the languages of an
   /// [OfflineModelMissingException] (English needs no download), or null
   /// when it names none.
+  /// For the Translate screen's own translation that failed for missing
+  /// offline models ([OfflineModelMissingException]): their download right
+  /// here ([OfflineDownloadAction]: "Download French (49.6 MB)" and
+  /// "Manage languages"), or null (no Translate screen, no offline engine,
+  /// only English named).
+  Widget? _offlineDownload(BuildContext context) {
+    final error = this.error;
+    if (error is! OfflineModelMissingException) return null;
+    if (_translateOf(context) == null) return null;
+    final translator = maybeOfflineTranslator(context);
+    if (translator == null || !translator.isAvailable) return null;
+    final codes = {
+      for (final code in error.languages)
+        if (offlineLanguageKey(code) != 'en') code,
+    };
+    if (codes.isEmpty) return null;
+    final details = offlineModelDetailsOf(translator);
+    return Padding(
+      key: const Key('translate_error_download'),
+      padding: const EdgeInsets.only(top: 4),
+      child: OfflineDownloadAction(
+        translator: translator,
+        downloads: [
+          for (final code in codes)
+            (
+              code: code,
+              name: _languageName(code),
+              bytes: details?.downloadSize(code),
+            ),
+        ],
+      ),
+    );
+  }
+
   String? _offlineFixLabel(BuildContext context, AppLocalizations l10n) {
     final error = this.error;
     if (error is! OfflineModelMissingException) return null;

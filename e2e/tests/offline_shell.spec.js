@@ -23,6 +23,7 @@ const {
   copiedTranslation,
   openApp,
   seedSettings,
+  skipWithoutOnDeviceEngine,
   test,
   typeSource,
   waitForSemantics,
@@ -74,6 +75,7 @@ async function refuseModelDownloads(context) {
  */
 async function importGerman(page) {
   await openApp(page, '/settings/offline');
+  await skipWithoutOnDeviceEngine(page);
   const chooser = page.waitForEvent('filechooser');
   await page.getByRole('button', { name: /^Import from files/ }).click();
   await (await chooser).setFiles(modelFiles());
@@ -107,10 +109,28 @@ function shellWorker(page) {
 /** The status the shell's switch reads out (its subtitle). */
 const READY = /Opens in this browser without a network/;
 
-/** Settings > General: "Keep the web app for offline use" and its status. */
+/** What the switch says in a browser that does not let the app keep itself. */
+const UNAVAILABLE = /This browser can.t keep the app/;
+
+/**
+ * Settings > General: "Keep the web app for offline use" and its status.
+ * Skips the test where the browser refuses the app's service worker (the
+ * switch then says so, which is what such a browser should show).
+ */
 async function openShellSetting(page) {
   await openApp(page, '/settings/general?row=offline_app_shell');
-  return page.getByRole('switch', { name: /^Keep the web app for offline use/ });
+  const setting = page.getByRole('switch', {
+    name: /^Keep the web app for offline use/,
+  });
+  await expect(setting).toHaveAccessibleName(
+    new RegExp(`${READY.source}|${UNAVAILABLE.source}`),
+    { timeout: 120_000 },
+  );
+  test.skip(
+    (await page.getByRole('switch', { name: UNAVAILABLE }).count()) > 0,
+    'This browser does not let the app register its service worker here',
+  );
+  return setting;
 }
 
 test.describe('the web app with no network', () => {
@@ -158,6 +178,7 @@ test.describe('the web app with no network', () => {
   test('opens and translates offline once it was opened', async ({
     page,
     context,
+    browserName,
   }) => {
     const errors = collectPageErrors(page);
     await refuseModelDownloads(context);
@@ -179,7 +200,17 @@ test.describe('the web app with no network', () => {
         served.push(response.fromServiceWorker());
       }
     });
-    await context.setOffline(true);
+    // Firefox's offline mode refuses even the navigations a service
+    // worker answers (its "Offline mode" page), so there every request
+    // that reaches the network fails instead: a reload the shell does not
+    // answer fails just the same.
+    if (browserName === 'firefox') {
+      await context.route('**/*', (route) =>
+        route.abort('internetdisconnected'),
+      );
+    } else {
+      await context.setOffline(true);
+    }
     await page.reload();
     await waitForSemantics(page);
     await openApp(page, '/translate');
@@ -187,10 +218,14 @@ test.describe('the web app with no network', () => {
     await expect
       .poll(() => copiedTranslation(page), { timeout: 60_000 })
       .toBe('Das Wetter ist heute schön.');
-    // Everything of the app came from the shell.
-    expect(served.length).toBeGreaterThan(5);
-    expect(served.every(Boolean)).toBe(true);
+    // Everything of the app came from the shell (Playwright tells which
+    // responses a service worker made in Chromium only).
+    if (browserName === 'chromium') {
+      expect(served.length).toBeGreaterThan(5);
+      expect(served.every(Boolean)).toBe(true);
+    }
     await context.setOffline(false);
+    await context.unrouteAll({ behavior: 'ignoreErrors' });
     expect(errors).toEqual([]);
   });
 
@@ -255,11 +290,16 @@ test.describe('the web app with no network', () => {
 
     test('is kept in the background, then Reload swaps it in', async ({
       page,
+      browserName,
     }) => {
       const errors = collectPageErrors(page);
       const origin = `http://127.0.0.1:${UPDATE_PORT}`;
       await page.goto(`${origin}/#/translate`);
       await waitForSemantics(page);
+      test.skip(
+        !(await page.evaluate(() => isSecureContext && 'serviceWorker' in navigator)),
+        'This browser has no service workers here',
+      );
       await expect
         .poll(async () => (await shellWorker(page)).active, {
           timeout: 120_000,
@@ -302,8 +342,19 @@ test.describe('the web app with no network', () => {
           timeout: 60_000,
         })
         .toHaveLength(1);
+      // The new worker's activate step only drops the old cache (done:
+      // one cache left). WebKit's page side can keep reporting it as
+      // `activating` for longer than this test waits (in one of two CI
+      // runs of the same build), so there either state is accepted; the
+      // checks below are what tells that the new version took over.
+      const activeState =
+        browserName === 'webkit' ? /^activat(ed|ing)$/ : /^activated$/;
+      await expect
+        .poll(async () => (await shellWorker(page)).active, {
+          timeout: 60_000,
+        })
+        .toMatch(activeState);
       const after = await shellWorker(page);
-      expect(after.active).toBe('activated');
       expect(after.caches).not.toEqual(first.caches);
       await expect(setting).toHaveAccessibleName(READY, { timeout: 60_000 });
       expect(errors).toEqual([]);

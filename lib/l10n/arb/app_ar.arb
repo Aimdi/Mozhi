@@ -2740,5 +2740,22 @@
   "onboardingServiceNoTranslation": "لا يترجم",
   "onboardingServiceNoneTranslates": "استجابت الخوادم، لكن لم يترجم أيٌّ منها كلمة الاختبار. أعِد الاختبار لاحقًا، أو أضِف مثيلك الخاص أدناه.",
   "onboardingServiceOwnNoTranslation": "يستجيب هذا المثيل، لكنه لا يترجم باستخدام {engine}: {error}",
-  "onboardingServiceFindFastestTranslateHint": "يترجم كلمة «Hello» مرة واحدة على كل خادم في القائمة لقياس سرعته، ثم يجرّب الأسرع أولًا. لن يُرسل أي جزء من نصك."
+  "onboardingServiceFindFastestTranslateHint": "يترجم كلمة «Hello» مرة واحدة على كل خادم في القائمة لقياس سرعته، ثم يجرّب الأسرع أولًا. لن يُرسل أي جزء من نصك.",
+  "translateEngineOnDeviceOnline": "على الجهاز + {engine}",
+  "translateEngineOnDeviceOnlineTooltip": "يترجم على هذا الجهاز عندما تكون اللغة مُنزَّلة، وإلا فيسألك قبل إرسال نصك إلى {engine}.",
+  "translateEngineOnDeviceOnlineNote": "يسأل قبل الإرسال إلى {engine} عندما لا تكون اللغة مُنزَّلة",
+  "translateFirstUseHint": "«{download}» يُبقي نصك على هذا الهاتف. «{once}» يرسل هذا النص فقط إلى {destination}.",
+  "onboardingLanguagesSuggestion": "{language} من لغات هاتفك.",
+  "onboardingLanguagesSuggestionUse": "الترجمة من {language}",
+  "onboardingLanguagesDownloadOnNext": "تُنزَّل اللغات المحدّدة عند النقر على «التالي».",
+  "onboardingLanguagesDownloadCheckbox": "تنزيل {language} عند النقر على «التالي»",
+  "translateErrorTitleAllServers": "خوادم المتطوّعين غير متاحة",
+  "translateErrorAllServersFailed": "{count, plural, =0{لم يتمكّن أيٌّ من خوادم المتطوّعين من الترجمة باستخدام {engine} الآن.} =1{تعذّر على خادم المتطوّعين الترجمة باستخدام {engine} الآن.} =2{لم يتمكّن أيٌّ من خادمَي المتطوّعين من الترجمة باستخدام {engine} الآن.} few{لم يتمكّن أيٌّ من خوادم المتطوّعين البالغ عددها {count} من الترجمة باستخدام {engine} الآن.} many{لم يتمكّن أيٌّ من خوادم المتطوّعين البالغ عددها {count} من الترجمة باستخدام {engine} الآن.} other{لم يتمكّن أيٌّ من خوادم المتطوّعين البالغ عددها {count} من الترجمة باستخدام {engine} الآن.}} هذه الخوادم المجانية يديرها متطوّعون، وقد تتعطّل أحيانًا.",
+  "translateErrorTryAnotherEngine": "تجربة محرّك آخر",
+  "translateErrorChooseAnotherServer": "اختيار خادم آخر",
+  "translateErrorServersTried": "الخوادم التي جُرّبت: {servers}.",
+  "conversationTurnPauseHintAny": "ينتهي الدور بعد هذه المدة من الصمت بعد الكلام.",
+  "translateOfflineManageLanguages": "إدارة اللغات",
+  "translateOfflineDownloadingLanguage": "جارٍ تنزيل {language}… {percent}%",
+  "translateOfflineDownloadingLanguageStarted": "جارٍ تنزيل {language}…"
 }

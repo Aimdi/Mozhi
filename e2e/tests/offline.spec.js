@@ -65,15 +65,14 @@ test('an unreachable Mozhi instance shows a friendly error', async ({
   await takeMockDown(page);
 
   await typeSource(page, 'Good evening');
+  // Every server failed: a plain explanation, never an HTTP status.
   const error = page.getByRole('group', {
-    name: "Couldn't reach the Mozhi instance. Check your connection or try another instance.",
+    name: /^Volunteer servers unavailable\s+The volunteer server couldn.t translate with Google just now\./,
   });
   await expect(error).toBeVisible();
-  await expect(error).toHaveAccessibleName(
-    /^Couldn’t connect\s+Couldn't reach the Mozhi instance\./,
-  );
-  // Retry, and the way to another instance.
-  for (const name of ['Retry', 'Manage instances']) {
+  await expect(error).not.toHaveAccessibleName(/HTTP|\b5\d\d\b/);
+  // Retry, another engine (the AI provider) and another server.
+  for (const name of ['Retry', 'Try another engine', 'Choose another server']) {
     await expect(error.getByRole('button', { name })).toBeVisible();
   }
   expect(errors).toEqual([]);

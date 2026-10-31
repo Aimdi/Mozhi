@@ -1,7 +1,5 @@
 Erste Version.
-
-• Mozhi-Engines (öffentlich oder eigene), Ausweichen, Vergleich, Modi Schnell/Beste
-• KI-Übersetzung mit Cloud- oder lokalen Modellen (Ollama, LM Studio, llama.cpp), DeepL API, LibreTranslate
-• Kagi-Extras: Förmlichkeit, Sprachniveau, Glossare, Vorlagen, Alternativen, Nuancen, Verfeinern, Bedeutung prüfen, Wörterbuch
-• Korrektur; Bilder, Dokumente, Webseiten, Gespräch; Offline-Sprachen
-• „Translate with Mozhi“ im Auswahlmenü, Widget, Verlauf und Favoriten
+• Offline auf dem Smartphone übersetzen (rund 55 Sprachen), über Mozhi-Server oder mit deinem KI-Modell
+• KI-Extras: Ton, Sprachniveau, Glossare, Verfeinern, Bedeutung prüfen, Korrektur
+• Live-Kamera, Fotos, PDF- und Office-Dokumente, Gespräch, Transkription, Live-Untertitel
+• Standardmäßig privat: Offline bevorzugt, verschlüsselter Verlauf, kein Tracking

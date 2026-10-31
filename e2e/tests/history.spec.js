@@ -4,12 +4,14 @@
 // are a phrasebook grouped by language pair.
 const { expect } = require('@playwright/test');
 const {
+  clearClipboard,
   collectPageErrors,
   copiedTranslation,
   escapeRegExp,
   fillField,
   openApp,
   openHistory,
+  readClipboard,
   recordAiRequests,
   seedSettings,
   sourceInput,
@@ -114,12 +116,12 @@ test('a translation appears in History and can be liked', async ({
   for (const name of [/^Share/, /^Delete/]) {
     await expect(item.getByRole('button', { name })).toBeVisible();
   }
-  await page.evaluate(() => navigator.clipboard.writeText(''));
+  await clearClipboard(page);
   await item.getByRole('button', { name: /^Copy( Copy)?$/ }).click();
   await expect(
     item.getByRole('button', { name: /^Copied to clipboard/ }),
   ).toBeVisible();
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+  expect(await readClipboard(page)).toBe(
     `[AI→French (Français)] ${FIRST}`,
   );
 
@@ -317,8 +319,11 @@ test('a dictionary look-up is saved to History, liked and opened again', async (
   await page.getByRole('tab', { name: 'Favorites' }).click();
   await expect(item).toBeVisible();
 
-  // Opening it looks the word up again on the Dictionary tab.
-  await item.click();
+  // Opening it looks the word up again on the Dictionary tab. The click
+  // goes to the word: a mouse over the row brings in its Copy, Share and
+  // Delete buttons, which on a phone-wide page reach its middle (WebKit
+  // draws them before the click lands).
+  await item.click({ position: { x: 48, y: 20 } });
   await expect(page.getByRole('tab', { name: 'Dictionary' }))
     .toHaveAttribute('aria-selected', 'true');
   await expect.poll(() => requests.length).toBe(2);

@@ -1,46 +1,39 @@
-Mozhi Translate ist ein schneller, privater Übersetzer ohne Konto, Werbung oder Tracking. Übersetze über Mozhi-Instanzen (ein quelloffenes Frontend für Google, DeepL, Reverso, Yandex, LibreTranslate, DuckDuckGo und MyMemory) oder mit dem KI-Modell deiner Wahl in der Cloud oder auf deinem Rechner, mit den Extras von Kagi Translate.
+Mozhi Translate ist ein privater Übersetzer ohne Konto, ohne Werbung und ohne Tracking. Übersetze auf deinem Smartphone, über Mozhi-Server (ein quelloffenes Frontend für Google, DeepL und mehr) oder mit dem KI-Modell deiner Wahl, in der Cloud oder auf deinem eigenen Rechner.
 
-ÜBERSETZUNGS-ENGINES
-• Jede Engine deiner Mozhi-Instanz: öffentliche Instanzen eingebaut oder dein eigener Server (auch per http im Heimnetz), mit automatischem Ausweichen
-• KI-Anbieter: OpenAI, Anthropic (Claude), Google Gemini, OpenRouter, Groq, DeepSeek, Mistral, xAI, Together oder jeder OpenAI-kompatible Server
-• Lokale Modelle mit Ollama, LM Studio oder llama.cpp, gekennzeichnet als „Lokal“; eigenes Prompt-Format für Modelle wie TranslateGemma
-• DeepL API und LibreTranslate mit eigenem Schlüssel oder Server
-• Engines vergleichen und das beste Ergebnis übernehmen
-• Qualitätsmodi: „Schnell“ und „Beste“ einmal festlegen, mit einem Tipp wechseln
+STANDARDMÄSSIG PRIVAT
+• Offline bevorzugt: Übersetzt wird auf dem Smartphone, wenn das Sprachpaar installiert ist; sonst fragt Mozhi nach, bevor dein Text online geht. Oder wähle „Nur offline“ oder „Online“
+• Dein Text geht nur dorthin, wo du es erlaubt hast, und bei jeder Übersetzung steht, wer sie erhalten hat
+• Standardmäßig bleiben bei Text, den du übersetzt, E-Mail-Adressen, Telefonnummern, IBANs, Kartennummern und IP-Adressen auf dem Smartphone, wenn der Text online geht
+• Verschlüsselter Verlauf, nicht im Cloud-Backup von Android enthalten; Inkognito-Modus, App-Sperre und eine Liste aller Anfragen, die die App sendet
+• Keine Analyse, keine Telemetrie, keine Absturzberichte, kein Google-Code
+
+OFFLINE AUF DEM SMARTPHONE
+• Rund 55 Sprachen mit Mozillas Bergamot-Engine und den Modellen von Firefox Translations
+• Spracheingabe mit Whisper, Texterkennung mit Tesseract und KI-Modelle auf dem Gerät
+• Nur heruntergeladen, wenn du sie antippst, und vor der Nutzung geprüft, oder aus Dateien importiert. Ihre Anbieter (Mozilla auf Google Cloud, Hugging Face, GitHub) sehen deine IP-Adresse, außer du nutzt einen Spiegelserver
+
+ONLINE, WENN DU WILLST
+• Öffentliche Mozhi-Server eingebaut, oder deine eigenen, mit automatischem Ausweichen. Öffentliche Server werden von anderen betrieben: Die Betreiber und ihre Engine können lesen, was du an sie sendest
+• OpenAI, Anthropic, Gemini, OpenRouter, Mistral oder jeder OpenAI-kompatible Server mit deinem eigenen Schlüssel; lokale Modelle mit Ollama, LM Studio oder llama.cpp; die DeepL API und LibreTranslate
+• Engines vergleichen, Seite an Seite; eine Engine für „Schnell“ und eine für „Beste“, nur einen Tipp voneinander entfernt
 
 KI-EXTRAS
-• Natürlicher oder wörtlicher Stil, Förmlichkeit, Sprachniveau (GER A1 bis C2), Geschlecht, Kontext und Glossare, als Vorlagen speicherbar
-• Eigene Ziele wie „Piratensprache“, „Einfache Sprache“ oder ein Dialekt
-• Alternativen, Nuancen, „Übersetzung erklären“ und ein Wörterbuch
-• Verfeinern: Förmlicher, Kürzer, Einfacher und mehr, kombinierbar und rückgängig zu machen
-• Zuordnung: Wendungen in beiden Texten hervorheben; Umschrift unter nicht-lateinischen Schriften
-• Bedeutung prüfen: eine Rückübersetzung, die Auslassungen, Zusätze und andere Bedeutungsunterschiede markiert
-• Korrektur: Verbesserungen mit Erklärungen, Stil, regionale Varietät, Textstatistik
-• KI-Extras auch beim Übersetzen mit Mozhi-Engines
+• Ton, Sprachniveau (CEFR A1 bis C2), Geschlecht, Kontext, Glossare und Vorlagen; eigene Ziele wie „Piratensprache“
+• Verfeinern (Förmlicher, Kürzer, Einfacher und mehr), Alternativen, Nuancen und Erklärungen
+• Bedeutung prüfen: eine Rückübersetzung, die Bedeutungsunterschiede markiert
+• Korrektur und ein Wörterbuch
 
-WEITERE ÜBERSETZUNGSARTEN
-• Bilder und Kamera: KI-Bilderkennung, Google Lens über Mozhi oder Texterkennung auf dem Gerät
-• Dokumente: Text, Markdown, SRT/VTT-Untertitel, JSON/ARB-Stringtabellen
-• Webseiten in einer übersetzten Leseansicht
-• Gespräch für zwei Personen, mit Spracheingabe und Vorlesen
-• Auch übersetzen in bis zu vier weitere Sprachen gleichzeitig
-• Offline-Sprachen: Sprachpakete auf dem Gerät zum Übersetzen ohne Netz
+KAMERA, DOKUMENTE UND SPRACHE
+• Live-Kamera und Fotos: Der Text wird auf dem Smartphone gelesen und die Übersetzung darübergelegt, oder ein Foto wird an die Mozhi- oder KI-Engine gesendet, die du wählst
+• Dokumente behalten Format und Layout: PDF, Word, PowerPoint, Excel, OpenDocument, EPUB, Untertitel und Lokalisierungsdateien
+• Gespräch von Angesicht zu Angesicht oder geteilt mit den Smartphones von Gästen im selben WLAN
+• Vorträge transkribieren und den Ton anderer Apps untertiteln (Android 10 und neuer), erkannt auf dem Smartphone
 
 IM ALLTAG
-• Sofortübersetzung beim Tippen, Spracherkennung, cleveres Tauschen, zuletzt genutzte Sprachpaare
-• Vorlesen mit Mozhi- oder Gerätestimmen, einstellbares Tempo
-• „Translate with Mozhi“ im Textauswahlmenü jeder App, mit Ersetzen in bearbeitbaren Feldern
-• Teilen-Ziel, Schnelleinstellungs-Kachel, Startbildschirm-Widget und App-Verknüpfungen
-• Links wie /translate?text=hola&from=es&to=en öffnen sich vorausgefüllt
-• Durchsuchbarer Verlauf und Favoriten, JSON-Export und -Import, automatisches Löschen nach 1, 7 oder 30 Tagen
-• Nutzung & Kosten: Zeichen und geschätzte Tokens pro KI-Anbieter, optional mit Monatsbudget
-• Material You, dunkles und rein schwarzes Design, Layouts für Smartphones, Tablets und Foldables, Screenreader-Beschriftungen
+• Sofortübersetzung beim Tippen, automatisches Erkennen der Sprache, zum Nachschlagen auf ein Wort tippen
+• „Mit Mozhi übersetzen“ und „Offline übersetzen“ im Textauswahlmenü anderer Apps; Bildschirm übersetzen, an Mozhi teilen, Schnelleinstellungs-Kacheln und ein Widget
+• Favoriten, Sprachführer und Üben mit Karteikarten
+• Verschlüsselte Backups, Synchronisierung über deinen eigenen WebDAV-Server, Übertragung von Smartphone zu Smartphone
+• Material You, dunkle Designs, Tablet-Layouts und Screenreader-Beschriftungen
 
-DATENSCHUTZ
-• Kein Konto, keine Werbung, keine Analyse, keine Telemetrie, keine Absturzberichte
-• Verlauf und Einstellungen bleiben auf deinem Gerät; API-Schlüssel liegen im sicheren Speicher
-• Dein Text geht nur an die gewählte Mozhi-Instanz oder den gewählten KI-Anbieter, bei lokalen und Offline-Modellen nirgendwohin
-• Geteilte Texte und Links starten nie von selbst eine kostenpflichtige KI-Anfrage
-• Offline-Übersetzung und Texterkennung auf dem Gerät nutzen Googles ML Kit (nur in Builds mit ML Kit): Texte und Bilder bleiben auf dem Gerät, ML Kit lädt aber Sprachpakete von Google und meldet Nutzungsstatistiken seiner Schnittstellen an Google
-
-Mozhi Translate ist freie, quelloffene Software (MIT). Ein unabhängiger, inoffizieller Client: Das Mozhi-Übersetzungs-Frontend (codeberg.org/aryak/mozhi) ist ein eigenes Projekt seiner Autoren, und die App steht in keiner Verbindung zu Google, DeepL, Kagi oder einem KI-Anbieter.
+Mozhi Translate ist freie, quelloffene Software (MIT), ein unabhängiger, inoffizieller Client: Das Mozhi-Frontend (codeberg.org/aryak/mozhi) ist ein eigenständiges Projekt, und die App steht in keiner Verbindung zu Google, DeepL oder einem KI-Anbieter.

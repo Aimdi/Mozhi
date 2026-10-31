@@ -24,6 +24,8 @@ class ConsentRequest extends Equatable {
     required this.exception,
     required this.id,
     this.automatic = false,
+    this.fromOnDevice = false,
+    this.onDeviceSource,
   });
 
   final ConsentRequiredException exception;
@@ -36,8 +38,24 @@ class ConsentRequest extends Equatable {
   /// another app): never open a dialog for it.
   final bool automatic;
 
+  /// The on-device engine tried first and does not have the language
+  /// (Offline first, see `TranslateCubit.onlineFallbackOf`): the prompt
+  /// asks about the online engine instead, next to the download.
+  final bool fromOnDevice;
+
+  /// With [fromOnDevice], the source language the on-device engine
+  /// recognised (a language code; null when only the target's download is
+  /// missing): the download the prompt offers.
+  final String? onDeviceSource;
+
   @override
-  List<Object?> get props => [exception, id, automatic];
+  List<Object?> get props => [
+    exception,
+    id,
+    automatic,
+    fromOnDevice,
+    onDeviceSource,
+  ];
 }
 
 /// A refinement chip applied to the translation with

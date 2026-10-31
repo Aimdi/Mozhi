@@ -63,9 +63,15 @@ class OnboardingPage extends StatelessWidget {
         BlocProvider(
           create: (context) {
             final translate = _maybeRead<TranslateCubit>(context);
-            return OnboardingCubit(
+            final cubit = OnboardingCubit(
               repository: context.read<TranslationRepository>(),
               settings: context.read<SettingsCubit>(),
+              // The binding's (tests set them there).
+              deviceLanguages: () => [
+                for (final locale
+                    in WidgetsBinding.instance.platformDispatcher.locales)
+                  locale.toLanguageTag(),
+              ],
               // The network policy's refusals (plain http to a public
               // server, .onion without a proxy) say what is wrong. Looked
               // up when a failure is described (not while the cubit is
@@ -82,6 +88,10 @@ class OnboardingPage extends StatelessWidget {
                       if (target != null) translate.setTarget(target);
                     },
             );
+            // Whether the phone has room for the languages' downloads (on
+            // Android; asks the device only).
+            unawaited(cubit.loadFreeSpace());
+            return cubit;
           },
         ),
         // Created (and loaded) when the languages step first needs it.

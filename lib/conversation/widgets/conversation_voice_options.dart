@@ -76,7 +76,7 @@ class ConversationVoiceOptions extends StatelessWidget {
           ),
           ListTile(
             title: Text(l10n.conversationTurnPause),
-            subtitle: Text(l10n.conversationTurnPauseHint),
+            subtitle: Text(l10n.conversationTurnPauseHintAny),
             trailing: Text(
               seconds(value),
               key: const Key('conversation_turn_pause_value'),

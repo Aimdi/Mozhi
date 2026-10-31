@@ -17,6 +17,12 @@
 //                 only offline_shell.spec.js allows it: each test starts a
 //                 fresh browser profile, where the worker would download
 //                 the whole build again (about 30 MB) next to the test.
+//
+// Browsers: the `chromium` project runs every spec; `firefox` and `webkit`
+// (Gecko and the engine of Safari) run the core specs (CORE_SPECS), so CI
+// shows that the app works in every engine a user may open it with. Pick
+// one with `--project` (CI runs one job per browser; `npx playwright
+// install --with-deps firefox webkit` installs the other two).
 const path = require('node:path');
 const { defineConfig, devices } = require('@playwright/test');
 
@@ -27,6 +33,23 @@ const webDir = path.resolve(
 const appPort = Number(process.env.E2E_APP_PORT || 8080);
 const mockPort = Number(process.env.E2E_MOCK_PORT || 8787);
 const isCI = !!process.env.CI;
+
+/**
+ * The specs that every browser runs: start-up and the routes, translating,
+ * settings, history, the on-device engine, documents and the offline app
+ * shell. The rest run in Chromium only.
+ */
+const CORE_SPECS = [
+  'app',
+  'translate',
+  'settings',
+  'history',
+  'offline_engine',
+  'documents_formats',
+  'offline_shell',
+].map((name) => `${name}.spec.js`);
+
+const viewport = { width: 412, height: 915 };
 
 module.exports = defineConfig({
   testDir: './tests',
@@ -44,9 +67,7 @@ module.exports = defineConfig({
   use: {
     baseURL: `http://127.0.0.1:${appPort}`,
     locale: 'en-US',
-    viewport: { width: 412, height: 915 },
-    // The specs read the translation through the Copy button.
-    permissions: ['clipboard-read', 'clipboard-write'],
+    viewport,
     serviceWorkers:
       process.env.E2E_SERVICE_WORKERS === 'allow' ? 'allow' : 'block',
     trace: 'retain-on-failure',
@@ -55,12 +76,50 @@ module.exports = defineConfig({
     actionTimeout: 15_000,
     navigationTimeout: 60_000,
   },
+  // The specs read the translation through the Copy button, so each
+  // browser gets the clipboard the way it allows it (helpers.js reads it
+  // back, see readClipboard).
   projects: [
     {
       name: 'chromium',
       use: {
         ...devices['Desktop Chrome'],
-        viewport: { width: 412, height: 915 },
+        viewport,
+        permissions: ['clipboard-read', 'clipboard-write'],
+      },
+    },
+    {
+      name: 'firefox',
+      testMatch: CORE_SPECS,
+      // CanvasKit without a GPU is slower in Gecko.
+      timeout: 150_000,
+      use: {
+        ...devices['Desktop Firefox'],
+        viewport,
+        // Firefox has no clipboard permissions: these prefs let a page
+        // read the clipboard without the paste prompt (as in Playwright's
+        // own tests).
+        launchOptions: {
+          firefoxUserPrefs: {
+            'dom.events.asyncClipboard.readText': true,
+            'dom.events.testing.asyncClipboard': true,
+          },
+        },
+      },
+    },
+    {
+      name: 'webkit',
+      testMatch: CORE_SPECS,
+      timeout: 150_000,
+      use: {
+        ...devices['Desktop Safari'],
+        viewport,
+        // Like the other two (Desktop Safari is a 2x screen: four times
+        // the pixels for CanvasKit to draw on a CI runner).
+        deviceScaleFactor: 1,
+        // WebKit knows only clipboard-read; writing needs the click on
+        // Copy (a user gesture), which the specs make.
+        permissions: ['clipboard-read'],
       },
     },
   ],

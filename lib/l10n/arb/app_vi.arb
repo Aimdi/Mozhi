@@ -2740,5 +2740,22 @@
   "onboardingServiceNoTranslation": "Không dịch được",
   "onboardingServiceNoneTranslates": "Các máy chủ đã phản hồi nhưng không máy chủ nào dịch được từ dùng để kiểm tra. Hãy kiểm tra lại sau, hoặc thêm máy chủ của riêng bạn bên dưới.",
   "onboardingServiceOwnNoTranslation": "Máy chủ này có phản hồi nhưng không dịch được bằng {engine}: {error}",
-  "onboardingServiceFindFastestTranslateHint": "Dịch từ “Hello” một lần trên mỗi máy chủ trong danh sách để đo tốc độ, sau đó thử máy chủ nhanh nhất trước. Không có văn bản nào của bạn được gửi đi."
+  "onboardingServiceFindFastestTranslateHint": "Dịch từ “Hello” một lần trên mỗi máy chủ trong danh sách để đo tốc độ, sau đó thử máy chủ nhanh nhất trước. Không có văn bản nào của bạn được gửi đi.",
+  "translateEngineOnDeviceOnline": "Trên thiết bị + {engine}",
+  "translateEngineOnDeviceOnlineTooltip": "Dịch trên thiết bị này khi ngôn ngữ đã được tải xuống. Nếu chưa, sẽ hỏi trước khi gửi văn bản của bạn đến {engine}.",
+  "translateEngineOnDeviceOnlineNote": "Hỏi trước khi gửi đến {engine} khi ngôn ngữ chưa được tải xuống",
+  "translateFirstUseHint": "“{download}” giữ văn bản của bạn trên điện thoại này. “{once}” chỉ gửi văn bản này đến {destination}.",
+  "onboardingLanguagesSuggestion": "{language} là một trong các ngôn ngữ trên điện thoại của bạn.",
+  "onboardingLanguagesSuggestionUse": "Dịch từ {language}",
+  "onboardingLanguagesDownloadOnNext": "Các ngôn ngữ đã đánh dấu sẽ được tải xuống khi bạn nhấn “Tiếp”.",
+  "onboardingLanguagesDownloadCheckbox": "Tải xuống {language} khi bạn nhấn “Tiếp”",
+  "translateErrorTitleAllServers": "Máy chủ tình nguyện không khả dụng",
+  "translateErrorAllServersFailed": "{count, plural, =1{Máy chủ tình nguyện hiện không thể dịch bằng {engine}.} other{Cả {count} máy chủ tình nguyện hiện đều không thể dịch bằng {engine}.}} Các máy chủ miễn phí này do tình nguyện viên vận hành và đôi khi không hoạt động.",
+  "translateErrorTryAnotherEngine": "Thử công cụ khác",
+  "translateErrorChooseAnotherServer": "Chọn máy chủ khác",
+  "translateErrorServersTried": "Các máy chủ đã thử: {servers}.",
+  "conversationTurnPauseHintAny": "Một lượt kết thúc khi có khoảng lặng dài chừng này sau khi nói.",
+  "translateOfflineManageLanguages": "Quản lý ngôn ngữ",
+  "translateOfflineDownloadingLanguage": "Đang tải xuống {language}… {percent}%",
+  "translateOfflineDownloadingLanguageStarted": "Đang tải xuống {language}…"
 }

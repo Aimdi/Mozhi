@@ -322,7 +322,9 @@ void main() {
       ).called(1);
     });
 
-    testWidgets('downloads a picked language with its size', (tester) async {
+    testWidgets('downloads a checked language with its size on Next', (
+      tester,
+    ) async {
       settings.setLanguages(target: _french);
       await pumpPage(tester, size: const Size(420, 1400));
       await tapNext(tester);
@@ -337,10 +339,18 @@ void main() {
         findsOneWidget,
       );
       await tester.tap(
-        find.descendant(of: tile, matching: find.text('Download')),
+        find.byKey(const ValueKey('onboarding_offline_check_fr')),
       );
       await tester.pumpAndSettle();
+      // Never by itself: only once the user moves on.
+      expect(offline.downloads, isEmpty);
+      await tapNext(tester);
+      expect(find.byType(ServiceStep), findsOneWidget);
       expect(offline.downloads, [('fr', true)]);
+      expect(find.text('French is ready for offline use'), findsOneWidget);
+
+      await tester.tap(find.text('Back'));
+      await tester.pumpAndSettle();
       expect(
         find.descendant(
           of: tile,
@@ -348,7 +358,20 @@ void main() {
         ),
         findsOneWidget,
       );
-      expect(find.text('French is ready for offline use'), findsOneWidget);
+    });
+
+    testWidgets('Skip downloads nothing', (tester) async {
+      settings.setLanguages(target: _french);
+      await pumpPage(tester, size: const Size(420, 1400));
+      await tapNext(tester);
+      await tapNext(tester);
+      await tester.tap(
+        find.byKey(const ValueKey('onboarding_offline_check_fr')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Skip'));
+      await tester.pumpAndSettle();
+      expect(offline.downloads, isEmpty);
     });
 
     testWidgets('says that the browser cannot translate offline', (

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -37,6 +38,7 @@ class _Device {
     MemoryStore? prefs,
     MemoryStore? secrets,
     this.debounce = const Duration(milliseconds: 5),
+    this.codec = testCodec,
   }) : prefs = prefs ?? MemoryStore(),
        secrets = secrets ?? MemoryStore() {
     service = _service();
@@ -46,6 +48,7 @@ class _Device {
   final MemoryStore prefs;
   final MemoryStore secrets;
   final Duration debounce;
+  final BackupCodec codec;
   final history = MemorySection('history');
   PrivacyMode mode = PrivacyMode.offlineFirst;
   bool metered = false;
@@ -55,7 +58,7 @@ class _Device {
     registry: registryOf([history]),
     prefs: prefs,
     secrets: secrets,
-    codec: testCodec,
+    codec: codec,
     httpClient: () => server.client,
     privacyMode: () => mode,
     isMetered: () async => metered,
@@ -75,6 +78,25 @@ class _Device {
       probed: probe,
     );
   }
+}
+
+/// How keys were derived before passphrases were normalised (NFC): from
+/// the passphrase exactly as typed.
+class _AsTypedCodec extends BackupCodec {
+  const new() : super(kdf: testKdf, useIsolate: false);
+
+  @override
+  Future<BackupKey> deriveKey(
+    String passphrase, {
+    required Uint8List salt,
+    BackupKdf? parameters,
+    bool asTyped = false,
+  }) => super.deriveKey(
+    passphrase,
+    salt: salt,
+    parameters: parameters,
+    asTyped: true,
+  );
 }
 
 Matcher _fails(SyncFailure failure) =>
@@ -240,6 +262,111 @@ void main() {
       expect(tablet.prefs.values, isEmpty);
       expect(tablet.history.restores, isEmpty);
       expect(server.files[_filePath], before);
+    });
+
+    group('a file made with a passphrase as typed, before NFC', () {
+      // "Việt" with combining marks, as some keyboards type it.
+      const decomposed = 'Vie\u0323\u0302t horse';
+      const composed = 'Vi\u1EC7t horse';
+
+      /// Whether the sync file opens with the key of the passphrase in NFC
+      /// (not the one exactly as typed).
+      Future<bool> nfcKeyed(FakeWebDavServer server) async {
+        final bytes = server.files[_filePath]!;
+        final unlocked = await testCodec.unlockKeyOf(bytes, decomposed);
+        await testCodec.decryptWithKey(bytes, unlocked.key);
+        return !unlocked.asTyped;
+      }
+
+      test('is joined, then written again once with the NFC key', () async {
+        final server = _server();
+        final old = _Device(server, codec: const _AsTypedCodec())
+          ..history.set('a', 'old', 1);
+        await old.setUp(decomposed);
+        expect(await nfcKeyed(server), isFalse);
+
+        final tablet = _Device(server)..history.set('b', 'new', 2);
+        await tablet.setUp(decomposed);
+
+        expect(tablet.history.values, {'a': 'old', 'b': 'new'});
+        expect(tablet.service.state.status.lastFailure, isNull);
+        expect(await nfcKeyed(server), isTrue);
+        // The tablet keeps the NFC key: it syncs on, also after a restart,
+        // and the passphrase opens the file however it is typed.
+        expect(await tablet.service.syncNow(), isNull);
+        tablet.restart();
+        expect(await tablet.service.syncNow(), isNull);
+        await _Device(server).setUp(composed);
+      });
+
+      test('another device of this version asks for the passphrase once, '
+          'and it opens with the NFC key', () async {
+        final server = _server();
+        final old = _Device(server, codec: const _AsTypedCodec())
+          ..history.set('a', 'old', 1);
+        await old.setUp(decomposed);
+        // The old device updated to this version: it still has the key of
+        // the passphrase as typed.
+        final phone = _Device(server, prefs: old.prefs, secrets: old.secrets)
+          ..history.set('a', 'old', 1);
+        final tablet = _Device(server)..history.set('b', 'new', 2);
+        await tablet.setUp(decomposed);
+
+        expect(await phone.service.syncNow(), SyncFailure.passphraseChanged);
+        await phone.service.unlock(passphrase: decomposed);
+        expect(phone.history.values, {'a': 'old', 'b': 'new'});
+        expect(await phone.service.syncNow(), isNull);
+        expect(await nfcKeyed(server), isTrue);
+      });
+
+      test('is still joined when writing it again fails, and written again '
+          'when the passphrase is entered next', () async {
+        final server = _server();
+        final old = _Device(server, codec: const _AsTypedCodec())
+          ..history.set('a', 'old', 1);
+        await old.setUp(decomposed);
+        final tablet = _Device(server)..history.set('b', 'new', 2);
+        var puts = 0;
+        server.intercept = (request) {
+          // The join's write goes through; the one with the new key fails.
+          if (request.method == 'PUT' && ++puts == 2) {
+            return http.Response('', 503);
+          }
+          return null;
+        };
+        await tablet.setUp(decomposed);
+        expect(tablet.history.values, {'a': 'old', 'b': 'new'});
+        expect(tablet.service.state.isSetUp, isTrue);
+        expect(await nfcKeyed(server), isFalse);
+        // With the key that opens the file, every device syncs on.
+        expect(await tablet.service.syncNow(), isNull);
+        expect(await old.service.syncNow(), isNull);
+
+        server.intercept = null;
+        await tablet.service.unlock(passphrase: decomposed);
+        expect(await nfcKeyed(server), isTrue);
+        expect(await tablet.service.syncNow(), isNull);
+      });
+
+      test('a passphrase typed in NFC needs nothing written again', () async {
+        final server = _server();
+        await (_Device(
+          server,
+          codec: const _AsTypedCodec(),
+        )..history.set('a', 'old', 1)).setUp(composed);
+        final tablet = _Device(server);
+        await tablet.setUp(composed);
+        final before = server.files[_filePath];
+        expect(await tablet.service.syncNow(), isNull);
+        expect(server.files[_filePath], same(before));
+      });
+
+      test('new files are made with the NFC passphrase', () async {
+        final fresh = _server();
+        await _Device(fresh).setUp(decomposed);
+        await _Device(fresh).setUp(composed);
+        expect(await nfcKeyed(fresh), isTrue);
+      });
     });
 
     test('joins a file another device created in the meantime', () async {

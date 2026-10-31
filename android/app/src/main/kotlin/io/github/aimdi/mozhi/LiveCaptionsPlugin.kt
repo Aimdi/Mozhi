@@ -10,7 +10,6 @@ import android.content.pm.PackageManager
 import android.media.projection.MediaProjectionConfig
 import android.media.projection.MediaProjectionManager
 import android.os.Build
-import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import io.flutter.embedding.engine.plugins.FlutterPlugin
@@ -401,48 +400,15 @@ object LiveCaptions {
     // Mozhi's windows on screen (main thread)
     // ---------------------------------------------------------------------
 
-    /**
-     * The Mozhi activities on screen (started, not stopped), followed for
-     * the whole process from the first Flutter window's creation on
-     * ([followWindows]). A service that only started following when it
-     * starts would miss the window that started the captions: it started
-     * earlier, and the microphone and capture dialogs in front of it are
-     * translucent (it is only paused, never started again).
-     */
-    private val windows = mutableSetOf<Int>()
-    private var following = false
+    private val windowsListener = AppWindows.Listener { service?.onWindowsChanged() }
 
-    /** A Mozhi window is on screen: the caption bar hides. */
+    /** A Mozhi window is on screen: the caption bar hides ([AppWindows]). */
     val appInFront: Boolean
-        get() = windows.isNotEmpty()
+        get() = AppWindows.inFront
 
-    /** Follows [application]'s activities from now on (once). */
+    /** Follows [application]'s activities from now on ([AppWindows.follow]). */
     fun followWindows(application: Application) {
-        if (following) return
-        following = true
-        application.registerActivityLifecycleCallbacks(
-            object : Application.ActivityLifecycleCallbacks {
-                override fun onActivityStarted(activity: Activity) {
-                    // At once: Translate screen's screenshot must not show the bar.
-                    if (windows.add(System.identityHashCode(activity))) service?.onWindowsChanged()
-                }
-
-                override fun onActivityStopped(activity: Activity) = gone(activity)
-
-                override fun onActivityDestroyed(activity: Activity) = gone(activity)
-
-                override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {}
-                override fun onActivityResumed(activity: Activity) {}
-                override fun onActivityPaused(activity: Activity) {}
-                override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
-            },
-        )
-    }
-
-    private fun gone(activity: Activity) {
-        if (!windows.remove(System.identityHashCode(activity))) return
-        // Posted: a window recreated for a configuration change is started
-        // again first, and the bar does not flash over it.
-        main.post { service?.onWindowsChanged() }
+        AppWindows.follow(application)
+        AppWindows.addListener(windowsListener)
     }
 }

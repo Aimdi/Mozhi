@@ -1,9 +1,12 @@
 import 'dart:async';
+import 'dart:ui' show PlatformDispatcher;
 
 import 'package:bloc/bloc.dart';
 import 'package:mozhi/core/network/network.dart'
     show isCleartextAllowed, mozhiEngineOf;
 import 'package:mozhi/onboarding/cubit/onboarding_state.dart';
+import 'package:mozhi/platform/android_device.dart';
+import 'package:mozhi/platform/free_space.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi_api/mozhi_api.dart';
 import 'package:translation_repository/translation_repository.dart';
@@ -40,6 +43,11 @@ typedef OnboardingLanguageSetter = void Function({
 /// user's own instance. Every choice is applied to [SettingsCubit] right
 /// away.
 ///
+/// The languages step's offline downloads are checked by the user
+/// ([chooseDownload]) or, on Android when the phone has room
+/// ([loadFreeSpace]), for them; they start only when the user taps Next
+/// (the step starts them, never this cubit).
+///
 /// Instances are only contacted when the user asks
 /// ([findFastestInstance], [addOwnInstance]), never by themselves: each
 /// one is a volunteer's server.
@@ -58,7 +66,12 @@ class OnboardingCubit extends Cubit<OnboardingState> {
   /// default languages (default: `SettingsCubit.setLanguages`; the page
   /// goes through the translator so that it shows them right away).
   /// `onDevice` says whether the device translates on its own (default:
-  /// `TranslationRepository.hasOfflineEngine`).
+  /// `TranslationRepository.hasOfflineEngine`). `deviceLanguages` are the
+  /// phone's languages (default: the platform's locales,
+  /// [OnboardingState.deviceLanguages]); `preselectDownloads` whether the
+  /// languages step checks the pair's downloads when the phone has room
+  /// (default: on Android) and `freeSpace` tells that room ([loadFreeSpace];
+  /// default: `FreeSpace.instance`).
   new({
     required this._repository,
     required this._settings,
@@ -66,11 +79,26 @@ class OnboardingCubit extends Cubit<OnboardingState> {
     String Function(Object error)? describeError,
     OnboardingLanguageSetter? setLanguages,
     bool? onDevice,
+    List<String> Function()? deviceLanguages,
+    bool? preselectDownloads,
+    Future<int?> Function()? freeSpace,
   }) : _describe = describeError ?? onboardingErrorMessage,
        _setLanguages = setLanguages ?? _settings.setLanguages,
+       _freeSpace = freeSpace ?? FreeSpace.instance.availableBytes,
        super(
-         OnboardingState(onDevice: onDevice ?? _hasOfflineEngine(_repository)),
+         OnboardingState(
+           onDevice: onDevice ?? _hasOfflineEngine(_repository),
+           deviceLanguages: List.unmodifiable(
+             (deviceLanguages ?? _platformLanguages)(),
+           ),
+           preselectDownloads: preselectDownloads ?? runsOnAndroid,
+         ),
        );
+
+  static List<String> _platformLanguages() => [
+    for (final locale in PlatformDispatcher.instance.locales)
+      locale.toLanguageTag(),
+  ];
 
   /// Whether [repository] has an on-device engine (true when it can't
   /// tell, e.g. a test double).
@@ -84,6 +112,7 @@ class OnboardingCubit extends Cubit<OnboardingState> {
 
   final String Function(Object error) _describe;
   final OnboardingLanguageSetter _setLanguages;
+  final Future<int?> Function() _freeSpace;
 
   final TranslationRepository _repository;
   final SettingsCubit _settings;
@@ -170,6 +199,32 @@ class OnboardingCubit extends Cubit<OnboardingState> {
       return;
     }
     _setLanguages(target: language);
+  }
+
+  /// Reads the free storage ([OnboardingState.freeBytes]) when downloads
+  /// may be checked for the user ([OnboardingState.preselectDownloads]);
+  /// asks the device only (nothing is sent). Unknown stays null.
+  Future<void> loadFreeSpace() async {
+    if (!state.preselectDownloads) return;
+    int? bytes;
+    try {
+      bytes = await _freeSpace();
+    } on Object {
+      bytes = null;
+    }
+    if (isClosed || bytes == null) return;
+    emit(state.copyWith(freeBytes: () => bytes));
+  }
+
+  /// The user checked ([download]) or unchecked the offline download of
+  /// [code] on the languages step; checked ones start when they tap Next.
+  void chooseDownload(String code, {required bool download}) {
+    if (state.downloadChoices[code] == download) return;
+    emit(
+      state.copyWith(
+        downloadChoices: {...state.downloadChoices, code: download},
+      ),
+    );
   }
 
   // Translation service

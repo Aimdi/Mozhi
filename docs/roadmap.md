@@ -47,13 +47,14 @@ gaps that matter:
 - **Continuity:** no encrypted backup or sync, favorites aren't a
   phrasebook, no learning tools (all closed in wave 4).
 
-## Done: waves 1 to 7
+## Done: waves 1 to 8
 
 Wave 1 (trust, speed and transparency), wave 2 (feel like the best app),
 wave 3 (offline everywhere), wave 4 (continuity and learning), wave 5
-(offline AI), wave 6 (translate everything, anywhere) and wave 7 (live and
-in place) are built; the [changelog](../CHANGELOG.md) lists what changed
-(0.1.0-rc.3 for wave 5, 0.1.0-rc.4 for wave 6 and 0.1.0-rc.5 for wave 7).
+(offline AI), wave 6 (translate everything, anywhere), wave 7 (live and
+in place) and wave 8 (works everywhere, the first time) are built; the [changelog](../CHANGELOG.md) lists what changed
+(0.1.0-rc.3 for wave 5, 0.1.0-rc.4 for wave 6, 0.1.0-rc.5 for wave 7 and
+0.1.0-rc.6 for wave 8).
 Wave 3
 brought offline translation to the web app (Bergamot and CLD2 as
 WebAssembly in a worker, models in the browser's private storage), a model
@@ -129,6 +130,16 @@ dictionaries from files; and wave 6's engineering leftovers are closed
 guard, longer document placeholders, the "kept on this device" note for
 photos and documents).
 
+Wave 8 came from checking that Mozhi works for someone who just installed
+it: CI now runs the APK on an Android emulator without Google services
+and checks the public servers and every download. It showed a first run
+that ended without a translation and a download button that only opened
+a list. Now the default engine translates on the phone or asks before
+going online, downloads happen in place, a server that fails is tried
+last for a while, and errors say what to do. The web app is tested in
+Firefox and WebKit, the store listings exist in all 18 languages, and
+passphrases with accented letters match however they were typed.
+
 Carried over to later waves:
 
 - **Store presence:** fresh screenshots, an accurate store text in all
@@ -140,10 +151,9 @@ Carried over to later waves:
 - **Photos:** the overlay along tilted text lines (baselines, deskew),
   scene text (PP-OCR), and the overlay in the Play variant's ML Kit text
   recognition.
-- **Voice:** long transcripts are cut at History's 20,000 characters;
-  speaker detection and the pause that ends a turn work with the offline
-  voice models only (the system recogniser still ends a turn after 3
-  seconds).
+- **Voice:** speaker detection in Conversation works with the offline
+  voice models only; how fast the system recogniser's partial results
+  arrive (the pause that ends a turn) needs a check on real phones.
 - **Dictionaries:** WikDict translations and Tatoeba example sentences;
   resuming interrupted downloads; the first pack release (the workflow is
   ready: its sizes and the kaikki.org URL pattern are checked on the first
@@ -162,8 +172,7 @@ Carried over to later waves:
   the JSON search in AI replies gives up (instead of slowing down) on
   replies that are mostly brackets; `DownloadOnlyModelDetails` is unused
   since the web imports.
-- **Backup and sync:** Unicode normalisation of passphrases (a passphrase
-  typed with another keyboard's composed characters doesn't match); the
+- **Backup and sync:** the
   web app's Argon2id uses lighter settings (19 MiB, 2 passes) than
   Android's (64 MiB, 3); sync not yet tried against real Nextcloud,
   ownCloud, Synology and rclone servers; presets and glossaries saved
@@ -207,9 +216,7 @@ Carried over to later waves:
   remove target, and the detection of apps that block screenshots on real
   phones; the launcher shortcut is the fifth one, which Pixel launchers
   don't show; opt-in translation of incoming notifications with the
-  offline engine only; the bubble may show over Mozhi itself when it is
-  turned on from Mozhi (it learns which windows are on screen only after
-  it starts, as the caption bar did before wave 7's fix).
+  offline engine only.
 - **App lock:** while the app is locked, screens opened before keep their
   data in memory (hidden, not encrypted); Android 11+ accepts the
   "weak" biometric class like the lock screen does; the live caption bar
@@ -234,6 +241,12 @@ Carried over to later waves:
 - **Tap a word:** words in the input can't be tapped yet; the highlight
   while Listen plays depends on the voice reporting its progress
   (browsers' word boundaries for Chinese, Japanese and Thai are rough).
+- **First run and servers:** download cancel (the offline engine's
+  downloads can't be aborted yet); image translation, read-aloud and
+  detection don't show the plain "volunteer servers failed" view yet; the
+  first-run language suggestion needs a phone language other than the
+  target; check the Firefox and WebKit runs of the web tests (first run
+  in CI with wave 8).
 - **Not done on purpose:** measuring instance speed automatically during
   setup (it contacts every listed volunteer server, so it stays a button:
   "Find the fastest server"); on-device AI as an automatic fallback (it

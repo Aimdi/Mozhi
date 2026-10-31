@@ -10,6 +10,7 @@ import 'package:mozhi/live_captions/data/captions_host.dart';
 import 'package:mozhi/platform/device_conditions.dart';
 import 'package:mozhi/screen_translate/data/screen_translate_controls.dart';
 import 'package:mozhi/transcribe/data/transcript_export.dart';
+import 'package:mozhi/transcribe/data/transcript_history.dart';
 import 'package:mozhi/transcribe/models/transcript_entry.dart';
 import 'package:mozhi/voice/offline/phrase_transcriber.dart';
 import 'package:translation_repository/translation_repository.dart';
@@ -144,6 +145,9 @@ class LiveCaptionsCubit extends Cubit<LiveCaptionsState> {
   /// The history entry this transcript is saved as (saving again updates
   /// it).
   String? _historyId;
+
+  /// How many parts the last save had ([TranscriptHistory.save]).
+  int _historyParts = 0;
 
   static String _english(LiveCaptionsBarText text) => switch (text) {
     LiveCaptionsBarText.listening => 'Listening…',
@@ -670,9 +674,10 @@ class LiveCaptionsCubit extends Cubit<LiveCaptionsState> {
   // Transcript
   // ---------------------------------------------------------------------
 
-  /// Saves the transcript (and its translations) as one history entry;
-  /// saving again updates it. While history is paused it is saved as a
-  /// favourite (this is an explicit save).
+  /// Saves the transcript (and its translations) as one history entry, in
+  /// numbered parts when it is longer than History keeps
+  /// ([TranscriptHistory]); saving again updates them. While history is
+  /// paused it is saved as a favourite (this is an explicit save).
   Future<void> saveToHistory() async {
     final history = _history;
     if (history == null || !state.hasTranscript) return;
@@ -695,7 +700,12 @@ class LiveCaptionsCubit extends Cubit<LiveCaptionsState> {
     );
     LiveCaptionsNotice notice;
     try {
-      await history.add(entry);
+      _historyParts = await TranscriptHistory.save(
+        history,
+        entry,
+        state.entries,
+        savedParts: _historyParts,
+      );
       notice = paused
           ? LiveCaptionsNotice.savedAsFavorite
           : LiveCaptionsNotice.saved;
@@ -717,6 +727,7 @@ class LiveCaptionsCubit extends Cubit<LiveCaptionsState> {
     _translations = Future.value();
     _offset = Duration.zero;
     _historyId = null;
+    _historyParts = 0;
     emit(
       state.copyWith(
         entries: const [],

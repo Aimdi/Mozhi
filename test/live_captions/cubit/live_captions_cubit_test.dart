@@ -886,6 +886,26 @@ void main() {
       await cubit.close();
     });
 
+    test('a transcript longer than History keeps is saved in parts', () async {
+      final cubit = await running(source: spanish);
+      final long = 'h' * 15000;
+      recognizer.recording.phrase(long, language: 'es');
+      await settle();
+      recognizer.recording.phrase(long, language: 'es');
+      await settle();
+      await cubit.saveToHistory();
+      final saved = verify(() => history.add(captureAny())).captured
+          .cast<HistoryEntry>();
+      expect(saved, hasLength(2));
+      final [second, first] = saved;
+      expect(first.text, '(1/2) $long');
+      expect(second.text, '(2/2) $long');
+      expect(first.translation, startsWith('(1/2) [en] '));
+      expect(second.id, '${first.id}.2');
+      expect(cubit.state.notice, LiveCaptionsNotice.saved);
+      await cubit.close();
+    });
+
     test('as a favourite while history is paused', () async {
       when(() => history.state).thenReturn(const HistoryState(incognito: true));
       final cubit = await running();

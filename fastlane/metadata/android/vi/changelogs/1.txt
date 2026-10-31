@@ -1,0 +1,5 @@
+Phiên bản đầu tiên.
+• Dịch ngoại tuyến trên điện thoại (khoảng 55 ngôn ngữ), qua máy chủ Mozhi hoặc bằng mô hình AI của bạn
+• Tính năng AI: giọng điệu, trình độ đọc, bảng thuật ngữ, tinh chỉnh, kiểm tra nghĩa, soát lỗi
+• Máy ảnh trực tiếp, ảnh, PDF và tài liệu văn phòng, hội thoại, chép lời, phụ đề trực tiếp
+• Riêng tư theo mặc định: Ưu tiên ngoại tuyến, lịch sử được mã hóa, không theo dõi

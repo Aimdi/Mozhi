@@ -7,10 +7,12 @@ import 'package:mozhi/app/router.dart' show AppRoutes;
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/offline/data/bergamot_model_details.dart'
     show offlineModelDetailsOf;
-import 'package:mozhi/settings/view/widgets/delete_local_data.dart'
-    show formatStoredSize;
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
+import 'package:mozhi/translate/widgets/offline_download_action.dart';
 import 'package:translation_repository/translation_repository.dart';
+
+export 'offline_download_action.dart'
+    show OfflineDownload, offlineDownloadLabel;
 
 /// The device's offline engine when one is provided above [context] (the
 /// app provides Bergamot, or an unavailable one on the web), else null.
@@ -48,9 +50,6 @@ Future<Set<String>> offlineReadyLanguages(OfflineTranslator translator) async {
   return keys;
 }
 
-/// A language to download for translating on this device.
-typedef OfflineDownload = ({String code, String name, int? bytes});
-
 /// What [translator] needs to translate [source] → [target] on the device:
 /// null when it does not support one of them (or is unavailable); else
 /// the languages of the pair (but English) whose models are not in
@@ -86,22 +85,6 @@ List<OfflineDownload>? offlineDownloadsFor(
   ];
 }
 
-/// The label of a button that downloads [downloads]: "Download German
-/// (25 MB)", "Download German, Japanese (52 MB)", or without the size when
-/// it is unknown.
-String offlineDownloadLabel(
-  AppLocalizations l10n,
-  List<OfflineDownload> downloads,
-) {
-  final names = [for (final download in downloads) download.name].join(', ');
-  final sizes = [for (final download in downloads) download.bytes];
-  if (sizes.isEmpty || sizes.any((size) => size == null || size <= 0)) {
-    return l10n.translateOfflineDownloadLanguage(names);
-  }
-  final total = sizes.fold<int>(0, (sum, size) => sum + size!);
-  return l10n.translateOfflineDownload(names, formatStoredSize(l10n, total));
-}
-
 /// Opens the offline languages (Settings › Offline), where the models are
 /// downloaded; back returns here.
 void openOfflineModels(BuildContext context) =>
@@ -111,10 +94,15 @@ void openOfflineModels(BuildContext context) =>
 /// supports the language pair: next to a request the privacy settings
 /// stopped before it left the device ([consent]), or one that failed on
 /// the network ([OfflinePairOffer.pair], see `TranslateErrorView`).
-/// "Download German (25 MB)" opens the offline languages while a model is
-/// missing; once they are all there, "Translate on this device" switches
-/// to the on-device engine. Shows nothing otherwise (no offline engine,
-/// e.g. on the web, or a pair it does not support).
+/// "Download German (25 MB)" downloads the missing models right here
+/// ([OfflineDownloadAction]) and then translates on the device, the
+/// consent prompt put away ("Manage languages" opens the offline
+/// languages; back here, the offer is checked again, and a prompt of the
+/// on-device engine tried first goes away once the pair is there, the text
+/// translated on the device); once they are all there, "Translate on this
+/// device" switches to the on-device engine (or, when it is already
+/// selected, translates again with it). Shows nothing otherwise (no
+/// offline engine, e.g. on the web, or a pair it does not support).
 class OfflinePairOffer extends StatefulWidget {
   /// For the pair of [consent].
   const new({
@@ -191,6 +179,25 @@ class _OfflinePairOfferState extends State<OfflinePairOffer> {
     });
   }
 
+  /// Back from the offline languages ("Manage languages"): checks the pair
+  /// again. When the device tried first ([ConsentRequest.fromOnDevice]) and
+  /// the pair is there now, the prompt to send the text online goes away
+  /// and the text is translated on the device ([translateOnDevice]), so no
+  /// stale "Once" is left that the device does not need.
+  Future<void> _reloadAfterManaging() async {
+    await _load();
+    if (!mounted || !(_downloads?.isEmpty ?? false)) return;
+    final TranslateCubit cubit;
+    try {
+      cubit = context.read<TranslateCubit>();
+    } on ProviderNotFoundException {
+      return;
+    }
+    if (!(cubit.state.consent?.fromOnDevice ?? false)) return;
+    cubit.dismissConsent();
+    translateOnDevice(context);
+  }
+
   @override
   Widget build(BuildContext context) {
     final downloads = _downloads;
@@ -201,18 +208,29 @@ class _OfflinePairOfferState extends State<OfflinePairOffer> {
     if (downloads.isEmpty) {
       final offline = cubit.state.engines.where((e) => e.isOffline).firstOrNull;
       if (offline == null) return const SizedBox.shrink();
+      // Already the selected engine (Offline first tried it and asked
+      // about the online one): translate again, now on the device.
+      final selected = cubit.state.engine?.id == offline.id;
       button = TextButton.icon(
         key: const Key('translate_offline_use'),
-        onPressed: () => unawaited(cubit.selectEngine(offline)),
+        onPressed: () => unawaited(
+          selected ? cubit.translate() : cubit.selectEngine(offline),
+        ),
         icon: const Icon(Icons.offline_bolt_outlined),
         label: Text(l10n.translateUseOffline),
       );
     } else {
-      button = TextButton.icon(
-        key: const Key('translate_offline_download'),
-        onPressed: () => openOfflineModels(context),
-        icon: const Icon(Icons.download_for_offline_outlined),
-        label: Text(offlineDownloadLabel(l10n, downloads)),
+      // Downloaded right here; then the text is translated on the device.
+      button = OfflineDownloadAction(
+        downloads: downloads,
+        translator: _translator,
+        onReady: () {
+          // The language is here: the prompt to send the text online is
+          // gone (no "Once" left to tap for a text the device translates).
+          cubit.dismissConsent();
+          translateOnDevice(context);
+        },
+        onManaged: () => unawaited(_reloadAfterManaging()),
       );
     }
     return Padding(

@@ -1,7 +1,5 @@
 Première version.
-
-• Moteurs Mozhi (publics ou perso), bascule, comparaison, modes Rapide/Optimal
-• Traduction IA avec modèles cloud ou locaux (Ollama, LM Studio, llama.cpp), API DeepL, LibreTranslate
-• Extras Kagi : registre, niveau, glossaires, préréglages, alternatives, nuances, affiner, vérifier le sens, dictionnaire
-• Correction ; images, documents, pages web, conversation ; langues hors ligne
-• « Translate with Mozhi » (menu de sélection), widget, historique et favoris
+• Traduisez hors ligne sur le téléphone (environ 55 langues), via des serveurs Mozhi ou avec votre modèle d’IA
+• Extras IA : ton, niveau de lecture, glossaires, affiner, vérifier le sens, correction
+• Appareil photo en direct, photos, PDF et documents bureautiques, conversation, transcription, sous-titres en direct
+• Confidentiel par défaut : Hors ligne en priorité, historique chiffré, aucun pistage

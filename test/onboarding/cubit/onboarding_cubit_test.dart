@@ -28,6 +28,7 @@ void main() {
         repository: repository,
         settings: settings,
         pingTimeout: pingTimeout,
+        deviceLanguages: () => const [],
       );
 
   void stubPing(String url, Future<Duration> Function() answer) {
@@ -695,5 +696,113 @@ void main() {
         ..setTargetLanguage(french);
       expect(calls, [(french, null), (null, french)]);
     });
+  });
+
+  group('languages step', () {
+    test("knows the phone's languages and whether to check downloads", () {
+      final cubit = OnboardingCubit(
+        repository: repository,
+        settings: settings,
+        onDevice: true,
+        deviceLanguages: () => ['fr-FR', 'de'],
+        preselectDownloads: true,
+      );
+      addTearDown(cubit.close);
+      expect(cubit.state.deviceLanguages, ['fr-FR', 'de']);
+      expect(cubit.state.preselectDownloads, isTrue);
+      // By default: the platform's locales; checked off Android only.
+      final platform = OnboardingCubit(
+        repository: repository,
+        settings: settings,
+        onDevice: true,
+      );
+      addTearDown(platform.close);
+      expect(platform.state.deviceLanguages, isNotEmpty);
+      expect(platform.state.preselectDownloads, isFalse);
+    });
+
+    blocTest<OnboardingCubit, OnboardingState>(
+      'loadFreeSpace reads the room for downloads',
+      build: () => OnboardingCubit(
+        repository: repository,
+        settings: settings,
+        onDevice: true,
+        deviceLanguages: () => const [],
+        preselectDownloads: true,
+        freeSpace: () async => 123,
+      ),
+      act: (cubit) => cubit.loadFreeSpace(),
+      expect: () => [
+        const OnboardingState(preselectDownloads: true, freeBytes: 123),
+      ],
+    );
+
+    for (final (name, answer) in [
+      ('unknown', () async => null),
+      ('failing', () => Future<int?>.error(StateError('no channel'))),
+    ]) {
+      blocTest<OnboardingCubit, OnboardingState>(
+        'loadFreeSpace keeps $name room unknown',
+        build: () => OnboardingCubit(
+          repository: repository,
+          settings: settings,
+          onDevice: true,
+          deviceLanguages: () => const [],
+          preselectDownloads: true,
+          freeSpace: answer,
+        ),
+        act: (cubit) => cubit.loadFreeSpace(),
+        expect: () => const <OnboardingState>[],
+      );
+    }
+
+    test('loadFreeSpace asks nothing when downloads are not checked', () async {
+      var asked = false;
+      final cubit = OnboardingCubit(
+        repository: repository,
+        settings: settings,
+        onDevice: true,
+        preselectDownloads: false,
+        freeSpace: () async {
+          asked = true;
+          return 1;
+        },
+      );
+      addTearDown(cubit.close);
+      await cubit.loadFreeSpace();
+      expect(asked, isFalse);
+      expect(cubit.state.freeBytes, isNull);
+    });
+
+    test('loadFreeSpace after close emits nothing', () async {
+      final room = Completer<int?>();
+      final cubit = OnboardingCubit(
+        repository: repository,
+        settings: settings,
+        onDevice: true,
+        preselectDownloads: true,
+        freeSpace: () => room.future,
+      );
+      final loading = cubit.loadFreeSpace();
+      await cubit.close();
+      room.complete(5);
+      await loading;
+      expect(cubit.state.freeBytes, isNull);
+    });
+
+    blocTest<OnboardingCubit, OnboardingState>(
+      'chooseDownload remembers each answer once',
+      build: build,
+      act: (cubit) => cubit
+        ..chooseDownload('fr', download: true)
+        ..chooseDownload('fr', download: true)
+        ..chooseDownload('de', download: false)
+        ..chooseDownload('fr', download: false),
+      expect: () => [
+        const OnboardingState(downloadChoices: {'fr': true}),
+        const OnboardingState(downloadChoices: {'fr': true, 'de': false}),
+        const OnboardingState(downloadChoices: {'fr': false, 'de': false}),
+      ],
+    );
   });
 }
