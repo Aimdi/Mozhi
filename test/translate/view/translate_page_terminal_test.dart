@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -301,6 +304,51 @@ void main() {
       );
       // No history tail with input.
       expect(find.byKey(const Key('translate_history_tail')), findsNothing);
+    });
+
+    testWidgets('brings the stdout box above the keyboard when it appears', (
+      tester,
+    ) async {
+      // A small phone with the keyboard up: the stdout box would open below
+      // it, out of sight.
+      tester.view.viewInsets = const FakeViewPadding(bottom: 260);
+      addTearDown(tester.view.resetViewInsets);
+      final states = StreamController<TranslateState>();
+      addTearDown(states.close);
+      final typed = readyState(
+        source: english,
+        target: german,
+        input: 'Hello world',
+      );
+      final harness = TranslateHarness(state: typed);
+      whenListen(harness.translate, states.stream, initialState: typed);
+      await harness.pump(
+        tester,
+        size: const Size(320, 600),
+        theme: terminalTestTheme(),
+      );
+      await tester.pump();
+      final stdout = find.byKey(const Key('translate_terminal_stdout'));
+
+      final done = translatedState().copyWith(source: english, target: german);
+      harness.setState(done);
+      states.add(done);
+      await tester.pumpAndSettle();
+
+      const visibleBottom = 600.0 - 260;
+      expect(
+        tester.getTopLeft(stdout).dy + 112,
+        lessThanOrEqualTo(visibleBottom + 0.5),
+      );
+
+      // Not again while it stays: a later state leaves the scroll alone.
+      final scrollable = tester.state<ScrollableState>(
+        find.byType(Scrollable).first,
+      );
+      final offset = scrollable.position.pixels;
+      states.add(done.copyWith(input: 'Hello world!'));
+      await tester.pumpAndSettle();
+      expect(scrollable.position.pixels, offset);
     });
 
     group('history tail', () {
