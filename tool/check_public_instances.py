@@ -214,10 +214,63 @@ def summary(results: list[Result]) -> str:
     )
 
 
+def _get(url: str, params: dict[str, str]) -> tuple[int, bytes]:
+    return _request(f"{url}?{urllib.parse.urlencode(params)}")
+
+
+def _snippet(body: bytes, limit: int = 240) -> str:
+    text = body.decode("utf-8", "replace")
+    text = re.sub(r"\s+", " ", text).strip()
+    return text[:limit] + ("…" if len(text) > limit else "")
+
+
+def diagnose(url: str, text: str = TEXT, engine: str = DEFAULT_ENGINE) -> str:
+    """Why [engine] fails on [url]: its answer to the app's request, and to
+    variants (GET, source `auto`, a one-word text, the web page's own
+    route). Only the fixed test text is sent."""
+    base = url.rstrip("/")
+    variants: list[tuple[str, callable]] = [
+        ("POST form (the app)", lambda: _request(
+            f"{base}/api/translate",
+            {"engine": engine, "from": "en", "to": "fr", "text": text})),
+        ("GET query", lambda: _get(
+            f"{base}/api/translate",
+            {"engine": engine, "from": "en", "to": "fr", "text": text})),
+        ("GET from=auto", lambda: _get(
+            f"{base}/api/translate",
+            {"engine": engine, "from": "auto", "to": "fr", "text": text})),
+        ("GET text=Hello", lambda: _get(
+            f"{base}/api/translate",
+            {"engine": engine, "from": "en", "to": "fr", "text": "Hello"})),
+        ("web page", lambda: _get(
+            f"{base}/",
+            {"engine": engine, "from": "en", "to": "fr", "text": text})),
+        ("source languages", lambda: _get(
+            f"{base}/api/source_languages", {"engine": engine})),
+    ]
+    lines = [f"#### {urllib.parse.urlsplit(url).netloc} ({engine})"]
+    for name, call in variants:
+        try:
+            status, body = call()
+        except (urllib.error.URLError, TimeoutError, OSError) as error:
+            lines.append(f"- {name}: {_short(getattr(error, 'reason', error))}")
+            continue
+        translated = translation_of(body, text) if status == 200 else None
+        verdict = f"translated: {translated!r}" if translated else _snippet(body)
+        lines.append(f"- {name}: HTTP {status}: {verdict}")
+    return "\n".join(lines)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--min-working", type=int, default=1)
     parser.add_argument("--text", default=TEXT)
+    parser.add_argument(
+        "--diagnose",
+        action="store_true",
+        help="for each server whose default engine fails, print its answers "
+        "to the app's request and to variants of it",
+    )
     args = parser.parse_args(argv)
 
     urls = public_instances()
@@ -225,6 +278,12 @@ def main(argv: list[str] | None = None) -> int:
         results = list(pool.map(lambda u: check_instance(u, args.text), urls))
 
     report = f"{table(results)}\n\n{summary(results)}"
+    if args.diagnose or os.environ.get("GITHUB_ACTIONS") == "true":
+        failing = [r.url for r in results if r.reachable and not r.default_works]
+        if failing:
+            with ThreadPoolExecutor(max_workers=6) as pool:
+                found = list(pool.map(lambda u: diagnose(u, args.text), failing))
+            report += "\n\n### Why the default engine fails\n\n" + "\n\n".join(found)
     print(report)
     if os.environ.get("GITHUB_ACTIONS") == "true":
         for r in results:

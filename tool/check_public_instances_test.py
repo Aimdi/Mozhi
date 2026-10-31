@@ -186,6 +186,43 @@ class CheckInstanceTest(unittest.TestCase):
         self.assertTrue(result.error)
 
 
+class _GetOnly(BaseHTTPRequestHandler):
+    """Fails the app's POST with a reason, answers a GET."""
+
+    def log_message(self, *args) -> None:  # noqa: D102
+        pass
+
+    def do_POST(self) -> None:  # noqa: N802, D102
+        body = b'{"error": "google: unexpected response"}'
+        self.send_response(500)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_GET(self) -> None:  # noqa: N802, D102
+        data = json.dumps({"translated-text": "Bonjour"}).encode()
+        self.send_response(200)
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+
+class DiagnoseTest(unittest.TestCase):
+    def test_shows_the_reason_and_which_variant_works(self):
+        server = _server(_GetOnly)
+        try:
+            report = check.diagnose(
+                f"http://127.0.0.1:{server.server_port}", "Hello"
+            )
+        finally:
+            server.shutdown()
+            server.server_close()
+
+        self.assertIn("POST form (the app): HTTP 500", report)
+        self.assertIn("google: unexpected response", report)
+        self.assertIn("GET query: HTTP 200: translated: 'Bonjour'", report)
+
+
 class MainTest(unittest.TestCase):
     def setUp(self):
         _FakeMozhi.posts = []
