@@ -2757,5 +2757,11 @@
   "conversationTurnPauseHintAny": "Een beurt eindigt na zoveel stilte na spraak.",
   "translateOfflineManageLanguages": "Talen beheren",
   "translateOfflineDownloadingLanguage": "{language} downloaden… {percent}%",
-  "translateOfflineDownloadingLanguageStarted": "{language} downloaden…"
+  "translateOfflineDownloadingLanguageStarted": "{language} downloaden…",
+  "translateErrorDetectionServersFailed": "De vrijwilligersservers konden de taal nu niet herkennen. Kies de taal waarin de tekst is geschreven.",
+  "speechErrorServersUnavailable": "De vrijwilligersservers konden dit nu niet voorlezen. Deze gratis servers liggen soms eruit.",
+  "liveCaptionsBarLocked": "Mozhi is vergrendeld",
+  "offlineCancelDownloadTooltip": "Downloaden van {language} annuleren",
+  "offlineCancelling": "Wordt gestopt…",
+  "documentsPdfProgressCooling": "Pagina {page} van {total}: de telefoon is heet, wachten tot hij is afgekoeld…"
 }

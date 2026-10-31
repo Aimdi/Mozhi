@@ -2757,5 +2757,11 @@
   "conversationTurnPauseHintAny": "Konuşmanın ardından bu kadar sessizlik olursa sıra biter.",
   "translateOfflineManageLanguages": "Dilleri yönet",
   "translateOfflineDownloadingLanguage": "{language} indiriliyor… %{percent}",
-  "translateOfflineDownloadingLanguageStarted": "{language} indiriliyor…"
+  "translateOfflineDownloadingLanguageStarted": "{language} indiriliyor…",
+  "translateErrorDetectionServersFailed": "Gönüllü sunucuları şu anda dili algılayamadı. Metnin yazıldığı dili seçin.",
+  "speechErrorServersUnavailable": "Gönüllü sunucuları şu anda bunu sesli okuyamadı. Bu ücretsiz sunucular bazen çalışmaz.",
+  "liveCaptionsBarLocked": "Mozhi kilitli",
+  "offlineCancelDownloadTooltip": "{language} indirmesini iptal et",
+  "offlineCancelling": "Durduruluyor…",
+  "documentsPdfProgressCooling": "Sayfa {page}/{total}: Telefon ısındı, soğuması bekleniyor…"
 }

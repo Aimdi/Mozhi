@@ -2757,5 +2757,11 @@
   "conversationTurnPauseHintAny": "Ein Redebeitrag endet, wenn nach dem Sprechen so lange Stille herrscht.",
   "translateOfflineManageLanguages": "Sprachen verwalten",
   "translateOfflineDownloadingLanguage": "{language} wird heruntergeladen… {percent} %",
-  "translateOfflineDownloadingLanguageStarted": "{language} wird heruntergeladen…"
+  "translateOfflineDownloadingLanguageStarted": "{language} wird heruntergeladen…",
+  "translateErrorDetectionServersFailed": "Die Freiwilligen-Server konnten die Sprache gerade nicht erkennen. Wähle die Sprache, in der der Text geschrieben ist.",
+  "speechErrorServersUnavailable": "Die Freiwilligen-Server konnten das gerade nicht vorlesen. Diese kostenlosen Server fallen manchmal aus.",
+  "liveCaptionsBarLocked": "Mozhi ist gesperrt",
+  "offlineCancelDownloadTooltip": "Download von {language} abbrechen",
+  "offlineCancelling": "Wird angehalten…",
+  "documentsPdfProgressCooling": "Seite {page} von {total}: Das Telefon ist heiß, warte, bis es abkühlt…"
 }

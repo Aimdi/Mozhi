@@ -2757,5 +2757,11 @@
   "conversationTurnPauseHintAny": "Реплика завершается, если после речи наступает такая пауза.",
   "translateOfflineManageLanguages": "Управление языками",
   "translateOfflineDownloadingLanguage": "Загрузка языка «{language}»… {percent}%",
-  "translateOfflineDownloadingLanguageStarted": "Загрузка языка «{language}»…"
+  "translateOfflineDownloadingLanguageStarted": "Загрузка языка «{language}»…",
+  "translateErrorDetectionServersFailed": "Волонтёрским серверам сейчас не удалось определить язык. Выберите язык, на котором написан текст.",
+  "speechErrorServersUnavailable": "Волонтёрским серверам сейчас не удалось прочитать это вслух. Эти бесплатные серверы иногда не работают.",
+  "liveCaptionsBarLocked": "Mozhi заблокирован",
+  "offlineCancelDownloadTooltip": "Отменить загрузку: {language}",
+  "offlineCancelling": "Остановка…",
+  "documentsPdfProgressCooling": "Страница {page} из {total}: телефон перегрелся, ожидание, пока он остынет…"
 }

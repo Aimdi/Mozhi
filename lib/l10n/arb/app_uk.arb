@@ -2757,5 +2757,11 @@
   "conversationTurnPauseHintAny": "Репліка завершується, якщо після мовлення настає така пауза.",
   "translateOfflineManageLanguages": "Керувати мовами",
   "translateOfflineDownloadingLanguage": "Завантаження мови «{language}»… {percent}%",
-  "translateOfflineDownloadingLanguageStarted": "Завантаження мови «{language}»…"
+  "translateOfflineDownloadingLanguageStarted": "Завантаження мови «{language}»…",
+  "translateErrorDetectionServersFailed": "Волонтерським серверам зараз не вдалося визначити мову. Виберіть мову, якою написано текст.",
+  "speechErrorServersUnavailable": "Волонтерським серверам зараз не вдалося прочитати це вголос. Ці безкоштовні сервери часом не працюють.",
+  "liveCaptionsBarLocked": "Mozhi заблоковано",
+  "offlineCancelDownloadTooltip": "Скасувати завантаження: {language}",
+  "offlineCancelling": "Зупинення…",
+  "documentsPdfProgressCooling": "Сторінка {page} з {total}: телефон перегрівся, очікування, поки він охолоне…"
 }
