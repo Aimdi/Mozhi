@@ -5,6 +5,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart' show AppLook;
 import 'package:mozhi/core/haptics.dart';
 import 'package:mozhi/core/on_device_ai_engine.dart';
 import 'package:mozhi/core/widgets/consent_prompt.dart';
@@ -45,6 +46,7 @@ import 'package:mozhi/translate/widgets/short_query_panel.dart';
 import 'package:mozhi/translate/widgets/show_mode.dart';
 import 'package:mozhi/translate/widgets/skeleton.dart';
 import 'package:mozhi/translate/widgets/status_announcer.dart';
+import 'package:mozhi/translate/widgets/terminal_chrome.dart';
 import 'package:mozhi/translate/widgets/tool_chip.dart';
 import 'package:mozhi/translate/widgets/translate_error.dart';
 import 'package:mozhi/translate/widgets/translate_layout.dart';
@@ -645,8 +647,10 @@ class _OutputCardState extends State<OutputCard>
                             child: LinearProgressIndicator(
                               key: const Key('translate_output_progress'),
                               minHeight: 2,
-                              borderRadius: const BorderRadius.all(
-                                Radius.circular(1),
+                              borderRadius: BorderRadius.all(
+                                Radius.circular(
+                                  AppLook.of(context).controlRadius(1),
+                                ),
                               ),
                               semanticsLabel: context.l10n.translateTranslating,
                             ),
@@ -760,14 +764,24 @@ class _OutputCardState extends State<OutputCard>
 
   /// [child] on the raised surface that makes the translation the hero of
   /// the screen.
+  ///
+  /// In the terminal look the `stdout` box around the card is that
+  /// surface: the text sits in it directly.
   Widget _surface(BuildContext context, Widget child) {
+    final look = AppLook.of(context);
+    if (look.isTerminal) {
+      return KeyedSubtree(
+        key: const Key('translate_output_surface'),
+        child: child,
+      );
+    }
     return Padding(
       padding: const EdgeInsetsDirectional.only(end: 12),
       child: DecoratedBox(
         key: const Key('translate_output_surface'),
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surfaceContainer,
-          borderRadius: TranslateLayout.cardBorderRadius,
+          borderRadius: look.cardRadius,
         ),
         child: Padding(
           padding: const EdgeInsetsDirectional.fromSTEB(16, 12, 16, 14),
@@ -1541,75 +1555,91 @@ class _OutputCardState extends State<OutputCard>
   Widget _actions(BuildContext context, TranslateState state) {
     final l10n = context.l10n;
     final palette = AppPalette.of(context);
+    // The terminal look frames each action as a small square button.
+    final terminal = AppLook.of(context).isTerminal;
+    return Wrap(
+      key: const Key('translate_output_actions'),
+      spacing: terminal ? 2 : 8,
+      runSpacing: terminal ? 2 : 0,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        for (final action in _actionButtons(context, state, l10n, palette))
+          if (terminal) TerminalFrame(child: action) else action,
+      ],
+    );
+  }
+
+  /// The buttons of [_actions].
+  List<Widget> _actionButtons(
+    BuildContext context,
+    TranslateState state,
+    AppLocalizations l10n,
+    AppPalette palette,
+  ) {
     final output = state.output;
     final complete = state.result?.isComplete ?? true;
     final target = state.target;
-    return Wrap(
-      key: const Key('translate_output_actions'),
-      spacing: 8,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        CopyActionButton(
-          key: const Key('translate_copy_button'),
-          text: output,
-          quiet: true,
+    return [
+      CopyActionButton(
+        key: const Key('translate_copy_button'),
+        text: output,
+        quiet: true,
+      ),
+      ListenButton(
+        id: translateOutputSpeechId,
+        text: output,
+        languageCode: target.isCustom ? null : target.code,
+        quiet: true,
+      ),
+      BlocBuilder<HistoryCubit, HistoryState>(
+        builder: (context, history) {
+          final entry = findHistoryEntry(
+            history.entries,
+            state.resultInput ?? state.input,
+            output,
+          );
+          final favorite = entry?.isFavorite ?? false;
+          return XActionButton(
+            key: const Key('translate_favorite_button'),
+            tooltip: favorite
+                ? l10n.translateUnfavorite
+                : l10n.translateFavorite,
+            active: favorite,
+            icon: Icons.favorite_border,
+            activeIcon: Icons.favorite,
+            activeColor: palette.like,
+            onPressed: complete ? () => _toggleFavorite(state, entry) : null,
+          );
+        },
+      ),
+      // Beside the heart: into a phrasebook collection (where the app
+      // has one).
+      if (maybePhrasebookRepository(context) != null)
+        AddToPhrasebookButton(
+          draft: complete ? translationPhraseDraft(state) : null,
         ),
-        ListenButton(
-          id: translateOutputSpeechId,
-          text: output,
-          languageCode: target.isCustom ? null : target.code,
-          quiet: true,
+      Builder(
+        builder: (buttonContext) => XActionButton(
+          key: const Key('translate_share_button'),
+          tooltip: l10n.commonShare,
+          icon: Icons.ios_share,
+          onPressed: () => unawaited(_share(buttonContext, output)),
         ),
-        BlocBuilder<HistoryCubit, HistoryState>(
-          builder: (context, history) {
-            final entry = findHistoryEntry(
-              history.entries,
-              state.resultInput ?? state.input,
-              output,
-            );
-            final favorite = entry?.isFavorite ?? false;
-            return XActionButton(
-              key: const Key('translate_favorite_button'),
-              tooltip: favorite
-                  ? l10n.translateUnfavorite
-                  : l10n.translateFavorite,
-              active: favorite,
-              icon: Icons.favorite_border,
-              activeIcon: Icons.favorite,
-              activeColor: palette.like,
-              onPressed: complete ? () => _toggleFavorite(state, entry) : null,
-            );
-          },
-        ),
-        // Beside the heart: into a phrasebook collection (where the app
-        // has one).
-        if (maybePhrasebookRepository(context) != null)
-          AddToPhrasebookButton(
-            draft: complete ? translationPhraseDraft(state) : null,
-          ),
-        Builder(
-          builder: (buttonContext) => XActionButton(
-            key: const Key('translate_share_button'),
-            tooltip: l10n.commonShare,
-            icon: Icons.ios_share,
-            onPressed: () => unawaited(_share(buttonContext, output)),
-          ),
-        ),
-        XActionButton(
-          key: const Key('translate_show_button'),
-          tooltip: l10n.translateShowMode,
-          icon: Icons.fullscreen,
-          onPressed: () => unawaited(
-            showTranslationFullScreen(
-              context,
-              text: output,
-              textDirection: outputTextDirection(state),
-              locale: localeForLanguage(target),
-            ),
+      ),
+      XActionButton(
+        key: const Key('translate_show_button'),
+        tooltip: l10n.translateShowMode,
+        icon: Icons.fullscreen,
+        onPressed: () => unawaited(
+          showTranslationFullScreen(
+            context,
+            text: output,
+            textDirection: outputTextDirection(state),
+            locale: localeForLanguage(target),
           ),
         ),
-      ],
-    );
+      ),
+    ];
   }
 
   /// Whether the refinement chips show under the actions: an AI engine with

@@ -398,7 +398,7 @@ class _LanguageField extends StatelessWidget {
     return Material(
       color: theme.colorScheme.surface,
       shape: RoundedRectangleBorder(
-        borderRadius: AppRadius.cardBorderRadius,
+        borderRadius: AppLook.of(context).cardRadius,
         side: BorderSide(color: theme.colorScheme.outline),
       ),
       clipBehavior: Clip.antiAlias,

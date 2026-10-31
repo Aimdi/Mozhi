@@ -72,7 +72,9 @@ class WebTranslateStatusPanel extends StatelessWidget {
             OnDeviceAiPausedNotice(onCancel: () => unawaited(cubit.cancel())),
             LinearProgressIndicator(
               value: state.totalItems == 0 ? null : state.progress,
-              borderRadius: const BorderRadius.all(Radius.circular(4)),
+              borderRadius: BorderRadius.circular(
+                AppLook.of(context).controlRadius(4),
+              ),
             ),
             Row(
               children: [
@@ -202,7 +204,7 @@ class _OutlinedNotice extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         border: Border.all(color: outline),
-        borderRadius: AppRadius.cardBorderRadius,
+        borderRadius: AppLook.of(context).cardRadius,
       ),
       child: Padding(
         padding: padding,

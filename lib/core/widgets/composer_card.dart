@@ -32,9 +32,9 @@ Duration composerMotion(BuildContext context) =>
 /// The composer of an empty screen, like the translate tab's (and Kagi
 /// Translate's): a card with a hairline outline and a quiet fill
 /// ([composerFill]), rounded like the app's large surfaces
-/// ([AppRadius.sheet]). It holds the text field ([child]), accent
-/// [actions] at its top end (microphone, paste, clear) and a [bar] at the
-/// bottom (usually a [ComposerBar]).
+/// ([AppRadius.sheet]; square in the terminal look). It holds the text
+/// field ([child]), accent [actions] at its top end (microphone, paste,
+/// clear) and a [bar] at the bottom (usually a [ComposerBar]).
 ///
 /// [outlined] false fades the outline and the fill away, so the same
 /// tree turns into a flat screen (the field keeps its focus, text and
@@ -57,8 +57,9 @@ class ComposerCard extends StatelessWidget {
     super.key,
   });
 
-  /// Corner radius of the card ([AppRadius.sheet], like the translate
-  /// composer).
+  /// Corner radius of the card in the classic look ([AppRadius.sheet],
+  /// like the translate composer); the card follows [AppLook.sheet] (0 in
+  /// the terminal look).
   static const double radius = AppRadius.sheet;
 
   /// Space between the outline and what is inside it.
@@ -97,6 +98,7 @@ class ComposerCard extends StatelessWidget {
     final fill = composerFill(scheme, AppPalette.of(context).secondaryText);
     final accent = scheme.primary;
     final bar = this.bar;
+    final corners = AppLook.of(context).sheetRadius;
     final card = AnimatedContainer(
       duration: motion,
       curve: Curves.easeOutCubic,
@@ -110,7 +112,7 @@ class ComposerCard extends StatelessWidget {
           // A control's outline (3:1, WCAG 1.4.11), not a hairline.
           outlined ? BorderSide(color: scheme.outline) : BorderSide.none,
         ),
-        borderRadius: const BorderRadius.all(Radius.circular(radius)),
+        borderRadius: corners,
       ),
       child: Column(
         mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
@@ -171,9 +173,7 @@ class ComposerCard extends StatelessWidget {
       child: FocusRing.field(
         enabled: outlined,
         margin: margin,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(radius)),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: corners),
         child: card,
       ),
     );
@@ -196,7 +196,8 @@ class ComposerBar extends StatelessWidget {
     final outline = Theme.of(context).colorScheme.outline;
     return DecoratedBox(
       decoration: ShapeDecoration(
-        shape: StadiumBorder(side: BorderSide(color: outline)),
+        shape: AppLook.of(context).control
+            .copyWith(side: BorderSide(color: outline)),
       ),
       child: Padding(
         // Inside the outline.
@@ -453,9 +454,8 @@ class ComposerEngineChip extends StatelessWidget {
           style: TextButton.styleFrom(
             minimumSize: const Size(48, 48),
             padding: const EdgeInsetsDirectional.only(start: 10, end: 6),
-            shape: StadiumBorder(
-              side: BorderSide(color: theme.colorScheme.outline),
-            ),
+            shape: AppLook.of(context).control
+                .copyWith(side: BorderSide(color: theme.colorScheme.outline)),
             foregroundColor: theme.colorScheme.onSurface,
           ),
           onPressed: showChoices || onManage != null

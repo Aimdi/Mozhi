@@ -2791,5 +2791,13 @@
   "voiceBrowserNoticeContinue": "Utiliser la reconnaissance vocale",
   "voiceErrorUnavailableBrowser": "Ce navigateur ne dispose pas de la reconnaissance vocale. Essayez Chrome, Edge ou Safari, ou saisissez le texte.",
   "offlineDirectionIntoOnly": "Vers {language} uniquement",
-  "offlineDirectionFromOnly": "Depuis {language} uniquement"
+  "offlineDirectionFromOnly": "Depuis {language} uniquement",
+  "settingsStyle": "Style",
+  "settingsStyleSubtitle": "Terminal est à chasse fixe et anguleux sur fond quasi noir ; Classique est arrondi, avec Atténué ou Extinction des feux",
+  "settingsStyleTerminal": "Terminal",
+  "settingsStyleClassic": "Classique",
+  "settingsStyleKeywords": "terminal, classique, apparence, aspect, police, chasse fixe, classic, monospace, monospaced, JetBrains Mono",
+  "settingsThemeTerminalSubtitle": "Avec le style Terminal, Système signifie sombre ; Clair donne l’aspect papier",
+  "settingsColorAmber": "Ambre",
+  "settingsColorCyan": "Cyan"
 }

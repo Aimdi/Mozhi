@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/speech/speech_service.dart';
@@ -189,7 +190,9 @@ class _EntryTabBar extends StatelessWidget {
       indicatorSize: TabBarIndicatorSize.label,
       indicator: UnderlineTabIndicator(
         borderSide: BorderSide(width: 3, color: scheme.primary),
-        borderRadius: const BorderRadius.all(Radius.circular(2)),
+        borderRadius: BorderRadius.circular(
+          AppLook.of(context).controlRadius(2),
+        ),
       ),
       dividerColor: Colors.transparent,
       tabs: [for (final label in labels) Tab(height: height, text: label)],

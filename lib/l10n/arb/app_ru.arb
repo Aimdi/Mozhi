@@ -2791,5 +2791,13 @@
   "voiceBrowserNoticeContinue": "Использовать распознавание речи",
   "voiceErrorUnavailableBrowser": "В этом браузере нет распознавания речи. Попробуйте Chrome, Edge или Safari либо введите текст вручную.",
   "offlineDirectionIntoOnly": "Перевод только на язык «{language}»",
-  "offlineDirectionFromOnly": "Перевод только с языка «{language}»"
+  "offlineDirectionFromOnly": "Перевод только с языка «{language}»",
+  "settingsStyle": "Стиль",
+  "settingsStyleSubtitle": "Терминал — моноширинный шрифт и прямые углы на почти чёрном фоне; Классический — скруглённые углы, тема «Приглушённая» или «Без света»",
+  "settingsStyleTerminal": "Терминал",
+  "settingsStyleClassic": "Классический",
+  "settingsStyleKeywords": "терминал, классический, внешний вид, оформление, шрифт, моноширинный, terminal, classic, monospace, monospaced, JetBrains Mono",
+  "settingsThemeTerminalSubtitle": "В стиле «Терминал» «Системная» означает тёмную тему, а «Светлая» — вид бумаги",
+  "settingsColorAmber": "Янтарный",
+  "settingsColorCyan": "Голубой"
 }

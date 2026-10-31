@@ -224,7 +224,16 @@ async function fillField(locator, text, { refocus = false } = {}) {
   await expect(async () => {
     if (refocus || attempt > 0) await page.keyboard.press('Tab');
     attempt++;
-    await locator.click();
+    // In the middle; when something else takes that click, near the top
+    // left corner instead: a field's box includes its helper text, which
+    // covers the middle when it wraps to more lines than the field is
+    // tall (the monospaced Terminal look). Not always at the corner: a
+    // search field has its icon there.
+    try {
+      await locator.click({ timeout: 3_000 });
+    } catch {
+      await locator.click({ position: { x: 16, y: 16 } });
+    }
     await expect(locator).toBeFocused({ timeout: 2_000 });
     await locator.fill(text);
     await expect(locator).toHaveValue(text, { timeout: 2_000 });

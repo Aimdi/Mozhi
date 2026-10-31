@@ -285,7 +285,7 @@ class _ErrorBanner extends StatelessWidget {
               ? AppPalette.of(context).hairline
               : scheme.error.withValues(alpha: 0.5),
         ),
-        borderRadius: AppRadius.cardBorderRadius,
+        borderRadius: AppLook.of(context).cardRadius,
       ),
       child: Padding(
         padding: const EdgeInsets.all(12),

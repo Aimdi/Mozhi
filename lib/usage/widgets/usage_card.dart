@@ -85,7 +85,7 @@ class UsageCardView extends StatelessWidget {
       key: const Key('usage_card'),
       decoration: BoxDecoration(
         border: Border.all(color: palette.hairline),
-        borderRadius: AppRadius.cardBorderRadius,
+        borderRadius: AppLook.of(context).cardRadius,
       ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
@@ -249,7 +249,7 @@ class UsageLevelBadge extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
-        borderRadius: const BorderRadius.all(Radius.circular(AppRadius.badge)),
+        borderRadius: AppLook.of(context).badgeRadius,
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),

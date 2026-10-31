@@ -2791,5 +2791,13 @@
   "voiceBrowserNoticeContinue": "音声認識を使用",
   "voiceErrorUnavailableBrowser": "このブラウザには音声認識がありません。Chrome、Edge、Safari を試すか、テキストを入力してください。",
   "offlineDirectionIntoOnly": "{language}への翻訳のみ",
-  "offlineDirectionFromOnly": "{language}からの翻訳のみ"
+  "offlineDirectionFromOnly": "{language}からの翻訳のみ",
+  "settingsStyle": "スタイル",
+  "settingsStyleSubtitle": "ターミナルはほぼ黒の背景に等幅フォントと角ばった形、クラシックは角丸でダーク(ブルー)またはブラックを選べます",
+  "settingsStyleTerminal": "ターミナル",
+  "settingsStyleClassic": "クラシック",
+  "settingsStyleKeywords": "ターミナル、クラシック、外観、見た目、フォント、等幅、terminal、classic、monospace、monospaced、JetBrains Mono",
+  "settingsThemeTerminalSubtitle": "ターミナルスタイルでは「システム」はダークになり、「ライト」は紙のような外観になります",
+  "settingsColorAmber": "アンバー",
+  "settingsColorCyan": "シアン"
 }

@@ -143,7 +143,7 @@ class _ServerChoiceState extends State<ServerChoice> {
         first.url == state.fastestUrl;
     // Its rows are controls: the control outline (3:1).
     final shape = RoundedRectangleBorder(
-      borderRadius: AppRadius.cardBorderRadius,
+      borderRadius: AppLook.of(context).cardRadius,
       side: BorderSide(color: colors.outline),
     );
     return Column(

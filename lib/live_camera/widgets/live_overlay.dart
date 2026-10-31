@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/rendering.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/image_translate/models/text_layout.dart';
 import 'package:mozhi/image_translate/widgets/overlay_painting.dart';
 import 'package:mozhi/image_translate/widgets/translated_image_overlay.dart'
@@ -122,6 +123,7 @@ class _LiveOverlayState extends State<LiveOverlay> {
         previewRect: widget.previewRect,
         hintOf: context.l10n.liveCameraBlockHint,
         direction: textDirectionForLanguage(widget.target) ?? TextDirection.ltr,
+        readingRadius: AppLook.of(context).controlRadius(4),
       ),
     );
   }
@@ -153,6 +155,7 @@ class LiveOverlayPainter extends CustomPainter {
     required this.previewRect,
     required this.hintOf,
     required this.direction,
+    this.readingRadius = 4,
   });
 
   final List<OverlayLabel> labels;
@@ -161,6 +164,10 @@ class LiveOverlayPainter extends CustomPainter {
   final Rect previewRect;
   final String Function(String original) hintOf;
   final TextDirection direction;
+
+  /// Corner radius of the outlines of the [reading] boxes (0 in the
+  /// terminal look).
+  final double readingRadius;
 
   double get _scale => previewRect.width / frameSize.width;
 
@@ -184,7 +191,7 @@ class LiveOverlayPainter extends CustomPainter {
     for (final box in reading) {
       final rect = RRect.fromRectAndRadius(
         _toScreen(box).inflate(2),
-        const Radius.circular(4),
+        Radius.circular(readingRadius),
       );
       canvas
         ..drawRRect(rect, shadow)
@@ -225,7 +232,8 @@ class LiveOverlayPainter extends CustomPainter {
       !listEquals(oldDelegate.labels, labels) ||
       !listEquals(oldDelegate.reading, reading) ||
       oldDelegate.frameSize != frameSize ||
-      oldDelegate.previewRect != previewRect;
+      oldDelegate.previewRect != previewRect ||
+      oldDelegate.readingRadius != readingRadius;
 
   @override
   bool shouldRebuildSemantics(LiveOverlayPainter oldDelegate) =>

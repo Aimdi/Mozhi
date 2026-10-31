@@ -193,7 +193,7 @@ class TranslateFlatCard extends StatelessWidget {
       TranslateCardLook.section => Border(top: side),
       TranslateCardLook.plain => const Border(),
       TranslateCardLook.quote => RoundedRectangleBorder(
-        borderRadius: TranslateLayout.cardBorderRadius,
+        borderRadius: AppLook.of(context).cardRadius,
         side: side,
       ),
     };
@@ -376,7 +376,7 @@ class TranslatePills extends StatelessWidget {
         // Flat chips paint the canvas colour: let the page show through.
         canvasColor: Colors.transparent,
         chipTheme: theme.chipTheme.copyWith(
-          shape: const StadiumBorder(),
+          shape: AppLook.of(context).control,
           // Control outlines (3:1 against the page), not hairlines.
           side: WidgetStateBorderSide.resolveWith(
             (states) => BorderSide(

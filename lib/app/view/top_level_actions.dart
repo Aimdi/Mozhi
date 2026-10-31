@@ -4,12 +4,15 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/router.dart' show AppRoutes;
+import 'package:mozhi/app/theme.dart' show AppLook;
 import 'package:mozhi/core/haptics.dart';
 import 'package:mozhi/history/view/history_page.dart'
     show HistoryPage, HistoryTab;
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
+import 'package:mozhi/translate/widgets/terminal_chrome.dart'
+    show TerminalGlyph;
 
 /// History and Settings as app bar icon buttons, shared by the app bars of
 /// the four tabs (Translate, Dictionary, Proofread, Conversation).
@@ -24,6 +27,9 @@ import 'package:mozhi/settings/models/app_settings.dart';
 /// TalkBack announces it ("double-tap and hold to open favorites"). The
 /// long press vibrates only with haptic feedback on
 /// (`AppSettings.hapticFeedback`).
+///
+/// In the terminal look ([AppLook.isTerminal]) they read `[h]` and `[s]`
+/// on square buttons (decoration: the names, tooltips and actions stay).
 class TopLevelActions extends StatelessWidget {
   const new({super.key});
 
@@ -50,6 +56,16 @@ class TopLevelActions extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final feedback = _feedback(context);
+    final terminal = AppLook.of(context).isTerminal;
+    final theme = Theme.of(context);
+    final glyph = theme.textTheme.labelLarge?.copyWith(
+      fontSize: 13,
+      fontWeight: FontWeight.w500,
+      color: theme.colorScheme.onSurface,
+    );
+    final style = terminal
+        ? IconButton.styleFrom(shape: const RoundedRectangleBorder())
+        : null;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -66,7 +82,14 @@ class TopLevelActions extends StatelessWidget {
               child: IconButton(
                 key: historyKey,
                 enableFeedback: feedback,
-                icon: Icon(Icons.history, semanticLabel: l10n.navHistory),
+                style: style,
+                icon: terminal
+                    ? Semantics(
+                        label: l10n.navHistory,
+                        excludeSemantics: true,
+                        child: TerminalGlyph('[h]', style: glyph),
+                      )
+                    : Icon(Icons.history, semanticLabel: l10n.navHistory),
                 onPressed: () =>
                     unawaited(context.push<void>(AppRoutes.history)),
                 onLongPress: () => unawaited(
@@ -81,7 +104,10 @@ class TopLevelActions extends StatelessWidget {
         IconButton(
           key: settingsKey,
           tooltip: l10n.navSettings,
-          icon: const Icon(Icons.settings_outlined),
+          style: style,
+          icon: terminal
+              ? TerminalGlyph('[s]', style: glyph)
+              : const Icon(Icons.settings_outlined),
           onPressed: () => unawaited(context.push<void>(AppRoutes.settings)),
         ),
       ],

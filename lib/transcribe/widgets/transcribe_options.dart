@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/widgets/consent_prompt.dart';
 import 'package:mozhi/core/widgets/tab_hero.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
@@ -193,7 +194,7 @@ class TranscribeVadBanner extends StatelessWidget {
       child: DecoratedBox(
         decoration: BoxDecoration(
           border: Border.all(color: AppPalette.of(context).hairline),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: AppLook.of(context).menuRadius,
         ),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),

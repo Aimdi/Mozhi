@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/l10n/l10n.dart';
 
 /// Page indicator: one dot per step, the current one elongated. Read by
@@ -14,6 +15,7 @@ class OnboardingProgressDots extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final radius = BorderRadius.circular(AppLook.of(context).controlRadius(4));
     final duration = MediaQuery.disableAnimationsOf(context)
         ? Duration.zero
         : const Duration(milliseconds: 250);
@@ -33,7 +35,7 @@ class OnboardingProgressDots extends StatelessWidget {
               height: 8,
               decoration: BoxDecoration(
                 color: i <= current ? colors.primary : colors.outline,
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: radius,
               ),
             ),
         ],

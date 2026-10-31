@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/privacy/ime_learning.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/proofread/cubit/proofread_cubit.dart';
@@ -357,7 +358,9 @@ class ProofreadOptionTile extends StatelessWidget {
     final colors = theme.colorScheme;
     final label = this.label;
     final shape = RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(28),
+      borderRadius: BorderRadius.circular(
+        AppLook.of(context).controlRadius(28),
+      ),
       side: BorderSide(color: colors.outline),
     );
     return Material(

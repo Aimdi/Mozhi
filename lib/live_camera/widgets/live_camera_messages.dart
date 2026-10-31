@@ -289,7 +289,7 @@ class _Surface extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Material(
     color: Theme.of(context).colorScheme.surface,
-    borderRadius: AppRadius.cardBorderRadius,
+    borderRadius: AppLook.of(context).cardRadius,
     clipBehavior: Clip.antiAlias,
     child: child,
   );

@@ -44,7 +44,7 @@ class ImageTranslatePreview extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest,
-        borderRadius: AppRadius.cardBorderRadius,
+        borderRadius: AppLook.of(context).cardRadius,
         border: Border.all(color: AppPalette.of(context).hairline),
       ),
       child: Stack(

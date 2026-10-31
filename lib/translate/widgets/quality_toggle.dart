@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart' show AppLook;
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
@@ -263,7 +264,8 @@ class QualityChip extends StatelessWidget {
           padding: const EdgeInsetsDirectional.only(start: 14, end: 18),
           style: ButtonStyle(
             shape: WidgetStatePropertyAll(
-              StadiumBorder(side: BorderSide(color: scheme.outline)),
+              AppLook.of(context).control
+                  .copyWith(side: BorderSide(color: scheme.outline)),
             ),
             foregroundColor: WidgetStatePropertyAll(scheme.onSurface),
             textStyle: WidgetStatePropertyAll(

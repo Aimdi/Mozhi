@@ -1,6 +1,6 @@
 // Settings round trips: turning history off (Privacy & data) and switching
-// to the dark theme and its Lights out look (Appearance, found with the
-// settings search), which must survive a reload.
+// to the Classic style's dark theme and its Lights out look (Appearance,
+// found with the settings search), which must survive a reload.
 const { expect } = require('@playwright/test');
 const {
   copiedTranslation,
@@ -82,7 +82,15 @@ test('with Save history off, translations are not saved', async ({
 test('the dark theme and its look persist after a reload', async ({
   page,
 }) => {
-  await openApp(page, '/settings');
+  // Dim and Lights out belong to the Classic style (Terminal, the default,
+  // has its own near-black): switch to it in Appearance first.
+  await openApp(page, '/settings/appearance');
+  const classic = page.getByRole('radio', { name: /^Classic\b/ });
+  await scrollTo(page, classic);
+  await classic.click();
+  await expect(classic).toBeChecked();
+  await goBack(page);
+  await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
   // The search finds the row by its name and opens its category.
   await fillField(
     page.getByRole('searchbox', { name: 'Search settings' }),

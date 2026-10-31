@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/usage/models/models.dart';
@@ -34,7 +35,9 @@ class UsageBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final value = fraction.isNaN ? 0.0 : fraction.clamp(0.0, 1.0);
-    final radius = BorderRadius.circular(height / 2);
+    final radius = BorderRadius.circular(
+      AppLook.of(context).controlRadius(height / 2),
+    );
     return Semantics(
       label: semanticsLabel,
       container: semanticsLabel != null,
@@ -111,6 +114,7 @@ class UsageHistoryChart extends StatelessWidget {
                   color: scheme.primary.withValues(alpha: 0.35),
                   highlightColor: scheme.primary,
                   baselineColor: AppPalette.of(context).hairline,
+                  rounded: !AppLook.of(context).isTerminal,
                 ),
               ),
             ),
@@ -147,12 +151,16 @@ class UsageHistoryPainter extends CustomPainter {
     required this.color,
     required this.highlightColor,
     required this.baselineColor,
+    this.rounded = true,
   });
 
   final List<int> values;
   final Color color;
   final Color highlightColor;
   final Color baselineColor;
+
+  /// Whether the columns have rounded tops (square in the terminal look).
+  final bool rounded;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -180,7 +188,9 @@ class UsageHistoryPainter extends CustomPainter {
         barWidth,
         barHeight,
       );
-      final radius = Radius.circular(math.min(barWidth / 4, 6));
+      final radius = rounded
+          ? Radius.circular(math.min(barWidth / 4, 6))
+          : Radius.zero;
       canvas.drawRRect(
         RRect.fromRectAndCorners(rect, topLeft: radius, topRight: radius),
         Paint()..color = i == values.length - 1 ? highlightColor : color,
@@ -193,5 +203,6 @@ class UsageHistoryPainter extends CustomPainter {
       !listEquals(values, oldDelegate.values) ||
       color != oldDelegate.color ||
       highlightColor != oldDelegate.highlightColor ||
-      baselineColor != oldDelegate.baselineColor;
+      baselineColor != oldDelegate.baselineColor ||
+      rounded != oldDelegate.rounded;
 }

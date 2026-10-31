@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/dictionary/cubit/dictionary_cubit.dart';
 import 'package:mozhi/dictionary/widgets/dictionary_language_picker.dart';
@@ -121,7 +122,7 @@ class _LanguageButton extends StatelessWidget {
         minimumSize: const Size(48, 48),
         foregroundColor: colors.onSurface,
         side: BorderSide(color: colors.outline),
-        shape: const StadiumBorder(),
+        shape: AppLook.of(context).control,
         padding: const EdgeInsetsDirectional.fromSTEB(6, 6, 8, 6),
         textStyle: Theme.of(context).textTheme.labelLarge
             ?.copyWith(fontWeight: FontWeight.w700),

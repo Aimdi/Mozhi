@@ -3,6 +3,33 @@
 All notable changes to Mozhi, by release tag on GitHub (pre-releases end
 in `-rc.N`).
 
+## 0.1.0-rc.11
+
+### Changed
+
+- **A new look, Terminal, is the default.** Mozhi now looks like a
+  command line: everything in the monospaced JetBrains Mono, warm
+  off-white text on near-black, 1 px borders instead of shadows and
+  square corners everywhere (buttons, chips, fields, dialogs, sheets,
+  snack bars). The translate screen is laid out like a terminal session:
+  the engine at the top as `● engine`, a `// greeting` and the title, one
+  `--from` | `↔` | `--to` language bar, the text box as `stdin` with a
+  `>` prompt and an accent-coloured `run ⏎` button, the translation as
+  `stdout`, your last translations as `$ history --tail 3` while the box
+  is empty, and numbered tabs (`1:`, `2:` …) at the bottom. The
+  command words stay in English in every language; everything else, and
+  what screen readers say, stays in yours.
+- **Settings > Appearance > Style** switches between **Terminal** and
+  **Classic** (the rounded look of earlier releases, with Dim or Lights
+  out, dynamic color and its ten accents), each with a small preview.
+  Terminal has four accents, **Amber** (the default), **Green**, **Cyan**
+  and **Pink**; with the **Light** theme it turns into a light "paper"
+  look, while **System** keeps it dark. Text keeps at least 4.5:1
+  contrast with every accent, dark and light.
+- **The font comes with the app.** JetBrains Mono (SIL Open Font
+  License 1.1, listed under **Open-source licenses**) is bundled and
+  never downloaded; scripts it lacks use the system's fonts.
+
 ## 0.1.0-rc.10
 
 ### Fixed

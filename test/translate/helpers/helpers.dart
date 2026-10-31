@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/history/models/history_entry.dart';
 import 'package:mozhi/l10n/l10n.dart';
@@ -281,6 +282,9 @@ class TranslateHarness {
   ///
   /// With [more], [child] gets an open "More" area ([TranslateMoreScope];
   /// the translate screen provides its own, closed at first).
+  ///
+  /// [theme] replaces the plain Material themes (light and dark), e.g. a
+  /// [buildAppTheme] with the terminal look ([terminalTestTheme]).
   Future<void> pump(
     WidgetTester tester, {
     Widget child = const TranslateView(),
@@ -293,6 +297,7 @@ class TranslateHarness {
     TargetPlatform? platform,
     bool more = false,
     OfflineTranslator? offline,
+    ThemeData? theme,
   }) async {
     if (size != null) {
       tester.view
@@ -329,12 +334,14 @@ class TranslateHarness {
                 BlocProvider<PresetsCubit>.value(value: presets),
             ],
             child: MaterialApp(
-              theme: ThemeData(useMaterial3: true, platform: platform),
-              darkTheme: ThemeData(
-                useMaterial3: true,
-                brightness: Brightness.dark,
-                platform: platform,
-              ),
+              theme: theme ?? ThemeData(useMaterial3: true, platform: platform),
+              darkTheme:
+                  theme ??
+                  ThemeData(
+                    useMaterial3: true,
+                    brightness: Brightness.dark,
+                    platform: platform,
+                  ),
               themeMode: themeMode,
               locale: locale,
               localizationsDelegates: appLocalizationsDelegates,
@@ -427,3 +434,12 @@ class FakeClipboard {
   /// `HapticFeedbackType.selectionClick`.
   final haptics = <String?>[];
 }
+
+/// The app theme in the terminal look (dark, the amber accent), for tests
+/// of the terminal layout ([TranslateHarness.pump]'s `theme`). Tests must
+/// not depend on its exact colours.
+ThemeData terminalTestTheme({Color accent = const Color(0xFFFFB000)}) =>
+    buildAppTheme(
+      appColorScheme(brightness: Brightness.dark, seedColor: accent),
+      look: AppLook.terminal,
+    );

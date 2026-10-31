@@ -171,7 +171,7 @@ class OcrLanguageOfferView extends StatelessWidget {
         key: const Key('image_translate_ocr_offer'),
         decoration: BoxDecoration(
           border: Border.all(color: palette.hairline),
-          borderRadius: AppRadius.cardBorderRadius,
+          borderRadius: AppLook.of(context).cardRadius,
         ),
         child: Padding(
           padding: const EdgeInsets.all(16),

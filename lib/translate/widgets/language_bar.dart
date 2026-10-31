@@ -5,6 +5,7 @@ import 'dart:math' as math;
 import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart' show AppLook;
 import 'package:mozhi/core/haptics.dart';
 import 'package:mozhi/core/widgets/composer_card.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
@@ -15,6 +16,7 @@ import 'package:mozhi/translate/widgets/go_button.dart';
 import 'package:mozhi/translate/widgets/language_picker_sheet.dart';
 import 'package:mozhi/translate/widgets/options_sheet.dart';
 import 'package:mozhi/translate/widgets/recent_pairs_sheet.dart';
+import 'package:mozhi/translate/widgets/terminal_chrome.dart';
 import 'package:mozhi/translate/widgets/translate_layout.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -106,11 +108,23 @@ bool detectionIsUncertain(TranslateState state) {
 ///
 /// Phones and narrow windows only: the large-screen layout puts the
 /// languages above its panes ([LanguagePaneHeader]).
+///
+/// In the terminal look ([AppLook.isTerminal]) it is one hairline box of
+/// three cells, `--from <source>` | `↔` | `--to <target>` (the source and
+/// target halves of it each, the language by name or code as space
+/// allows); the options and go buttons are in the input box there
+/// (`InputCard`). Same buttons, labels, semantics and motion.
 class LanguageBar extends StatelessWidget {
   const new({super.key});
 
   @override
   Widget build(BuildContext context) {
+    if (AppLook.of(context).isTerminal) {
+      return const _TerminalLanguageBox(
+        key: Key('translate_language_bar'),
+        panes: false,
+      );
+    }
     // The shared composer bar (Dictionary and Proofread use it too).
     return const ComposerBar(
       key: Key('translate_language_bar'),
@@ -140,10 +154,46 @@ class LanguagePaneHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (AppLook.of(context).isTerminal) {
+      return const _TerminalLanguageBox(
+        key: Key('translate_language_header'),
+        panes: true,
+      );
+    }
     return const SizedBox(
       key: Key('translate_language_header'),
       height: height,
       child: _LanguagePair(panes: true),
+    );
+  }
+}
+
+/// The terminal look's language bar: one hairline box around the
+/// [_LanguagePair] ([LanguageBar], or with [panes] the
+/// [LanguagePaneHeader], whose buttons are the picker anchors).
+class _TerminalLanguageBox extends StatelessWidget {
+  const new({required this.panes, super.key});
+
+  final bool panes;
+
+  /// Height of the cells at the normal text size.
+  static const double height = 48;
+
+  /// Height of the cells for [scaler]: [height], or a line of 15 dp text
+  /// with room around it when larger text needs more.
+  static double heightFor(TextScaler scaler) =>
+      math.max(height, scaler.scale(15) * 1.4 + 12);
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border.all(color: AppPalette.of(context).hairline),
+      ),
+      child: SizedBox(
+        height: heightFor(MediaQuery.textScalerOf(context)),
+        child: _LanguagePair(panes: panes),
+      ),
     );
   }
 }
@@ -313,12 +363,33 @@ class _LanguagePairState extends State<_LanguagePair> {
               target: true,
               onPressed: () => pickTranslateLanguage(context, source: false),
             );
+            final anchors = TranslateLanguageAnchors.maybeOf(context);
+            if (AppLook.of(context).isTerminal) {
+              // Three cells: the halves and the swap between them.
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    child: KeyedSubtree(
+                      key: widget.panes ? anchors?.source : null,
+                      child: sourceButton,
+                    ),
+                  ),
+                  swap,
+                  Expanded(
+                    child: KeyedSubtree(
+                      key: widget.panes ? anchors?.target : null,
+                      child: targetButton,
+                    ),
+                  ),
+                ],
+              );
+            }
             if (!widget.panes) {
               return _LanguagePairRow(
                 children: [sourceButton, swap, targetButton],
               );
             }
-            final anchors = TranslateLanguageAnchors.maybeOf(context);
             Widget half(Widget button, GlobalKey? anchor) => Expanded(
               child: Align(
                 alignment: AlignmentDirectional.centerStart,
@@ -567,10 +638,13 @@ class _SwapButtonState extends State<_SwapButton> {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final enabled = widget.enabled;
+    final theme = Theme.of(context);
+    final accent = theme.colorScheme.primary;
+    final terminal = AppLook.of(context).isTerminal;
     void showPairs() => unawaited(showRecentPairsSheet(context));
     // The tooltip shows on hover and focus only: a long press opens the
     // recent pairs instead.
-    final button = MergeSemantics(
+    Widget button = MergeSemantics(
       child: Semantics(
         onLongPressHint: l10n.translateRecentPairsShow,
         child: Tooltip(
@@ -578,14 +652,32 @@ class _SwapButtonState extends State<_SwapButton> {
           triggerMode: TooltipTriggerMode.manual,
           child: IconButton(
             key: const Key('translate_swap_button'),
-            style: IconButton.styleFrom(
-              foregroundColor: Theme.of(context).colorScheme.primary,
-            ),
+            style: terminal
+                ? IconButton.styleFrom(
+                    foregroundColor: accent,
+                    shape: const RoundedRectangleBorder(),
+                    minimumSize: const Size(_terminalWidth - 2, 48),
+                  )
+                : IconButton.styleFrom(foregroundColor: accent),
             icon: AnimatedRotation(
               turns: _turns,
               duration: languageSwapMotion(context),
               curve: Curves.easeInOutCubic,
-              child: const Icon(Icons.swap_horiz),
+              // The terminal look's glyph is decoration, like the icon
+              // (`↔`: the bundled font has no `⇄`, and a missing glyph
+              // would make the web app fetch a fallback font).
+              child: terminal
+                  ? TerminalGlyph(
+                      '↔',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: enabled
+                            ? accent
+                            : AppPalette.of(context).secondaryText,
+                      ),
+                    )
+                  : const Icon(Icons.swap_horiz),
             ),
             onPressed: enabled ? _swap : null,
             onLongPress: showPairs,
@@ -593,6 +685,19 @@ class _SwapButtonState extends State<_SwapButton> {
         ),
       ),
     );
+    if (terminal) {
+      // The middle cell, set off by hairlines on both sides.
+      final side = BorderSide(color: AppPalette.of(context).hairline);
+      button = DecoratedBox(
+        decoration: BoxDecoration(
+          border: BorderDirectional(start: side, end: side),
+        ),
+        child: SizedBox(
+          width: _terminalWidth,
+          child: Center(child: button),
+        ),
+      );
+    }
     if (enabled) return button;
     // A disabled button ignores long presses; the pairs stay reachable.
     return GestureDetector(
@@ -601,6 +706,9 @@ class _SwapButtonState extends State<_SwapButton> {
       child: button,
     );
   }
+
+  /// Width of the swap cell of the terminal look's language box.
+  static const double _terminalWidth = 52;
 }
 
 /// Duration of the swap motion (the swap icon's turn, the names trading
@@ -688,6 +796,8 @@ class _LanguageButton extends StatelessWidget {
       );
     }
 
+    if (AppLook.of(context).isTerminal) return _terminal(context);
+
     return Tooltip(
       message: tooltip,
       excludeFromSemantics: true,
@@ -695,7 +805,7 @@ class _LanguageButton extends StatelessWidget {
         style: TextButton.styleFrom(
           minimumSize: const Size(48, 48),
           padding: const EdgeInsetsDirectional.only(start: 8, end: 2),
-          shape: const StadiumBorder(),
+          shape: AppLook.of(context).control,
           foregroundColor: scheme.onSurface,
           backgroundColor: Colors.transparent,
         ),
@@ -712,6 +822,83 @@ class _LanguageButton extends StatelessWidget {
                 if (form.icon != null || form.text != null)
                   content(form, chevron: false),
               ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// The terminal look's cell: `--from <language>` (`--to` for the
+  /// target) with the first form that fits (the name, else the code),
+  /// else the first form that fits without the flag; no chevron, language
+  /// codes in lower case (`en`, `pt-br`). Same tooltip, semantics and
+  /// motion.
+  Widget _terminal(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final style = theme.textTheme.titleSmall?.copyWith(
+      fontSize: 15,
+      fontWeight: FontWeight.w700,
+    );
+    final flag = target ? '--to' : '--from';
+
+    Widget content(LanguageLabelForm form, {required bool flagged}) {
+      final (:icon, :text) = form;
+      // Codes ("EN", "PT-BR") read like the command line's.
+      final shown = text == null || text != text.toUpperCase()
+          ? text
+          : text.toLowerCase();
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // The space apart from the flag, so it stays between the two in
+          // right-to-left layouts too.
+          if (flagged) ...[
+            TerminalGlyph(flag, style: style),
+            TerminalGlyph(' ', style: style),
+          ],
+          if (icon != null) Icon(icon, size: 18, color: scheme.primary),
+          if (icon != null && shown != null) const SizedBox(width: 6),
+          if (shown != null)
+            _SharedAxisSwitcher(
+              slideFrom: slideFrom,
+              travel: travel,
+              child: Text(
+                shown,
+                key: ValueKey(shown),
+                maxLines: 1,
+                softWrap: false,
+                style: style,
+              ),
+            ),
+        ],
+      );
+    }
+
+    return Tooltip(
+      message: tooltip,
+      excludeFromSemantics: true,
+      child: TextButton(
+        style: TextButton.styleFrom(
+          minimumSize: const Size(48, 48),
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          shape: const RoundedRectangleBorder(),
+          foregroundColor: scheme.onSurface,
+          backgroundColor: Colors.transparent,
+        ),
+        onPressed: onPressed,
+        child: Semantics(
+          label: semanticLabel,
+          excludeSemantics: true,
+          // With the flag while any form fits with it ("--from en"), then
+          // without it.
+          child: FirstThatFits(
+            children: [
+              for (final form in forms)
+                if (form.icon != null || form.text != null)
+                  content(form, flagged: true),
+              for (final form in forms) content(form, flagged: false),
             ],
           ),
         ),

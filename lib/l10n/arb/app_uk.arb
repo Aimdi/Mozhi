@@ -2791,5 +2791,13 @@
   "voiceBrowserNoticeContinue": "Використовувати розпізнавання мовлення",
   "voiceErrorUnavailableBrowser": "У цьому браузері немає розпізнавання мовлення. Спробуйте Chrome, Edge чи Safari або введіть текст вручну.",
   "offlineDirectionIntoOnly": "Переклад лише на мову «{language}»",
-  "offlineDirectionFromOnly": "Переклад лише з мови «{language}»"
+  "offlineDirectionFromOnly": "Переклад лише з мови «{language}»",
+  "settingsStyle": "Стиль",
+  "settingsStyleSubtitle": "Термінал — моноширинний шрифт і прямі кути на майже чорному тлі; Класичний — заокруглені кути, тема «Приглушена» або «Без світла»",
+  "settingsStyleTerminal": "Термінал",
+  "settingsStyleClassic": "Класичний",
+  "settingsStyleKeywords": "термінал, класичний, вигляд, оформлення, шрифт, моноширинний, terminal, classic, monospace, monospaced, JetBrains Mono",
+  "settingsThemeTerminalSubtitle": "У стилі «Термінал» «Системна» означає темну тему, а «Світла» — вигляд паперу",
+  "settingsColorAmber": "Бурштиновий",
+  "settingsColorCyan": "Блакитний"
 }

@@ -147,8 +147,8 @@ class PassphraseStrengthHint extends StatelessWidget {
                         color: i < steps
                             ? color
                             : colors.surfaceContainerHighest,
-                        borderRadius: const BorderRadius.all(
-                          Radius.circular(2),
+                        borderRadius: BorderRadius.circular(
+                          AppLook.of(context).controlRadius(2),
                         ),
                       ),
                     ),

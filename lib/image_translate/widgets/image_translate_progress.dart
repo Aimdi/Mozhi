@@ -23,7 +23,7 @@ class ImageTranslateProgress extends StatelessWidget {
       color: theme.colorScheme.surface,
       surfaceTintColor: Colors.transparent,
       shape: RoundedRectangleBorder(
-        borderRadius: AppRadius.cardBorderRadius,
+        borderRadius: AppLook.of(context).cardRadius,
         side: BorderSide(color: palette.hairline),
       ),
       child: Padding(

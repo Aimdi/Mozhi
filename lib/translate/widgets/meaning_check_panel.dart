@@ -520,9 +520,7 @@ class _IssueTile extends StatelessWidget {
               ? Colors.transparent
               : scheme.surfaceContainerHigh,
           shape: RoundedRectangleBorder(
-            borderRadius: const BorderRadius.all(
-              Radius.circular(AppRadius.menu),
-            ),
+            borderRadius: AppLook.of(context).menuRadius,
             side: located
                 ? BorderSide(
                     color: focused ? scheme.secondary : scheme.outlineVariant,

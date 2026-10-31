@@ -2791,5 +2791,13 @@
   "voiceBrowserNoticeContinue": "Gunakan pengenalan ucapan",
   "voiceErrorUnavailableBrowser": "Browser ini tidak memiliki pengenalan ucapan. Coba Chrome, Edge, atau Safari, atau ketik saja.",
   "offlineDirectionIntoOnly": "Hanya ke {language}",
-  "offlineDirectionFromOnly": "Hanya dari {language}"
+  "offlineDirectionFromOnly": "Hanya dari {language}",
+  "settingsStyle": "Gaya",
+  "settingsStyleSubtitle": "Terminal memakai huruf monospace dan sudut tegas di atas latar nyaris hitam; Klasik membulat, dengan Redup atau Lampu mati",
+  "settingsStyleTerminal": "Terminal",
+  "settingsStyleClassic": "Klasik",
+  "settingsStyleKeywords": "terminal, klasik, tampilan, font, huruf, lebar tetap, classic, monospace, monospaced, JetBrains Mono",
+  "settingsThemeTerminalSubtitle": "Dalam gaya Terminal, Sistem berarti gelap; Terang memberi tampilan kertas",
+  "settingsColorAmber": "Ambar",
+  "settingsColorCyan": "Sian"
 }

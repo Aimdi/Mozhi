@@ -2791,5 +2791,13 @@
   "voiceBrowserNoticeContinue": "பேச்சு அறிதலைப் பயன்படுத்து",
   "voiceErrorUnavailableBrowser": "இந்த உலாவியில் பேச்சு அறிதல் இல்லை. Chrome, Edge அல்லது Safari-ஐ முயலவும், அல்லது தட்டச்சு செய்யவும்.",
   "offlineDirectionIntoOnly": "{language}-க்கு மட்டும்",
-  "offlineDirectionFromOnly": "{language}-இலிருந்து மட்டும்"
+  "offlineDirectionFromOnly": "{language}-இலிருந்து மட்டும்",
+  "settingsStyle": "பாணி",
+  "settingsStyleSubtitle": "டெர்மினல்: கிட்டத்தட்ட கருப்புப் பின்னணியில் நிலையான அகல எழுத்துரு, சதுர மூலைகள்; கிளாசிக்: வட்ட மூலைகள், மங்கல் அல்லது விளக்குகள் அணை",
+  "settingsStyleTerminal": "டெர்மினல்",
+  "settingsStyleClassic": "கிளாசிக்",
+  "settingsStyleKeywords": "டெர்மினல், கிளாசிக், தோற்றம், பாணி, எழுத்துரு, ஃபாண்ட், நிலையான அகலம், terminal, classic, monospace, monospaced, JetBrains Mono",
+  "settingsThemeTerminalSubtitle": "டெர்மினல் பாணியில் சிஸ்டம் என்றால் அடர்; வெளிர் காகிதத் தோற்றத்தைத் தரும்",
+  "settingsColorAmber": "அம்பர்",
+  "settingsColorCyan": "சியான்"
 }

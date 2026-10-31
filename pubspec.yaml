@@ -67,3 +67,15 @@ dev_dependencies:
 flutter:
   generate: true
   uses-material-design: true
+  # The terminal look's font (lib/app/theme.dart, kTerminalFontFamily):
+  # JetBrains Mono 2.304, SIL Open Font License 1.1 (OFL.txt beside it).
+  fonts:
+    - family: JetBrainsMono
+      fonts:
+        - asset: assets/fonts/jetbrains_mono/JetBrainsMono-Regular.ttf
+        - asset: assets/fonts/jetbrains_mono/JetBrainsMono-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/jetbrains_mono/JetBrainsMono-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/jetbrains_mono/JetBrainsMono-ExtraBold.ttf
+          weight: 800

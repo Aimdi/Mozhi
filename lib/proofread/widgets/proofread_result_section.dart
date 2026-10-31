@@ -291,7 +291,7 @@ class _ProofreadResultCardState extends State<ProofreadResultCard> {
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   border: Border.all(color: palette.hairline),
-                  borderRadius: AppRadius.cardBorderRadius,
+                  borderRadius: AppLook.of(context).cardRadius,
                 ),
                 child: Padding(
                   padding: const EdgeInsets.all(12),
@@ -376,7 +376,9 @@ class _ProofreadResultCardState extends State<ProofreadResultCard> {
                 onPressed: output.isEmpty || state.isStale
                     ? null
                     : context.read<ProofreadCubit>().useOutputAsInput,
-                style: OutlinedButton.styleFrom(shape: const StadiumBorder()),
+                style: OutlinedButton.styleFrom(
+                  shape: AppLook.of(context).control,
+                ),
                 icon: const Icon(Icons.input),
                 label: Text(l10n.proofreadUseAsInput),
               ),
@@ -407,7 +409,7 @@ class ProofreadPill extends StatelessWidget {
     return DecoratedBox(
       decoration: ShapeDecoration(
         color: filled ? colors.primaryContainer : null,
-        shape: StadiumBorder(
+        shape: AppLook.of(context).control.copyWith(
           side: filled ? BorderSide.none : BorderSide(color: colors.outline),
         ),
       ),
@@ -733,7 +735,7 @@ class _FlatNotice extends StatelessWidget {
       child: DecoratedBox(
         decoration: BoxDecoration(
           border: Border.all(color: palette.hairline),
-          borderRadius: AppRadius.cardBorderRadius,
+          borderRadius: AppLook.of(context).cardRadius,
         ),
         child: Padding(
           padding: EdgeInsetsDirectional.fromSTEB(

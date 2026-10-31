@@ -141,6 +141,13 @@ void main() {
           highlightColor: Color(0xFF000002),
           baselineColor: Color(0xFF000009),
         ),
+        UsageHistoryPainter(
+          values: [0, 5, 10],
+          color: Color(0xFF000001),
+          highlightColor: Color(0xFF000002),
+          baselineColor: Color(0xFF000003),
+          rounded: false,
+        ),
       ]) {
         expect(painter.shouldRepaint(other), isTrue);
       }

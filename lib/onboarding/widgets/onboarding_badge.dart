@@ -27,7 +27,7 @@ class OnboardingBadge extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
-        borderRadius: const BorderRadius.all(Radius.circular(AppRadius.badge)),
+        borderRadius: AppLook.of(context).badgeRadius,
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),

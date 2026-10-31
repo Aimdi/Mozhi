@@ -1,5 +1,7 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/settings/models/app_settings.dart';
 
 /// A preset seed colour offered by [AccentColorPicker].
 class AccentColorOption {
@@ -24,15 +26,34 @@ class AccentColorOption {
     AccentColorOption(0xFFF4212E, (l10n) => l10n.settingsColorRed),
     AccentColorOption(0xFF3F51B5, (l10n) => l10n.settingsColorIndigo),
   ];
+
+  /// The accents of the terminal look ([kTerminalAccents], amber first).
+  static final terminalOptions = <AccentColorOption>[
+    AccentColorOption(kTerminalAccents[0], (l10n) => l10n.settingsColorAmber),
+    AccentColorOption(kTerminalAccents[1], (l10n) => l10n.settingsColorGreen),
+    AccentColorOption(kTerminalAccents[2], (l10n) => l10n.settingsColorCyan),
+    AccentColorOption(kTerminalAccents[3], (l10n) => l10n.settingsColorPink),
+  ];
 }
 
-/// Row of round colour swatches (48 dp targets) for the seed colour.
+/// Row of colour swatches (48 dp targets) for the seed colour, or for
+/// the terminal accent with [AccentColorOption.terminalOptions]: round,
+/// square in the terminal look ([AppLook]). The selected one has a check
+/// mark, so the choice is not shown by colour alone.
 class AccentColorPicker extends StatelessWidget {
-  const new({required this.selected, required this.onSelected, super.key});
+  const new({
+    required this.selected,
+    required this.onSelected,
+    this.options,
+    super.key,
+  });
 
   /// Currently selected ARGB value.
   final int selected;
   final ValueChanged<int> onSelected;
+
+  /// The colours offered ([AccentColorOption.options] when null).
+  final List<AccentColorOption>? options;
 
   @override
   Widget build(BuildContext context) {
@@ -41,7 +62,7 @@ class AccentColorPicker extends StatelessWidget {
       spacing: 4,
       runSpacing: 4,
       children: [
-        for (final option in AccentColorOption.options)
+        for (final option in options ?? AccentColorOption.options)
           _Swatch(
             color: Color(option.argb),
             label: option.label(l10n),
@@ -69,6 +90,7 @@ class _Swatch extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final square = AppLook.of(context).isTerminal;
     final onColor =
         ThemeData.estimateBrightnessForColor(color) == Brightness.dark
         ? Colors.white
@@ -88,6 +110,7 @@ class _Swatch extends StatelessWidget {
         child: InkResponse(
           onTap: onTap,
           radius: 24,
+          highlightShape: square ? BoxShape.rectangle : BoxShape.circle,
           child: SizedBox.square(
             dimension: 48,
             child: Center(
@@ -99,7 +122,7 @@ class _Swatch extends StatelessWidget {
                 height: 36,
                 decoration: BoxDecoration(
                   color: color,
-                  shape: BoxShape.circle,
+                  shape: square ? BoxShape.rectangle : BoxShape.circle,
                   border: Border.all(
                     color: selected ? colors.onSurface : colors.outline,
                     width: selected ? 3 : 1,

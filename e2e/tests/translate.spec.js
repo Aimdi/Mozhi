@@ -83,9 +83,15 @@ test('a refine chip refines the translation', async ({ page }) => {
 
   const refine = page.getByRole('group', { name: 'Refine', exact: true });
   await refine.getByRole('checkbox', { name: 'More formal' }).click();
-  // While the focused chip shows its tooltip, Flutter web drops the
-  // chip's checkbox role (also before the redesign); moving the focus off
-  // it (a click on the Tools area's heading) brings the role back.
+  // The chip turns into an undo chip once the refinement is applied; wait
+  // for it first: the result grows meanwhile, and a click aimed at a spot
+  // that moves can land on one of its buttons (Add to phrasebook).
+  // Matched by name, not role: while its tooltip shows (focus or hover)
+  // Flutter web drops the chip's checkbox role, and when that happens is
+  // timing dependent. Its checked state is covered by the widget tests.
+  await expect(refine.getByLabel(/^Undo “More formal”/)).toBeVisible();
+  // Moving the focus off the chip (a click on the Tools area's heading)
+  // brings its role back.
   await page.getByRole('heading', { name: 'Learn', exact: true }).click();
 
   // Wait for the refinement first: copying also moves the focus off the
@@ -93,11 +99,6 @@ test('a refine chip refines the translation', async ({ page }) => {
   await expect
     .poll(() => copiedTranslation(page))
     .toBe(`[refined] ${TRANSLATION}`);
-  // The chip turned into an undo chip once the refinement was applied.
-  // Matched by name, not role: while its tooltip shows (focus or hover)
-  // Flutter web drops the chip's checkbox role, and when that happens is
-  // timing dependent. Its checked state is covered by the widget tests.
-  await expect(refine.getByLabel(/^Undo “More formal”/)).toBeVisible();
   // The result's header names the refinement, with an × that undoes it.
   await expect(
     page

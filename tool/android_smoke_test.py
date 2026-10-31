@@ -1690,6 +1690,28 @@ class SharedFileFlowsTest(ClockTestCase):
             smoke.flow_document(d)
 
 
+class TranslateFirstSentenceTest(ClockTestCase):
+    def test_scrolls_to_an_offer_below_the_composer(self):
+        # The Terminal look on a small screen: the download offer is below
+        # the fold until the page is scrolled.
+        d = self.device
+        d.screens = {
+            "typed": [node(smoke.SENTENCE, "android.widget.EditText")],
+            "below": [node("Download French (49.6 MB)", clickable=True)],
+            "done": [node("Hello I'm looking for the station")],
+        }
+        d.current = "typed"
+        d.on_swipe = {"typed": "below"}
+        d.on_tap = {r"Download French.*": "done"}
+        with mock.patch.object(smoke, "enter_sentence", lambda device: "typed"), \
+                mock.patch.object(smoke, "box_text", lambda device: smoke.SENTENCE):
+            route = smoke.translate(d)
+
+        self.assertEqual(route, "offline: downloaded French")
+        self.assertIn(("swipe", True), d.calls)
+        self.assertIn("Download French (49.6 MB)", self.taps())
+
+
 class CancelFlowTest(ClockTestCase):
     def setUp(self) -> None:
         super().setUp()
