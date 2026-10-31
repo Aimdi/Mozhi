@@ -1643,19 +1643,19 @@ class CancelFlowTest(ClockTestCase):
             "offline": [
                 node("", "android.widget.EditText", bounds=(0, 300, 1080, 400),
                      clickable=True),
-                node("Azerbaijani\nAzərbaycan dili · 25 MB download", bounds=row),
+                node("Greek\nΕλληνικά · 25 MB download", bounds=row),
                 node("Download", bounds=pill, clickable=True),
             ],
             "downloading": [
-                node("Azerbaijani\nDownloading… 3%", bounds=row),
-                node("Cancel downloading Azerbaijani", bounds=pill, clickable=True),
+                node("Greek\nDownloading… 3%", bounds=row),
+                node("Cancel downloading Greek", bounds=pill, clickable=True),
             ],
         }
         d.on_tap = {
             r"Translation engines.*": "engines",
             r"Offline languages.*": "offline",
             r"Download": "downloading",
-            r"Cancel downloading Azerbaijani": "offline",
+            r"Cancel downloading Greek": "offline",
         }
         d.on_adb = [(self.link("mozhi://settings"), "settings", ""),
                     (("emu",), None, "OK")]
@@ -1663,16 +1663,16 @@ class CancelFlowTest(ClockTestCase):
     def test_starts_and_cancels_the_download(self):
         detail = smoke.flow_cancel(self.device)
 
-        self.assertIn("Azerbaijani: “Azerbaijani Azərbaycan dili", detail)
+        self.assertIn("Greek: “Greek Ελληνικά", detail)
         self.assertIn("no error", detail)
         calls = self.device.calls
-        self.assertIn(("shell", "input", "text", "Azerbaijani"), calls)
+        self.assertIn(("shell", "input", "text", "Greek"), calls)
         self.assertEqual(
             [c for c in calls if c[0] == "emu"],
             [("emu", "network", "speed", smoke.SLOW_NETWORK),
              ("emu", "network", "speed", "full")],
         )
-        self.assertEqual(self.taps()[-2:], ["Download", "Cancel downloading Azerbaijani"])
+        self.assertEqual(self.taps()[-2:], ["Download", "Cancel downloading Greek"])
 
     def test_opens_the_page_from_the_languages_row_and_scrolls(self):
         d = self.device
@@ -1697,14 +1697,14 @@ class CancelFlowTest(ClockTestCase):
         self.assertIn("Languages on this device\nTranslate without internet using "
                       "on-device models", self.taps())
         self.assertIn(("swipe", True), d.calls)
-        self.assertIn(("shell", "input", "text", "Azerbaijani"), d.calls)
+        self.assertIn(("shell", "input", "text", "Greek"), d.calls)
 
     def test_fails_on_an_error_and_restores_the_network(self):
         self.device.screens["offline-error"] = [
-            *self.device.screens["offline"], node("Couldn’t download Azerbaijani")]
-        self.device.on_tap["Cancel downloading Azerbaijani"] = "offline-error"
+            *self.device.screens["offline"], node("Couldn’t download Greek")]
+        self.device.on_tap["Cancel downloading Greek"] = "offline-error"
 
-        with self.assertRaisesRegex(smoke.StepFailed, "Couldn’t download Azerbaijani"):
+        with self.assertRaisesRegex(smoke.StepFailed, "Couldn’t download Greek"):
             smoke.flow_cancel(self.device)
         self.assertEqual(self.device.calls[-1][:4], ("emu", "network", "speed", "full"))
 

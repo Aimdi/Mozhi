@@ -52,8 +52,8 @@ labels of the moment it failed (<n>-<flow>-failed.png/.xml):
                 EXTRA_STREAM) and translates it; the English text must
                 appear on the result screen.
   cancel        Settings > Translation engines > Offline languages: starts
-                downloading Azerbaijani, taps "Cancel downloading
-                Azerbaijani"; the row must go back to Download, with no
+                downloading Greek, taps "Cancel downloading Greek"; the
+                row must go back to Download, with no
                 error.
 
 For a failed flow it also saves the log of Mozhi's processes and of
@@ -184,10 +184,11 @@ DOCUMENT_RESULT = r"(?is).*\b(book|bread|morning)\b.*"
 DOCUMENT_LOADED = (r"Remove document", r"\d+ segments?")
 DOCUMENT_EMPTY = r"(?s)Pick a document\b.*"
 
-# Cancel: one of the smallest offline languages in
-# packages/bergamot_translator/assets/catalog.json (about 25 MB), near the
-# top of the list.
-CANCEL_LANGUAGE = "Azerbaijani"
+# Cancel: the smallest offline language with models in both directions in
+# packages/bergamot_translator/assets/catalog.json (about 30 MB). The page
+# lists only those (Azerbaijani, the smallest, has English to Azerbaijani
+# only, so it isn't there).
+CANCEL_LANGUAGE = "Greek"
 ENGINES_CATEGORY = r"(?s)Translation engines\b.*"
 # Translation engines' row that opens the offline languages ("Languages on
 # this device", under the heading "Offline languages"); tapped as the
