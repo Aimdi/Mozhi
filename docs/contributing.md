@@ -242,6 +242,46 @@ sentence can't be typed; the job summary says whether and how it got translated,
 the log lists the text on screen at each step and the screenshots are in
 the job's `android-smoke` artifact.
 
+After the store screenshots it runs four more flows. Each is a step of its
+own and fails the job when it does not work:
+
+- **Offline only**: switches Settings › Privacy & data › Privacy mode to
+  Offline only, shares a new French sentence and checks two things: its
+  English translation appears with the "Offline" badge, and Mozhi's uid
+  sent and received no bytes meanwhile. The byte counts come from `dumpsys
+  netstats`, which is made to poll first. It reads two counters: the
+  per-uid totals in "UID stats" and the kernel's per-uid counters
+  (`mAppUidStatsMap`). Both count every packet of the uid, DNS included,
+  so a request to a Mozhi server (or anywhere else) can't go unseen. A
+  list of connections could miss a short request. A counter that never
+  counted Mozhi's earlier downloads is not trusted. The flow also lists
+  the uid's sockets in `/proc/net/tcp*` and `udp*`, so you can see where
+  any traffic went. The dumps are saved as `netstats-*.txt`.
+- **Image**: pushes `tool/smoke_assets/french_sign.png` (French text made
+  with Pillow; the file is committed, so CI needs no Pillow) to the shared
+  storage. It shares the image to Mozhi with `ACTION_SEND image/png` and
+  `--grant-read-uri-permission`, passing the MediaStore content URI as
+  both the intent data and `EXTRA_STREAM`. If that URI is refused, it
+  tries the files table's URI and then the external storage document. It
+  accepts the text recognition download and checks that the English text
+  appears.
+- **Document**: does the same with a two-line French `.txt` file in
+  `Download/` (`ACTION_SEND text/plain`), then taps Translate. The result
+  screen must show the English text.
+- **Cancel**: opens Settings › Translation engines › Offline languages,
+  searches for Azerbaijani (about 25 MB) and taps Download, then "Cancel
+  downloading Azerbaijani". The row must go back to Download with no
+  error. Meanwhile the emulator's network is slowed (`adb emu network
+  speed gsm`), so the download is still running when Cancel is tapped.
+
+Every step waits for its labels with a timeout and taps a button again
+when nothing happens. On failure it saves `<n>-<flow>-failed.png` and
+`.xml`, and the summary names the step and the text on screen.
+`--skip-offline-only`, `--skip-image`, `--skip-document` and
+`--skip-cancel` leave a flow out, so you can look into a flaky one on
+your own emulator; CI runs all of them. `python3 tool/android_smoke_test.py`
+tests the script's parsing and flows without a device.
+
 Conventions:
 
 - Cubits are tested with `bloc_test`; dependencies are mocked with

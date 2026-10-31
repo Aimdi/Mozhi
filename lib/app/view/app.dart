@@ -14,6 +14,7 @@ import 'package:mozhi/app_lock/app_lock.dart';
 import 'package:mozhi/backup/data/backup_registry.dart';
 import 'package:mozhi/backup/view/backup_restore_listener.dart';
 import 'package:mozhi/core/key_value_store.dart';
+import 'package:mozhi/core/network/tailnet_resolver.dart';
 import 'package:mozhi/dictionary/data/dictionary_packs.dart';
 import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/history/data/history_repository.dart';
@@ -131,6 +132,7 @@ class _AppState extends State<App> {
     );
     // The engines are needed by the first screen: start right away.
     unawaited(_translateCubit.loadEngines());
+    _lookUpTailnetServers(_settingsCubit.state);
     // Installing, deleting or choosing an on-device model changes its AI
     // providers (computed locally: nothing to refresh over the network).
     _onDeviceProviders = _deps.onDeviceAi?.providersChanges.listen(
@@ -337,7 +339,23 @@ class _AppState extends State<App> {
       instances: settings.instances,
       providers: withOnDeviceProviders(settings.providers, _deps.onDeviceAi),
     );
+    _lookUpTailnetServers(settings);
     unawaited(_translateCubit.loadEngines(refresh: refresh));
+  }
+
+  /// Looks up the Tailscale names among the servers of [settings]
+  /// ([TailnetResolver]), so that one on the tailnet counts as private
+  /// before text is sent to it (a Funnel name stays public). Not in
+  /// **Offline only**: the app then makes no request at all, a name lookup
+  /// included (a request that does go out looks its name up itself).
+  void _lookUpTailnetServers(AppSettings settings) {
+    if (settings.privacyMode == PrivacyMode.offlineOnly) return;
+    unawaited(
+      TailnetResolver.instance.resolveUrls([
+        for (final instance in settings.instances) instance.url,
+        for (final provider in settings.providers) provider.baseUrl,
+      ]),
+    );
   }
 
   @override

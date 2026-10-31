@@ -27,11 +27,11 @@ import 'package:translation_repository/translation_repository.dart';
 /// ([textLayoutOf]). Pixels are decoded with a [RgbaImageDecoder]
 /// (`dart:ui`, which turns the photo upright by its EXIF orientation, as
 /// the image screen shows it). Downloads honour Wi-Fi only through
-/// `isMeteredConnection`.
+/// `isMeteredConnection` and can be stopped ([cancelOcrDownload]).
 class TesseractTextRecognitionService
     implements
         TextRecognitionService,
-        TextRecognitionLanguageData,
+        CancellableOcrDownloads,
         TextRecognitionConfidence,
         TextRecognitionPixels {
   new({
@@ -47,6 +47,9 @@ class TesseractTextRecognitionService
   final _changes = StreamController<void>.broadcast();
   Future<TesseractOcr>? _ocr;
   List<OcrLanguage>? _languages;
+
+  /// The running [downloadOcrLanguage] calls, by code.
+  final Map<String, Set<_Download>> _downloads = {};
 
   @override
   final bool isSupported;
@@ -156,28 +159,58 @@ class TesseractTextRecognitionService
     }
   }
 
+  /// Fails with an [OfflineDownloadCancelledException] once
+  /// [cancelOcrDownload] stopped it (also before its request was sent).
   @override
   Future<void> downloadOcrLanguage(
     String code, {
     required bool wifiOnly,
     void Function(double fraction)? onProgress,
   }) async {
-    final ocr = await _engine();
-    if (wifiOnly && await _isMetered()) {
-      throw const MeteredConnectionException();
+    final download = _Download();
+    final running = (_downloads[code] ??= {})..add(download);
+    try {
+      final ocr = await _engine();
+      if (wifiOnly && await _isMetered()) {
+        throw const MeteredConnectionException();
+      }
+      if (download.cancelled) throw OfflineDownloadCancelledException(code);
+      // The settings' model source (SHARED W3-B): GitHub or a mirror.
+      final source = ModelSource.current;
+      ocr.data
+        ..mirror = source.mirror()
+        ..fallbackToDefault = source.fallsBackToDefault;
+      // Starts (and registers) the install before it awaits anything, so
+      // a cancel from now on reaches it.
+      await ocr.download(
+        code,
+        onProgress: onProgress == null
+            ? null
+            : (progress) => onProgress(progress.fraction),
+      );
+    } on TessdataDownloadCancelledException {
+      throw OfflineDownloadCancelledException(code);
+    } finally {
+      running.remove(download);
+      if (running.isEmpty && identical(_downloads[code], running)) {
+        _downloads.remove(code);
+      }
     }
-    // The settings' model source (SHARED W3-B): GitHub or a mirror.
-    final source = ModelSource.current;
-    ocr.data
-      ..mirror = source.mirror()
-      ..fallbackToDefault = source.fallsBackToDefault;
-    await ocr.download(
-      code,
-      onProgress: onProgress == null
-          ? null
-          : (progress) => onProgress(progress.fraction),
-    );
     _changes.add(null);
+  }
+
+  @override
+  Future<void> cancelOcrDownload(String code) async {
+    final running = _downloads[code];
+    if (running == null || running.isEmpty) return;
+    for (final download in running) {
+      download.cancelled = true;
+    }
+    try {
+      await (await _engine()).cancelDownload(code);
+    } on Object {
+      // No engine: no request was sent (the downloads fail on their own).
+    }
   }
 
   @override
@@ -284,4 +317,10 @@ class TesseractTextRecognitionService
     downloadSize: language.size,
     url: language.url,
   );
+}
+
+/// A running [TesseractTextRecognitionService.downloadOcrLanguage] call.
+final class _Download {
+  /// [TesseractTextRecognitionService.cancelOcrDownload] was called for it.
+  bool cancelled = false;
 }

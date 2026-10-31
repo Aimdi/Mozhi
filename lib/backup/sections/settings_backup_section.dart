@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 import 'package:mozhi/backup/data/backup_registry.dart';
 import 'package:mozhi/core/network/url_credentials.dart';
+import 'package:mozhi/settings/data/provider_identity.dart';
 import 'package:mozhi/settings/data/settings_repository.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:translation_repository/translation_repository.dart';
@@ -14,10 +15,12 @@ import 'package:translation_repository/translation_repository.dart';
 /// "instanceCredentials": {url: "user:password"}}}`, `secrets` only when
 /// included and there are any.
 ///
-/// Read and written through the [SettingsRepository], so restored secrets
-/// go to secure storage exactly as when they are typed in the settings
-/// (never into the plain settings). The app's `BackupRestoreListener` then
-/// reloads the settings in use.
+/// Read and written through the [SettingsRepository]
+/// ([SettingsRepository.update]: in one step, so a change made in the app
+/// meanwhile is kept), and restored secrets go to secure storage exactly
+/// as when they are typed in the settings (never into the plain
+/// settings). The app's `BackupRestoreListener` then reloads the settings
+/// in use.
 ///
 /// Secrets stay with the server they are for. A provider's API key and
 /// headers only move between this device's provider and the backup's
@@ -35,7 +38,12 @@ import 'package:translation_repository/translation_repository.dart';
 /// choices included, and only adds the AI providers and pinned
 /// languages it doesn't have, and the backup's keys of providers on the
 /// same server where this device has none (settings carry no timestamps
-/// to tell the newer copy). Merge never adds Mozhi instances: the failover
+/// to tell the newer copy). Provider ids never change hands: a provider
+/// removed here ([SettingsRepository.removedProviders]) is not added back,
+/// and one on another server than this device's provider (or removed
+/// provider) of the same id is added under an id of its own
+/// ([renamedId]), so a choice that names the id never moves to another
+/// server. Merge never adds Mozhi instances: the failover
 /// may send the user's text to any instance in the list without asking,
 /// so only Replace, the user's explicit choice, takes the backup's
 /// instances. A provider Merge adds is only used once the user picks it:
@@ -80,40 +88,12 @@ class SettingsBackupSection implements BackupSection {
   /// service, provider type and base URL ([normalizedBaseUrl]). Only then
   /// do API keys and headers carry over between them.
   static bool sameServer(AiProviderConfig a, AiProviderConfig b) =>
-      a.service == b.service &&
-      a.provider == b.provider &&
-      normalizedBaseUrl(a.baseUrl) == normalizedBaseUrl(b.baseUrl);
+      ProviderIdentity.sameServer(a, b);
 
-  /// [url] normalised for [sameServer]: trimmed, `https://` added (or
-  /// `http://` for a local host) when it has no scheme, as the clients
-  /// do, scheme and host in lower case, without the default port, the
-  /// fragment and trailing slashes. Empty for an empty [url] (a service's
-  /// official API).
-  static String normalizedBaseUrl(String url) {
-    var text = url.trim();
-    while (text.endsWith('/')) {
-      text = text.substring(0, text.length - 1);
-    }
-    if (text.isEmpty) return '';
-    if (!text.contains('://')) {
-      final host = Uri.tryParse('http://$text')?.host ?? '';
-      text = '${AiProviderConfig.isLocalHost(host) ? 'http' : 'https'}://$text';
-    }
-    final uri = Uri.tryParse(text);
-    if (uri == null || !uri.hasAuthority) return text;
-    var path = uri.path;
-    while (path.endsWith('/')) {
-      path = path.substring(0, path.length - 1);
-    }
-    return Uri(
-      scheme: uri.scheme.toLowerCase(),
-      userInfo: uri.userInfo,
-      host: uri.host.toLowerCase(),
-      port: uri.hasPort ? uri.port : null,
-      path: path,
-      query: uri.hasQuery ? uri.query : null,
-    ).toString();
-  }
+  /// [url] normalized for [sameServer]
+  /// ([ProviderIdentity.normalizedProviderUrl]).
+  static String normalizedBaseUrl(String url) =>
+      ProviderIdentity.normalizedProviderUrl(url);
 
   @override
   Future<Object?> export({required bool includeSecrets}) async {
@@ -133,8 +113,12 @@ class SettingsBackupSection implements BackupSection {
     required BackupRestoreMode mode,
   }) async {
     final (backup, secrets) = _parse(data, version: version);
-    final local = await _load();
-    await _repository.save(_restored(local, backup, secrets, mode));
+    final removed = await _repository.removedProviders();
+    // Read and written in one step: a change made in the app meanwhile is
+    // merged with, not written over (SettingsRepository.update).
+    await _repository.update(
+      (local) => _restored(local, backup, secrets, mode, removed: removed),
+    );
   }
 
   /// What restoring [data] (written by [export] at [version]) would add
@@ -149,11 +133,12 @@ class SettingsBackupSection implements BackupSection {
   }) async {
     final (backup, secrets) = _parse(data, version: version);
     final local = await _load();
+    final removed = await _repository.removedProviders();
     return {
       for (final mode in BackupRestoreMode.values)
         mode: SettingsBackupAdditions.between(
           local,
-          _restored(local, backup, secrets, mode),
+          _restored(local, backup, secrets, mode, removed: removed),
         ),
     };
   }
@@ -191,7 +176,7 @@ class SettingsBackupSection implements BackupSection {
   /// The stored settings with their secrets. Throws when they could not be
   /// read (defaults must never be backed up, nor saved over them).
   Future<AppSettings> _load() async {
-    final settings = await _repository.load();
+    final settings = await _repository.read();
     if (_repository.loadFailed) throw const SettingsUnavailableException();
     return settings;
   }
@@ -200,10 +185,11 @@ class SettingsBackupSection implements BackupSection {
     AppSettings local,
     AppSettings backup,
     _Secrets secrets,
-    BackupRestoreMode mode,
-  ) => switch (mode) {
+    BackupRestoreMode mode, {
+    required List<RemovedProvider> removed,
+  }) => switch (mode) {
     BackupRestoreMode.replace => _replaced(local, backup, secrets),
-    BackupRestoreMode.merge => _merged(local, backup, secrets),
+    BackupRestoreMode.merge => _merged(local, backup, secrets, removed),
   };
 
   static AppSettings _replaced(
@@ -242,18 +228,50 @@ class SettingsBackupSection implements BackupSection {
     AppSettings local,
     AppSettings backup,
     _Secrets secrets,
+    List<RemovedProvider> removed,
   ) {
     // The first provider of each id (a crafted backup may repeat one).
     final theirs = <String, AiProviderConfig>{};
     for (final provider in backup.providers) {
       theirs.putIfAbsent(provider.id, () => provider);
     }
-    final mine = {for (final provider in local.providers) provider.id};
-    final added = [
-      for (final provider in theirs.values)
-        if (!mine.contains(provider.id))
-          _offUnlessAsked(secrets.applyTo(_withoutSecrets(provider))),
-    ];
+    final mine = {
+      for (final provider in local.providers) provider.id: provider,
+    };
+    final gone = removed.toSet();
+    final goneIds = {for (final item in removed) item.id};
+    final added = <AiProviderConfig>[];
+    final taken = {...mine.keys};
+    for (final provider in theirs.values) {
+      final server = ProviderIdentity.serverHash(provider);
+      final own = mine[provider.id];
+      // On the same server: this device's provider (see below).
+      if (own != null && sameServer(own, provider)) continue;
+      // Removed here (also under the name another device gave it): it
+      // stays removed.
+      if (gone.contains(RemovedProvider(id: provider.id, server: server)) ||
+          _isRenamedRemoved(provider.id, server, gone)) {
+        continue;
+      }
+      // Another device's name for one of this device's providers.
+      if (_isRenamedCopy(provider, mine)) continue;
+      // Another provider of an id used here (by a provider, or by one that
+      // was removed and may still be named somewhere): under an id of its
+      // own, never the one something here names.
+      final id = own != null || goneIds.contains(provider.id)
+          ? renamedId(provider.id, server)
+          : provider.id;
+      if (!taken.add(id)) continue;
+      if (id != provider.id &&
+          gone.contains(RemovedProvider(id: id, server: server))) {
+        continue;
+      }
+      added.add(
+        _offUnlessAsked(
+          _withId(secrets.applyTo(_withoutSecrets(provider)), id),
+        ),
+      );
+    }
     final addedIds = {for (final provider in added) provider.id};
     // Choices left behind for a removed provider of that id must not pick
     // up the one the backup adds.
@@ -296,6 +314,63 @@ class SettingsBackupSection implements BackupSection {
         local.compareEngineIds.where((id) => !stale(id)),
       ),
     );
+  }
+
+  /// The id a merge gives a provider of [id] on another server than the
+  /// provider (or removed provider) of that id here: [id], `~` and the
+  /// start of its [server] hash ([ProviderIdentity.serverHash]). The same
+  /// on every device, so the provider keeps one name here however often
+  /// it is merged.
+  static String renamedId(String id, String server) =>
+      '$id~${server.substring(0, 12)}';
+
+  /// [provider] with [id].
+  static AiProviderConfig _withId(AiProviderConfig provider, String id) =>
+      provider.id == id
+      ? provider
+      : AiProviderConfig(
+          id: id,
+          name: provider.name,
+          provider: provider.provider,
+          baseUrl: provider.baseUrl,
+          model: provider.model,
+          apiKey: provider.apiKey,
+          presetId: provider.presetId,
+          effort: provider.effort,
+          temperature: provider.temperature,
+          headers: provider.headers,
+          enabled: provider.enabled,
+          supportsVision: provider.supportsVision,
+          service: provider.service,
+          promptProfile: provider.promptProfile,
+          preferQualityModel: provider.preferQualityModel,
+        );
+
+  /// Whether [id] is the name another device gave ([renamedId]) to a
+  /// provider of [server] that was removed here ([gone]).
+  static bool _isRenamedRemoved(
+    String id,
+    String server,
+    Set<RemovedProvider> gone,
+  ) {
+    final at = id.lastIndexOf('~');
+    return at > 0 &&
+        renamedId(id.substring(0, at), server) == id &&
+        gone.contains(RemovedProvider(id: id.substring(0, at), server: server));
+  }
+
+  /// Whether [provider] is one of [mine] under the name another device
+  /// gave it ([renamedId] of its id and server).
+  static bool _isRenamedCopy(
+    AiProviderConfig provider,
+    Map<String, AiProviderConfig> mine,
+  ) {
+    final at = provider.id.lastIndexOf('~');
+    if (at <= 0) return false;
+    final own = mine[provider.id.substring(0, at)];
+    return own != null &&
+        sameServer(own, provider) &&
+        renamedId(own.id, ProviderIdentity.serverHash(own)) == provider.id;
   }
 
   static AiProviderConfig _withoutSecrets(AiProviderConfig provider) =>

@@ -235,3 +235,43 @@ class PlainOcrData
   Future<OcrImportReport> importOcrFiles(List<String> paths) =>
       inner.importOcrFiles(paths);
 }
+
+/// [FakeOcrData] whose downloads wait until [cancelOcrDownload] stops them
+/// (or [downloadGate] opens).
+class CancellableOcrData extends FakeOcrData
+    implements CancellableOcrDownloads {
+  new() : super(installed: {'deu': 1525436});
+
+  final cancelled = <String>[];
+
+  /// Thrown by [cancelOcrDownload] when set.
+  Exception? cancelError;
+
+  /// What a cancelled download fails with.
+  Exception stopWith = const OfflineDownloadCancelledException();
+
+  Completer<void>? _running;
+
+  @override
+  Future<void> downloadOcrLanguage(
+    String code, {
+    required bool wifiOnly,
+    void Function(double fraction)? onProgress,
+  }) async {
+    final running = _running = Completer<void>();
+    onProgress?.call(0.25);
+    final gate = downloadGate;
+    await Future.any([running.future, ?gate?.future]);
+    if (running.isCompleted) throw stopWith;
+    await super.downloadOcrLanguage(code, wifiOnly: wifiOnly);
+  }
+
+  @override
+  Future<void> cancelOcrDownload(String code) async {
+    cancelled.add(code);
+    final error = cancelError;
+    if (error != null) throw error;
+    final running = _running;
+    if (running != null && !running.isCompleted) running.complete();
+  }
+}

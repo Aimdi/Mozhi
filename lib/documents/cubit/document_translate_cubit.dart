@@ -519,8 +519,8 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
         error: () => switch (error) {
           PackageParseException(problem: PackageProblem.encrypted) =>
             DocumentError.encrypted,
-          PackageParseException(problem: PackageProblem.unsafe) =>
-            DocumentError.unsafeFile,
+          PackageParseException(problem: PackageProblem.unsafe) ||
+          TooManyPlaceholdersException() => DocumentError.unsafeFile,
           // Damaged, or any other failure on a damaged file.
           _ => DocumentError.damagedFile,
         },
@@ -662,7 +662,7 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
     try {
       document = parse();
       // A parser's failure on unexpected input is reported the same way.
-    } on Object {
+    } on Object catch (error) {
       if (keepOnFailure) {
         return base.copyWith(
           status: base.hasDocument ? DocumentStatus.ready : base.status,
@@ -672,9 +672,12 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
         status: DocumentStatus.empty,
         document: () => null,
         plan: () => null,
-        error: () => format == DocumentFormat.json
-            ? DocumentError.invalidJson
-            : DocumentError.invalidFormat,
+        error: () => switch (error) {
+          // Too many protected spans in a paragraph to translate it safely.
+          TooManyPlaceholdersException() => DocumentError.unsafeFile,
+          _ when format == DocumentFormat.json => DocumentError.invalidJson,
+          _ => DocumentError.invalidFormat,
+        },
       );
     }
     _parsedTarget = target;

@@ -49,7 +49,9 @@ kept for 180 days, at most the newest 10,000, encrypted on the device like
 the history, and removed by **Delete all local data**. Entries removed by
 the size limit or by **Delete history automatically** leave no record:
 each device keeps its own limits (and merging never brings back what they
-would remove here, see below).
+would remove here, see below), so they are never deleted on a device that
+keeps its history longer ([how sync handles
+that](sync.md#delete-history-automatically-on-several-devices)).
 
 **Presets and glossaries** work the same way. Each remembers when it was
 last created or changed (renamed, edited, turned on or off, terms added or
@@ -59,7 +61,13 @@ was deleted: for 180 days, at most the newest 10,000. Like the presets and
 glossaries themselves, these are kept unencrypted in the app's storage on
 the device, and **Delete all local data** removes them. Presets and
 glossaries saved by older versions have no change time yet: they count as
-older than any change or deletion.
+older than any change or deletion. When two copies of one differ and
+neither is newer (both without a change time, say), every device picks
+the same one: the one whose content has the smaller SHA-256. A winner
+without a change time then gets one older than any real change (one
+millisecond after the start of 1970, where "no change time" counts), so
+that devices on older versions, which keep their own copy on a tie, take
+it too, and any real change or deletion still wins over it.
 
 ## Making a backup
 
@@ -117,17 +125,30 @@ in the backup:
   what they would delete is neither brought in nor kept (favorites always
   stay), so merging never brings back entries they removed.
 - **Presets** and **glossaries:** matched by id; of one on both sides the
-  newer copy stays (the one changed last; this device's when neither is
-  newer), and one deleted on either side stays deleted unless it was
+  newer copy stays (the one changed last; when neither is newer and they
+  differ, the same one on every device, see above), and one deleted on
+  either side stays deleted unless it was
   changed (or put back with **Undo**) after it was deleted. The order is
   that of the copy reordered last, with the presets or glossaries only in
   the other copy placed after the one they followed there; the default
   preset is the one chosen (or cleared) last, and a default that was
   deleted is cleared. When neither copy says when its order or default
-  changed (older backups), this device's order and default stay, or the
-  backup's default when there is none here.
+  changed (older backups) and they differ, the order and the default are
+  decided the same way as two presets (a default on one side only stays),
+  and marked as decided.
+- **A change made while a merge runs** (in the app, or from what a screen
+  showed before the merge) is kept, together with what the merge brought:
+  the merge reads and writes the presets and glossaries in one step, after
+  the changes started before it, and a change made from the copy a screen
+  held before the merge is applied to the merged data rather than written
+  over it. The same goes for the settings.
 - **Settings:** this device's settings stay, privacy choices included; the
   AI providers and pinned languages you don't have are added. A provider
+  you removed on this device is not added back, and a provider in the
+  backup on another server than this device's provider (or removed
+  provider) of the same id is added under an id of its own (the id,
+  `~` and the start of a hash of its server), so a choice of engine that
+  still names the id never moves to another server. A provider
   added this way is used only once you choose it: a cloud provider still
   asks before your first text goes to it, and one that wouldn't ask (an
   AI server on your own network, a LibreTranslate server) comes turned
@@ -306,3 +327,19 @@ an Android backup in the web app takes those few seconds longer. On
 Android the work runs in a background isolate; in the web app Argon2id
 pauses between blocks so the page stays responsive, and AES-GCM and gzip
 are the browser's own (Web Crypto, `CompressionStream`).
+
+Why the web app stays at 19 MiB: browsers have no Argon2id of their own
+(Web Crypto doesn't offer it), and the web build has no worker to move it
+to: a worker needs a script of its own built next to the app (a second
+Dart entry point compiled to JavaScript, or a WebAssembly Argon2id),
+which the build doesn't make. In the page itself it doesn't freeze the
+screen (between blocks the page draws its frames: the longest pause
+measured was 34 ms at 64 MiB and 79 ms at 19 MiB), but it is slow:
+64 MiB with 3 passes took 3.7 s and 19 MiB with 2 passes 0.8 s on one
+2.1 GHz server core (V8, Chrome's JavaScript engine), so well over ten
+seconds in a mid-range phone's browser, and the web app derives the key
+again whenever sync is unlocked in a new tab. A worker wouldn't make it
+faster either. New backups and sync files made in the web app therefore
+keep 19 MiB and 2 passes. Files made on Android (64 MiB, 3 passes) open
+in the web app as they always did, since every file records its own
+parameters, and every file made so far opens everywhere.

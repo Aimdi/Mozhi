@@ -6,6 +6,7 @@ import 'package:mozhi/backup/sections/glossaries_backup_section.dart';
 import 'package:mozhi/backup/sections/presets_backup_section.dart';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/presets/data/glossary_repository.dart';
+import 'package:mozhi/presets/data/merge_copies.dart';
 import 'package:mozhi/presets/data/presets_repository.dart';
 import 'package:mozhi/presets/models/glossary.dart';
 import 'package:mozhi/presets/models/preset.dart';
@@ -274,14 +275,34 @@ void main() {
       expect(await repository.load(), [other]);
     });
 
-    test("merge keeps this device's glossaries and adds the others", () async {
+    test(
+      "merge keeps this device's newer glossaries and adds the others",
+      () async {
+        final changed = mine.copyWith(updatedAt: _now);
+        await repository.save([changed]);
+        await section.restore(
+          _throughJson(GlossaryRepository.encode([theirs, other])),
+          version: 1,
+          mode: BackupRestoreMode.merge,
+        );
+
+        expect(await repository.load(), [changed, other]);
+      },
+    );
+
+    test('merge decides between two copies without change times the same '
+        'way on every device', () async {
       await section.restore(
         _throughJson(GlossaryRepository.encode([theirs, other])),
         version: 1,
         mode: BackupRestoreMode.merge,
       );
 
-      expect(await repository.load(), [mine, other]);
+      final winner =
+          tieBreak(canonicalJson(mine.toJson()), canonicalJson(theirs.toJson()))
+          ? theirs
+          : mine;
+      expect(await repository.load(), [winner, other]);
     });
 
     test('refuses newer versions and invalid data', () async {

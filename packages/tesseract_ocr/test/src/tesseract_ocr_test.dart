@@ -170,6 +170,18 @@ void main() {
     );
   });
 
+  test('cancelDownload stops a running download', () async {
+    server.stallAfter = 1000;
+    final download = ocr.download('deu');
+    await server.stalled.future;
+    await ocr.cancelDownload('deu');
+    await expectLater(
+      download,
+      throwsA(isA<TessdataDownloadCancelledException>()),
+    );
+    expect(await ocr.installedLanguages(), isEmpty);
+  });
+
   test('download refuses codes outside the catalog', () async {
     await expectLater(ocr.download('fra'), throwsArgumentError);
   });

@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
 import 'package:tesseract_ocr/src/catalog.dart';
+import 'package:tesseract_ocr/src/download_cancel.dart';
 import 'package:tesseract_ocr/src/file_hashing.dart';
 
 /// A download or install of language data failed.
@@ -202,9 +203,11 @@ final class TessdataImportResult {
 ///   one; a file without its record is not installed (and removed by
 ///   [cleanUp]).
 /// * `<root>/.downloads/<code>.traineddata.part`: downloads in progress.
-///   Kept when a download is interrupted and resumed with an HTTP `Range`
-///   request next time (the bytes already on disk are hashed again, so
-///   the final SHA-256 check covers the whole file).
+///   Kept when a download is interrupted or cancelled ([cancelInstall])
+///   and resumed with an HTTP `Range` request next time when the server
+///   answers with exactly the rest of the file (`Content-Range`), else
+///   downloaded again from the start. The bytes already on disk are
+///   hashed again, so the final SHA-256 check covers the whole file.
 /// * `<root>/.staging/`: records and imported copies being written.
 ///
 /// Every download is checked against the catalog's size and SHA-256 before
@@ -269,7 +272,7 @@ class TessdataManager {
 
   final http.Client _client;
   final bool _ownsClient;
-  final Map<String, Future<InstalledTessdata>> _installing = {};
+  final Map<String, _Install> _installing = {};
   List<InstalledTessdata>? _installedCache;
 
   static const _recordSchema = 1;
@@ -307,11 +310,29 @@ class TessdataManager {
 
   /// Downloads and installs [language], replacing another version of it.
   /// Returns at once when it is already installed. Concurrent calls for the
-  /// same language share one download.
+  /// same language share one download. [cancelInstall] stops it with a
+  /// [TessdataDownloadCancelledException].
   Future<InstalledTessdata> install(
     TessdataLanguage language, {
     void Function(TessdataDownloadProgress progress)? onProgress,
-  }) => _exclusive(language, () => _install(language, onProgress));
+  }) =>
+      _exclusive(language, (cancel) => _install(language, onProgress, cancel));
+
+  /// Stops every running [install] of [code]: the request is closed,
+  /// nothing more is written and nothing is installed; those calls fail
+  /// with a [TessdataDownloadCancelledException]. What was received is
+  /// kept, so the next [install] resumes it. An import of [code] that is
+  /// running ([importFiles]) is not stopped. Completes once those
+  /// downloads have stopped; does nothing when none runs. Never throws.
+  Future<void> cancelInstall(String code) async {
+    final stopping = [
+      for (final MapEntry(:key, value: install) in _installing.entries)
+        if (key.startsWith('$code/')) install..cancel.cancel(),
+    ];
+    for (final install in stopping) {
+      await install.settled;
+    }
+  }
 
   /// Installs language data from files copied to the device by hand
   /// (downloaded elsewhere from [TessdataLanguage.url]), without any
@@ -441,10 +462,12 @@ class TessdataManager {
   Future<InstalledTessdata> _install(
     TessdataLanguage language,
     void Function(TessdataDownloadProgress progress)? onProgress,
+    DownloadCancel cancel,
   ) async {
     _checkSafe(language.code);
     final existing = await installedLanguage(language.code);
     if (existing != null && existing.sha256 == language.sha256) return existing;
+    cancel.check();
     await _downloadsDirectory.create(recursive: true);
     final partial = File(_partPath(language.code));
     final downloaded = partial.existsSync() ? await _lengthOf(partial) : 0;
@@ -463,24 +486,39 @@ class TessdataManager {
           ),
         );
       },
+      cancel: cancel,
       mirror: mirror,
       fallbackToDefault: fallbackToDefault,
     );
+    // Cancelled once the file was verified: it stays a (complete) partial
+    // download, which the next install checks without a request.
+    cancel.check();
     return await _installVerified(language, part);
   }
 
   /// Runs [run] (installing [language]) unless an install of the same
-  /// version is already running, which is then shared.
+  /// version is already running, which is then shared. One that was
+  /// cancelled is not shared: [run] starts once it has stopped (so two
+  /// never write the same files).
   Future<InstalledTessdata> _exclusive(
     TessdataLanguage language,
-    Future<InstalledTessdata> Function() run,
+    Future<InstalledTessdata> Function(DownloadCancel cancel) run,
   ) {
     final key = '${language.code}/${language.sha256}';
-    // The callback must not return the removed future: whenComplete would
-    // then wait for itself.
-    return _installing[key] ??= run().whenComplete(() {
-      unawaited(_installing.remove(key));
-    });
+    final running = _installing[key];
+    if (running != null && !running.cancel.isCancelled) return running.result;
+    final install = _Install(
+      DownloadCancel(language.code),
+      run,
+      after: running?.settled,
+    );
+    _installing[key] = install;
+    unawaited(
+      install.settled.then((_) {
+        if (identical(_installing[key], install)) _installing.remove(key);
+      }),
+    );
+    return install.result;
   }
 
   /// Moves the verified [file] (a finished download or a staged copy) to
@@ -515,10 +553,13 @@ class TessdataManager {
 
   /// Downloads [language] into `<downloads>/<code>.traineddata.part`
   /// (resuming a partial download) from [mirror] or the catalog's URL (see
-  /// [tessdataDownloadUrls]) and verifies its size and SHA-256.
+  /// [tessdataDownloadUrls]) and verifies its size and SHA-256. Once
+  /// [cancel] is cancelled the request is closed and this fails with a
+  /// [TessdataDownloadCancelledException], keeping the part for resuming.
   Future<File> _download(
     TessdataLanguage language,
     void Function(int received) report, {
+    required DownloadCancel cancel,
     Uri? mirror,
     bool fallbackToDefault = false,
   }) async {
@@ -535,14 +576,27 @@ class TessdataManager {
     final FileDigest digest;
 
     if (existing < language.size) {
-      final (response, from) = await _request(
+      var (response, from) = await _request(
         language,
         existing,
+        cancel: cancel,
         mirror: mirror,
         fallbackToDefault: fallbackToDefault,
       );
+      var resumed = existing > 0 && response.statusCode == 206;
+      if (resumed && !resumesAt(response, existing, language.size)) {
+        // A part of something else: ask for the whole file.
+        _discard(response);
+        (response, from) = await _request(
+          language,
+          0,
+          cancel: cancel,
+          mirror: mirror,
+          fallbackToDefault: fallbackToDefault,
+        );
+        resumed = false;
+      }
       source = from;
-      final resumed = existing > 0 && response.statusCode == 206;
       final StreamHasher hasher;
       try {
         hasher = await hashing.stream();
@@ -550,7 +604,7 @@ class TessdataManager {
         // interrupted one.
         // coverage:ignore-start
       } on Object catch (error) {
-        unawaited(response.stream.listen(null).cancel());
+        _discard(response);
         throw TessdataDownloadException(
           language.code,
           '${language.fileName}${_from(source)}: $error',
@@ -562,13 +616,16 @@ class TessdataManager {
         if (resumed) {
           // Hash what is already on disk (in the background), then append.
           received = await hasher.addFile(part.path);
+          if (cancel.isCancelled) _discard(response);
+          cancel.check();
         }
         report(received);
         final sink = part.openWrite(
           mode: resumed ? FileMode.writeOnlyAppend : FileMode.writeOnly,
         );
         try {
-          await for (final chunk in response.stream.timeout(requestTimeout)) {
+          await for (final chunk
+              in cancel.guard(response.stream).timeout(requestTimeout)) {
             received += chunk.length;
             if (received > language.size) {
               throw TessdataChecksumException(
@@ -587,8 +644,9 @@ class TessdataManager {
           await _deleteQuietly(part);
           rethrow;
         } on Object catch (error) {
-          // Interrupted: keep the part for resuming.
+          // Interrupted or cancelled: keep the part for resuming.
           await sink.close();
+          cancel.check();
           throw TessdataDownloadException(
             language.code,
             '${language.fileName}${_from(source)}: $error',
@@ -624,10 +682,12 @@ class TessdataManager {
   /// of [tessdataDownloadUrls] in turn until one answers with its contents
   /// (200, or 206 when resuming): the response and the mirror it came from
   /// (null: the catalog's URL). Throws the last URL's
-  /// [TessdataDownloadException].
+  /// [TessdataDownloadException], or a [TessdataDownloadCancelledException]
+  /// once [cancel] is (the request is aborted, no other URL is tried).
   Future<(http.StreamedResponse, Uri?)> _request(
     TessdataLanguage language,
     int existing, {
+    required DownloadCancel cancel,
     required Uri? mirror,
     required bool fallbackToDefault,
   }) async {
@@ -640,12 +700,23 @@ class TessdataManager {
       final url = urls[i];
       final source = i == 0 ? mirror : null;
       final last = i == urls.length - 1;
-      final request = http.Request('GET', url);
+      cancel.check();
+      final request = http.AbortableRequest(
+        'GET',
+        url,
+        abortTrigger: cancel.future,
+      );
       if (existing > 0) request.headers['Range'] = 'bytes=$existing-';
       final http.StreamedResponse response;
       try {
-        response = await _client.send(request).timeout(requestTimeout);
+        response = await cancel.race(
+          _client.send(request).timeout(requestTimeout),
+          onLate: _discard,
+        );
+      } on TessdataDownloadCancelledException {
+        rethrow;
       } on Object catch (error) {
+        cancel.check();
         if (!last) continue;
         throw TessdataDownloadException(
           language.code,
@@ -668,6 +739,16 @@ class TessdataManager {
         );
       }
     }
+  }
+
+  /// Stops reading [response] (closing its connection).
+  static void _discard(http.StreamedResponse response) {
+    unawaited(
+      response.stream
+          .listen(null, onError: (Object _) {})
+          .cancel()
+          .catchError((Object _) {}),
+    );
   }
 
   /// ` from the mirror <mirror>` for a download from [mirror], else empty.
@@ -710,7 +791,7 @@ class TessdataManager {
       if (_installing['${language.code}/${language.sha256}']
           case final running?) {
         try {
-          await running;
+          await running.result;
         } on Object {
           // Installed from the file below.
         }
@@ -721,7 +802,7 @@ class TessdataManager {
           status: TessdataImportStatus.alreadyInstalled,
         );
       }
-      await _exclusive(language, () async {
+      await _exclusive(language, (_) async {
         final copy = await _copyVerified(language, input);
         try {
           return await _installVerified(language, copy);
@@ -899,4 +980,25 @@ class TessdataManager {
       // Best effort: leftovers are removed by the next cleanUp().
     }
   }
+}
+
+/// An install of [TessdataManager] that callers share, with its
+/// [cancel].
+final class _Install {
+  new(
+    this.cancel,
+    Future<InstalledTessdata> Function(DownloadCancel cancel) run, {
+    Future<void>? after,
+  }) {
+    result = after == null
+        ? Future.sync(() => run(cancel))
+        : after.then((_) => run(cancel));
+    settled = result.then<void>((_) {}, onError: (Object _) {});
+  }
+
+  final DownloadCancel cancel;
+  late final Future<InstalledTessdata> result;
+
+  /// Completes (never with an error) when [result] does.
+  late final Future<void> settled;
 }

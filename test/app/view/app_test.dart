@@ -9,6 +9,7 @@ import 'package:mozhi/app/app.dart';
 import 'package:mozhi/app/fallback_key_value_store.dart';
 import 'package:mozhi/app/view/top_level_actions.dart';
 import 'package:mozhi/core/key_value_store.dart';
+import 'package:mozhi/core/network/tailnet_resolver.dart';
 import 'package:mozhi/history/models/history_entry.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/onboarding/view/onboarding_page.dart';
@@ -207,6 +208,51 @@ void main() {
       ).called(1);
       verify(() => env.translationRepository.getEngines(refresh: true))
           .called(1);
+    });
+
+    group('Tailscale names', () {
+      late List<String> lookups;
+
+      setUp(() {
+        lookups = [];
+        final previous = TailnetResolver.instance;
+        TailnetResolver.instance = TailnetResolver(
+          lookup: (host) async {
+            lookups.add(host);
+            return const ['100.101.102.103'];
+          },
+        );
+        addTearDown(() => TailnetResolver.instance = previous);
+        addTearDown(TailnetHosts.forget);
+      });
+
+      const tailnet = MozhiInstance(
+        url: 'https://nas.tail1234.ts.net',
+        label: 'NAS',
+      );
+
+      testWidgets('are looked up at the start', (tester) async {
+        await pumpApp(
+          tester,
+          settings: const AppSettings(
+            onboardingComplete: true,
+            instances: [tailnet],
+          ),
+        );
+        expect(lookups, ['nas.tail1234.ts.net']);
+      });
+
+      testWidgets('are not looked up in Offline only', (tester) async {
+        await pumpApp(
+          tester,
+          settings: const AppSettings(
+            onboardingComplete: true,
+            instances: [tailnet],
+            privacyMode: PrivacyMode.offlineOnly,
+          ),
+        );
+        expect(lookups, isEmpty);
+      });
     });
 
     testWidgets('pushes the privacy settings before anything starts', (

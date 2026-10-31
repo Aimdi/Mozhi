@@ -108,6 +108,11 @@ final Map<String, String> _brackets = {
   'open brackets with commas': '${'[' * (_size ~/ 2)}${',' * (_size ~/ 2)}',
   'open objects with commas': '{"a": [${_many('1, ')}',
   'closed lists without objects': _many('[1, [2]] '),
+  'unclosed lists of words': _many('[x '),
+  'mismatched brackets': _many('[1}'),
+  'unclosed lists with quotes': _many('["a '),
+  'nested lists that do not decode before an object':
+      '${'[x ' * (_size ~/ 6)}{"a": 1}${']' * (_size ~/ 6)}',
 };
 
 /// [names] of [_hostile] and [_replies].

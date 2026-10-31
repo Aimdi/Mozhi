@@ -2763,5 +2763,9 @@
   "liveCaptionsBarLocked": "Mozhi 已锁定",
   "offlineCancelDownloadTooltip": "取消下载{language}",
   "offlineCancelling": "正在停止…",
-  "documentsPdfProgressCooling": "第 {page} 页，共 {total} 页：手机过热，正在等待降温…"
+  "documentsPdfProgressCooling": "第 {page} 页，共 {total} 页：手机过热，正在等待降温…",
+  "onboardingLanguagesSuggestionPicked": "你之前选择了{language}。",
+  "offlineManualMirrorNote": "这些链接指向你的模型下载源 {host}，Mozhi 从这里下载。如果那里缺少某个文件，请使用发布者的链接。",
+  "offlineManualPublisherLink": "发布者的链接（镜像中没有该文件时使用）",
+  "offlineManualCopyPublisherLink": "复制 {file} 的发布者链接"
 }

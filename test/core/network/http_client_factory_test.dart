@@ -657,14 +657,18 @@ void main() {
       return server;
     }
 
+    /// How many connections [silentServer]s saw closed by the other end.
+    var silentClosed = 0;
+
     /// A server that accepts connections and never answers.
     Future<ServerSocket> silentServer() async {
+      silentClosed = 0;
       final silent = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
       servers.add(silent);
       final sockets = <Socket>[];
       silent.listen((socket) {
         sockets.add(socket);
-        socket.listen((_) {}, onError: (_) {});
+        socket.listen((_) {}, onError: (_) {}, onDone: () => silentClosed++);
       });
       addTearDown(() {
         for (final socket in sockets) {
@@ -792,6 +796,11 @@ void main() {
           ),
         );
         expect(stopwatch.elapsed, lessThan(const Duration(seconds: 10)));
+        // The connection given up on is closed, not left to the server.
+        for (var i = 0; i < 100 && silentClosed == 0; i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+        }
+        expect(silentClosed, 1);
       });
     }
 
@@ -951,67 +960,413 @@ void main() {
   group('connectSecureTunnel with a fake proxy connection', () {
     const proxy = ProxyAddress('proxy.lan', 8118);
 
+    /// The TLS handshakes started (their connection and host); they never
+    /// end unless the test completes them.
+    late List<(RawSocket, Object?, Completer<RawSecureSocket>)> handshakes;
+
+    setUp(() => handshakes = []);
+
+    Future<RawSecureSocket> handshake(
+      RawSocket socket, {
+      StreamSubscription<RawSocketEvent>? subscription,
+      Object? host,
+      SecurityContext? context,
+    }) {
+      expect(subscription, isNotNull);
+      expect(subscription!.isPaused, isFalse);
+      final done = Completer<RawSecureSocket>();
+      handshakes.add((socket, host, done));
+      return done.future;
+    }
+
+    Future<ConnectionTask<Socket>> tunnel(_FakeRawSocket socket) =>
+        connectSecureTunnel(
+          proxy,
+          'mozhi.example',
+          443,
+          connect: (host, port) async {
+            expect((host, port), ('proxy.lan', 8118));
+            return (socket: Future<RawSocket>.value(socket), cancel: () {});
+          },
+          secure: handshake,
+        );
+
     test('drops a connection that opens after the cancellation', () async {
-      final socket = _FakeSocket();
-      final opening = Completer<Socket>();
+      final socket = _FakeRawSocket();
+      final opening = Completer<RawSocket>();
+      var cancels = 0;
       final task = await connectSecureTunnel(
         proxy,
         'mozhi.example',
         443,
-        connect: (host, port) async {
-          expect((host, port), ('proxy.lan', 8118));
-          return ConnectionTask.fromSocket(opening.future, () {});
-        },
+        connect: (_, _) async =>
+            (socket: opening.future, cancel: () => cancels++),
       );
 
-      task.cancel();
+      task
+        ..cancel()
+        ..cancel();
       opening.complete(socket);
 
       await expectLater(task.socket, throwsA(isA<SocketException>()));
-      expect(socket.destroyed, isTrue);
+      await pumpEventQueue();
+      expect(cancels, 1);
+      expect(socket.closed, isTrue);
       expect(socket.written, isEmpty);
     });
 
-    test('cancelling closes an open connection', () async {
-      final socket = _FakeSocket();
-      final task = await connectSecureTunnel(
-        proxy,
-        'mozhi.example',
-        443,
-        connect: (_, _) async =>
-            ConnectionTask.fromSocket(Future.value(socket), () {}),
-      );
+    test('cancelling closes a connection waiting for the proxy', () async {
+      final socket = _FakeRawSocket();
+      final task = await tunnel(socket);
       await pumpEventQueue();
-
-      task.cancel();
-      socket.incoming.addError(const SocketException('closed'));
-
-      await expectLater(task.socket, throwsA(isA<SocketException>()));
-      expect(socket.destroyed, isTrue);
       expect(
         latin1.decode(socket.written),
-        startsWith('CONNECT mozhi.example:443'),
+        'CONNECT mozhi.example:443 HTTP/1.1\r\n'
+        'Host: mozhi.example:443\r\n\r\n',
       );
+
+      task.cancel();
+
+      await expectLater(task.socket, throwsA(isA<SocketException>()));
+      expect(socket.closed, isTrue);
     });
 
-    test('a tunnel opened after the cancellation is dropped', () async {
-      final socket = _FakeSocket();
-      late final ConnectionTask<Socket> task;
-      task = await connectSecureTunnel(
-        proxy,
-        'mozhi.example',
-        443,
-        connect: (_, _) async =>
-            ConnectionTask.fromSocket(Future.value(socket), () {}),
+    test('cancelling during the TLS handshake closes the connection at once '
+        '(a server that never answers is not left to hang up)', () async {
+      final socket = _FakeRawSocket();
+      final task = await tunnel(socket);
+      await pumpEventQueue();
+      socket.receive('HTTP/1.1 200 Connection established\r\n\r\n');
+      await pumpEventQueue();
+      // TLS took the connection over, in the same event as the answer.
+      expect(handshakes.single.$1, same(socket));
+      expect(handshakes.single.$2, 'mozhi.example');
+      expect(socket.closed, isFalse);
+
+      task.cancel();
+
+      expect(socket.closed, isTrue);
+      await expectLater(
+        task.socket,
+        throwsA(
+          isA<SocketException>().having(
+            (e) => e.message,
+            'message',
+            'Connection attempt cancelled',
+          ),
+        ),
       );
+      // The handshake failing later changes nothing.
+      handshakes.single.$3.completeError(const HandshakeException('closed'));
+      await pumpEventQueue();
+    });
+
+    test('a handshake failure is reported as it is', () async {
+      final socket = _FakeRawSocket();
+      final task = await tunnel(socket);
+      await pumpEventQueue();
+      socket.receive('HTTP/1.1 200 OK\r\n\r\n');
+      await pumpEventQueue();
+
+      handshakes.single.$3.completeError(const HandshakeException('bad'));
+
+      await expectLater(task.socket, throwsA(isA<HandshakeException>()));
+    });
+
+    test('sends the request in pieces when the connection is busy', () async {
+      final socket = _FakeRawSocket()..writeLimit = 10;
+      final task = await tunnel(socket);
+      await pumpEventQueue();
+      expect(socket.written, hasLength(10));
+      expect(socket.writeEventsEnabled, isTrue);
+
+      while (socket.writeEventsEnabled) {
+        socket.events.add(RawSocketEvent.write);
+        await pumpEventQueue();
+      }
+
+      expect(
+        latin1.decode(socket.written),
+        'CONNECT mozhi.example:443 HTTP/1.1\r\n'
+        'Host: mozhi.example:443\r\n\r\n',
+      );
+      // Write events after the request change nothing.
+      socket.events.add(RawSocketEvent.write);
       await pumpEventQueue();
       task.cancel();
-      // The proxy answers after the cancellation; TLS needs a real socket,
-      // so the attempt fails either way, without leaking the connection.
-      socket.incoming.add(latin1.encode('HTTP/1.1 200 OK\r\n\r\n'));
+      await expectLater(task.socket, throwsA(isA<SocketException>()));
+    });
 
-      await expectLater(task.socket, throwsA(anything));
-      expect(socket.destroyed, isTrue);
+    /// The tunnel socket over [tls] once its handshake finished.
+    Future<Socket> opened(_FakeTlsSocket tls) async {
+      final socket = _FakeRawSocket();
+      final task = await tunnel(socket);
+      await pumpEventQueue();
+      socket.receive('HTTP/1.1 200 OK\r\n\r\n');
+      await pumpEventQueue();
+      handshakes.single.$3.complete(tls);
+      return await task.socket;
+    }
+
+    group('the tunnel socket', () {
+      test('is a secure socket of the connection', () async {
+        final tls = _FakeTlsSocket();
+        final socket = await opened(tls);
+
+        expect(socket, isA<SecureSocket>());
+        final secure = socket as SecureSocket;
+        expect(secure.selectedProtocol, 'http/1.1');
+        expect(secure.peerCertificate, isNull);
+        expect(socket.address, InternetAddress.loopbackIPv4);
+        expect(socket.remoteAddress, InternetAddress.loopbackIPv4);
+        expect(socket.port, 50000);
+        expect(socket.remotePort, 8118);
+        expect(socket.setOption(SocketOption.tcpNoDelay, true), isTrue);
+        expect(
+          // Not supported by dart:io either.
+          // ignore: deprecated_member_use
+          secure.renegotiate,
+          throwsUnsupportedError,
+        );
+        socket.destroy();
+      });
+
+      test('reads while listened to and not paused', () async {
+        final tls = _FakeTlsSocket();
+        final socket = await opened(tls);
+        expect(tls.readEventsEnabled, isFalse);
+
+        final received = <String>[];
+        final subscription = socket.listen(
+          (d) => received.add(latin1.decode(d)),
+        );
+        await pumpEventQueue();
+        expect(tls.readEventsEnabled, isTrue);
+        tls
+          ..receive('hello')
+          // A read event without data.
+          ..events.add(RawSocketEvent.read);
+        await pumpEventQueue();
+        expect(received, ['hello']);
+
+        subscription.pause();
+        await pumpEventQueue();
+        expect(tls.readEventsEnabled, isFalse);
+        subscription.resume();
+        await pumpEventQueue();
+        expect(tls.readEventsEnabled, isTrue);
+
+        await subscription.cancel();
+        expect(tls.shutdowns, [SocketDirection.receive]);
+        socket.destroy();
+      });
+
+      test('queues writes until the connection takes them', () async {
+        final tls = _FakeTlsSocket()..writeLimit = 3;
+        final socket = await opened(tls);
+
+        expect(await socket.flush(), isNull);
+        socket
+          ..add(latin1.encode('abcdef'))
+          ..add(const []);
+        var flushed = false;
+        unawaited(socket.flush().then((_) => flushed = true));
+        await pumpEventQueue();
+        expect(latin1.decode(tls.written), 'abc');
+        expect(tls.writeEventsEnabled, isTrue);
+        expect(flushed, isFalse);
+
+        tls.events.add(RawSocketEvent.write);
+        await pumpEventQueue();
+        expect(latin1.decode(tls.written), 'abcdef');
+        expect(flushed, isTrue);
+
+        tls.writeLimit = null;
+        socket
+          ..write(1)
+          ..writeln('x')
+          ..writeAll(['a', 'b'], ',')
+          ..writeCharCode(0x41);
+        await socket.addStream(Stream.value(latin1.encode('!')));
+        expect(latin1.decode(tls.written), 'abcdef1x\na,bA!');
+        socket.encoding = latin1;
+        expect(socket.encoding, latin1);
+
+        final done = socket.close();
+        expect(tls.shutdowns, [SocketDirection.send]);
+        expect(await done, same(socket));
+        expect(await socket.done, same(socket));
+        expect(() => socket.add([1]), throwsStateError);
+        // Closing twice is closing.
+        expect(await socket.close(), same(socket));
+        socket.destroy();
+        expect(tls.closed, isTrue);
+      });
+
+      test('closing waits for queued writes', () async {
+        final tls = _FakeTlsSocket()..writeLimit = 2;
+        final socket = await opened(tls);
+
+        socket.add(latin1.encode('abcd'));
+        final done = socket.close();
+        await pumpEventQueue();
+        expect(tls.shutdowns, isEmpty);
+
+        tls.events.add(RawSocketEvent.write);
+        expect(await done, same(socket));
+        expect(tls.shutdowns, [SocketDirection.send]);
+        socket.destroy();
+      });
+
+      test('destroying drops queued writes and ends reading', () async {
+        final tls = _FakeTlsSocket()..writeLimit = 1;
+        final socket = await opened(tls);
+        var ended = false;
+        socket
+          ..listen((_) {}, onDone: () => ended = true)
+          ..add(latin1.encode('abc'));
+        final flushed = socket.flush();
+        socket
+          ..destroy()
+          ..destroy()
+          // Ignored once destroyed.
+          ..add([1]);
+        await flushed;
+        await pumpEventQueue();
+
+        expect(tls.closed, isTrue);
+        expect(ended, isTrue);
+        expect(await socket.done, same(socket));
+        expect(latin1.decode(tls.written), 'a');
+      });
+
+      test('the server closing ends reading, then the connection', () async {
+        final tls = _FakeTlsSocket();
+        final socket = await opened(tls);
+        var ended = false;
+        socket.listen((_) {}, onDone: () => ended = true);
+
+        tls.events.add(RawSocketEvent.readClosed);
+        await pumpEventQueue();
+        expect(ended, isTrue);
+
+        tls.events.add(RawSocketEvent.closed);
+        expect(await socket.done, same(socket));
+      });
+
+      test('connection errors reach the reader and done', () async {
+        final tls = _FakeTlsSocket();
+        final socket = await opened(tls);
+        final errors = <Object>[];
+        socket.listen((_) {}, onError: errors.add);
+
+        tls.events.addError(const SocketException('reset'));
+        await pumpEventQueue();
+
+        expect(errors, [isA<SocketException>()]);
+        await expectLater(socket.done, throwsA(isA<SocketException>()));
+        expect(tls.closed, isTrue);
+      });
+
+      test('a failing write fails done', () async {
+        final tls = _FakeTlsSocket()..failWrites = true;
+        final socket = await opened(tls)
+          ..add([1]);
+
+        await expectLater(socket.done, throwsA(isA<SocketException>()));
+        expect(tls.closed, isTrue);
+      });
+
+      test('addError fails the connection', () async {
+        final tls = _FakeTlsSocket();
+        final socket = await opened(tls)
+          ..addError(StateError('x'));
+
+        await expectLater(socket.done, throwsStateError);
+        expect(tls.closed, isTrue);
+      });
+
+      test("addStream reports the stream's error", () async {
+        final tls = _FakeTlsSocket();
+        final socket = await opened(tls);
+
+        await expectLater(
+          socket.addStream(Stream.error(StateError('x'))),
+          throwsStateError,
+        );
+        socket.destroy();
+      });
+    });
+
+    for (final (name, act, message) in [
+      (
+        'refuses',
+        (_FakeRawSocket s) => s.receive('HTTP/1.1 403 Forbidden\r\n\r\n'),
+        'The proxy refused the connection to mozhi.example:443 (HTTP 403)',
+      ),
+      (
+        'answers garbage',
+        (_FakeRawSocket s) => s.receive('SSH-2.0-OpenSSH\r\n\r\n'),
+        'The proxy sent an invalid answer',
+      ),
+      (
+        'sends data before TLS',
+        (_FakeRawSocket s) => s.receive('HTTP/1.1 200 OK\r\n\r\nhello'),
+        'The proxy sent an invalid answer',
+      ),
+      (
+        'answers endlessly',
+        (_FakeRawSocket s) => s.receive('HTTP/1.1 200 ${'x' * 20000}'),
+        'The proxy sent an invalid answer',
+      ),
+      (
+        'hangs up',
+        (_FakeRawSocket s) => s.hangUp(),
+        'The proxy closed the connection',
+      ),
+      (
+        'stops reading',
+        (_FakeRawSocket s) => s.events.add(RawSocketEvent.readClosed),
+        'The proxy closed the connection',
+      ),
+      (
+        'fails',
+        (_FakeRawSocket s) => s.events.addError(const SocketException('reset')),
+        'The proxy connection failed: SocketException: reset',
+      ),
+    ]) {
+      test('closes the connection when the proxy $name', () async {
+        final socket = _FakeRawSocket();
+        final task = await tunnel(socket);
+        await pumpEventQueue();
+
+        act(socket);
+
+        await expectLater(
+          task.socket,
+          throwsA(
+            isA<SocketException>().having((e) => e.message, 'message', message),
+          ),
+        );
+        expect(socket.closed, isTrue);
+      });
+    }
+
+    test('a failing write closes the connection', () async {
+      final socket = _FakeRawSocket()..failWrites = true;
+      final task = await tunnel(socket);
+
+      await expectLater(
+        task.socket,
+        throwsA(
+          isA<SocketException>().having(
+            (e) => e.message,
+            'message',
+            startsWith('The proxy connection failed'),
+          ),
+        ),
+      );
+      expect(socket.closed, isTrue);
     });
   });
 
@@ -1117,6 +1472,122 @@ class _FakeSocket extends Stream<Uint8List> implements Socket {
 
   @override
   void destroy() => destroyed = true;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+/// The TLS connection of a tunnel ([_FakeRawSocket] after the handshake).
+class _FakeTlsSocket extends _FakeRawSocket implements RawSecureSocket {
+  @override
+  X509Certificate? get peerCertificate => null;
+
+  @override
+  String? get selectedProtocol => 'http/1.1';
+}
+
+/// A connection to the proxy whose events and incoming data the test
+/// sends; what is written is kept in [written].
+class _FakeRawSocket extends Stream<RawSocketEvent> implements RawSocket {
+  final events = StreamController<RawSocketEvent>();
+  final written = <int>[];
+  final _incoming = <int>[];
+
+  /// Most bytes each [write] takes (all when null).
+  int? writeLimit;
+
+  /// Whether [write] throws.
+  bool failWrites = false;
+
+  bool closed = false;
+
+  @override
+  bool readEventsEnabled = true;
+
+  @override
+  bool writeEventsEnabled = false;
+
+  /// Delivers [text] and a read event.
+  void receive(String text) {
+    _incoming.addAll(latin1.encode(text));
+    events.add(RawSocketEvent.read);
+  }
+
+  /// The other end closed the connection.
+  void hangUp() {
+    events.add(RawSocketEvent.readClosed);
+    unawaited(events.close());
+  }
+
+  @override
+  StreamSubscription<RawSocketEvent> listen(
+    void Function(RawSocketEvent event)? onData, {
+    Function? onError,
+    void Function()? onDone,
+    bool? cancelOnError,
+  }) => events.stream.listen(
+    onData,
+    onError: onError,
+    onDone: onDone,
+    cancelOnError: cancelOnError,
+  );
+
+  @override
+  int available() => _incoming.length;
+
+  @override
+  Uint8List? read([int? len]) {
+    if (_incoming.isEmpty) return null;
+    final count = len == null || len > _incoming.length
+        ? _incoming.length
+        : len;
+    final data = Uint8List.fromList(_incoming.sublist(0, count));
+    _incoming.removeRange(0, count);
+    return data;
+  }
+
+  @override
+  int write(List<int> buffer, [int offset = 0, int? count]) {
+    if (failWrites) throw const SocketException('broken pipe');
+    final end = count == null ? buffer.length : offset + count;
+    var take = end - offset;
+    if (writeLimit != null && take > writeLimit!) take = writeLimit!;
+    written.addAll(buffer.sublist(offset, offset + take));
+    return take;
+  }
+
+  @override
+  Future<RawSocket> close() async {
+    if (!closed) {
+      closed = true;
+      if (!events.isClosed) {
+        events.add(RawSocketEvent.closed);
+        unawaited(events.close());
+      }
+    }
+    return this;
+  }
+
+  /// The directions [shutdown] closed.
+  final shutdowns = <SocketDirection>[];
+
+  @override
+  void shutdown(SocketDirection direction) => shutdowns.add(direction);
+
+  @override
+  InternetAddress get address => InternetAddress.loopbackIPv4;
+
+  @override
+  InternetAddress get remoteAddress => InternetAddress.loopbackIPv4;
+
+  @override
+  int get port => 50000;
+
+  @override
+  int get remotePort => 8118;
+
+  @override
+  bool setOption(SocketOption option, bool enabled) => true;
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

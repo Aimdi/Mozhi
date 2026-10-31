@@ -25,8 +25,13 @@ void main() {
     int maxAttempts = 3,
     int maxFailures = 30,
     int maxPending = 4,
+    int maxPendingPerAddress = 2,
+    int maxHandshakesPerMinute = 30,
+    int maxAddressHandshakesPerMinute = 6,
+    Duration minSetupTime = const Duration(seconds: 2),
     Duration handshakeTimeout = const Duration(seconds: 5),
     PairingAddressPolicy policy = loopbackPolicy,
+    DateTime Function() now = DateTime.now,
   }) async {
     final listener = await PairingListener.bind(
       loopback,
@@ -34,8 +39,13 @@ void main() {
       maxAttempts: maxAttempts,
       maxFailures: maxFailures,
       maxPending: maxPending,
+      maxPendingPerAddress: maxPendingPerAddress,
+      maxHandshakesPerMinute: maxHandshakesPerMinute,
+      maxAddressHandshakesPerMinute: maxAddressHandshakesPerMinute,
+      minSetupTime: minSetupTime,
       handshakeTimeout: handshakeTimeout,
       policy: policy,
+      now: now,
     );
     listeners.add(listener);
     return listener;
@@ -155,7 +165,11 @@ void main() {
       await connect(listener.code);
       channels.add(await listener.connection);
       await expectLater(
-        connectPairing(listener.code, policy: loopbackPolicy),
+        connectPairing(
+          listener.code,
+          policy: loopbackPolicy,
+          retryDelays: const [],
+        ),
         throwsA(_refused),
       );
     });
@@ -196,7 +210,11 @@ void main() {
       }
       // Even with the right code, that address is closed at once…
       await expectLater(
-        connectPairing(listener.code, policy: loopbackPolicy),
+        connectPairing(
+          listener.code,
+          policy: loopbackPolicy,
+          retryDelays: const [],
+        ),
         throwsA(_refused),
       );
       // …but the code still works for another phone.
@@ -227,7 +245,11 @@ void main() {
         ),
       );
       await expectLater(
-        connectPairing(listener.code, policy: loopbackPolicy),
+        connectPairing(
+          listener.code,
+          policy: loopbackPolicy,
+          retryDelays: const [],
+        ),
         throwsA(_refused),
       );
     });
@@ -261,7 +283,11 @@ void main() {
         throwsA(isA<PairingExpiredException>()),
       );
       await expectLater(
-        connectPairing(listener.code, policy: loopbackPolicy),
+        connectPairing(
+          listener.code,
+          policy: loopbackPolicy,
+          retryDelays: const [],
+        ),
         throwsA(_refused),
       );
     });
@@ -377,7 +403,7 @@ void main() {
     });
 
     test('a device opening many connections loses its own first', () async {
-      final listener = await listen(maxPending: 2);
+      final listener = await listen(maxPending: 2, minSetupTime: Duration.zero);
       var otherClosed = false;
       final other = await rawSocket(listener.code.port, source: '127.0.0.2');
       unawaited(closedByPeer(other).then((_) => otherClosed = true));
@@ -386,6 +412,155 @@ void main() {
       await rawSocket(listener.code.port);
       await firstClosed;
       expect(otherClosed, isFalse);
+    });
+
+    test('a device loses its own connections beyond its share', () async {
+      final listener = await listen(maxPendingPerAddress: 1);
+      var otherClosed = false;
+      final other = await rawSocket(listener.code.port, source: '127.0.0.2');
+      unawaited(closedByPeer(other).then((_) => otherClosed = true));
+      final first = await rawSocket(listener.code.port);
+      final firstClosed = closedByPeer(first);
+      await rawSocket(listener.code.port);
+      await firstClosed;
+      expect(otherClosed, isFalse);
+    });
+
+    group('a flood from many addresses', () {
+      /// Stalling connections from 127.0.0.<first>, <first + 1>…
+      Future<List<Socket>> flood(int port, int count, {int first = 10}) =>
+          Future.wait([
+            for (var i = 0; i < count; i++)
+              rawSocket(port, source: '127.0.0.${first + i}'),
+          ]);
+
+      /// Whether each of [sockets] is closed by the listener soon.
+      Future<List<bool>> closedSoon(List<Socket> sockets) => Future.wait([
+        for (final socket in sockets)
+          closedByPeer(socket).then((_) => true, onError: (Object _) => false),
+      ]);
+
+      test('cannot push out a phone setting up', () async {
+        final listener = await listen(maxPending: 2);
+        // The real phone takes its time over the key agreement…
+        final sender = connectFrom(
+          listener.code,
+          keyDelay: const Duration(milliseconds: 300),
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        // …while a flood takes the other place, and then is refused.
+        await rawSocket(listener.code.port, source: '127.0.0.9');
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        final sockets = await flood(listener.code.port, 12);
+        expect(await closedSoon(sockets), everyElement(isTrue));
+        final channel = await sender;
+        channels.add(await listener.connection);
+        expect(channel.sas, hasLength(6));
+      });
+
+      test('holds the phone back only while it lasts', () async {
+        var time = DateTime(2026);
+        final listener = await listen(now: () => time);
+        // Every place is taken by connections that stall…
+        final stalled = await flood(listener.code.port, 4);
+        final refused = await flood(listener.code.port, 8, first: 20);
+        expect(await closedSoon(refused), everyElement(isTrue));
+        // …and young ones are not pushed out, not even for the real phone.
+        await expectLater(
+          connectPairing(
+            listener.code,
+            policy: loopbackPolicy,
+            retryDelays: const [],
+          ),
+          throwsA(isA<PairingClosedException>()),
+        );
+        // Once they had their time, the real phone gets through.
+        time = time.add(const Duration(seconds: 3));
+        final sender = await connect(listener.code);
+        channels.add(await listener.connection);
+        expect(sender.sas, hasLength(6));
+        expect(await closedSoon(stalled), everyElement(isTrue));
+      });
+
+      test('starts a limited number of handshakes a minute', () async {
+        var time = DateTime(2026);
+        final listener = await listen(
+          maxHandshakesPerMinute: 6,
+          maxPending: 8,
+          now: () => time,
+        );
+        final taken = await flood(listener.code.port, 6);
+        // Places are free, but the minute's handshakes are used up.
+        final refused = await flood(listener.code.port, 10, first: 30);
+        expect(await closedSoon(refused), everyElement(isTrue));
+        await expectLater(
+          connectPairing(
+            listener.code,
+            policy: loopbackPolicy,
+            retryDelays: const [],
+          ),
+          throwsA(isA<PairingClosedException>()),
+        );
+        for (final socket in taken) {
+          socket.destroy();
+        }
+        // A minute after the flood, the real phone gets through.
+        time = time.add(const Duration(seconds: 61));
+        final sender = await connect(listener.code);
+        channels.add(await listener.connection);
+        expect(sender.sas, hasLength(6));
+      });
+
+      test('and from one address count per address too', () async {
+        final listener = await listen(maxAddressHandshakesPerMinute: 2);
+        final first = await rawSocket(listener.code.port, source: '127.0.0.2');
+        final second = await rawSocket(listener.code.port, source: '127.0.0.2');
+        final third = await rawSocket(listener.code.port, source: '127.0.0.2');
+        await closedByPeer(third);
+        final sender = await connect(listener.code);
+        channels.add(await listener.connection);
+        expect(sender.sas, hasLength(6));
+        await closedByPeer(first);
+        await closedByPeer(second);
+      });
+    });
+
+    test('the sender tries again when it was turned away', () async {
+      var calls = 0;
+      final start = DateTime(2026);
+      // Bind, the stalling connection and the first try see the same
+      // minute; the second try a later one.
+      final listener = await listen(
+        maxHandshakesPerMinute: 1,
+        now: () => calls++ < 3 ? start : start.add(const Duration(minutes: 2)),
+      );
+      await rawSocket(listener.code.port, source: '127.0.0.2');
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      final sender = await connectPairing(
+        listener.code,
+        policy: loopbackPolicy,
+        retryDelays: const [Duration(milliseconds: 100)],
+      );
+      channels
+        ..add(sender)
+        ..add(await listener.connection);
+      expect(calls, 4);
+    });
+
+    test('the sender does not try a wrong code again', () async {
+      final listener = await listen(maxAttempts: 2);
+      await expectLater(
+        connectPairing(
+          wrongSecret(listener.code),
+          policy: loopbackPolicy,
+          retryDelays: const [Duration.zero, Duration.zero],
+        ),
+        throwsA(isA<PairingClosedException>()),
+      );
+      // One wrong code counted, so the address may still connect.
+      final sender = await connect(listener.code);
+      channels.add(await listener.connection);
+      expect(sender.sas, hasLength(6));
     });
 
     test('refuses phones outside the private network', () async {

@@ -46,3 +46,26 @@ abstract interface class BackupItemCounter {
   /// How many items this device holds now.
   Future<int> countLocalItems();
 }
+
+/// Optional for a [BackupSection] that sync carries: what the sync file
+/// keeps of its own copy besides this device's data. Sync writes
+/// [syncData] to the file instead of the section's export.
+///
+/// The history uses it so that devices with different "Delete history
+/// automatically" settings agree on one file: the device that keeps
+/// entries for less time leaves in the file what the others still keep
+/// (`HistoryBackupSection`).
+abstract interface class BackupSyncSection {
+  /// The section's data for the sync file: [local] (what
+  /// [BackupSection.export] wrote after the file was merged in) with what
+  /// the file's copy, [remote] (written at [remoteVersion]; both null when
+  /// the file has none), keeps for other devices.
+  ///
+  /// Must be deterministic (the same arguments give the same data), so
+  /// that devices that agree write the same file and stop writing it.
+  Future<Object?> syncData(
+    Object? local, {
+    required Object? remote,
+    required int? remoteVersion,
+  });
+}

@@ -5,6 +5,7 @@ import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/presets/data/glossary_table.dart';
 import 'package:mozhi/presets/data/id_generator.dart';
 import 'package:mozhi/presets/data/merge_copies.dart';
+import 'package:mozhi/presets/data/store_lock.dart';
 import 'package:mozhi/presets/data/tombstone_store.dart';
 import 'package:mozhi/presets/models/glossary.dart';
 import 'package:mozhi/presets/models/tombstone.dart';
@@ -28,6 +29,13 @@ export '../models/tombstone.dart';
 /// kept for [tombstoneMaxAge] and at most [maxTombstones] of them; a
 /// glossary that is saved again drops its tombstone. They are best effort:
 /// when they can't be read or written, the glossaries still are.
+///
+/// Every repository over the same [store] reads and writes one at a time
+/// ([StoreLock]): the app's and the backup section's (sync merges through
+/// the latter). When the stored glossaries changed since this
+/// repository's caller last read or saved them (a sync merged in
+/// between), [save] applies the caller's change to the stored glossaries
+/// instead of writing over them (see there).
 class GlossaryRepository {
   new({
     KeyValueStore? store,
@@ -65,8 +73,27 @@ class GlossaryRepository {
     maxAge: tombstoneMaxAge,
     clock: _clock,
   );
-  Future<void> _lock = Future.value();
   List<Glossary> _cache = const [];
+
+  /// The glossaries this repository's caller holds: what it last loaded or
+  /// saved (null before either).
+  List<Glossary>? _view;
+
+  /// What [store] held when this repository last read or wrote it (before
+  /// a write that failed): another repository wrote since when it holds
+  /// something else. Only used in [_synchronized] actions, which run in
+  /// the order they were started.
+  String? _knownRaw;
+
+  /// Whether the stored glossaries are the caller's (those it last loaded
+  /// or saved, as far as this repository wrote them); not after a save
+  /// that had to apply the caller's change to glossaries merged in
+  /// meanwhile.
+  bool _viewMatches = false;
+
+  /// How many saves were started (a load that a save overtook leaves the
+  /// caller's glossaries to the save).
+  int _saves = 0;
 
   /// A new unique glossary id.
   String newId() => _generateId();
@@ -74,8 +101,21 @@ class GlossaryRepository {
   /// The last loaded or saved glossaries.
   List<Glossary> get glossaries => _cache;
 
-  Future<List<Glossary>> load() async =>
-      _cache = (await _readDocument()).glossaries;
+  /// The stored glossaries (after the changes started before this call).
+  Future<List<Glossary>> load() {
+    final saves = _saves;
+    return _synchronized(() async {
+      final raw = await store.read(storageKey);
+      final glossaries = _decode(raw).glossaries;
+      if (_saves == saves) {
+        _cache = glossaries;
+        _view = glossaries;
+        _knownRaw = raw;
+        _viewMatches = true;
+      }
+      return glossaries;
+    });
+  }
 
   /// Writes [glossaries]: the glossaries after a change in the app.
   ///
@@ -85,31 +125,92 @@ class GlossaryRepository {
   /// now (the document's `orderUpdatedAt`). Storage errors of the
   /// glossaries are thrown, those of the tombstones and the order's change
   /// time ignored.
+  ///
+  /// When the stored glossaries are no longer the ones [glossaries] were
+  /// made from (what this repository last loaded or saved: a sync merged
+  /// in between), the change is applied to the stored glossaries: per
+  /// glossary the newer copy wins (the change's are stamped now by the
+  /// cubit), [deleted] ones are deleted, glossaries only stored are kept,
+  /// and the order is [glossaries]' only when the change reordered them.
   Future<void> save(
     List<Glossary> glossaries, {
     Iterable<String> deleted = const [],
   }) {
     final next = _cache = List.unmodifiable(glossaries);
+    final base = _view;
+    _saves++;
+    _view = next;
     return _synchronized(() async {
-      DateTime? orderUpdatedAt;
+      String? raw;
+      ({List<Glossary> glossaries, DateTime? orderUpdatedAt})? previous;
       try {
-        final previous = await _readDocument();
-        orderUpdatedAt =
-            sameRelativeOrder(
+        raw = await store.read(storageKey);
+        previous = _decode(raw);
+      } on Object {
+        previous = null;
+      }
+      if (base != null &&
+          previous != null &&
+          (raw != _knownRaw || !_viewMatches)) {
+        _knownRaw = raw;
+        _viewMatches = false;
+        await _rebase(base, next, previous, deleted: deleted);
+        return;
+      }
+      final orderUpdatedAt = previous == null
+          ? null
+          : sameRelativeOrder(
               [for (final glossary in previous.glossaries) glossary.id],
               [for (final glossary in next) glossary.id],
             )
-            ? previous.orderUpdatedAt
-            : _clock();
-      } on Object {
-        orderUpdatedAt = null;
-      }
-      await _write(next, orderUpdatedAt: orderUpdatedAt);
+          ? previous.orderUpdatedAt
+          : _clock();
+      _knownRaw = raw;
+      _viewMatches = true;
+      _knownRaw = await _write(next, orderUpdatedAt: orderUpdatedAt);
       await _tombstones.update(
         deleted: deleted,
         present: [for (final glossary in next) glossary.id],
       );
     });
+  }
+
+  /// Writes the change from [base] to [mine] applied to the stored
+  /// [theirs] (see [save]).
+  Future<void> _rebase(
+    List<Glossary> base,
+    List<Glossary> mine,
+    ({List<Glossary> glossaries, DateTime? orderUpdatedAt}) theirs, {
+    required Iterable<String> deleted,
+  }) async {
+    final now = _clock().toUtc();
+    final reordered = !sameRelativeOrder(
+      [for (final glossary in base) glossary.id],
+      [for (final glossary in mine) glossary.id],
+    );
+    Map<String, DateTime> stored;
+    try {
+      stored = await _tombstones.read();
+    } on Object {
+      stored = {};
+    }
+    final merged = mergeCopies(
+      local: mine,
+      other: theirs.glossaries,
+      idOf: (glossary) => glossary.id,
+      modifiedAt: (glossary) => glossary.modifiedAt,
+      localTombstones: {for (final id in deleted) id: now},
+      otherTombstones: stored,
+      otherOrder: !reordered,
+      contentOf: _contentOf,
+      resolved: _resolved,
+    );
+    if (identical(_view, mine)) _cache = merged.items;
+    _knownRaw = await _write(
+      merged.items,
+      orderUpdatedAt: reordered ? now : theirs.orderUpdatedAt,
+    );
+    await _tombstones.replace(merged.tombstones);
   }
 
   /// The glossaries, when they were last reordered and their tombstones,
@@ -151,14 +252,20 @@ class GlossaryRepository {
 
   /// Merges a backup's [glossaries] (last reordered at [orderUpdatedAt])
   /// and [tombstones] into the stored ones (a backup restored with "Merge
-  /// with my data", and sync), and returns the result.
+  /// with my data", and sync), and returns the result. It reads the stored
+  /// glossaries after every change started before it, also by other
+  /// repositories over the same store.
   ///
-  /// Per id the newer copy wins ([Glossary.modifiedAt]; this device's on a
-  /// tie). A tombstone in either copy at least as new as a glossary deletes
-  /// it; a glossary changed after its tombstone stays. Glossaries only in
-  /// one copy are kept otherwise. The order is that of the copy reordered
-  /// last (this device's on a tie), with the other copy's glossaries after
-  /// the glossary before them there. Both copies' tombstones are kept
+  /// Per id the newer copy wins ([Glossary.modifiedAt]). Two different
+  /// copies changed at the same time (or both without a change time) are
+  /// decided by the SHA-256 of their content, the same on every device,
+  /// and the winner without a change time gets [resolvedChangeTime]. A
+  /// tombstone in either copy at least as new as a glossary deletes it; a
+  /// glossary changed after its tombstone stays. Glossaries only in one
+  /// copy are kept otherwise. The order is that of the copy reordered
+  /// last, with the other copy's glossaries after the glossary before them
+  /// there; two different orders changed at the same time are decided
+  /// like glossaries ([pickChange]). Both copies' tombstones are kept
   /// (bounded).
   Future<List<Glossary>> mergeBackup(
     List<Glossary> glossaries, {
@@ -166,6 +273,12 @@ class GlossaryRepository {
     List<Tombstone> tombstones = const [],
   }) => _synchronized(() async {
     final local = await _readDocument();
+    final order = pickChange(
+      localAt: local.orderUpdatedAt,
+      otherAt: orderUpdatedAt,
+      localKey: _orderKey(local.glossaries, glossaries),
+      otherKey: _orderKey(glossaries, local.glossaries),
+    );
     final merged = mergeCopies(
       local: local.glossaries,
       other: glossaries,
@@ -173,24 +286,48 @@ class GlossaryRepository {
       modifiedAt: (glossary) => glossary.modifiedAt,
       localTombstones: await _tombstones.read(),
       otherTombstones: TombstoneStore.toMap(tombstones),
-      otherOrder: isLaterChange(orderUpdatedAt, local.orderUpdatedAt),
+      otherOrder: order.otherWins,
+      contentOf: _contentOf,
+      resolved: _resolved,
     );
     final next = _cache = merged.items;
-    await _write(
-      next,
-      orderUpdatedAt: laterOf(local.orderUpdatedAt, orderUpdatedAt),
-    );
+    await _write(next, orderUpdatedAt: order.changedAt);
     await _tombstones.replace(merged.tombstones);
     return next;
   });
+
+  /// The ids of [glossaries] that [other] has too, in [glossaries]' order:
+  /// two orders conflict when these differ.
+  static String _orderKey(List<Glossary> glossaries, List<Glossary> other) {
+    final ids = {for (final glossary in other) glossary.id};
+    return [
+      for (final glossary in glossaries)
+        if (ids.contains(glossary.id)) glossary.id,
+    ].join('\n');
+  }
+
+  /// What two copies of a glossary are compared by when their change
+  /// times tie.
+  static String _contentOf(Glossary glossary) =>
+      canonicalJson(glossary.withoutChangeTime().toJson());
+
+  /// The winner of a tie, with [resolvedChangeTime] when it has no change
+  /// time.
+  static Glossary _resolved(Glossary glossary) => glossary.updatedAt == null
+      ? glossary.copyWith(updatedAt: resolvedChangeTime)
+      : glossary;
 
   /// The stored glossaries and when they were last reordered (none when
   /// nothing or something unreadable is stored). Throws when the store
   /// fails.
   Future<({List<Glossary> glossaries, DateTime? orderUpdatedAt})>
-  _readDocument() async {
+  _readDocument() async => _decode(await store.read(storageKey));
+
+  /// The glossaries stored as [raw] and when they were last reordered.
+  static ({List<Glossary> glossaries, DateTime? orderUpdatedAt}) _decode(
+    String? raw,
+  ) {
     const none = (glossaries: <Glossary>[], orderUpdatedAt: null);
-    final raw = await store.read(storageKey);
     if (raw == null) return none;
     try {
       final json = jsonDecode(raw);
@@ -203,19 +340,18 @@ class GlossaryRepository {
     }
   }
 
-  Future<void> _write(
+  /// Writes [glossaries] and returns what was written.
+  Future<String> _write(
     List<Glossary> glossaries, {
     required DateTime? orderUpdatedAt,
-  }) => store.write(
-    storageKey,
-    jsonEncode(encode(glossaries, orderUpdatedAt: orderUpdatedAt)),
-  );
-
-  Future<T> _synchronized<T>(Future<T> Function() action) {
-    final result = _lock.then((_) => action());
-    _lock = result.then<void>((_) {}, onError: (Object _) {});
-    return result;
+  }) async {
+    final raw = jsonEncode(encode(glossaries, orderUpdatedAt: orderUpdatedAt));
+    await store.write(storageKey, raw);
+    return raw;
   }
+
+  Future<T> _synchronized<T>(Future<T> Function() action) =>
+      StoreLock.run(store, storageKey, action);
 
   /// Terms of the cached enabled glossaries for the pair; see
   /// [mergeActiveGlossaries].

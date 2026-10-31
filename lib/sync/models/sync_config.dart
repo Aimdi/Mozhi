@@ -130,8 +130,14 @@ class SyncConfig extends Equatable {
 /// device's synced data afterwards. With both unchanged, a sync costs one
 /// `GET` answered `304 Not Modified`, and a change elsewhere in the app
 /// that didn't touch synced data costs no request at all.
+///
+/// [remoteFingerprint] is the fingerprint of the synced parts of the file
+/// as it was left, when that differs from this device's data (the file
+/// keeps history this device's "Delete history automatically" dropped,
+/// see `BackupSyncSection`); null when they are the same, and in cursors
+/// stored by earlier versions.
 class SyncCursor extends Equatable {
-  const new({required this.fingerprint, this.etag});
+  const new({required this.fingerprint, this.etag, this.remoteFingerprint});
 
   static SyncCursor? tryParse(Object? json) {
     if (json case {'fingerprint': final String fingerprint}) {
@@ -141,6 +147,10 @@ class SyncCursor extends Equatable {
           final String etag => etag,
           _ => null,
         },
+        remoteFingerprint: switch (json['remote']) {
+          final String remote => remote,
+          _ => null,
+        },
       );
     }
     return null;
@@ -148,9 +158,17 @@ class SyncCursor extends Equatable {
 
   final String fingerprint;
   final String? etag;
+  final String? remoteFingerprint;
 
-  Map<String, Object?> toJson() => {'fingerprint': fingerprint, 'etag': etag};
+  /// The fingerprint of the file's synced parts as this sync left them.
+  String get fileFingerprint => remoteFingerprint ?? fingerprint;
+
+  Map<String, Object?> toJson() => {
+    'fingerprint': fingerprint,
+    'etag': etag,
+    if (remoteFingerprint != null) 'remote': remoteFingerprint,
+  };
 
   @override
-  List<Object?> get props => [fingerprint, etag];
+  List<Object?> get props => [fingerprint, etag, remoteFingerprint];
 }

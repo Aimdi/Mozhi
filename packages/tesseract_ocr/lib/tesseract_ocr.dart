@@ -7,6 +7,7 @@ library;
 
 export 'src/catalog.dart';
 export 'src/catalog_asset.dart';
+export 'src/download_cancel.dart' show TessdataDownloadCancelledException;
 export 'src/engine/engine_factory.dart';
 export 'src/engine/ocr_engine.dart';
 export 'src/engine/ocr_layout.dart';

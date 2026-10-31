@@ -169,46 +169,39 @@ Carried over to later waves:
   resuming interrupted downloads; the first pack release (the workflow is
   ready: its sizes and the kaikki.org URL pattern are checked on the first
   run); glosses in the pack's own language for non-English packs.
-- **Mirrors:** the manual download lists still show the publishers' links;
-  `tool/check_model_downloads.py --mirror`; the nginx example in the docs is
-  untested.
+- **Mirrors:** `tool/check_model_downloads.py --mirror`; the nginx example
+  in the docs is untested.
 - **Privacy follow-ups:** the personal data shield can't apply to speech
-  (documented); Tailscale `.ts.net` names count as private (no proxy),
-  which also covers public Funnel addresses.
-- **Engineering:** report the dart2js miscompile found in wave 3 (a
-  nullable local assigned in `catch`, captured by a closure, read stale on
-  the success path) to the Dart SDK; a connection given up during the TLS
-  handshake through the proxy stays open until the server closes it;
-  Documents' own placeholder tokens stop at six digits per paragraph;
-  the JSON search in AI replies gives up (instead of slowing down) on
-  replies that are mostly brackets; `DownloadOnlyModelDetails` is unused
-  since the web imports.
+  (documented); the web app can't look Tailscale names up, so a `.ts.net`
+  server on your tailnet counts as public there.
+- **Engineering:** file the dart2js miscompile found in wave 3 (a
+  nullable local assigned in `catch`, captured by a closure, read from a
+  stale temporary after the `try`) with the Dart SDK: the reproduction is
+  in `tool/repro/dart2js_catch_closure/`; the JSON search in AI replies
+  still stops looking into brackets that don't decode after a few dozen
+  nested levels (valid JSON inside more of them is missed).
 - **Backup and sync:** the
   web app's Argon2id uses lighter settings (19 MiB, 2 passes) than
-  Android's (64 MiB, 3); sync not yet tried against real Nextcloud,
-  ownCloud, Synology and rclone servers; presets and glossaries saved
-  before wave 4 have no change time, so two devices that already differ
-  keep their own copy until one is edited; devices with different
-  **Delete history automatically** settings keep re-uploading what the
-  other drops; a sync merge racing a local edit is undone locally until
-  the next sync.
+  Android's (64 MiB, 3): the web build has no worker to run it in, and in
+  the page 64 MiB takes well over ten seconds on a phone (docs/backup.md);
+  sync not yet tried against real Nextcloud, ownCloud, Synology and
+  rclone servers; with the settings synced, devices whose own settings
+  differ write the file at every sync (settings have no change times).
 - **Phone to phone:** check the LAN address choice on real Android 11+
   phones and hotspots, and the local-network permission of newer Android
-  versions; an in-app QR scanner (the camera app opens the link today);
-  encryption off the UI isolate; offline language packs are sent
-  decompressed; a device flooding connections from many addresses can
-  still delay pairing.
+  versions; an in-app QR scanner (the camera app opens the link today; it
+  needs a QR decoder without Google code, a new dependency for the owner
+  to choose); a flood of connections from many addresses still holds
+  pairing back while it uses up the minute's budget (a phone retries).
 - **Phrasebook and practice:** the Wikivoyage parser was built on
   fixtures (check the first release run); **Add to phrasebook** for
   Transcribe segments; number words of more than one word ("twenty one")
   in speaking practice; FSRS weights fitted to the user's own reviews.
-- **Settings merge:** a preset that names a deleted AI provider could pick
-  up a merged provider with the same id.
 - **Shared conversation:** the page is plain `http` (a phone has no
   certificate browsers trust), so others on the same Wi-Fi can read
-  along; guests' devices are told apart by IP address, so someone who
-  keeps changing addresses is held back only by the room-wide limits;
-  a guest microphone needs a recogniser that doesn't send speech to the
+  along; each guest browser has its own cookie, so someone who drops it
+  and keeps changing addresses is held back by the per-address and
+  room-wide limits; a guest microphone needs a recogniser that doesn't send speech to the
   browser's maker.
 - **On-device AI:** speed and memory measured on real phones (the speed
   table in docs/on-device-ai.md is from published figures); the 2-bit and
@@ -266,12 +259,9 @@ Carried over to later waves:
   has the focus (no browser spelling suggestions there); the highlight
   while Listen plays depends on the voice reporting its progress
   (browsers' word boundaries for Chinese, Japanese and Thai are rough).
-- **First run and servers:** text recognition and dictionary pack
-  downloads can't be cancelled yet (language downloads can), and the
-  language picker's download has no Cancel; a retry in Conversation asks
-  again for a one-time approval; quick translate and the voice preview
-  have no Retry; the first-run language suggestion needs a phone
-  language other than the target.
+- **First run and servers:** the image screen's own offer to download a
+  text recognition language has no Cancel yet (the Text recognition page
+  has one).
 - **Not done on purpose:** measuring instance speed automatically during
   setup (it contacts every listed volunteer server, so it stays a button:
   "Find the fastest server"); on-device AI as an automatic fallback (it

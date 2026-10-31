@@ -81,8 +81,10 @@ class BackupKdf extends Equatable {
 
   /// What new backups use in the web app: 19 MiB, 2 passes, one lane
   /// (OWASP's minimum for Argon2id). Argon2id runs as JavaScript there,
-  /// about five times slower than on Android: [standard] would take over
-  /// ten seconds on a mid-range phone's browser, this about two.
+  /// in the page (the web build has no worker for it), about five times
+  /// slower than on Android: [standard] would take over ten seconds on a
+  /// mid-range phone's browser, this about two (docs/backup.md). Every
+  /// file records its parameters, so files of either open everywhere.
   static const browser = BackupKdf(
     memory: 19456,
     iterations: 2,

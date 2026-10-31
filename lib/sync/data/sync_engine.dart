@@ -49,7 +49,9 @@ class SyncRun {
 ///    (`BackupRegistry.restore(mode: merge)`: the newer copy of each entry
 ///    wins, deletions recorded as tombstones win over older entries);
 /// 5. writes the merged data back, encrypted, unless the file holds it
-///    already: `PUT` with `If-Match` (the ETag it read), or
+///    already; a [BackupSyncSection] adds what the file's copy keeps for
+///    other devices (the history older than this device keeps it, see
+///    `HistoryBackupSection`). `PUT` with `If-Match` (the ETag it read), or
 ///    `If-None-Match: *` when there was no file. When another device
 ///    wrote in between (`412`), it starts over, at most [maxAttempts]
 ///    times.
@@ -132,7 +134,7 @@ class SyncEngine {
       BackupRestoreReport? report;
       // Nothing new from the server when the file holds what this device
       // last synced (its own write, or what it merged then).
-      final newThere = remotePrint != last?.fingerprint;
+      final newThere = remotePrint != last?.fileFingerprint;
       if (remote != null && remotePrint != localPrint && newThere) {
         if (stop()) return SyncRun.skipped(cursor);
         try {
@@ -152,14 +154,6 @@ class SyncEngine {
       }
       final received = mergedPrint != localPrint;
 
-      if (newKey == null && remotePrint == mergedPrint) {
-        return SyncRun(
-          result: received ? SyncResult.received : SyncResult.unchanged,
-          cursor: SyncCursor(fingerprint: mergedPrint, etag: etag),
-          report: report,
-        );
-      }
-
       final upload = BackupSnapshot(
         createdAt: merged.createdAt,
         appVersion: merged.appVersion,
@@ -167,9 +161,24 @@ class SyncEngine {
           if (remote != null)
             for (final MapEntry(:key, :value) in remote.sections.entries)
               if (!ids.contains(key)) key: value,
-          ...merged.sections,
+          ...await _forFile(merged.sections, remote?.sections),
         },
       );
+      final uploadPrint = fingerprint(_only(upload.sections, ids));
+      SyncCursor cursorFor(String filePrint, String? fileEtag) => SyncCursor(
+        fingerprint: mergedPrint,
+        etag: fileEtag,
+        remoteFingerprint: filePrint == mergedPrint ? null : filePrint,
+      );
+
+      if (newKey == null && remotePrint == uploadPrint) {
+        return SyncRun(
+          result: received ? SyncResult.received : SyncResult.unchanged,
+          cursor: cursorFor(uploadPrint, etag),
+          report: report,
+        );
+      }
+
       if (stop()) return SyncRun.skipped(cursor);
       final bytes = await codec.encryptWithKey(upload, newKey ?? key);
       try {
@@ -183,7 +192,7 @@ class SyncEngine {
         );
         return SyncRun(
           result: received ? SyncResult.exchanged : SyncResult.sent,
-          cursor: SyncCursor(fingerprint: mergedPrint, etag: written),
+          cursor: cursorFor(uploadPrint, written),
           report: report,
         );
       } on WebDavException catch (error, stackTrace) {
@@ -227,6 +236,39 @@ class SyncEngine {
         throw const SyncException(SyncFailure.newerVersion);
       }
     }
+  }
+
+  /// This device's [sections] as the file keeps them: what a
+  /// [BackupSyncSection] adds of the file's copy ([remote]) for other
+  /// devices, the others as they are.
+  Future<Map<String, BackupSectionData>> _forFile(
+    Map<String, BackupSectionData> sections,
+    Map<String, BackupSectionData>? remote,
+  ) async {
+    final result = <String, BackupSectionData>{};
+    for (final MapEntry(:key, :value) in sections.entries) {
+      if (registry.section(key) case final BackupSyncSection section) {
+        final theirs = remote?[key];
+        try {
+          result[key] = BackupSectionData(
+            version: value.version,
+            data: await section.syncData(
+              value.data,
+              remote: theirs?.data,
+              remoteVersion: theirs?.version,
+            ),
+          );
+        } on Object catch (error, stackTrace) {
+          Error.throwWithStackTrace(
+            SyncException(SyncFailure.localData, cause: error),
+            stackTrace,
+          );
+        }
+      } else {
+        result[key] = value;
+      }
+    }
+    return result;
   }
 
   Future<BackupSnapshot> _export(

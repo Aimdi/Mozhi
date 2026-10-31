@@ -17,7 +17,9 @@ import 'package:mozhi/presets/models/preset.dart';
 /// lets tombstones delete older copies, and takes the order and the
 /// default from the copy where they changed last; presets without change
 /// times (version 1, or not changed since) lose to every change and
-/// deletion, and on a tie this device's copy stays.
+/// deletion, and a tie between two different copies is decided the same
+/// way on every device (by a hash of their contents, see
+/// [PresetsRepository.mergeBackup]).
 class PresetsBackupSection implements BackupSection, BackupItemCounter {
   const new(this._repository);
 

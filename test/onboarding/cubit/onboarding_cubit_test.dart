@@ -675,6 +675,22 @@ void main() {
       expect(settings.state.target.code, 'en');
     });
 
+    test('remembers the last source picked, not Detect language', () {
+      const german = Language(code: 'de', name: 'German');
+      final cubit = build();
+      expect(cubit.state.pickedSource, isNull);
+      cubit.setSourceLanguage(french);
+      expect(cubit.state.pickedSource, french);
+      cubit.setSourceLanguage(Language.auto);
+      expect(cubit.state.pickedSource, french);
+      cubit.setSourceLanguage(german);
+      expect(cubit.state.pickedSource, german);
+      expect(
+        cubit.state.copyWith(step: OnboardingStep.service).pickedSource,
+        german,
+      );
+    });
+
     test('ignores custom and unchanged languages', () {
       final calls = <(Language?, Language?)>[];
       final cubit = OnboardingCubit(

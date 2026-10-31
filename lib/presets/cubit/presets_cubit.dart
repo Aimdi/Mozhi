@@ -29,12 +29,20 @@ class PresetsCubit extends Cubit<PresetsState> {
   final PresetsRepository _repository;
   final DateTime Function() _clock;
 
+  /// How many changes were committed (a load that a change overtook reads
+  /// again, so the change is shown).
+  int _commits = 0;
+
+  /// Reads the presets (again when a change was made while reading: the
+  /// presets read may not hold it yet).
   Future<void> load() async {
     if (isClosed) return;
     emit(state.copyWith(status: PresetsStatus.loading));
     try {
+      final commits = _commits;
       final collection = await _repository.load();
       if (isClosed) return;
+      if (_commits != commits) return await load();
       emit(
         PresetsState(
           status: PresetsStatus.ready,
@@ -222,6 +230,7 @@ class PresetsCubit extends Cubit<PresetsState> {
       for (final preset in state.presets)
         if (!kept.contains(preset.id)) preset.id,
     ];
+    _commits++;
     emit(next);
     try {
       await _repository.save(next.collection, deleted: deleted);

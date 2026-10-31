@@ -4,9 +4,14 @@ import 'package:translation_repository/translation_repository.dart';
 
 /// Whether [uri] is plain `http://` to a host outside this device and the
 /// local network ([AiProviderConfig.isLocalHost]): text sent there travels
-/// unencrypted over the internet (security N5).
+/// unencrypted over the internet (security N5). A Tailscale `.ts.net` name
+/// not looked up yet ([TailnetHosts.isKnown]) may be on the tailnet: no
+/// warning (requests to it are refused if it turns out public).
 bool isInsecureHttp(Uri? uri) {
   if (uri == null || uri.scheme.toLowerCase() != 'http' || uri.host.isEmpty) {
+    return false;
+  }
+  if (TailnetHosts.isTailnetName(uri.host) && !TailnetHosts.isKnown(uri.host)) {
     return false;
   }
   return !AiProviderConfig.isLocalHost(uri.host);

@@ -2763,5 +2763,9 @@
   "liveCaptionsBarLocked": "Mozhi はロックされています",
   "offlineCancelDownloadTooltip": "{language} のダウンロードをキャンセル",
   "offlineCancelling": "停止しています…",
-  "documentsPdfProgressCooling": "{page}/{total} ページ: 端末が高温のため、冷えるのを待っています…"
+  "documentsPdfProgressCooling": "{page}/{total} ページ: 端末が高温のため、冷えるのを待っています…",
+  "onboardingLanguagesSuggestionPicked": "先ほど{language}を選択しました。",
+  "offlineManualMirrorNote": "リンク先は Mozhi のダウンロード元であるモデルのダウンロード元 {host} です。ファイルがない場合は、公開元のリンクを使ってください。",
+  "offlineManualPublisherLink": "公開元のリンク（ミラーにファイルがない場合）",
+  "offlineManualCopyPublisherLink": "{file} の公開元のリンクをコピー"
 }

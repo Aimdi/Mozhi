@@ -96,8 +96,9 @@ otherwise you pick one.
 The **destination chip** under a translation names who received the text:
 
 - **On device**: translated on this phone. Your text isn't sent anywhere.
-- **Your server** (this device, your local network, a Tor `.onion` or I2P
-  `.i2p` address): only whoever runs that server can read it. A Mozhi
+- **Your server** (this device, your local network, a device on your
+  Tailscale network, a Tor `.onion` or I2P `.i2p` address): only whoever
+  runs that server can read it. A Mozhi
   instance passes the text on to its engine (for example Google), which can
   read it too.
 - **A public server** ("Google via mozhi.example.org"): a public Mozhi or
@@ -641,6 +642,23 @@ In the web app, clearing the site's data does the same.
   to the slow server. Without a proxy, `.onion` and `.i2p` addresses are
   refused before they are looked up, so their names don't leak to your DNS
   resolver. SOCKS isn't supported. The web app uses the browser's proxy.
+  When a connection through the proxy is given up (after those 20 seconds,
+  or because the request was cancelled), also in the middle of the
+  encrypted handshake, it's closed at once rather than left open until the
+  server hangs up.
+- **Tailscale names** (`*.ts.net`): a name counts as your own network only
+  when it leads to a device on your tailnet (an address in
+  `100.64.0.0/10` or `fd7a:115c:a1e0::/48`). The Android app looks the name
+  up with the phone's resolver (Tailscale's MagicDNS when Tailscale is on)
+  before the first request to it, never through the proxy, so that resolver
+  learns the name. A Tailscale **Funnel** name leads to Tailscale's public
+  relays, which anyone on the internet reaches: it's treated as a public
+  server, so it goes through your proxy, needs `https`, is asked about like
+  any public server and is shown as one. So is a name that can't be looked
+  up (no network, or the lookup takes more than 5 seconds; it's looked up
+  again next time) and every `.ts.net` name in the web app, which can't
+  look names up. A public server can never redirect a download to a
+  `.ts.net` name.
 - **Little to identify the app.** Requests send `User-Agent: Mozhi`
   (no version, no device details), no cookies (there is no cookie jar) and
   no `Referer`. The web page translator sends a desktop browser
@@ -657,9 +675,11 @@ into a small web server on your local network for as long as you share
 - **What guests get:** the messages said after you started sharing, the
   original and its translation into their language, and nothing else: not
   the earlier conversation, your history, settings or anything about your
-  engines. The page loads nothing from the internet and sets no cookies;
-  the guest's browser keeps only a random guest id and key for that tab
-  (session storage), so a reload doesn't join twice.
+  engines. The page loads nothing from the internet; the guest's browser
+  keeps only a random guest id and key for that tab (session storage), so
+  a reload doesn't join twice, and a cookie with a random device token
+  (for the link only, gone when the browser closes), which tells guests'
+  phones apart for the limits and says nothing about them.
 - **Translations for guests** follow your privacy settings: a guest's
   language is translated by your engine only for a language pair your
   settings already allow without asking. Otherwise the offline engine on

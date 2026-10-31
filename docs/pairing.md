@@ -69,34 +69,53 @@ million).
 bytes of AES-256-GCM ciphertext and tag. The nonce is the frame's number in
 its direction (4 zero bytes and a 64-bit counter), so a frame that is
 changed, replayed, dropped or reordered fails to decrypt and ends the
-connection. The plaintext is a type byte (1: a JSON message, 2: file data)
-and at most 256 KiB; a longer length is refused before it is read. File data
-goes in 64 KiB frames.
+connection. The plaintext is a type byte and at most 256 KiB; a longer
+length is refused before it is read:
+
+| Type | Payload |
+| --- | --- |
+| 1 | a JSON message |
+| 2 | file data, as it is |
+| 3 | file data compressed with raw deflate (each frame on its own), at most 256 KiB once inflated; only sent to a phone whose `hello` lists `deflate` |
+
+File data goes in 64 KiB pieces. The sender compresses a piece when that
+saves at least 64 bytes (else it goes as type 2), and stops trying for the
+rest of a file whose first MiB saved less than 5% (quantized model weights
+barely compress). Sealing, opening, compressing, inflating and hashing run
+on a background isolate (`PairingFrameWorker`, one per connection, started
+with the first large frame); small frames are handled on the UI isolate. In
+a browser, where pairing doesn't run, the same code would run on the UI
+isolate a frame at a time, without compression.
 
 **Messages** (JSON objects with a type `t`):
 
 | Message | From | Content |
 | --- | --- | --- |
-| `hello` | both | protocol version `v: 1`; the sender's is the first encrypted frame and proves it knows the code's secret |
+| `hello` | both | protocol version `v: 1` and `features` (a list; today `["deflate"]`: it takes type 3 frames); the sender's is the first encrypted frame and proves it knows the code's secret |
 | `offer` | sender | the items: kind, key, files (name, size, hashes as hints); the data item lists its sections and whether it holds secrets. A receiver leaves out items of a kind it doesn't know (from a newer Mozhi) and plans the rest |
 | `accept` / `decline` | receiver | the items and files it wants (from its own catalogue) |
-| `file` + data | sender | each wanted file in order: item, name, size, then exactly that many bytes |
+| `file` + data | sender | each wanted file in order: item, name, size, then exactly that many bytes (inflated) |
 | `result` | receiver | per item, after installing it: `installed`, `damaged`, `noSpace`, `incompatible`, `failed` |
 | `done` | both | the end; `cancel` stops at any time |
+
+**Earlier versions.** A phone of an earlier version sends a `hello` without
+`features` and ignores the field in the other phone's, so it neither sends
+nor gets type 3 frames: the files go across as they are, as before. The
+version stays 1; everything else is unchanged.
 
 **Taking files.** The receiver never trusts the sender's descriptions: it
 plans each item from its own bundled catalogue (Bergamot models: name,
 decompressed size and SHA-256; Whisper: size, SHA-1 and SHA-256; Tesseract
 and dictionaries: size and SHA-256), asks only for those files, writes each
 into the app's cache folder (`<cache>/pairing/`) while checking its size and
-hashes, and installs an item only when all of its files match, through each
+hashes (of the inflated data, which is what the catalogue lists), and installs an item only when all of its files match, through each
 manager's own import path (`BergamotModelManager.importFiles`,
 `WhisperSpeech.importFiles`, `importOcrFiles`,
 `DictionaryPacks.installFrom`), which checks them again before the atomic
 install. File names come from the receiver's catalogue, never from the
-sender. The data item is a `BackupSnapshot` as JSON (at most 64 MiB). It
-stays in memory (it is never written to storage), is parsed on a
-background isolate, and is restored with `BackupRegistry.restore` and the
+sender. The data item is a `BackupSnapshot` as JSON (at most 64 MiB),
+encoded and parsed on background isolates. It stays in memory (it is never
+written to storage), and is restored with `BackupRegistry.restore` and the
 chosen mode, limited (`only:`) to the sections the offer listed, which are
 the ones the receiving phone showed. A snapshot that holds any other
 section, or secrets (API keys, headers, passwords) when the offer said it
@@ -107,12 +126,19 @@ asks for.
 **Limits and timeouts.** Only private IPv4 addresses (10/8, 172.16/12,
 192.168/16) on both ends; anything else is closed at once (the sender
 refuses a code for another address before connecting). One connection per
-code: once one has set up, the others are closed. Up to four set up at a
-time, so a connection that stalls can't keep the real phone out; when a
-fifth arrives, the oldest connection of the address with the most of them
-is closed (a device that opens many loses its own first). The key
-agreement and both `hello`s must complete within 10 seconds in all, on
-both phones. Only a first encrypted frame that doesn't decrypt proves a
+code: once one has set up, the others are closed. At most 30 key
+agreements start a minute in all and 6 per address; a connection beyond
+that is closed at once and not counted. Up to eight set up at a time, two
+per address (a third from one address closes its own oldest), so a
+connection that stalls can't keep the real phone out; when a ninth
+arrives, the oldest connection of the address with the most of them is
+closed, but only one that had 2 seconds: otherwise the new one is closed.
+So a flood from many addresses can't push out a phone in the middle of
+its key agreement, and holds pairing back only while it lasts. A sender
+whose connection is closed before the receiver's key arrives (turned away)
+tries again after 1 and 2 seconds; one closed later (a wrong code) doesn't.
+The key agreement and both `hello`s must complete within 10 seconds in
+all, on both phones. Only a first encrypted frame that doesn't decrypt proves a
 wrong code; timeouts and malformed handshakes prove nothing (anybody can
 cause them) and don't count. After three wrong codes from one address,
 that address is refused for as long as the code works; after 30 in all,
@@ -131,10 +157,8 @@ phone gets.
 
 ## Follow-ups
 
-- Resuming an interrupted transfer, and compressing the decompressed
-  translation models on the way (they go across as installed, about 73 MB
-  per language).
-- AES-GCM runs in pure Dart on the UI isolate; a background isolate would
-  keep long transfers smoother.
-- An in-app QR scanner (camera frames and a decoder); today the system
-  camera app opens the link.
+- Resuming an interrupted transfer.
+- An in-app QR scanner: the live camera (`lib/live_camera/`) gives frames,
+  but no dependency decodes QR codes without Google code (ML Kit's barcode
+  scanner is Google's); a pure-Dart decoder (for example a ZXing port)
+  needs an owner decision. Today the system camera app opens the link.

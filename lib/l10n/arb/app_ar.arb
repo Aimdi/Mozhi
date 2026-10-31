@@ -2763,5 +2763,9 @@
   "liveCaptionsBarLocked": "Mozhi مقفل",
   "offlineCancelDownloadTooltip": "إلغاء تنزيل {language}",
   "offlineCancelling": "جارٍ الإيقاف…",
-  "documentsPdfProgressCooling": "الصفحة {page} من {total}: الهاتف ساخن، في انتظار أن يبرد…"
+  "documentsPdfProgressCooling": "الصفحة {page} من {total}: الهاتف ساخن، في انتظار أن يبرد…",
+  "onboardingLanguagesSuggestionPicked": "اخترت {language} من قبل.",
+  "offlineManualMirrorNote": "تؤدي الروابط إلى مصدر النماذج لديك، {host}، الذي يُنزّل منه Mozhi. إذا كان أحد الملفات غير موجود هناك، فاستخدم رابط الناشر.",
+  "offlineManualPublisherLink": "رابط الناشر، إذا لم يكن الملف على المرآة",
+  "offlineManualCopyPublisherLink": "نسخ رابط الناشر إلى {file}"
 }

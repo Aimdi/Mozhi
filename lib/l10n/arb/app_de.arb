@@ -2763,5 +2763,9 @@
   "liveCaptionsBarLocked": "Mozhi ist gesperrt",
   "offlineCancelDownloadTooltip": "Download von {language} abbrechen",
   "offlineCancelling": "Wird angehalten…",
-  "documentsPdfProgressCooling": "Seite {page} von {total}: Das Telefon ist heiß, warte, bis es abkühlt…"
+  "documentsPdfProgressCooling": "Seite {page} von {total}: Das Telefon ist heiß, warte, bis es abkühlt…",
+  "onboardingLanguagesSuggestionPicked": "Du hast vorhin {language} gewählt.",
+  "offlineManualMirrorNote": "Die Links führen zu deiner Modellquelle {host}, von der Mozhi herunterlädt. Fehlt dort eine Datei, nimm den Link des Herausgebers.",
+  "offlineManualPublisherLink": "Link des Herausgebers, falls der Spiegelserver die Datei nicht hat",
+  "offlineManualCopyPublisherLink": "Link des Herausgebers zu {file} kopieren"
 }

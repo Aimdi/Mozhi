@@ -61,6 +61,60 @@ void main() {
       expect(placeholderPattern.hasMatch('⟨1000000⟩'), isFalse);
     });
 
+    test('placeholders stop at six digits, with a clear error', () {
+      expect(maxPlaceholder, 999999);
+      expect('$maxPlaceholder'.length, maxPlaceholderDigits);
+      expect(placeholder(maxPlaceholder), '⟨999999⟩');
+      expect(
+        placeholderPattern.firstMatch(placeholder(maxPlaceholder))?.group(1),
+        '999999',
+      );
+      expect(
+        () => placeholder(maxPlaceholder + 1),
+        throwsA(
+          isA<TooManyPlaceholdersException>()
+              .having((e) => e.message, 'message', contains('999,999'))
+              .having(
+                (e) => '$e',
+                'toString',
+                startsWith('TooManyPlaceholdersException: A paragraph'),
+              ),
+        ),
+      );
+      expect(
+        const TooManyPlaceholdersException(),
+        isA<DocumentParseException>(),
+      );
+    });
+
+    group('a paragraph with', () {
+      List<Piece> pieces(int count) => [
+        for (var i = 1; i <= count; i++) ...[
+          const TextPiece('w '),
+          TokenPiece.text('<$i>'),
+        ],
+      ];
+
+      test('999,999 protected spans keeps every one', () {
+        final builder = DocumentBuilder()..addContent(pieces(maxPlaceholder));
+        final document = builder.build(DocumentFormat.plainText);
+        final text = texts(document).single;
+        expect(text, endsWith('w ⟨999998⟩w ⟨999999⟩'));
+        final output = document.render([text.replaceAll('w ', 'v ')]);
+        expect(output, startsWith('v <1>v <2>'));
+        expect(output, endsWith('v <999998>v <999999>'));
+        expect(output, isNot(contains('⟨')));
+      });
+
+      test('a million protected spans is refused, not corrupted', () {
+        final builder = DocumentBuilder();
+        expect(
+          () => builder.addContent(pieces(maxPlaceholder + 1)),
+          throwsA(isA<TooManyPlaceholdersException>()),
+        );
+      });
+    });
+
     test('accept can reject a segment', () {
       final builder = DocumentBuilder()
         ..addContent([const TextPiece('snake_case')], accept: (_) => false);
