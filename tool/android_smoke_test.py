@@ -1711,6 +1711,23 @@ class TranslateFirstSentenceTest(ClockTestCase):
         self.assertIn(("swipe", True), d.calls)
         self.assertIn("Download French (49.6 MB)", self.taps())
 
+    def test_closes_the_keyboard_before_scrolling(self):
+        d = self.device
+        d.keyboard = True
+        d.screens = {
+            "typed": [smoke.Node(smoke.SENTENCE, "", "android.widget.EditText",
+                                 (0, 0, 9, 9), True, True)],
+            "below": [node("Hello I'm looking for the station")],
+        }
+        d.current = "typed"
+        d.on_swipe = {"typed": "below"}
+        with mock.patch.object(smoke, "enter_sentence", lambda device: "typed"), \
+                mock.patch.object(smoke, "box_text", lambda device: smoke.SENTENCE):
+            smoke.translate(d)
+
+        back = d.calls.index(("shell", "input", "keyevent", "4"))
+        self.assertLess(back, d.calls.index(("swipe", True)))
+
 
 class CancelFlowTest(ClockTestCase):
     def setUp(self) -> None:

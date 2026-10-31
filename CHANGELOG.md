@@ -3,6 +3,16 @@
 All notable changes to Mozhi, by release tag on GitHub (pre-releases end
 in `-rc.N`).
 
+## 0.1.0-rc.12
+
+### Fixed
+
+- **Terminal look on a small phone:** when the translation, or what it
+  asks first ("Download French", "Send it once?"), appears under the
+  tall `stdin` box, the screen scrolls just enough to show its first
+  lines above the keyboard, once, not while the text streams in (at once
+  with reduced motion).
+
 ## 0.1.0-rc.11
 
 ### Changed

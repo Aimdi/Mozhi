@@ -1001,6 +1001,64 @@ class _TranslateBodyState extends State<_TranslateBody> {
   }
 }
 
+/// Scrolls the first lines of [child] into view when it appears ([shown]
+/// turns true): in the terminal look the `stdout` box sits under the tall
+/// `stdin` box, where on a small phone the keyboard hides what the
+/// translation offers or asks ("Download French", "Send it once?"). Only
+/// when it appears, never while a translation streams in, and at once
+/// with reduced motion.
+class _RevealOnArrival extends StatefulWidget {
+  const new({required this.shown, required this.child});
+
+  final bool shown;
+  final Widget child;
+
+  /// How much of the box is brought into view: its label and a line or
+  /// two of what it says.
+  static const double peek = 112;
+
+  @override
+  State<_RevealOnArrival> createState() => _RevealOnArrivalState();
+}
+
+class _RevealOnArrivalState extends State<_RevealOnArrival> {
+  final GlobalKey<State<StatefulWidget>> _peek = GlobalKey(
+    debugLabel: 'translate_terminal_stdout_peek',
+  );
+
+  @override
+  void didUpdateWidget(_RevealOnArrival oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.shown || !widget.shown) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final target = _peek.currentContext;
+      if (!mounted || target == null) return;
+      Scrollable.ensureVisible(
+        target,
+        duration: TranslateLayout.motion(context),
+        curve: Curves.easeOutCubic,
+        alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtEnd,
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => Stack(
+    clipBehavior: Clip.none,
+    children: [
+      widget.child,
+      PositionedDirectional(
+        top: 0,
+        start: 0,
+        end: 0,
+        child: IgnorePointer(
+          child: SizedBox(key: _peek, height: _RevealOnArrival.peek),
+        ),
+      ),
+    ],
+  );
+}
+
 /// [_TranslateBody] in the terminal look ([AppLook.isTerminal]) without a
 /// hinge or fold, one scrolling column from top to bottom: the header
 /// ([TranslateTerminalHeader]: `// <greeting>` and the title), the
@@ -1104,7 +1162,7 @@ class _TerminalLayout extends StatelessWidget {
           input,
           const TranslationMemoryCard(),
           SizedBox(height: outputEmpty ? 0 : boxGap),
-          output,
+          _RevealOnArrival(shown: !outputEmpty, child: output),
           ...empty,
         ],
       );

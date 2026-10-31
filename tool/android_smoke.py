@@ -870,6 +870,9 @@ def translate(device: Device) -> str:
             # the composer, as in the Terminal look: look further down, and
             # back at the top now and then.
             idle += 1
+            if idle % 2 == 0:
+                # A swipe on the keyboard types instead of scrolling.
+                hide_keyboard(device)
             if idle % 6 == 0:
                 device.swipe(up=False)
                 device.swipe(up=False)
