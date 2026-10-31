@@ -34,6 +34,117 @@ abstract final class AppRadius {
   );
 }
 
+/// The font family of the terminal look (JetBrains Mono, bundled under
+/// `assets/fonts/jetbrains_mono`, SIL Open Font License 1.1). Scripts it
+/// lacks (Arabic, Devanagari, CJK, Tamil …) fall back to the system fonts.
+const String kTerminalFontFamily = 'JetBrainsMono';
+
+/// The look of the current theme ([AppSettings.style]), registered on
+/// every theme by [buildAppTheme]: the corner radii, the shape of
+/// controls and whether the screens use the terminal layout. Read it with
+/// [AppLook.of] instead of [AppRadius] where a shape is drawn, so the
+/// terminal look stays square.
+@immutable
+class AppLook extends ThemeExtension<AppLook> {
+  const new({
+    required this.style,
+    required this.badge,
+    required this.menu,
+    required this.field,
+    required this.card,
+    required this.sheet,
+  });
+
+  /// The rounded look ([AppRadius]).
+  static const classic = AppLook(
+    style: AppStyle.classic,
+    badge: AppRadius.badge,
+    menu: AppRadius.menu,
+    field: AppRadius.field,
+    card: AppRadius.card,
+    sheet: AppRadius.sheet,
+  );
+
+  /// The terminal look: square corners everywhere.
+  static const terminal = AppLook(
+    style: AppStyle.terminal,
+    badge: 0,
+    menu: 0,
+    field: 0,
+    card: 0,
+    sheet: 0,
+  );
+
+  /// The look of [style].
+  static AppLook forStyle(AppStyle style) => switch (style) {
+    AppStyle.terminal => terminal,
+    AppStyle.classic => classic,
+  };
+
+  /// The look of [context]'s theme ([classic] when none is registered).
+  static AppLook of(BuildContext context) =>
+      Theme.of(context).extension<AppLook>() ?? classic;
+
+  final AppStyle style;
+
+  /// Corner radii, as [AppRadius] (all 0 in the terminal look).
+  final double badge;
+  final double menu;
+  final double field;
+  final double card;
+  final double sheet;
+
+  /// Whether the screens use the terminal layout and decorations.
+  bool get isTerminal => style == AppStyle.terminal;
+
+  /// The shape of buttons, chips and other controls: a pill
+  /// ([StadiumBorder]), or a square box in the terminal look.
+  OutlinedBorder get control => isTerminal
+      ? const RoundedRectangleBorder()
+      : const StadiumBorder();
+
+  /// [badge] as a [BorderRadius].
+  BorderRadius get badgeRadius => BorderRadius.circular(badge);
+
+  /// [menu] as a [BorderRadius].
+  BorderRadius get menuRadius => BorderRadius.circular(menu);
+
+  /// [field] as a [BorderRadius].
+  BorderRadius get fieldRadius => BorderRadius.circular(field);
+
+  /// [card] as a [BorderRadius].
+  BorderRadius get cardRadius => BorderRadius.circular(card);
+
+  /// [sheet] as a [BorderRadius].
+  BorderRadius get sheetRadius => BorderRadius.circular(sheet);
+
+  /// A radius for a control drawn by hand: [pill] (a pill's half
+  /// height) in the classic look, 0 in the terminal look.
+  double controlRadius(double pill) => isTerminal ? 0 : pill;
+
+  @override
+  AppLook copyWith({
+    AppStyle? style,
+    double? badge,
+    double? menu,
+    double? field,
+    double? card,
+    double? sheet,
+  }) => AppLook(
+    style: style ?? this.style,
+    badge: badge ?? this.badge,
+    menu: menu ?? this.menu,
+    field: field ?? this.field,
+    card: card ?? this.card,
+    sheet: sheet ?? this.sheet,
+  );
+
+  @override
+  AppLook lerp(AppLook? other, double t) => t < 0.5 || other == null
+      ? this
+      : other;
+}
+
 /// Corner radius used by flat cards (a hairline box, no fill).
 const double kCardRadius = AppRadius.card;
 
@@ -333,7 +444,14 @@ AppPalette appPalette(ColorScheme scheme) => _tonesOf(scheme).palette;
 /// [scheme]: flat neutral surfaces, hairlines, pill buttons and bold type.
 ///
 /// Registers [palette] (default: [appPalette] of [scheme]).
-ThemeData buildAppTheme(ColorScheme scheme, {AppPalette? palette}) {
+///
+/// Registers [look] too (default: [AppLook.classic]); the terminal look's
+/// component styling is built from it.
+ThemeData buildAppTheme(
+  ColorScheme scheme, {
+  AppPalette? palette,
+  AppLook look = AppLook.classic,
+}) {
   final pal = palette ?? appPalette(scheme);
   final base = ThemeData(
     useMaterial3: true,
@@ -381,7 +499,7 @@ ThemeData buildAppTheme(ColorScheme scheme, {AppPalette? palette}) {
   );
 
   return base.copyWith(
-    extensions: [pal],
+    extensions: [pal, look],
     textTheme: textTheme,
     scaffoldBackgroundColor: scheme.surface,
     canvasColor: scheme.surface,

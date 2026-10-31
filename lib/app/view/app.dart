@@ -466,7 +466,7 @@ class _AppState extends State<App> {
                           scaffoldMessengerKey: _messengerKey,
                           theme: themes.light,
                           darkTheme: themes.dark,
-                          themeMode: settings.themeMode,
+                          themeMode: settings.effectiveThemeMode,
                           // Null follows the device ("System default").
                           locale: AppLanguages.resolve(settings.appLocale),
                           localeListResolutionCallback:
@@ -562,4 +562,6 @@ bool appearanceChanged(AppSettings previous, AppSettings current) =>
     previous.themeMode != current.themeMode ||
     previous.dynamicColor != current.dynamicColor ||
     previous.pureBlack != current.pureBlack ||
-    previous.seedColor != current.seedColor;
+    previous.seedColor != current.seedColor ||
+    previous.style != current.style ||
+    previous.terminalAccent != current.terminalAccent;
