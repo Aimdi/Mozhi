@@ -448,6 +448,16 @@ Future<PairingChannel> connectPairing(
 /// `ECONNRESET` (Linux, so Android).
 const _connectionReset = 104;
 
+/// Whether [error] is a connection reset, as a [SocketException] or as the
+/// bare [OSError] dart:io sometimes throws for it.
+bool _isReset(Object error) =>
+    switch (error) {
+      SocketException(:final osError?) => osError,
+      final OSError osError => osError,
+      _ => null,
+    }?.errorCode ==
+    _connectionReset;
+
 /// The receiver closed the connection before it answered.
 class _Refused implements Exception {
   const new(this.error);
@@ -468,11 +478,11 @@ Future<PairingChannel> _connectOnce(
   } on SocketException catch (error) {
     // Closed as soon as it was taken: turned away, not unreachable (the
     // timing decides whether the connect or the first read sees it).
-    // coverage:ignore-start
-    if (error.osError?.errorCode == _connectionReset) {
-      throw _Refused(PairingClosedException(error.message));
-    }
-    // coverage:ignore-end
+    if (_isReset(error)) throw _Refused(PairingClosedException(error.message));
+    throw PairingUnreachableException(error.message);
+  } on OSError catch (error) {
+    // The same reset, as dart:io sometimes reports it.
+    if (_isReset(error)) throw _Refused(PairingClosedException(error.message));
     throw PairingUnreachableException(error.message);
   }
   if (stopped.isCompleted) {
@@ -480,6 +490,9 @@ Future<PairingChannel> _connectOnce(
     throw const PairingClosedException('Cancelled');
   }
   socket.setOption(SocketOption.tcpNoDelay, true);
+  // A write to a receiver that reset the connection fails here, not in
+  // add(); the read side sees the same reset and decides what it means.
+  unawaited(socket.done.then<void>((_) {}, onError: (Object _) {}));
   final input = PairingByteReader(socket);
   var expired = false;
   var connected = false;
@@ -527,7 +540,12 @@ Future<PairingChannel> _connectOnce(
     socket.destroy();
     await input.cancel();
     if (expired) throw const PairingTimeoutException();
-    if (error is PairingClosedException && writes < 2) throw _Refused(error);
+    if (writes < 2) {
+      // Turned away before the key exchange: closed, or reset by a
+      // receiver that closed a connection it had just taken.
+      if (error is PairingClosedException) throw _Refused(error);
+      if (_isReset(error)) throw _Refused(PairingClosedException('$error'));
+    }
     rethrow;
   } finally {
     deadline.cancel();

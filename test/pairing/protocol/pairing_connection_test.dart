@@ -594,6 +594,43 @@ void main() {
       expect(calls, 4);
     });
 
+    test(
+      'a receiver that resets the connection it took is a turn-away',
+      () async {
+        // SO_LINGER {on, 0 s}: closing sends a reset instead of a FIN, as
+        // a receiver closing a connection it had just taken can.
+        final linger = Uint8List(8)
+          ..buffer.asByteData().setInt32(0, 1, Endian.host);
+        var attempts = 0;
+        final server = await ServerSocket.bind(loopback, 0);
+        addTearDown(server.close);
+        server.listen((socket) {
+          attempts++;
+          socket
+            ..setRawOption(
+              RawSocketOption(RawSocketOption.levelSocket, 13, linger),
+            )
+            ..destroy();
+        });
+        await expectLater(
+          connectPairing(
+            PairingCode(
+              address: loopback.rawAddress,
+              port: server.port,
+              secret: List.filled(8, 1),
+            ),
+            policy: loopbackPolicy,
+            retryDelays: const [Duration(milliseconds: 20)],
+            retryInterval: const Duration(milliseconds: 50),
+            retryFor: const Duration(milliseconds: 200),
+          ),
+          throwsA(_refused),
+        );
+        expect(attempts, greaterThan(1));
+      },
+      testOn: 'linux',
+    );
+
     group('a receiver that keeps turning the sender away', () {
       late ServerSocket server;
       late PairingCode code;
