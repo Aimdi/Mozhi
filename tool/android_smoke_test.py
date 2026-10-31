@@ -484,6 +484,8 @@ class StoreScreenshotsTest(unittest.TestCase):
                        True, False),
             smoke.Node("Close", "", "android.widget.Button", (0, 0, 9, 9),
                        True, False),
+            smoke.Node("", "", "android.widget.EditText", (0, 0, 9, 9),
+                       True, True),
         ]
 
         smoke.store_screenshots(self.device, self.folder)
@@ -492,6 +494,57 @@ class StoreScreenshotsTest(unittest.TestCase):
         self.assertEqual(calls.count(("shell", "input", "keyevent", "4")), 10)
         self.assertEqual(calls.count(("tap", "Got it")), 10)
         self.assertNotIn(("tap", "Close"), calls)
+
+    def test_no_back_for_a_keyboard_no_field_has(self):
+        # dumpsys still reports the keyboard of a page that is gone: Back
+        # would close Mozhi from its first page.
+        self.device.keyboard = True
+        self.device.nodes = [
+            smoke.Node("", "", "android.widget.EditText", (0, 0, 9, 9),
+                       True, False),
+        ]
+
+        smoke.show_screen(self.device, "mozhi://translate")
+
+        self.assertNotIn(("shell", "input", "keyevent", "4"), self.device.calls)
+        self.assertIn(
+            "keyboard: reported as shown, but no text field has the focus",
+            self.device.log,
+        )
+
+    def test_opens_the_screen_again_when_back_closed_mozhi(self):
+        d = self.device
+        d.keyboard = True
+        d.nodes = [smoke.Node("", "", "android.widget.EditText", (0, 0, 9, 9),
+                              True, True)]
+        launcher = "  mCurrentFocus=Window{1 u0 com.android.launcher3/.Launcher}"
+        real = d.adb
+
+        def adb(*args, check=True, timeout=120):
+            if args[:3] == ("shell", "dumpsys", "window"):
+                d.calls.append(args)
+                return launcher
+            return real(*args, check=check, timeout=timeout)
+
+        with mock.patch.object(d, "adb", adb):
+            smoke.show_screen(d, "mozhi://translate")
+
+        starts = [c for c in d.calls if c[:3] == ("shell", "am", "start")]
+        self.assertEqual(len(starts), 2)
+        self.assertEqual(starts[1][-1], "mozhi://translate")
+        self.assertIn("mozhi://translate: Back closed Mozhi, opening it again", d.log)
+
+    def test_in_front(self):
+        mozhi = f"mCurrentFocus=Window{{1 u0 {smoke.PACKAGE}/.MainActivity}}"
+        with mock.patch.object(self.device, "adb", lambda *a, **k: mozhi):
+            self.assertTrue(smoke.in_front(self.device))
+        with mock.patch.object(
+            self.device, "adb",
+            lambda *a, **k: "mCurrentFocus=Window{1 u0 com.android.launcher3/.L}",
+        ):
+            self.assertFalse(smoke.in_front(self.device))
+        with mock.patch.object(self.device, "adb", lambda *a, **k: ""):
+            self.assertTrue(smoke.in_front(self.device))
 
     def test_falls_back_to_the_png_screencap(self):
         self.device.raw = b""

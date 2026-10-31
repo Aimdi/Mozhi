@@ -944,9 +944,21 @@ def show_screen(device: Device, link: str) -> None:
     tip = find(device.dump(), STORE_DISMISS)
     if tip is not None:
         device.tap(tip)
-    if keyboard_shown(device.adb("shell", "dumpsys", "input_method", check=False)):
-        device.adb("shell", "input", "keyevent", "4")
-        time.sleep(1)
+    if hide_keyboard(device) and not in_front(device):
+        # Back closed Mozhi after all: open the screen again.
+        device.note(f"{link}: Back closed Mozhi, opening it again")
+        device.adb(
+            "shell", "am", "start", "-W", "-n", ACTIVITY,
+            "-a", "android.intent.action.VIEW", "-d", link,
+        )
+        time.sleep(3)
+
+
+def in_front(device: Device) -> bool:
+    """Whether a window of Mozhi has the focus (`dumpsys window`)."""
+    out = device.adb("shell", "dumpsys", "window", "windows", check=False)
+    focus = re.search(r"mCurrentFocus=.*", out)
+    return focus is None or PACKAGE in focus.group(0)
 
 
 def store_screenshots(device: Device, folder: Path) -> list[str]:
@@ -1257,10 +1269,19 @@ def save_page_text(device: Device, name: str) -> None:
         print(f"  {line}", flush=True)
 
 
-def hide_keyboard(device: Device) -> None:
-    if keyboard_shown(device.adb("shell", "dumpsys", "input_method", check=False)):
-        device.adb("shell", "input", "keyevent", "4", check=False)
-        time.sleep(1)
+def hide_keyboard(device: Device) -> bool:
+    """Closes the keyboard with Back; returns whether Back was pressed.
+    `dumpsys input_method` can still report the keyboard of a field on a
+    page that is gone, and Back on the first page closes Mozhi: so Back is
+    only pressed while a text field on screen has the focus."""
+    if not keyboard_shown(device.adb("shell", "dumpsys", "input_method", check=False)):
+        return False
+    if not any(n.focused and n.cls.endswith("EditText") for n in device.dump()):
+        device.note("keyboard: reported as shown, but no text field has the focus")
+        return False
+    device.adb("shell", "input", "keyevent", "4", check=False)
+    time.sleep(1)
+    return True
 
 
 def open_settings_page(
