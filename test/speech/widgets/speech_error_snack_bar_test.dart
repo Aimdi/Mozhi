@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/settings/view/widgets/link_launcher.dart';
+import 'package:mozhi/speech/speech_error_message.dart';
 import 'package:mozhi/speech/speech_service.dart';
 import 'package:mozhi/speech/widgets/speech_error_snack_bar.dart';
 import 'package:translation_repository/translation_repository.dart';
@@ -151,6 +153,66 @@ void main() {
       );
 
       expect(find.byType(SnackBarAction), findsNothing);
+    });
+
+    group('when the device has no speech engine', () {
+      late List<Uri> opened;
+
+      setUp(() {
+        opened = [];
+        final previous = LinkLauncher.launcher;
+        LinkLauncher.launcher = (uri) async {
+          opened.add(uri);
+          return true;
+        };
+        addTearDown(() => LinkLauncher.launcher = previous);
+      });
+
+      testWidgets('says so and offers SherpaTTS', (tester) async {
+        await show(
+          tester,
+          const SpeechUnavailableException('fr', noDeviceEngine: true),
+          onRetry: () {},
+        );
+
+        expect(find.textContaining('no text-to-speech app'), findsOneWidget);
+        expect(
+          tester.widget<SnackBar>(find.byType(SnackBar)).duration,
+          const Duration(seconds: 10),
+        );
+        await tester.tap(find.byKey(const Key('speech_get_engine')));
+        await tester.pump();
+        expect(opened, [speechGetEngineUrl]);
+      });
+
+      testWidgets('also when the instance is not offered', (tester) async {
+        await show(
+          tester,
+          const SpeechUnavailableException(
+            'fr',
+            cause: _consent,
+            noDeviceEngine: true,
+          ),
+        );
+
+        expect(find.textContaining('mozhi.example'), findsNothing);
+        expect(find.text('Get SherpaTTS'), findsOneWidget);
+      });
+
+      testWidgets('the instance comes first when offered', (tester) async {
+        await show(
+          tester,
+          const SpeechUnavailableException(
+            'fr',
+            cause: _consent,
+            noDeviceEngine: true,
+          ),
+          onListenOnline: (_) {},
+        );
+
+        expect(find.text('Listen online'), findsOneWidget);
+        expect(find.text('Get SherpaTTS'), findsNothing);
+      });
     });
 
     testWidgets('shows other errors without an action', (tester) async {

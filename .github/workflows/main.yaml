@@ -34,7 +34,7 @@ jobs:
   analyze-test:
     name: Analyze and test
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -105,13 +105,60 @@ jobs:
           /usr/bin/python3 packages/llama_engine/tool/make_test_model_test.py
           ccache --show-stats || true
 
+      # Voice input on a phone without Google, proven with the real engine:
+      # packages/whisper_speech's native tests and the real-transcription
+      # tests (the package's test/src/real_transcription_test.dart and the
+      # app's test/voice/offline/whisper_real_speech_test.dart: no system
+      # recogniser, so Whisper takes over, hears whisper.cpp's
+      # samples/jfk.wav through the app's recorder path, stops on the
+      # silence after it and must write down "ask not what your country can
+      # do for you") need the host build of libmozhi_whisper.so
+      # (tool/build_native_linux.sh; about a minute with a warm ccache) and
+      # the catalogue's Fast model (ggml-tiny.bin, 77.7 MB from Hugging
+      # Face, checked against the catalogue's SHA-256 and SHA-1 by
+      # tool/fetch_test_model.py and cached under that SHA-256).
+      - name: Fetch the speech engine's sources
+        run: bash packages/whisper_speech/tool/fetch_native_deps.sh
+
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .ccache-whisper
+          key: whisper-linux-ccache-${{ github.sha }}
+          restore-keys: |
+            whisper-linux-ccache-
+
+      - name: Build the speech engine
+        env:
+          CCACHE_DIR: ${{ github.workspace }}/.ccache-whisper
+          CCACHE_BASEDIR: ${{ github.workspace }}
+          CCACHE_COMPRESS: "true"
+          CCACHE_MAXSIZE: 300M
+        run: |
+          bash packages/whisper_speech/tool/build_native_linux.sh
+          ccache --show-stats || true
+
+      - name: Find the speech test model
+        id: speech-model
+        run: |
+          sha256="$(python3 -c 'import json,sys; print(next(m["sha256"] for m in json.load(open(sys.argv[1]))["models"] if m["id"] == "tiny"))' packages/whisper_speech/assets/models.json)"
+          echo "sha256=$sha256" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: packages/whisper_speech/build/test_models/ggml-tiny.bin
+          key: whisper-test-model-${{ steps.speech-model.outputs.sha256 }}
+
+      - name: Fetch the speech test model and sample
+        run: python3 packages/whisper_speech/tool/fetch_test_model.py
+
       # Every package under packages/ (bergamot_translator, llama_engine,
       # llm_api, mlkit_translator, mozhi_api, mozhi_cli, mt_api,
-      # translation_repository): pure Dart packages and the CLI use dart
-      # test, Flutter packages (bergamot_translator, mlkit_translator)
-      # flutter test. bergamot_translator's real-engine tests are skipped
-      # without BERGAMOT_TEST_MODELS=1, so no native library is needed here;
-      # llama_engine's use the library and models built above.
+      # translation_repository, whisper_speech, ...): pure Dart packages and
+      # the CLI use dart test, Flutter packages (bergamot_translator,
+      # mlkit_translator, whisper_speech) flutter test. bergamot_translator's
+      # real-engine tests are skipped without BERGAMOT_TEST_MODELS=1, so no
+      # native library is needed here; llama_engine's and whisper_speech's
+      # use the libraries and models built and fetched above.
       # Packages without tests are skipped.
       - name: Test packages
         run: bash .github/scripts/packages.sh test
@@ -132,6 +179,7 @@ jobs:
           python3 tool/mirror_models_test.py
           python3 tool/llm_catalog_test.py
           python3 tool/whisper_catalog_test.py
+          python3 packages/whisper_speech/tool/fetch_test_model_test.py
           python3 tool/check_public_instances_test.py
           python3 tool/android_smoke_test.py
           python3 tool/dictionary_packs_test.py

@@ -13,6 +13,12 @@ import 'package:translation_repository/translation_repository.dart';
 ///   user's consent ([SpeechUnavailableException.onlineConsent]):
 ///   [AppLocalizations.speechUnavailableOnline], naming the instance
 ///   (offer [speechListenOnlineLabel] as the action);
+/// * no speech engine on the device at all
+///   ([SpeechUnavailableException.noDeviceEngine]; Android phones without
+///   Google services often ship none) and nothing else could read it:
+///   [AppLocalizations.speechNoEngine], which names SherpaTTS (offer
+///   [speechGetEngineUrl] as the action, [AppLocalizations.speechGetEngine]),
+///   unless the Mozhi servers failed (then Retry may help);
 /// * no device voice in offline-only mode:
 ///   [AppLocalizations.speechUnavailableOfflineOnly];
 /// * Mozhi refused by the network policy (plain http, `.onion` without a
@@ -30,6 +36,8 @@ String speechErrorMessage(AppLocalizations l10n, Object error) =>
         _onlineVoiceMessage(l10n, consent),
       SpeechUnavailableException(onlineConsent: final consent?) =>
         l10n.speechUnavailableOnline(speechConsentHost(consent)),
+      SpeechUnavailableException() when speechNeedsEngine(error) =>
+        l10n.speechNoEngine,
       SpeechUnavailableException(
         cause: ConsentRequiredException(kind: ConsentKind.offlineOnly),
       ) =>
@@ -78,6 +86,27 @@ String _onlineVoiceMessage(
       ? l10n.speechOnlineVoiceConsentUnknown(voice)
       : l10n.speechOnlineVoiceConsent(voice, provider);
 }
+
+/// Where to get a speech engine for a device that has none: SherpaTTS on
+/// F-Droid (free and open source, reads offline with Piper and Coqui
+/// voices, no Google services needed).
+final Uri speechGetEngineUrl = Uri.parse(
+  'https://f-droid.org/packages/org.woheller69.ttsengine/',
+);
+
+/// Whether [error] (of [SpeechService.toggle]) is best answered by
+/// installing a speech engine: the device has none
+/// ([SpeechUnavailableException.noDeviceEngine]), no Mozhi instance may
+/// read the text with the user's consent, and the Mozhi servers did not
+/// merely fail (then Retry is offered) nor did the network policy refuse
+/// them (its message says how to fix that).
+bool speechNeedsEngine(Object error) => switch (error) {
+  SpeechUnavailableException(noDeviceEngine: true, :final cause)
+      when error.onlineConsent == null =>
+    cause == null ||
+        (NetworkPolicyError.of(cause) == null && !speechServersFailed(error)),
+  _ => false,
+};
 
 /// "Listen online": the action that retries with `allowOnline: consent`,
 /// or null when [error] offers none. The message

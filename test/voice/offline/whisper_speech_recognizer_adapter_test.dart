@@ -256,6 +256,71 @@ void main() {
       expect(statuses.last, SpeechRecognizerStatus.done);
     });
 
+    test('gives up after the no-speech timeout without speech', () async {
+      expect(
+        WhisperSpeechRecognizerAdapter.defaultNoSpeechTimeout,
+        const Duration(seconds: 8),
+      );
+      adapter = WhisperSpeechRecognizerAdapter(
+        speech: speech,
+        recorder: recorder,
+        noSpeechTimeout: const Duration(milliseconds: 300),
+      );
+      await listen();
+      // A quiet room (or a muted microphone): 0.2 s, still waiting.
+      recorder
+        ..emit(chunk(0.001))
+        ..emit(chunk(0.001));
+      await flush();
+      expect(recorder.stops, 0);
+      recorder.emit(chunk(0));
+      await flush();
+      expect(recorder.stops, 1);
+      verifyNever(
+        () => speech.transcribe(any(), language: any(named: 'language')),
+      );
+      expect(errors.single.message, 'error_no_match');
+      expect(statuses.last, SpeechRecognizerStatus.done);
+    });
+
+    test('speech before the no-speech timeout keeps recording', () async {
+      adapter = WhisperSpeechRecognizerAdapter(
+        speech: speech,
+        recorder: recorder,
+        noSpeechTimeout: const Duration(milliseconds: 300),
+      );
+      await listen();
+      recorder
+        ..emit(chunk(0.001))
+        ..emit(chunk(0.5))
+        ..emit(chunk(0.5))
+        ..emit(chunk(0.5));
+      await flush();
+      expect(recorder.stops, 0);
+      await adapter.stop();
+      await flush();
+      expect(results, [('hello', true)]);
+    });
+
+    test('without a no-speech timeout it waits until the limit', () async {
+      adapter = WhisperSpeechRecognizerAdapter(
+        speech: speech,
+        recorder: recorder,
+        noSpeechTimeout: null,
+        maxDuration: const Duration(milliseconds: 500),
+      );
+      await listen();
+      for (var i = 0; i < 4; i++) {
+        recorder.emit(chunk(0.001));
+      }
+      await flush();
+      expect(recorder.stops, 0);
+      recorder.emit(chunk(0.001));
+      await flush();
+      expect(recorder.stops, 1);
+      expect(errors.single.message, 'error_no_match');
+    });
+
     test('an empty transcription is no match', () async {
       when(() => speech.transcribe(any(), language: any(named: 'language')))
           .thenAnswer((_) async => const WhisperTranscription(''));

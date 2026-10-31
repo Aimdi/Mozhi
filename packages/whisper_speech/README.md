@@ -185,7 +185,8 @@ explicit `libraryPath` or `$WHISPER_LIBRARY_PATH` is never guarded.
 | `native/THIRD_PARTY_NOTICES.md` | whisper.cpp, ggml, YaRN (MIT), libc++; the models (MIT, OpenAI) |
 | `android/build.gradle` | `externalNativeBuild` (NDK 28.2.13676358, CMake 3.22.1, arm64-v8a / armeabi-v7a / x86_64, `c++_static`, 16 KB pages; targets `mozhi_whisper`, `mozhi_whisper_dotprod`, `mozhi_whisper_i8mm`: the variants are real on arm64-v8a, empty static stand-ins elsewhere, never packaged) |
 | `tool/fetch_native_deps.sh` | Checks out the pinned submodule (shallow); `tool/fetch_native_deps.sh` at the repository root runs it |
-| `tool/build_native_linux.sh` | Builds `build/native/linux/libmozhi_whisper.so` (+ the CLI) for the tests; `WHISPER_CPU_VARIANTS=native=native` also builds `libmozhi_whisper_native.so` to compare |
+| `tool/build_native_linux.sh` | Builds `build/native/linux/libmozhi_whisper.so` (+ the CLI) for the tests (with ccache when installed); `WHISPER_CPU_VARIANTS=native=native` also builds `libmozhi_whisper_native.so` to compare |
+| `tool/fetch_test_model.py` | Puts the real-transcription tests' files in `build/test_models`: the catalogue's Fast model (`ggml-tiny.bin`, checked against its size, SHA-256 and SHA-1; kept when it matches) and `speech-en.wav` (whisper.cpp's `samples/jfk.wav`); tested by `tool/fetch_test_model_test.py` |
 
 ## Building and testing
 
@@ -204,7 +205,17 @@ skipped. They use whisper.cpp's empty-weight test models
 run like real ones but recognise nothing: load, silence, language errors,
 the background isolate and cancellation. The Silero test model is the real
 one: the VAD tests check that it hears the phrases of `samples/jfk.wav` and
-the pauses between them, however the stream is cut. To try a real model:
+the pauses between them, however the stream is cut.
+
+With a real model (`python3 tool/fetch_test_model.py`, which needs
+Hugging Face; CI runs it) `test/src/real_transcription_test.dart` checks
+that the Fast model writes down the words of `samples/jfk.wav` ("ask not
+what your country can do for you"), tells that it is English, and does so
+through `WhisperSpeech` after importing the catalogue's file, with the
+audio cut into chunks as the microphone delivers it;
+`WHISPER_SPEECH_MODEL` and `WHISPER_SPEECH_SAMPLE` override the files.
+The app's `test/voice/offline/whisper_real_speech_test.dart` uses the same
+files for voice input end to end. To try a real model by hand:
 
 ```sh
 build/native/linux/mozhi_whisper_cli ggml-tiny.bin \

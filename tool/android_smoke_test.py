@@ -528,6 +528,7 @@ class StoreScreenshotsTest(unittest.TestCase):
 @mock.patch.object(smoke, "flow_image", lambda device: "the house")
 @mock.patch.object(smoke, "flow_document", lambda device: "the book")
 @mock.patch.object(smoke, "flow_cancel", lambda device: "back to Download")
+@mock.patch.object(smoke, "flow_voice", lambda device: "offered the model")
 class MainTest(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
@@ -983,7 +984,7 @@ class SharingTest(unittest.TestCase):
         self.assertEqual(
             sorted(f"--skip-{name}" for name, _ in smoke.FLOWS),
             ["--skip-cancel", "--skip-document", "--skip-image",
-             "--skip-offline-only"],
+             "--skip-offline-only", "--skip-voice"],
         )
         for name, _ in smoke.FLOWS:
             self.assertTrue(callable(smoke.flow_function(name)))
@@ -1164,10 +1165,10 @@ class RunFlowsTest(ClockTestCase):
         with mock.patch.object(smoke, "flow_offline_only", lambda d: "fine"), \
                 mock.patch.object(smoke, "flow_image", boom), \
                 mock.patch.object(smoke, "flow_document", lambda d: "fine"):
-            results = smoke.run_flows(self.device, {"cancel"})
+            results = smoke.run_flows(self.device, {"cancel", "voice"})
 
         self.assertEqual([r.status for r in results],
-                         ["passed", "failed", "passed", "skipped"])
+                         ["passed", "failed", "passed", "skipped", "skipped"])
         self.assertIn("RuntimeError: adb install: no device", results[1].detail)
         self.assertIn("on screen: Settings | Privacy & data", results[1].detail)
         self.assertEqual(self.device.captured, ["image-failed"])
@@ -1195,9 +1196,12 @@ class RunFlowsTest(ClockTestCase):
 
         with mock.patch.object(smoke, "flow_cancel", fails), \
                 redirect_stdout(io.StringIO()) as out:
-            results = smoke.run_flows(d, {"offline-only", "image", "document"})
+            results = smoke.run_flows(
+                d, {"offline-only", "image", "document", "voice"}
+            )
 
-        self.assertEqual(results[-1].status, "failed")
+        self.assertEqual(results[3].name, "cancel")
+        self.assertEqual(results[3].status, "failed")
         self.assertIn(("logcat", "-d", "-v", "threadtime", "-t", "1730000000.000"),
                       d.calls)
         saved = (Path(self.tmp.name) / "00-cancel-failed-logcat.txt").read_text()
@@ -1219,14 +1223,18 @@ class RunFlowsTest(ClockTestCase):
         self.device.fail_on = ("logcat",)
         with mock.patch.object(smoke, "flow_cancel", lambda d: (_ for _ in ()).throw(
                 smoke.StepFailed("boom"))), redirect_stdout(io.StringIO()):
-            results = smoke.run_flows(self.device, {"offline-only", "image", "document"})
-        self.assertEqual(results[-1].status, "failed")
+            results = smoke.run_flows(
+                self.device, {"offline-only", "image", "document", "voice"}
+            )
+        self.assertEqual(results[3].status, "failed")
         self.assertTrue(any("diagnostics incomplete" in line for line in self.device.log))
 
     def test_a_flow_that_leaves_mozhi_stopped_fails(self):
         self.device.on_adb.append((("shell", "pidof"), None, ""))
         with mock.patch.object(smoke, "flow_offline_only", lambda d: "fine"):
-            results = smoke.run_flows(self.device, {"image", "document", "cancel"})
+            results = smoke.run_flows(
+                self.device, {"image", "document", "cancel", "voice"}
+            )
         self.assertEqual(results[0].status, "failed")
         self.assertIn("Mozhi is no longer running", results[0].detail)
 
@@ -1789,6 +1797,70 @@ class CancelFlowTest(ClockTestCase):
 
         with self.assertRaisesRegex(smoke.StepFailed, "not in the list"):
             smoke.flow_cancel(self.device)
+
+
+
+class VoiceFlowTest(ClockTestCase):
+    def setUp(self) -> None:
+        super().setUp()
+        d = self.device
+        d.screens = {
+            "translate": [node("Speak", clickable=True)],
+            "offer": [
+                node("Download the speech model?"),
+                node("This device has no speech recognition service. ..."),
+                node("Other models", clickable=True),
+                node("Not now", clickable=True),
+                node("Download (74.1 MB)", clickable=True),
+            ],
+            "listening": [node("Stop listening", clickable=True)],
+            "unavailable": [
+                node("Speak", clickable=True),
+                node("Speech recognition isn’t available on this device."),
+            ],
+        }
+        d.on_adb.append(
+            (self.link("mozhi://translate"), "translate", "Status: ok")
+        )
+        d.on_tap = {"Speak": "offer", "Not now": "translate",
+                    "Stop listening": "translate"}
+
+    def test_the_mic_offers_the_model_with_its_size(self):
+        detail = smoke.flow_voice(self.device)
+
+        self.assertIn("offered “Download (74.1 MB)”", detail)
+        self.assertIn(("shell", "pm", "grant", smoke.PACKAGE,
+                       "android.permission.RECORD_AUDIO"), self.device.calls)
+        # Closed without downloading anything.
+        self.assertEqual(self.taps(), ["Speak", "Not now"])
+        self.assertIn("voice-answer", self.device.captured)
+
+    def test_a_recogniser_that_listens_is_fine_too(self):
+        self.device.on_tap["Speak"] = "listening"
+
+        detail = smoke.flow_voice(self.device)
+
+        self.assertIn("a recogniser listened", detail)
+        self.assertEqual(self.taps(), ["Speak", "Stop listening"])
+
+    def test_a_mic_that_does_nothing_fails(self):
+        self.device.on_tap["Speak"] = "translate"
+
+        with self.assertRaisesRegex(smoke.StepFailed, "tapping “Speak” twice"):
+            smoke.flow_voice(self.device)
+
+    def test_an_error_fails(self):
+        self.device.on_tap["Speak"] = "unavailable"
+
+        with self.assertRaisesRegex(smoke.StepFailed, "isn’t available"):
+            smoke.flow_voice(self.device)
+
+    def test_an_offer_without_a_size_fails(self):
+        self.device.screens["offer"] = [node("Download the speech model?"),
+                                        node("Not now", clickable=True)]
+
+        with self.assertRaisesRegex(smoke.StepFailed, "no download size"):
+            smoke.flow_voice(self.device)
 
 
 if __name__ == "__main__":

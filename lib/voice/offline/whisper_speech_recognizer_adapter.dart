@@ -28,7 +28,11 @@ import 'package:whisper_speech/whisper_speech.dart';
 ///   [maxDuration] (Whisper's 30 s window; at most
 ///   [SpeechListenRequest.listenFor]), reporting the loudness of every
 ///   chunk (dBFS) as the sound level and whether the detector heard
-///   speech yet as [heardSpeech]. Then it reports
+///   speech yet as [heardSpeech]. A recording that hears no speech at all
+///   ends after [noSpeechTimeout] (like the system recogniser's speech
+///   timeout), so the microphone never stays open for a minute when
+///   nobody speaks (or the microphone delivers only silence). Then it
+///   reports
 ///   [SpeechRecognizerStatus.transcribing], transcribes and delivers one
 ///   final result, followed by [SpeechRecognizerStatus.done]. A recording
 ///   without speech is not transcribed: it fails with `error_no_match`,
@@ -57,7 +61,11 @@ class WhisperSpeechRecognizerAdapter
     PcmRecorder? recorder,
     this.maxDuration = whisperWindow,
     this.phrasePause = const Duration(milliseconds: 400),
+    this.noSpeechTimeout = defaultNoSpeechTimeout,
   }) : _recorder = recorder ?? RecordPcmRecorder();
+
+  /// Default of [noSpeechTimeout].
+  static const defaultNoSpeechTimeout = Duration(seconds: 8);
 
   final OfflineSpeech _speech;
   final PcmRecorder _recorder;
@@ -68,6 +76,11 @@ class WhisperSpeechRecognizerAdapter
 
   /// The pause that ends a phrase (with the voice activity model).
   final Duration phrasePause;
+
+  /// How long a recording waits for the first speech: without any by
+  /// then it ends and nothing is transcribed (`error_no_match`). Null
+  /// waits until the recording's limit.
+  final Duration? noSpeechTimeout;
 
   void Function(SpeechRecognizerError error)? _onError;
   void Function(SpeechRecognizerStatus status)? _onStatus;
@@ -253,7 +266,9 @@ class WhisperSpeechRecognizerAdapter
     final level = buffer.lastLevel;
     voice.add(level, added);
     session.onSoundLevel(level);
-    if (buffer.isFull || voice.pausedAfterSpeech) {
+    if (buffer.isFull ||
+        voice.pausedAfterSpeech ||
+        _waitedForSpeech(heard: voice.heardSpeech, recorded: buffer.duration)) {
       unawaited(_finish(session));
     }
   }
@@ -264,9 +279,20 @@ class WhisperSpeechRecognizerAdapter
     final phrases = session.phrases;
     if (phrases == null || !identical(_session, session)) return;
     if ((phrases.heardSpeech && phrases.silenceAfterSpeech >= session.pause) ||
-        phrases.recorded >= session.limit) {
+        phrases.recorded >= session.limit ||
+        _waitedForSpeech(
+          heard: phrases.heardSpeech,
+          recorded: phrases.recorded,
+        )) {
       unawaited(_finish(session));
     }
+  }
+
+  /// Whether a recording of [recorded] that [heard] no speech yet waited
+  /// [noSpeechTimeout] for it.
+  bool _waitedForSpeech({required bool heard, required Duration recorded}) {
+    final timeout = noSpeechTimeout;
+    return !heard && timeout != null && recorded >= timeout;
   }
 
   /// A phrase was transcribed: the text so far is a partial result (but

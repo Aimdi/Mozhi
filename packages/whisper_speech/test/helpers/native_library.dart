@@ -36,3 +36,42 @@ Object nativeLibrarySkip() {
   }
   return false;
 }
+
+/// What `tool/fetch_test_model.py` puts in place for the real-transcription
+/// tests: a real speech model of the catalogue (`$WHISPER_SPEECH_MODEL`,
+/// else `build/test_models/ggml-tiny.bin`, the "Fast" model) and clear
+/// English speech (`$WHISPER_SPEECH_SAMPLE`, else
+/// `build/test_models/speech-en.wav`: whisper.cpp's samples/jfk.wav). Null
+/// when missing.
+String? speechModelPath() => _existing('WHISPER_SPEECH_MODEL', [
+  'build',
+  'test_models',
+  'ggml-tiny.bin',
+]);
+
+/// See [speechModelPath].
+String? speechSamplePath() => _existing('WHISPER_SPEECH_SAMPLE', [
+  'build',
+  'test_models',
+  'speech-en.wav',
+]);
+
+/// Skip reason for tests that transcribe real speech with a real model.
+Object realTranscriptionSkip() {
+  if (nativeLibraryPath() == null) {
+    return 'libmozhi_whisper.so not built (tool/build_native_linux.sh)';
+  }
+  if (speechModelPath() == null || speechSamplePath() == null) {
+    return 'speech model or sample missing (tool/fetch_test_model.py)';
+  }
+  return false;
+}
+
+String? _existing(String variable, List<String> fallback) {
+  final fromEnvironment = Platform.environment[variable];
+  if (fromEnvironment != null && File(fromEnvironment).existsSync()) {
+    return p.absolute(fromEnvironment);
+  }
+  final path = p.absolute(p.joinAll(fallback));
+  return File(path).existsSync() ? path : null;
+}

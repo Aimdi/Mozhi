@@ -131,6 +131,40 @@ void main() {
   });
 
   group(BergamotModelDetails, () {
+    test('tells which languages go one way only', () async {
+      await catalog.add('en', 'az', 'v1');
+      await catalog.add('non', 'en', 'v1');
+
+      expect(BergamotModelDetails(translator()).oneWayLanguages, {
+        'az': OfflineLanguageDirection.intoOnly,
+        'non': OfflineLanguageDirection.fromOnly,
+      });
+    });
+
+    test('downloads, counts and deletes a one-way language', () async {
+      await catalog.add('en', 'az', 'v1');
+      await catalog.add('non', 'en', 'v1');
+      final bergamot = translator();
+      final details = BergamotModelDetails(bergamot);
+
+      await details.download('az', wifiOnly: false);
+      await details.download('non', wifiOnly: false);
+
+      expect(await bergamot.downloadedLanguages(), {'en', 'az', 'non'});
+      final storage = await details.storage(['az', 'non', 'de']);
+      expect(storage.installedBytes, {
+        'az': catalog.installedSizes['en-az'],
+        'non': catalog.installedSizes['non-en'],
+      });
+
+      await bergamot.deleteLanguage('az');
+      expect(await bergamot.downloadedLanguages(), {'en', 'non'});
+    });
+
+    test('a catalog with both ways has no one-way language', () {
+      expect(BergamotModelDetails(translator()).oneWayLanguages, isEmpty);
+    });
+
     test('reports download sizes of both directions', () {
       final details = BergamotModelDetails(translator());
 

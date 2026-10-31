@@ -46,3 +46,24 @@ abstract interface class OfflineModelDetails {
     void Function(double fraction)? onProgress,
   });
 }
+
+/// Which way the offline engine translates a language.
+enum OfflineLanguageDirection {
+  /// To and from it (most languages).
+  both,
+
+  /// Only into it, from English (e.g. Azerbaijani with Mozilla's models).
+  intoOnly,
+
+  /// Only from it, into English.
+  fromOnly,
+}
+
+/// [OfflineModelDetails] of an engine whose languages may go one way only:
+/// those are not in `OfflineTranslator.supportedLanguages` (which lists
+/// the languages that go both ways), yet their models can be downloaded
+/// and deleted like the others'.
+abstract interface class OfflineLanguageDirections {
+  /// The languages that translate one way only, with that way.
+  Map<String, OfflineLanguageDirection> get oneWayLanguages;
+}

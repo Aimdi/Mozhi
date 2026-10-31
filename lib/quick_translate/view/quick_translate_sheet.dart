@@ -13,6 +13,7 @@ import 'package:mozhi/quick_translate/cubit/quick_translate_cubit.dart';
 import 'package:mozhi/quick_translate/quick_translate_host.dart';
 import 'package:mozhi/quick_translate/widgets/widgets.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
+import 'package:mozhi/settings/view/widgets/link_launcher.dart';
 import 'package:mozhi/speech/speech_error_message.dart';
 import 'package:mozhi/speech/speech_service.dart';
 import 'package:translation_repository/translation_repository.dart';
@@ -330,10 +331,18 @@ class _QuickTranslateViewState extends State<QuickTranslateView> {
       );
       return;
     }
+    final shown = _withoutConsent(error);
     _showNotice(
-      speechErrorMessage(l10n, _withoutConsent(error)),
+      speechErrorMessage(l10n, shown),
       action: speechServersFailed(error)
           ? (label: l10n.commonRetry, onPressed: retry)
+          : speechNeedsEngine(shown)
+          // No speech engine on the phone: where to get one.
+          ? (
+              label: l10n.speechGetEngine,
+              onPressed: () =>
+                  unawaited(LinkLauncher.open(context, speechGetEngineUrl)),
+            )
           : null,
     );
   }
@@ -341,9 +350,8 @@ class _QuickTranslateViewState extends State<QuickTranslateView> {
   /// [error] as reported when nothing can be offered: without the Mozhi
   /// instance it could have used.
   static Object _withoutConsent(Object error) => switch (error) {
-    SpeechUnavailableException(:final languageCode)
-        when error.onlineConsent != null =>
-      SpeechUnavailableException(languageCode),
+    SpeechUnavailableException() when error.onlineConsent != null =>
+      error.withoutCause(),
     _ => error,
   };
 

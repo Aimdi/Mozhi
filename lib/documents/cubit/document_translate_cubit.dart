@@ -365,6 +365,22 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
     PickedFile? file;
     try {
       file = await _files.pickFile(extensions: DocumentFormat.allExtensions);
+    } on DocumentFileTooLargeException catch (error) {
+      if (isClosed) return;
+      // Too large to open: say so (with its name), not "could not read";
+      // a file of no known format could not be opened at any size.
+      final format = DocumentFormat.fromFileName(error.name);
+      emit(
+        _cleared(previous).copyWith(
+          mode: .file,
+          fileName: () => error.name,
+          format: () => format,
+          error: () => format == null
+              ? DocumentError.unsupportedFormat
+              : DocumentError.tooLarge,
+        ),
+      );
+      return;
     } on Object {
       if (isClosed) return;
       emit(

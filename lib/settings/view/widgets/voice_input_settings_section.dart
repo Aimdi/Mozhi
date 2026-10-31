@@ -33,6 +33,50 @@ String voiceModelName(AppLocalizations l10n, String id) => switch (id) {
   _ => id,
 };
 
+/// What the user is told when a model operation ended ([outcome] of
+/// `VoiceSettingsCubit.download`, `downloadVoiceDetection` or `delete`;
+/// not a metered network, which asks instead): that the model is ready or
+/// was deleted, or why it failed in plain words.
+String voiceModelOutcomeMessage(
+  AppLocalizations l10n,
+  VoiceModelOutcome outcome,
+) {
+  final name = voiceModelName(l10n, outcome.model);
+  final error = outcome.error;
+  return switch (outcome.operation) {
+    VoiceModelOperation.download when outcome.succeeded =>
+      l10n.voiceModelDownloadDone(name),
+    VoiceModelOperation.delete when outcome.succeeded =>
+      l10n.voiceModelDeleteDone(name),
+    VoiceModelOperation.delete => l10n.voiceModelDeleteFailed(name),
+    VoiceModelOperation.download => switch ((error?.kind, error?.mirror)) {
+      (VoiceModelErrorKind.checksum, final String mirror) =>
+        l10n.voiceModelErrorChecksumMirror(name, mirror),
+      (VoiceModelErrorKind.checksum, _) => l10n.voiceModelErrorChecksum(name),
+      (VoiceModelErrorKind.server, final String mirror) =>
+        l10n.voiceModelErrorServerMirror(name, mirror, error?.statusCode ?? 0),
+      (VoiceModelErrorKind.server, _) => l10n.voiceModelErrorServer(
+        name,
+        error?.statusCode ?? 0,
+      ),
+      (VoiceModelErrorKind.storage, _) => l10n.voiceModelErrorStorage(name),
+      (VoiceModelErrorKind.space, _) => switch (error?.space) {
+        final space? => l10n.commonNotEnoughSpaceFor(
+          name,
+          formatStorageSize(l10n, space.requiredBytes),
+          formatStorageSize(l10n, space.availableBytes),
+        ),
+        null => l10n.voiceModelErrorStorage(name),
+      },
+      (_, final String mirror) => l10n.voiceModelErrorNetworkMirror(
+        name,
+        mirror,
+      ),
+      _ => l10n.voiceModelErrorNetwork(name),
+    },
+  };
+}
+
 /// The "Voice input" settings: the recogniser ("System speech
 /// recognition" or "Offline (Whisper)"), the offline speech models (Fast
 /// and Better: download, delete, the one in use, import from files, links
@@ -183,43 +227,7 @@ class VoiceInputSettingsView extends StatelessWidget {
       return;
     }
     if (!context.mounted) return;
-    final error = outcome.error;
-    final message = switch (outcome.operation) {
-      VoiceModelOperation.download when outcome.succeeded =>
-        l10n.voiceModelDownloadDone(name),
-      VoiceModelOperation.delete when outcome.succeeded =>
-        l10n.voiceModelDeleteDone(name),
-      VoiceModelOperation.delete => l10n.voiceModelDeleteFailed(name),
-      VoiceModelOperation.download => switch ((error?.kind, error?.mirror)) {
-        (VoiceModelErrorKind.checksum, final String mirror) =>
-          l10n.voiceModelErrorChecksumMirror(name, mirror),
-        (VoiceModelErrorKind.checksum, _) => l10n.voiceModelErrorChecksum(name),
-        (VoiceModelErrorKind.server, final String mirror) =>
-          l10n.voiceModelErrorServerMirror(
-            name,
-            mirror,
-            error?.statusCode ?? 0,
-          ),
-        (VoiceModelErrorKind.server, _) => l10n.voiceModelErrorServer(
-          name,
-          error?.statusCode ?? 0,
-        ),
-        (VoiceModelErrorKind.storage, _) => l10n.voiceModelErrorStorage(name),
-        (VoiceModelErrorKind.space, _) => switch (error?.space) {
-          final space? => l10n.commonNotEnoughSpaceFor(
-            name,
-            formatStorageSize(l10n, space.requiredBytes),
-            formatStorageSize(l10n, space.availableBytes),
-          ),
-          null => l10n.voiceModelErrorStorage(name),
-        },
-        (_, final String mirror) => l10n.voiceModelErrorNetworkMirror(
-          name,
-          mirror,
-        ),
-        _ => l10n.voiceModelErrorNetwork(name),
-      },
-    };
+    final message = voiceModelOutcomeMessage(l10n, outcome);
     _showSnackBar(context, message);
   }
 

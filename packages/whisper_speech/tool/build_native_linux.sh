@@ -11,7 +11,8 @@
 # SSE4.2, or ARMv8.0-A), so it is slower than a -march=native build.
 #
 # Needs cmake (>= 3.22), a C++17 compiler (gcc >= 9 or clang >= 10) and,
-# optionally, ninja. Environment:
+# optionally, ninja and ccache (used when installed; CI caches it).
+# Environment:
 #   WHISPER_JOBS          parallel jobs (default: all cores)
 #   WHISPER_CPU_VARIANTS  also build CPU variants, `<name>=<march>` separated
 #                         by `;` (default: none), e.g. `native=native` builds
@@ -35,6 +36,12 @@ if command -v ninja >/dev/null 2>&1; then
   generator=(-G Ninja)
 fi
 
+launcher=()
+if command -v ccache >/dev/null 2>&1; then
+  launcher=(-DCMAKE_C_COMPILER_LAUNCHER=ccache
+    -DCMAKE_CXX_COMPILER_LAUNCHER=ccache)
+fi
+
 # shellcheck disable=SC2206 # CMAKE_ARGS is split on purpose.
 extra=(${CMAKE_ARGS:-})
 
@@ -51,7 +58,7 @@ fi
 # out of the cache.
 cmake -S "${package_dir}/native" -B "$build_dir" "${generator[@]}" \
   -DCMAKE_BUILD_TYPE=Release "-DMOZHI_WHISPER_CPU_VARIANTS=${variants}" \
-  "${extra[@]}"
+  "${launcher[@]}" "${extra[@]}"
 cmake --build "$build_dir" --target "${targets[@]}" --parallel "$jobs"
 
 library="${build_dir}/libmozhi_whisper.so"

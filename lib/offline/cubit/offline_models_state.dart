@@ -11,7 +11,12 @@ enum OfflineModelOperation { download, update, delete }
 /// A language the offline engine has a model for.
 @immutable
 class OfflineLanguage extends Equatable {
-  const new({required this.code, required this.name, this.nativeName});
+  const new({
+    required this.code,
+    required this.name,
+    this.nativeName,
+    this.direction = OfflineLanguageDirection.both,
+  });
 
   /// Offline engine code (e.g. `de`, `zh`).
   final String code;
@@ -20,6 +25,18 @@ class OfflineLanguage extends Equatable {
   final String name;
   final String? nativeName;
 
+  /// Which way the engine translates it (most languages: both).
+  final OfflineLanguageDirection direction;
+
+  /// This language translated only [direction].
+  OfflineLanguage withDirection(OfflineLanguageDirection direction) =>
+      OfflineLanguage(
+        code: code,
+        name: name,
+        nativeName: nativeName,
+        direction: direction,
+      );
+
   bool matches(String needle) =>
       needle.isEmpty ||
       name.toLowerCase().contains(needle) ||
@@ -27,7 +44,7 @@ class OfflineLanguage extends Equatable {
       code.toLowerCase() == needle;
 
   @override
-  List<Object?> get props => [code, name, nativeName];
+  List<Object?> get props => [code, name, nativeName, direction];
 }
 
 /// Result of a finished download, update or deletion, shown once by the

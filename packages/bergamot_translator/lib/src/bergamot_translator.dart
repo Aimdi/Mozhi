@@ -133,7 +133,7 @@ class BergamotTranslator
   Set<String> get targetLanguages => router.targetLanguages;
 
   /// Languages whose models are all installed (always including English,
-  /// which needs none).
+  /// which needs none), also those that go one way only.
   @override
   Future<Set<String>> downloadedLanguages() async {
     if (!isAvailable) return const {};
@@ -142,7 +142,11 @@ class BergamotTranslator
     };
     return {
       ModelRouter.english,
-      for (final code in {...supportedLanguages, ...targetLanguages})
+      for (final code in {
+        ...supportedLanguages,
+        ...sourceLanguages,
+        ...targetLanguages,
+      })
         if (code != ModelRouter.english &&
             router.modelsFor(code).isNotEmpty &&
             router.modelsFor(code).every((m) => installed.contains(m.pair)))
