@@ -200,6 +200,41 @@ void main() {
       expect(received, [('Hello there', true)]);
     });
 
+    testWidgets('a download that finishes in the background does not listen', (
+      tester,
+    ) async {
+      final gate = Completer<void>();
+      onDownload = (id, {required overMetered}) async {
+        await gate.future;
+        installed.add(id);
+        whisper.ready = true;
+      };
+      await pump(tester);
+      await tapMic(tester);
+      await tester.tap(find.byKey(VoiceModelOfferDialog.downloadKey));
+      await tester.pump();
+      await tester.pump();
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      addTearDown(
+        () => tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.resumed,
+        ),
+      );
+      gate.complete();
+      await settle(tester);
+      // Back in front: the download is in, and the microphone is still off.
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await settle(tester);
+
+      expect(installed, ['tiny']);
+      expect(find.byType(VoiceModelOfferDialog), findsNothing);
+      expect(whisper.requests, isEmpty);
+      expect(tester.widget<IconButton>(mic()).isSelected, isFalse);
+    });
+
     testWidgets('asks before using mobile data', (tester) async {
       onDownload = (id, {required overMetered}) async {
         if (!overMetered) throw const VoiceModelMeteredException();

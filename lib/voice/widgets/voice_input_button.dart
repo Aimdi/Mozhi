@@ -288,6 +288,10 @@ class _VoiceInputButtonState extends State<VoiceInputButton> {
     }
     if (!installed || !mounted) return;
     if (_listening || _transcribing || _starting) return;
+    // A download that finished while the app was in the background must
+    // not open the microphone behind the user's back.
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    if (lifecycle != null && lifecycle != AppLifecycleState.resumed) return;
     // The user tapped the microphone to speak: now they can.
     _afterOffer = true;
     try {

@@ -666,11 +666,16 @@ void main() {
           ),
           throwsA(_refused),
         );
-        // At 0, 20, 120, 220 and 320 ms; the next would start too late.
+        // At 0, 20, 120, 220 and 320 ms; the next would start too late. A
+        // delay starts when the try before has failed, so on a busy machine
+        // the fifth may already be too late: it waits out every delay before
+        // the last try it makes, whatever their number.
         expect(attempts, inInclusiveRange(4, 5));
         expect(
           watch.elapsed,
-          greaterThanOrEqualTo(const Duration(milliseconds: 300)),
+          greaterThanOrEqualTo(
+            Duration(milliseconds: 20 + 100 * (attempts - 2)),
+          ),
         );
         expect(pairingRetryDelays, const [
           Duration(seconds: 1),

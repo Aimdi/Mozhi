@@ -14,11 +14,13 @@ in `-rc.N`).
   and starts listening once it is in, instead of a message pointing to
   the settings. Offline recording stops after 8 seconds when nobody
   speaks (it used to keep the microphone open for up to a minute); a
-  microphone denied for good offers **Open settings**; and the web app
-  says before its first dictation that the browser's speech recognition
-  sends the audio to the browser's maker (Chrome to Google). CI now runs
-  Whisper for real: it transcribes recorded English speech with the Fast
-  model through the app's own recording path.
+  microphone denied for good offers **Open settings**; a download that
+  finishes while Mozhi is in the background doesn't open the microphone;
+  and the web app says before its first dictation or transcription that
+  the browser's speech recognition sends the audio to the browser's maker
+  (Chrome to Google). CI now runs Whisper for real: it transcribes
+  recorded English speech with the Fast model through the app's own
+  recording path.
 - **Read aloud on a phone with no text-to-speech app** says so and offers
   SherpaTTS (free, works offline), instead of failing without a word.
 - **A camera or microphone you denied for good** now offers **Open
