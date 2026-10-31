@@ -3,6 +3,23 @@
 All notable changes to Mozhi, by release tag on GitHub (pre-releases end
 in `-rc.N`).
 
+## 0.1.0-rc.13
+
+### Added
+
+- **Offline dictionaries for 20 languages** (Settings > Offline languages
+  > Dictionaries): Arabic, Chinese, Czech, Dutch, English, Finnish,
+  French, German, Greek, Hindi, Italian, Japanese, Korean, Polish,
+  Portuguese, Russian, Spanish, Swedish, Turkish and Ukrainian, from
+  Wiktionary (CC BY-SA 4.0, through kaikki.org's wiktextract data of
+  2026-10-31; the `dictionary-packs-2026-10-31` release). Definitions
+  (in English), pronunciation, examples, synonyms, related words, short
+  etymologies and, in English, translations into other languages;
+  inflected forms find their word ("ging" finds "gehen"). From 3 MB
+  (Hindi) to 115 MB (English); each is checked against the size and
+  SHA-256 the app ships with, and what you look up never leaves the
+  device.
+
 ## 0.1.0-rc.12
 
 ### Fixed
