@@ -1737,6 +1737,54 @@ class CancelFlowTest(ClockTestCase):
             smoke.flow_cancel(d)
         self.assertEqual(len(presses), 2)
 
+    def test_slows_https_as_root_and_puts_it_back(self):
+        d = self.device
+        d.on_adb[1:1] = [
+            (("shell", "id", "-u"), None, "0\n"),
+            (("shell", "iptables", "-w", "-I"), None, smoke.THROTTLE_OK),
+            (("shell", "ip6tables", "-w", "-I"), None, "ip6tables: No chain"),
+        ]
+
+        smoke.flow_cancel(d)
+
+        def rules(table, op):
+            return [c for c in d.calls if c[1:4] == (table, "-w", op)]
+
+        added = rules("iptables", "-I")
+        self.assertEqual([c[6:-3] for c in added], list(smoke.THROTTLE_RULES))
+        self.assertEqual(added[0][4:6], ("INPUT", "1"))
+        self.assertEqual([c[5:] for c in rules("iptables", "-D")],
+                         list(smoke.THROTTLE_RULES))
+        # ip6tables refused the first rule: nothing of it is left to delete.
+        self.assertEqual(len(rules("ip6tables", "-I")), 1)
+        self.assertEqual(rules("ip6tables", "-D"), [])
+        self.assertIn("slow HTTPS: iptables", d.log)
+        # The rules go before the network speed is put back, after Cancel.
+        last_delete = max(i for i, c in enumerate(d.calls) if c[3:4] == ("-D",))
+        self.assertLess(d.calls.index(("tap", "Cancel downloading Greek")), last_delete)
+
+    def test_without_root_it_only_notes_it(self):
+        smoke.flow_cancel(self.device)
+
+        self.assertFalse([c for c in self.device.calls if "iptables" in c])
+        self.assertTrue(any(m.startswith("slow HTTPS: no root") for m in self.device.log))
+
+    def test_says_when_the_download_finished_before_cancel(self):
+        d = self.device
+        d.screens["done"] = [
+            d.screens["offline"][0],
+            node("Greek\nΕλληνικά · 25 MB", bounds=(0, 900, 1080, 1050)),
+            node("Delete Greek", bounds=(800, 940, 1000, 1010), clickable=True),
+        ]
+        d.on_tap["Download"] = "done"
+
+        with self.assertRaisesRegex(smoke.StepFailed,
+                                    "finished before “Cancel downloading Greek”"):
+            smoke.flow_cancel(d)
+        self.assertEqual(self.taps().count("Download"), 1)
+        self.assertNotIn("Delete Greek", self.taps())
+        self.assertEqual(d.calls[-1][:4], ("emu", "network", "speed", "full"))
+
     def test_refuses_a_language_already_downloaded(self):
         self.device.screens["offline"][2] = node(
             "Downloaded", bounds=(800, 940, 1000, 1010), clickable=True)

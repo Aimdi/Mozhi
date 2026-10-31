@@ -198,9 +198,9 @@ DOCUMENT_LOADED = (r"Remove document", r"\d+ segments?")
 DOCUMENT_EMPTY = r"(?s)Pick a document\b.*"
 
 # Cancel: the smallest offline language with models in both directions in
-# packages/bergamot_translator/assets/catalog.json (about 30 MB). The page
-# lists only those (Azerbaijani, the smallest, has English to Azerbaijani
-# only, so it isn't there).
+# packages/bergamot_translator/assets/catalog.json (about 30 MB), so that
+# its download takes long enough (Azerbaijani, the smallest, has English to
+# Azerbaijani only).
 CANCEL_LANGUAGE = "Greek"
 ENGINES_CATEGORY = r"(?s)Translation engines\b.*"
 # Translation engines' row that opens the offline languages ("Languages on
@@ -219,6 +219,18 @@ CANCEL_ERRORS = r"(?is).*\b(couldn.t|can.t|failed|error|damaged|not enough)\b.*"
 # The emulator console's slowest network profiles keep the download running
 # while Cancel is looked for; "full" puts it back.
 SLOW_NETWORK = "gsm"
+# The emulator's Wi-Fi (netsim) doesn't follow the console's network speed,
+# and a runner downloads 30 MB in a few seconds. So, as root, iptables lets
+# in only so many HTTPS packets a second (about 30 KB/s) while Cancel is
+# looked for: (table command, the rule), inserted in this order at the top
+# of INPUT and deleted afterwards.
+THROTTLE_RULES = (
+    ("-p", "tcp", "--sport", "443", "-j", "DROP"),
+    ("-p", "tcp", "--sport", "443", "-m", "limit", "--limit", "20/second",
+     "--limit-burst", "40", "-j", "ACCEPT"),
+)
+THROTTLE_TABLES = ("iptables", "ip6tables")
+THROTTLE_OK = "mozhi-throttle-ok"
 
 # Offers every flow may accept: the "Download over mobile data?" dialog
 # and first-time tips.
@@ -1646,11 +1658,19 @@ def flow_cancel(device: Device) -> str:
         raise StepFailed(f"find {language}: it is downloading already")
     slow = device.shell_output("emu", "network", "speed", SLOW_NETWORK, timeout=30)
     device.note(f"emulator network speed {SLOW_NETWORK}: {one_line(slow)[:200]}")
+    throttled: list[str] = []
     try:
+        throttled = throttle_https(device)
         cancel = None
         for attempt in (1, 2):
             nodes = device.dump()
             current = language_row(nodes, language) or row
+            if attempt == 2 and row_button(nodes, current, r"Downloaded|Delete.*|Update"):
+                how = ", ".join(throttled) or "not slowed: no root or no iptables"
+                raise StepFailed(
+                    f"download {language}: it finished before “Cancel downloading "
+                    f"{language}” was seen (network {how})"
+                )
             if attempt == 1 or not re.search(r"Downloading", current.label):
                 button = download_button(nodes, current, language)
                 again = " again" if attempt == 2 else ""
@@ -1688,6 +1708,7 @@ def flow_cancel(device: Device) -> str:
             errors=errors,
         )
     finally:
+        unthrottle_https(device, throttled)
         device.shell_output("emu", "network", "speed", "full", timeout=30)
     # An error would come as a snack bar after the row has settled.
     time.sleep(3)
@@ -1700,6 +1721,46 @@ def flow_cancel(device: Device) -> str:
     if current is None:
         raise StepFailed(f"cancel: {language}'s row is not back to Download")
     return f"{language}: “{one_line(current.label)[:80]}”, no error"
+
+
+def throttle_https(device: Device) -> list[str]:
+    """Slows HTTPS downloads on the device with [THROTTLE_RULES]; returns
+    the tables that took them (none without root or iptables, noted)."""
+    root = device.shell_output("root", timeout=60)
+    device.shell_output("wait-for-device", timeout=60)
+    uid = device.shell_output("shell", "id", "-u", timeout=30).strip()
+    if uid != "0":
+        device.note(f"slow HTTPS: no root ({one_line(root)[:120]})")
+        return []
+    done: list[str] = []
+    for table in THROTTLE_TABLES:
+        added: list[tuple[str, ...]] = []
+        for rule in THROTTLE_RULES:
+            # adb runs the line with the device's shell, so `&&` is its.
+            out = device.shell_output(
+                "shell", table, "-w", "-I", "INPUT", "1", *rule,
+                "&&", "echo", THROTTLE_OK, timeout=30,
+            )
+            if THROTTLE_OK not in out:
+                device.note(f"slow HTTPS: {table}: {one_line(out)[:160]}")
+                break
+            added.append(rule)
+        if len(added) == len(THROTTLE_RULES):
+            done.append(table)
+        else:
+            for rule in added:
+                device.shell_output("shell", table, "-w", "-D", "INPUT", *rule,
+                                    timeout=30)
+    device.note(f"slow HTTPS: {', '.join(done) or 'no table took the rules'}")
+    return done
+
+
+def unthrottle_https(device: Device, tables: list[str]) -> None:
+    """Deletes the rules [throttle_https] added to [tables]."""
+    for table in tables:
+        for rule in THROTTLE_RULES:
+            device.shell_output("shell", table, "-w", "-D", "INPUT", *rule,
+                                timeout=30)
 
 
 def cancelled_row(nodes: list[Node], language: str) -> Node | None:
