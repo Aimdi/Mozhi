@@ -741,6 +741,15 @@ Settings tile, launcher shortcuts and widget, and links (`mozhi://…`,
   capture service, the bubble and its clipboard window (see below) are not
   exported either: other apps can't start a screen capture or the bubble.
 
+- **More than one window.** Android can run more than one window of
+  Mozhi at a time (one opened from another app's share sheet in that
+  app's task, the quick translate and Translate screen windows), each
+  with its own copy of the settings in memory. Every window reads the
+  settings again when it comes back to the front, so a change made in
+  another one (Offline only, above all) holds before anything is sent;
+  text shared from a shell or launcher reaches the window already open
+  instead of starting another one.
+
 ## Translate screen (Android)
 
 Translate screen captures whatever another app shows, so it is built to

@@ -211,6 +211,39 @@ void main() {
           .called(1);
     });
 
+    testWidgets('reads the settings again when it comes back to the front', (
+      tester,
+    ) async {
+      // Another window of the app switched to Offline only meanwhile.
+      when(() => env.settingsRepository.load()).thenAnswer(
+        (_) async => const AppSettings(
+          onboardingComplete: true,
+          instances: [testInstance],
+          privacyMode: PrivacyMode.offlineOnly,
+        ),
+      );
+      await pumpApp(tester);
+      clearInteractions(env.translationRepository);
+      const [
+        AppLifecycleState.inactive,
+        AppLifecycleState.hidden,
+        AppLifecycleState.paused,
+        AppLifecycleState.hidden,
+        AppLifecycleState.inactive,
+        AppLifecycleState.resumed,
+      ].forEach(tester.binding.handleAppLifecycleStateChanged);
+      await tester.pump();
+      await tester.pump();
+      verify(
+        () => env.translationRepository.updatePrivacy(
+          mode: PrivacyMode.offlineOnly,
+          approvedPairs: any(named: 'approvedPairs'),
+          consentedProviders: any(named: 'consentedProviders'),
+          maskPersonalData: any(named: 'maskPersonalData'),
+        ),
+      ).called(1);
+    });
+
     group('Tailscale names', () {
       late List<String> lookups;
 

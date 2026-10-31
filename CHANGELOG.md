@@ -3,6 +3,23 @@
 All notable changes to Mozhi, by release tag on GitHub (pre-releases end
 in `-rc.N`).
 
+## 0.1.0-rc.9
+
+### Fixed
+
+- **Text shared to Mozhi from a launcher or shell** reaches the window
+  that is already open, instead of starting a second copy of the app
+  that showed old text (found by the emulator test).
+- **Offline languages** shows languages downloaded in another Mozhi
+  window (the quick translate window, a share from another app) instead
+  of "No languages downloaded".
+- **A window that comes back to the front reads the settings again,** so
+  switching to Offline only in one window of Mozhi holds in every other
+  one before it sends anything.
+- Shared or linked text no longer translates by itself while the engines
+  are still loading, and in Offline only it does so only with an engine
+  that keeps the text on the device; the text always lands in the input.
+
 ## 0.1.0-rc.8
 
 ### Added
