@@ -29,12 +29,14 @@ void main() {
   late StreamController<String?> speaking;
   late int errors;
   VoidCallback? lastListenOnline;
+  VoidCallback? lastRetry;
 
   setUp(() {
     speech = MockSpeechService();
     speaking = StreamController<String?>.broadcast();
     errors = 0;
     lastListenOnline = null;
+    lastRetry = null;
     when(() => speech.speaking).thenAnswer((_) => speaking.stream);
     when(
       () => speech.toggle(
@@ -66,9 +68,10 @@ void main() {
         speech: speech,
         text: text,
         languageCode: languageCode,
-        onError: (_, listenOnline) {
+        onError: (_, listenOnline, retry) {
           errors++;
           lastListenOnline = listenOnline;
+          lastRetry = retry;
         },
       ),
     );
@@ -375,5 +378,78 @@ void main() {
         handle.dispose();
       });
     }
+  });
+
+  group('retry', () {
+    final serversFailed = SpeechUnavailableException(
+      'fr',
+      cause: AllInstancesFailedException(
+        'boom',
+        engine: TranslationEngine.mozhi('google', 'Google'),
+        instances: const [MozhiInstance(url: 'https://mozhi.example')],
+      ),
+    );
+
+    testWidgets('reads aloud again after a failure', (tester) async {
+      var calls = 0;
+      when(
+        () => speech.toggle(
+          id: any(named: 'id'),
+          text: any(named: 'text'),
+          languageCode: any(named: 'languageCode'),
+        ),
+      ).thenAnswer((_) async {
+        if (calls++ == 0) throw serversFailed;
+      });
+      await pump(tester);
+      await tester.tap(_button());
+      await tester.pump();
+      expect(errors, 1);
+      expect(lastRetry, isNotNull);
+
+      lastRetry!();
+      await tester.pump();
+      verify(() => speech.toggle(id: _id, text: 'Bonjour', languageCode: 'fr'))
+          .called(2);
+      expect(errors, 1);
+    });
+
+    testWidgets('a retry does not stop a reading that started', (tester) async {
+      var calls = 0;
+      when(
+        () => speech.toggle(
+          id: any(named: 'id'),
+          text: any(named: 'text'),
+          languageCode: any(named: 'languageCode'),
+        ),
+      ).thenAnswer((_) async {
+        if (calls++ == 0) throw serversFailed;
+      });
+      await pump(tester);
+      await tester.tap(_button());
+      await tester.pump();
+      speaking.add(_id);
+      await tester.pump();
+      await tester.pump();
+
+      lastRetry!();
+      await tester.pump();
+      verify(() => speech.toggle(id: _id, text: 'Bonjour', languageCode: 'fr'))
+          .called(1);
+    });
+
+    testWidgets('retries a slow reading slowly', (tester) async {
+      failSpeak();
+      await pump(tester);
+      await tester.longPress(_button());
+      await tester.pump();
+      verifySlow();
+      expect(errors, 1);
+
+      lastRetry!();
+      await tester.pump();
+      verifySlow();
+      expect(errors, 2);
+    });
   });
 }

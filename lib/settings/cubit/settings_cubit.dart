@@ -55,11 +55,19 @@ class SettingsCubit extends Cubit<AppSettings> {
   // ignore: prefer_void_public_cubit_methods
   Stream<SettingsSaveFailure> get saveFailures => _saveFailures.stream;
 
-  /// Reloads from storage.
+  /// How many changes were made (a load that a change overtook reads
+  /// again, so the change is shown).
+  int _changes = 0;
+
+  /// Reloads from storage (again when a change was made while reading:
+  /// the settings read may not hold it yet).
   Future<void> load() async {
     try {
+      final changes = _changes;
       final settings = await _repository.load();
-      if (!isClosed) emit(settings);
+      if (isClosed) return;
+      if (_changes != changes) return await load();
+      emit(settings);
     } on Object catch (error, stackTrace) {
       addError(error, stackTrace);
     }
@@ -405,6 +413,7 @@ class SettingsCubit extends Cubit<AppSettings> {
   /// changed or the cubit is closed.
   void _apply(AppSettings next) {
     if (isClosed || next == state) return;
+    _changes++;
     emit(next);
     unawaited(_persist(next));
   }

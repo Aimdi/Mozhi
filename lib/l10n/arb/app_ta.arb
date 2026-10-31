@@ -2763,5 +2763,9 @@
   "liveCaptionsBarLocked": "Mozhi பூட்டப்பட்டுள்ளது",
   "offlineCancelDownloadTooltip": "{language} பதிவிறக்கத்தை ரத்துசெய்",
   "offlineCancelling": "நிறுத்துகிறது…",
-  "documentsPdfProgressCooling": "பக்கம் {page} / {total}: ஃபோன் சூடாக உள்ளது, குளிரும் வரை காத்திருக்கிறது…"
+  "documentsPdfProgressCooling": "பக்கம் {page} / {total}: ஃபோன் சூடாக உள்ளது, குளிரும் வரை காத்திருக்கிறது…",
+  "onboardingLanguagesSuggestionPicked": "முன்பு நீங்கள் {language} மொழியைத் தேர்ந்தெடுத்தீர்கள்.",
+  "offlineManualMirrorNote": "இந்த இணைப்புகள் Mozhi பதிவிறக்கும் உங்கள் மாடல் பதிவிறக்க இடமான {host}-க்குச் செல்லும். அங்கு ஒரு கோப்பு இல்லையெனில், வெளியீட்டாளரின் இணைப்பைப் பயன்படுத்தவும்.",
+  "offlineManualPublisherLink": "வெளியீட்டாளரின் இணைப்பு (மிரரில் கோப்பு இல்லையெனில்)",
+  "offlineManualCopyPublisherLink": "{file}-க்கான வெளியீட்டாளரின் இணைப்பை நகலெடு"
 }

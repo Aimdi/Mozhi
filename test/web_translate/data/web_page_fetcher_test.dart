@@ -181,6 +181,8 @@ void main() {
         'http://nas/',
         'http://2130706433/',
         'http://0x7f.1/',
+        // Not looked up: it may be on the tailnet.
+        'https://nas.tail1234.ts.net/',
       ]) {
         test('refuses a public page redirecting to $target', () async {
           final seen = <Uri>[];

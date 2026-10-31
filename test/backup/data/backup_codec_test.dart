@@ -629,6 +629,24 @@ void main() {
       expect(BackupKdf.browser.memory, 19456);
     });
 
+    test("files made with the web app's parameters (19 MiB, 2 passes) and "
+        "with Android's open with either: each file says its own", () async {
+      const web = BackupCodec(kdf: BackupKdf.browser, useIsolate: false);
+      const android = BackupCodec();
+      final fromWeb = await web.encrypt(_snapshot, 'pass');
+      expect(web.readHeader(fromWeb).kdf, BackupKdf.browser);
+      expect(await android.decrypt(fromWeb, 'pass'), _snapshot);
+      // A sync key for such a file keeps its parameters.
+      final key = await android.unlockKeyFor(fromWeb, 'pass');
+      expect(key.kdf, BackupKdf.browser);
+      expect(android.isEncryptedWith(fromWeb, key), isTrue);
+      expect(await android.decryptWithKey(fromWeb, key), _snapshot);
+
+      final fromAndroid = await android.encrypt(_snapshot, 'pass');
+      expect(web.readHeader(fromAndroid).kdf, BackupKdf.standard);
+      expect(await web.decrypt(fromAndroid, 'pass'), _snapshot);
+    }, timeout: const Timeout(Duration(minutes: 2)));
+
     test('the standard parameters round-trip', () async {
       const standard = BackupCodec();
       final sealed = await standard.encrypt(_snapshot, 'pass');

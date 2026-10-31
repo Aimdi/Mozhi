@@ -8,6 +8,8 @@ import 'package:mozhi/offline/cubit/ocr_languages_state.dart';
 import 'package:mozhi/offline/cubit/offline_models_cubit.dart';
 import 'package:mozhi/offline/data/offline_model_error.dart';
 import 'package:mozhi/offline/data/offline_model_file_picker.dart';
+import 'package:translation_repository/translation_repository.dart'
+    show OfflineDownloadCancelledException;
 
 export 'ocr_languages_state.dart';
 
@@ -25,6 +27,11 @@ export 'ocr_languages_state.dart';
 /// throw: [load] switches to [OfflineModelsStatus.failure], operations
 /// report an [OfflineModelOutcome]; errors other than a metered network
 /// also go to `addError`.
+///
+/// With data that has [CancellableOcrDownloads],
+/// [OcrLanguagesState.canCancel] is true and [cancelDownload] stops a
+/// running download quietly: no outcome (so no message), and nothing is
+/// installed (what was received is kept for resuming).
 class OcrLanguagesCubit extends Cubit<OcrLanguagesState> {
   new({
     required this._data,
@@ -71,6 +78,7 @@ class OcrLanguagesCubit extends Cubit<OcrLanguagesState> {
           languages: languages,
           installed: installed,
           wifiOnly: wifiOnly,
+          canCancel: available && _data is CancellableOcrDownloads,
         ),
       );
     } on Object catch (error, stackTrace) {
@@ -95,6 +103,22 @@ class OcrLanguagesCubit extends Cubit<OcrLanguagesState> {
         onProgress: (fraction) => _reportProgress(code, fraction),
       ),
     );
+  }
+
+  /// Stops the running download of [code] (see
+  /// [OcrLanguagesState.canCancelDownload]); it ends without an
+  /// [OcrLanguagesState.outcome]. Does nothing otherwise.
+  Future<void> cancelDownload(String code) async {
+    final data = _data;
+    if (data is! CancellableOcrDownloads || !state.canCancelDownload(code)) {
+      return;
+    }
+    emit(state.copyWith(cancelling: {...state.cancelling, code}));
+    try {
+      await data.cancelOcrDownload(code);
+    } on Object catch (error, stackTrace) {
+      addError(error, stackTrace);
+    }
   }
 
   Future<void> delete(String code) => _run(
@@ -168,7 +192,11 @@ class OcrLanguagesCubit extends Cubit<OcrLanguagesState> {
         outcome: () => null,
       ),
     );
-    final failure = await _attempt(action);
+    final (:failure, :cancelled) = await _attempt(action);
+    final succeeded = failure == null && !cancelled;
+    // Cancelled by the user (whatever the download said as it stopped):
+    // nothing to report.
+    final quiet = !succeeded && (cancelled || state.cancelling.contains(code));
     final installed = await _readInstalled();
     if (isClosed) return;
     emit(
@@ -176,30 +204,38 @@ class OcrLanguagesCubit extends Cubit<OcrLanguagesState> {
         installed: installed,
         pending: {...state.pending}..remove(code),
         progress: {...state.progress}..remove(code),
-        outcome: () => OfflineModelOutcome(
-          language: state.item(code)?.display ?? _describe(code),
-          operation: operation,
-          succeeded: failure == null,
-          error: failure,
-        ),
+        cancelling: {...state.cancelling}..remove(code),
+        outcome: () => quiet
+            ? null
+            : OfflineModelOutcome(
+                language: state.item(code)?.display ?? _describe(code),
+                operation: operation,
+                succeeded: succeeded,
+                error: failure,
+              ),
       ),
     );
   }
 
-  /// Runs [action]; the error it failed with (reported unless it is
-  /// [OfflineModelErrorKind.metered]), or null. A helper rather than a
+  /// Runs [action]: no failure when it succeeds or was cancelled
+  /// ([OfflineDownloadCancelledException]), else why it failed (reported
+  /// unless it is [OfflineModelErrorKind.metered]). A helper rather than a
   /// local assigned in `catch`, which dart2js can miscompile (see
   /// `OfflineModelsCubit`).
-  Future<OfflineModelError?> _attempt(Future<void> Function() action) async {
+  Future<({OfflineModelError? failure, bool cancelled})> _attempt(
+    Future<void> Function() action,
+  ) async {
     try {
       await action();
-      return null;
+      return (failure: null, cancelled: false);
+    } on OfflineDownloadCancelledException {
+      return (failure: null, cancelled: true);
     } on Object catch (error, stackTrace) {
       final failure = OfflineModelError.of(error);
       if (failure.kind != OfflineModelErrorKind.metered) {
         addError(error, stackTrace);
       }
-      return failure;
+      return (failure: failure, cancelled: false);
     }
   }
 

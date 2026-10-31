@@ -13890,5 +13890,37 @@
         "type": "int"
       }
     }
+  },
+  "onboardingLanguagesSuggestionPicked": "You picked {language} before.",
+  "@onboardingLanguagesSuggestionPicked": {
+    "description": "Onboarding languages step, under Translate from while it is Detect language and none of the phone’s languages differs from the target: the source language the user picked earlier in this setup is suggested again.",
+    "placeholders": {
+      "language": {
+        "type": "String",
+        "example": "German"
+      }
+    }
+  },
+  "offlineManualMirrorNote": "The links lead to your model source, {host}, where Mozhi downloads from. If a file is missing there, use its publisher’s link.",
+  "@offlineManualMirrorNote": {
+    "description": "Under the manual download list when a mirror is the model source; host is the mirror server",
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "offlineManualPublisherLink": "Publisher’s link, if the mirror doesn’t have it",
+  "@offlineManualPublisherLink": {
+    "description": "Second line of a model file in the manual download list, for the fallback link"
+  },
+  "offlineManualCopyPublisherLink": "Copy the publisher’s link to {file}",
+  "@offlineManualCopyPublisherLink": {
+    "description": "Tooltip: copies the publisher (fallback) download link of one model file",
+    "placeholders": {
+      "file": {
+        "type": "String"
+      }
+    }
   }
 }

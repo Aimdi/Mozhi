@@ -35,6 +35,8 @@ class OcrLanguagesState extends Equatable {
     this.outcome,
     this.importing = false,
     this.importOutcome,
+    this.canCancel = false,
+    this.cancelling = const {},
   });
 
   final OfflineModelsStatus status;
@@ -68,6 +70,23 @@ class OcrLanguagesState extends Equatable {
 
   /// The latest finished import (null once a new one starts).
   final OcrImportReport? importOutcome;
+
+  /// Whether running downloads can be cancelled (the recognizer has
+  /// `CancellableOcrDownloads`).
+  final bool canCancel;
+
+  /// Downloads being cancelled, by language code (still in [pending] until
+  /// they have stopped).
+  final Set<String> cancelling;
+
+  /// Whether [code]'s running download can be cancelled now.
+  bool canCancelDownload(String code) =>
+      canCancel &&
+      !cancelling.contains(code) &&
+      switch (pending[code]) {
+        OfflineModelOperation.download || OfflineModelOperation.update => true,
+        _ => false,
+      };
 
   bool isInstalled(String code) => installed.containsKey(code);
 
@@ -114,6 +133,8 @@ class OcrLanguagesState extends Equatable {
     ValueGetter<OfflineModelOutcome?>? outcome,
     bool? importing,
     ValueGetter<OcrImportReport?>? importOutcome,
+    bool? canCancel,
+    Set<String>? cancelling,
   }) => OcrLanguagesState(
     status: status ?? this.status,
     isAvailable: isAvailable ?? this.isAvailable,
@@ -126,6 +147,8 @@ class OcrLanguagesState extends Equatable {
     outcome: outcome != null ? outcome() : this.outcome,
     importing: importing ?? this.importing,
     importOutcome: importOutcome != null ? importOutcome() : this.importOutcome,
+    canCancel: canCancel ?? this.canCancel,
+    cancelling: cancelling ?? this.cancelling,
   );
 
   @override
@@ -141,5 +164,7 @@ class OcrLanguagesState extends Equatable {
     outcome,
     importing,
     importOutcome,
+    canCancel,
+    cancelling,
   ];
 }

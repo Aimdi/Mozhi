@@ -423,7 +423,9 @@ class SyncService {
   /// ([SyncFailure.wrongPassphrase] otherwise); this device's data is then
   /// merged with it. Without one, it creates the file with a key derived
   /// from [passphrase]. Nothing is stored unless this first sync succeeds.
-  /// Throws a [SyncException].
+  /// The setup records when this device joined the folder
+  /// ([SyncConfig.joinedAt]: now, also for a setup again; a passphrase
+  /// changed or entered again later keeps it). Throws a [SyncException].
   Future<void> setUp({
     required SyncConnection connection,
     required String passphrase,
@@ -437,10 +439,13 @@ class SyncService {
     _emit(_state.copyWith(running: true));
     try {
       final server = probed?.server ?? connection.server;
+      // From now on this device syncs with the folder: a Clear history
+      // made there before never takes its own entries.
       final setup = config.copyWith(
         server: server,
         username: connection.username,
         folder: connection.folder,
+        joinedAt: _clock().toUtc(),
       );
       final dav = _dav(
         server,

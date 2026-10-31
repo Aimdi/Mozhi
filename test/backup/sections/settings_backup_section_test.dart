@@ -5,6 +5,7 @@ import 'package:material_ui/material_ui.dart' show ThemeMode;
 import 'package:mozhi/backup/data/backup_registry.dart';
 import 'package:mozhi/backup/sections/settings_backup_section.dart';
 import 'package:mozhi/core/key_value_store.dart';
+import 'package:mozhi/settings/data/provider_identity.dart';
 import 'package:mozhi/settings/data/settings_repository.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:translation_repository/translation_repository.dart';
@@ -504,12 +505,28 @@ void main() {
         );
 
         final merged = await repository.load();
+        // The backup's providers on other servers come under ids of their
+        // own, each with its own key.
+        String renamed(AiProviderConfig provider) =>
+            SettingsBackupSection.renamedId(
+              provider.id,
+              ProviderIdentity.serverHash(provider),
+            );
         expect(merged.providers.map((p) => (p.id, p.apiKey)), [
           ('same', 'theirs-same'),
           ('moved', null),
           ('type', null),
           ('service', null),
           ('absent', null),
+          (
+            renamed(_provider('moved', baseUrl: 'https://evil.example/v1')),
+            'theirs-moved',
+          ),
+          (renamed(_provider('type')), 'theirs-type'),
+          (
+            renamed(_provider('service', service: MtService.deepl)),
+            'theirs-service',
+          ),
         ]);
         expect(merged.providers.map((p) => p.headers).toList(), [
           {'Authorization': 'Bearer theirs'},
@@ -517,6 +534,9 @@ void main() {
           isEmpty,
           isEmpty,
           isEmpty,
+          {'Authorization': 'Bearer theirs'},
+          {'Authorization': 'Bearer theirs'},
+          {'Authorization': 'Bearer theirs'},
         ]);
       });
 
@@ -582,6 +602,41 @@ void main() {
           ('lan', false),
           ('ollama', false),
           ('libre', false),
+        ]);
+      });
+
+      test('adds a provider at a Tailscale name turned off, whether or not '
+          'it was looked up', () async {
+        addTearDown(TailnetHosts.forget);
+        TailnetHosts.record('pc.tail1234.ts.net', ['100.101.102.103']);
+        TailnetHosts.record('funnel.tail1234.ts.net', ['203.0.113.5']);
+        await section.restore(
+          throughJson({
+            'settings': AppSettings(
+              providers: [
+                // Not looked up yet: public now, the tailnet's later.
+                _provider('new', baseUrl: 'https://x.tail1234.ts.net/v1'),
+                _provider('pc', baseUrl: 'http://pc.tail1234.ts.net:11434'),
+                _provider(
+                  'funnel',
+                  baseUrl: 'https://funnel.tail1234.ts.net/v1',
+                ),
+                _provider('bare', baseUrl: 'x.tail1234.ts.net:11434'),
+              ],
+            ).toJson(),
+          }),
+          version: 1,
+          mode: BackupRestoreMode.merge,
+        );
+
+        final merged = await repository.load();
+        expect(merged.providers.map((p) => (p.id, p.enabled)), [
+          ('a', true),
+          ('b', true),
+          ('new', false),
+          ('pc', false),
+          ('funnel', false),
+          ('bare', false),
         ]);
       });
 
@@ -674,6 +729,11 @@ void main() {
       expect(SettingsBackupSection.hasSecrets(crafted), isFalse);
 
       for (final mode in BackupRestoreMode.values) {
+        repository = SettingsRepository(
+          prefs: MemoryStore(),
+          secrets: MemoryStore(),
+        );
+        section = SettingsBackupSection(repository);
         await repository.save(mine);
         await section.restore(throughJson(crafted), version: 1, mode: mode);
         final restored = await repository.load();
@@ -714,8 +774,20 @@ void main() {
       final additions = await section.additions(throughJson(data), version: 1);
 
       final merge = additions[BackupRestoreMode.merge]!;
-      // c is on a private network: Merge adds it turned off.
-      expect(merge.providers.map((p) => (p.id, p.enabled)), [('c', false)]);
+      // b is on another server than b here: Merge adds it under an id of
+      // its own. c is on a private network: Merge adds it turned off.
+      expect(merge.providers.map((p) => (p.id, p.enabled)), [
+        (
+          SettingsBackupSection.renamedId(
+            'b',
+            ProviderIdentity.serverHash(
+              _provider('b', baseUrl: 'https://evil.example/v1'),
+            ),
+          ),
+          true,
+        ),
+        ('c', false),
+      ]);
       expect(merge.instances, isEmpty);
       final replace = additions[BackupRestoreMode.replace]!;
       // b moves to another server.
@@ -802,6 +874,17 @@ void main() {
       (_provider('a', baseUrl: 'http://10.0.0.2:1234/v1'), false),
       (_provider('a', baseUrl: 'mybox.local:11434'), false),
       (_provider('a', baseUrl: 'http://abc.onion/v1'), false),
+      // Public until looked up, the tailnet's afterwards.
+      (_provider('a', baseUrl: 'https://x.tail1234.ts.net/v1'), false),
+      (_provider('a', baseUrl: 'X.TAIL1234.TS.NET.:11434'), false),
+      (
+        _provider(
+          'a',
+          baseUrl: 'https://x.tail1234.ts.net',
+          service: MtService.deepl,
+        ),
+        true,
+      ),
       (
         _provider(
           'a',
@@ -880,6 +963,71 @@ void main() {
         }),
         isTrue,
       );
+    });
+  });
+
+  group('provider ids', () {
+    final cloud = _provider('p1', baseUrl: 'https://ai.example.org/v1');
+    final local = _provider('p1', baseUrl: 'http://ollama.lan:11434/v1');
+    String renamed(AiProviderConfig provider) =>
+        SettingsBackupSection.renamedId(
+          provider.id,
+          ProviderIdentity.serverHash(provider),
+        );
+
+    Future<List<AiProviderConfig>> merge(List<AiProviderConfig> theirs) async {
+      await section.restore(
+        throughJson({'settings': AppSettings(providers: theirs).toJson()}),
+        version: 1,
+        mode: BackupRestoreMode.merge,
+      );
+      return (await repository.read()).providers;
+    }
+
+    test('a provider removed here is not added back', () async {
+      await repository.save(mine.copyWith(providers: [cloud]));
+      await repository.save(mine.copyWith(providers: const []));
+
+      expect(await merge([cloud]), isEmpty);
+      // Nor under the name another device gave it.
+      expect(
+        await merge([_provider(renamed(cloud), baseUrl: cloud.baseUrl)]),
+        isEmpty,
+      );
+    });
+
+    test("another server's provider with a removed provider's id comes "
+        'under an id of its own', () async {
+      await repository.save(
+        mine.copyWith(providers: [cloud], engineId: () => 'ai:p1'),
+      );
+      await repository.save(mine.copyWith(providers: const []));
+
+      final providers = await merge([local]);
+      expect(providers.map((p) => p.id), [renamed(local)]);
+      expect(providers.single.enabled, isFalse);
+      // The same name every time: merging again adds nothing.
+      expect(await merge([local]), hasLength(1));
+    });
+
+    test(
+      "another device's name for this device's provider adds nothing",
+      () async {
+        await repository.save(mine.copyWith(providers: [local]));
+
+        final providers = await merge([
+          _provider(renamed(local), baseUrl: local.baseUrl),
+          cloud,
+        ]);
+        expect(providers.map((p) => p.id), ['p1', renamed(cloud)]);
+        expect(providers.first, local);
+      },
+    );
+
+    test('renamedId is the same on every device and tells servers apart', () {
+      expect(renamed(cloud), renamed(_provider('p1', baseUrl: cloud.baseUrl)));
+      expect(renamed(cloud), isNot(renamed(local)));
+      expect(renamed(cloud), startsWith('p1~'));
     });
   });
 }

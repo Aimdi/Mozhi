@@ -2763,5 +2763,9 @@
   "liveCaptionsBarLocked": "Mozhi заблоковано",
   "offlineCancelDownloadTooltip": "Скасувати завантаження: {language}",
   "offlineCancelling": "Зупинення…",
-  "documentsPdfProgressCooling": "Сторінка {page} з {total}: телефон перегрівся, очікування, поки він охолоне…"
+  "documentsPdfProgressCooling": "Сторінка {page} з {total}: телефон перегрівся, очікування, поки він охолоне…",
+  "onboardingLanguagesSuggestionPicked": "Раніше ви вибрали мову: {language}.",
+  "offlineManualMirrorNote": "Посилання ведуть до вашого джерела моделей {host}, звідки Mozhi завантажує файли. Якщо файлу там немає, скористайтеся посиланням видавця.",
+  "offlineManualPublisherLink": "Посилання видавця, якщо на дзеркалі немає файлу",
+  "offlineManualCopyPublisherLink": "Скопіювати посилання видавця на {file}"
 }

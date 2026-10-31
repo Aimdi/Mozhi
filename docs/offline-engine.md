@@ -813,7 +813,8 @@ of mobile browsers, `mozIntGemm` (Firefox's privileged pages only).
 * Web: report the `dart2js` miscompilation found here upstream
   (dart-lang/sdk): a nullable local assigned in a `catch` and read by a
   closure afterwards keeps a stale value on the success path of an `async`
-  method (`OfflineModelsCubit._attempt` documents the workaround).
+  method (`OfflineModelsCubit._attempt` documents the workaround). A
+  standalone reproduction to file is in `tool/repro/dart2js_catch_closure/`.
 * Upstream `0001-marian-unaligned-quant-mult.patch` and the ARM CMake fixes
   to mozilla/translations.
 * Language identification: `OfflineTranslator.identifyLanguage` returns one

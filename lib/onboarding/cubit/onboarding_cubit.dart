@@ -184,9 +184,13 @@ class OnboardingCubit extends Cubit<OnboardingState> {
   // Languages
 
   /// Makes [language] the default source language ([Language.auto]: detect
-  /// it). Custom languages are ignored.
+  /// it). Custom languages are ignored. A language (not "Detect language")
+  /// is remembered as [OnboardingState.pickedSource].
   void setSourceLanguage(Language language) {
     if (language.isCustom || language == _settings.state.source) return;
+    if (!language.isAuto && language != state.pickedSource) {
+      emit(state.copyWith(pickedSource: language));
+    }
     _setLanguages(source: language);
   }
 

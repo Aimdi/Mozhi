@@ -2763,5 +2763,9 @@
   "liveCaptionsBarLocked": "Mozhi kilitli",
   "offlineCancelDownloadTooltip": "{language} indirmesini iptal et",
   "offlineCancelling": "Durduruluyor…",
-  "documentsPdfProgressCooling": "Sayfa {page}/{total}: Telefon ısındı, soğuması bekleniyor…"
+  "documentsPdfProgressCooling": "Sayfa {page}/{total}: Telefon ısındı, soğuması bekleniyor…",
+  "onboardingLanguagesSuggestionPicked": "Daha önce {language} dilini seçtiniz.",
+  "offlineManualMirrorNote": "Bağlantılar, Mozhi'nin indirdiği model kaynağınıza ({host}) gider. Orada bir dosya yoksa yayıncının bağlantısını kullanın.",
+  "offlineManualPublisherLink": "Yayıncının bağlantısı (yansıda dosya yoksa)",
+  "offlineManualCopyPublisherLink": "{file} için yayıncının bağlantısını kopyala"
 }

@@ -2763,5 +2763,9 @@
   "liveCaptionsBarLocked": "Mozhi jest zablokowany",
   "offlineCancelDownloadTooltip": "Anuluj pobieranie: {language}",
   "offlineCancelling": "Zatrzymywanie…",
-  "documentsPdfProgressCooling": "Strona {page} z {total}: telefon jest gorący, czekanie, aż ostygnie…"
+  "documentsPdfProgressCooling": "Strona {page} z {total}: telefon jest gorący, czekanie, aż ostygnie…",
+  "onboardingLanguagesSuggestionPicked": "Wcześniej wybrano język: {language}.",
+  "offlineManualMirrorNote": "Linki prowadzą do Twojego źródła modeli, {host}, z którego pobiera Mozhi. Jeśli brakuje tam pliku, użyj linku wydawcy.",
+  "offlineManualPublisherLink": "Link wydawcy, jeśli kopia lustrzana nie ma pliku",
+  "offlineManualCopyPublisherLink": "Kopiuj link wydawcy do pliku {file}"
 }

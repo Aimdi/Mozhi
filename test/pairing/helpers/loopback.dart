@@ -137,3 +137,45 @@ class PairingRelay {
     }
   }
 }
+
+/// A `hello` of this version ([features]) or, with none, of an earlier
+/// one (which listed nothing).
+PairingMessage helloOf([List<String>? features]) =>
+    PairingMessage('hello', {'t': 'hello', 'v': 1, 'features': ?features});
+
+/// A [PairingChannel] that records each [sendFileData]: the bytes given,
+/// the bytes that went across and whether compressing was asked for.
+class RecordingChannel extends PairingChannel {
+  new({required super.input, required super.socket, required super.keys});
+
+  final sends = <({int raw, int sent, bool compress})>[];
+
+  @override
+  Future<int> sendFileData(List<int> bytes, {bool compress = true}) async {
+    final sent = await super.sendFileData(bytes, compress: compress);
+    sends.add((raw: bytes.length, sent: sent, compress: compress));
+    return sent;
+  }
+}
+
+/// [channelPair] with a [RecordingChannel] first, both having taken the
+/// other's `hello` ([senderFeatures] and [receiverFeatures]; null: one of
+/// an earlier version).
+Future<(RecordingChannel, PairingChannel)> recordingPair({
+  List<String>? senderFeatures = const [PairingFeature.deflate],
+  List<String>? receiverFeatures = const [PairingFeature.deflate],
+}) async {
+  final (a, b) = await socketPair();
+  final (keysA, keysB) = keyPair();
+  final sender = RecordingChannel(
+    input: PairingByteReader(a),
+    socket: a,
+    keys: keysA,
+  )..acceptHello(helloOf(receiverFeatures));
+  final receiver = PairingChannel(
+    input: PairingByteReader(b),
+    socket: b,
+    keys: keysB,
+  )..acceptHello(helloOf(senderFeatures));
+  return (sender, receiver);
+}

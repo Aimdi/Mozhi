@@ -29,6 +29,10 @@ export 'dictionary_packs_state.dart';
 /// the checks of a download and without the network
 /// ([DictionaryPacks.importFiles]), and reports a
 /// [DictionaryImportOutcome].
+///
+/// [cancelDownload] stops a running download or update quietly: no
+/// outcome (so no message), and the pack stays as it was
+/// ([DictionaryPacks.cancelInstall]).
 class DictionaryPacksCubit extends Cubit<DictionaryPacksState> {
   new({
     required this._packs,
@@ -98,6 +102,19 @@ class DictionaryPacksCubit extends Cubit<DictionaryPacksState> {
     );
   }
 
+  /// Stops the running download or update of the pack [id] (see
+  /// [DictionaryPacksState.canCancelDownload]); it ends without an
+  /// [DictionaryPacksState.outcome]. Does nothing otherwise.
+  Future<void> cancelDownload(String id) async {
+    if (!state.canCancelDownload(id)) return;
+    emit(state.copyWith(cancelling: {...state.cancelling, id}));
+    try {
+      await _packs.cancelInstall(id);
+    } on Object catch (error, stackTrace) {
+      addError(error, stackTrace);
+    }
+  }
+
   Future<void> delete(String id) =>
       _run(id, OfflineModelOperation.delete, () => _packs.delete(id));
 
@@ -155,7 +172,11 @@ class DictionaryPacksCubit extends Cubit<DictionaryPacksState> {
         outcome: () => null,
       ),
     );
-    final failure = await _attempt(id, action);
+    final (:failure, :cancelled) = await _attempt(id, action);
+    final succeeded = failure == null && !cancelled;
+    // Cancelled by the user (whatever the download said as it stopped):
+    // nothing to report.
+    final quiet = !succeeded && (cancelled || state.cancelling.contains(id));
     final installed = await _readInstalled();
     if (isClosed) return;
     emit(
@@ -163,27 +184,34 @@ class DictionaryPacksCubit extends Cubit<DictionaryPacksState> {
         installed: installed,
         pending: {...state.pending}..remove(id),
         progress: {...state.progress}..remove(id),
-        outcome: () => OfflineModelOutcome(
-          language: state.item(id)?.display ?? _describe(id),
-          operation: operation,
-          succeeded: failure == null,
-          error: failure,
-        ),
+        cancelling: {...state.cancelling}..remove(id),
+        outcome: () => quiet
+            ? null
+            : OfflineModelOutcome(
+                language: state.item(id)?.display ?? _describe(id),
+                operation: operation,
+                succeeded: succeeded,
+                error: failure,
+              ),
       ),
     );
   }
 
-  /// Runs [action] for the pack [id]: the error it failed with, classified
-  /// ([dictionaryPackError]; also sent to `addError` unless the network is
-  /// metered), or null. A method of its own so that no nullable local is
-  /// assigned in a `catch` and read in a closure (dart2js got that wrong).
-  Future<OfflineModelError?> _attempt(
+  /// Runs [action] for the pack [id]: no failure when it succeeds or was
+  /// cancelled ([OfflineDownloadCancelledException]), else the error it
+  /// failed with, classified ([dictionaryPackError]; also sent to
+  /// `addError` unless the network is metered). A method of its own so
+  /// that no nullable local is assigned in a `catch` and read in a closure
+  /// (dart2js got that wrong).
+  Future<({OfflineModelError? failure, bool cancelled})> _attempt(
     String id,
     Future<void> Function() action,
   ) async {
     try {
       await action();
-      return null;
+      return (failure: null, cancelled: false);
+    } on OfflineDownloadCancelledException {
+      return (failure: null, cancelled: true);
     } on Object catch (error, stackTrace) {
       final failure = dictionaryPackError(
         error,
@@ -192,7 +220,7 @@ class DictionaryPacksCubit extends Cubit<DictionaryPacksState> {
       if (failure.kind != OfflineModelErrorKind.metered) {
         addError(error, stackTrace);
       }
-      return failure;
+      return (failure: failure, cancelled: false);
     }
   }
 

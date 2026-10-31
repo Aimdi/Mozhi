@@ -162,7 +162,7 @@ abstract final class PairingBackupItem {
       includeSecrets: includeSecrets,
       only: sections,
     );
-    final bytes = snapshotBytes(snapshot);
+    final bytes = await _encode(snapshot);
     return PairingOutgoingItem(
       PairingItem(
         kind: PairingItemKind.data,
@@ -178,6 +178,11 @@ abstract final class PairingBackupItem {
   /// The UTF-8 JSON of [snapshot].
   static List<int> snapshotBytes(BackupSnapshot snapshot) =>
       utf8.encode(jsonEncode(snapshot.toJson()));
+
+  /// [snapshotBytes] on a background isolate (a full history makes a few
+  /// MiB of JSON; in a browser, where nothing is sent, on this one).
+  static Future<List<int>> _encode(BackupSnapshot snapshot) =>
+      compute(snapshotBytes, snapshot);
 
   /// The data item is taken when it is one [fileName] of at most
   /// [maxSize] bytes.

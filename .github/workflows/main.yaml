@@ -438,7 +438,9 @@ jobs:
     name: Android emulator smoke test
     needs: build-android
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # Boot, first run and store screenshots (about 20 minutes at most), then
+    # the flows (Offline only, image, document, cancel: up to 25 more).
+    timeout-minutes: 70
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -463,6 +465,9 @@ jobs:
           target: default
           ram-size: 4096M
           disk-size: 6000M
+          # Every flow runs here; locally, --skip-<flow> leaves one out (see
+          # the script). The test picture is committed
+          # (tool/smoke_assets/), so the job needs no Pillow.
           script: python3 tool/android_smoke.py dist/mozhi-x86_64.apk smoke --screenshots store-screenshots
 
       - name: Summarize

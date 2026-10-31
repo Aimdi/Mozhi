@@ -189,7 +189,11 @@ Notes:
 - **VPN from outside your home:** with WireGuard or Tailscale you can keep
   using the LAN address on the go. Tailscale addresses (`100.x.y.z`) get
   `http://` automatically; MagicDNS names (`*.ts.net`) get `https://`, so
-  type `http://` yourself unless you set up `tailscale serve`.
+  type `http://` yourself unless you set up `tailscale serve`. A `*.ts.net`
+  name counts as your own network (no proxy, plain `http` allowed) only
+  when it leads to a Tailscale address; a Tailscale Funnel name is public
+  and is treated like any server on the internet (see
+  [Privacy](privacy.md#network)).
 - **Web app:** a web page served over `https` may not call an `http` address
   (browsers block this "mixed content"), so a web app on an `https` site needs
   your instance on `https` as well. CORS is not a problem: Mozhi's API sends

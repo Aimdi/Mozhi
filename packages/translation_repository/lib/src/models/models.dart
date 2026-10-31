@@ -7,6 +7,7 @@ export 'meaning_check.dart';
 export 'mozhi_instance.dart';
 export 'prompt_profile.dart';
 export 'saved_glossary.dart';
+export 'tailnet_hosts.dart';
 export 'translation_engine.dart';
 export 'translation_options.dart';
 export 'translation_request.dart';

@@ -40,7 +40,10 @@ void main() {
     );
   });
 
-  Future<void> open(WidgetTester tester) async {
+  Future<void> open(
+    WidgetTester tester, {
+    List<OfflineManualDirection> directions = directions,
+  }) async {
     await tester.pumpApp(
       Scaffold(
         body: Builder(
@@ -86,6 +89,65 @@ void main() {
       expect(find.text('Copied to clipboard'), findsOneWidget);
       // Only the latest copy is marked.
       expect(find.byTooltip('Copy link to ${vocab.name}'), findsOneWidget);
+    });
+
+    group('with a mirror as the model source', () {
+      const mirrored = [
+        OfflineManualDirection(
+          source: german,
+          target: english,
+          files: [
+            OfflineModelFile(
+              source: 'de',
+              target: 'en',
+              name: 'model.deen.intgemm.alphas.bin.gz',
+              url: 'https://models.test/de-en/model.deen.intgemm.alphas.bin.gz',
+              size: 25 * 1024 * 1024,
+              mirrorUrl:
+                  'https://mirror.example/models/bergamot/de-en/v1/'
+                  'model.deen.intgemm.alphas.bin.gz',
+            ),
+          ],
+        ),
+      ];
+      final file = mirrored.single.files.single;
+
+      testWidgets('offers the mirror first, the publisher as a fallback', (
+        tester,
+      ) async {
+        await open(tester, directions: mirrored);
+        expect(find.textContaining('mirror.example'), findsOneWidget);
+        expect(
+          find.text('Publisher’s link, if the mirror doesn’t have it'),
+          findsOneWidget,
+        );
+        expect(file.preferredUrl, file.mirrorUrl);
+
+        await tester.tap(find.byTooltip('Copy link to ${file.name}'));
+        await tester.pump();
+        expect(copied, [file.mirrorUrl]);
+
+        await tester.tap(
+          find.byTooltip('Copy the publisher’s link to ${file.name}'),
+        );
+        await tester.pump();
+        expect(copied.last, file.url);
+        // Only the latest copy is marked.
+        expect(find.byTooltip('Copy link to ${file.name}'), findsOneWidget);
+
+        await tester.tap(find.byKey(const Key('offline_manual_copy_all')));
+        await tester.pump();
+        expect(copied.last, file.mirrorUrl);
+      });
+
+      testWidgets('without one, only the publishers are listed', (
+        tester,
+      ) async {
+        await open(tester);
+        expect(find.textContaining('model source'), findsNothing);
+        expect(find.textContaining('Publisher'), findsNothing);
+        expect(model.preferredUrl, model.url);
+      });
     });
   });
 }

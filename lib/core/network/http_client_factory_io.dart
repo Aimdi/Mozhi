@@ -20,8 +20,9 @@ http.Client createPlatformHttpClient({String? proxy}) {
 }
 
 /// The `dart:io` [HttpClient] under the client of `createHttpClient`, with
-/// [proxy] if any. [connectionTimeout] replaces [connectTimeout] or
-/// [proxyConnectTimeout], and [context] the system's TLS trust (tests).
+/// [proxy] if any; its connections are opened by [routeConnections].
+/// [connectionTimeout] replaces [connectTimeout] or [proxyConnectTimeout],
+/// and [context] the system's TLS trust (tests).
 @visibleForTesting
 HttpClient createIoHttpClient({
   ProxyAddress? proxy,
@@ -36,9 +37,14 @@ HttpClient createIoHttpClient({
     ..idleTimeout = idleConnectionTimeout
     // Never the environment's or the system's proxy.
     ..findProxy = (_) => 'DIRECT';
-  if (proxy != null) {
-    routeThroughProxy(client, proxy, bypass: bypassesProxy, context: context);
-  }
+  // Also without a proxy: a Tailscale name on the tailnet is connected to
+  // at the address its lookup checked (see routeConnections).
+  routeConnections(
+    client,
+    proxy: proxy,
+    bypass: bypassesProxy,
+    context: context,
+  );
   return client;
 }
 

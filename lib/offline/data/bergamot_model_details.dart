@@ -21,28 +21,6 @@ OfflineModelDetails? offlineModelDetailsOf(OfflineTranslator translator) =>
       _ => null,
     };
 
-/// [details] without anything else they implement (such as
-/// [OfflineModelImport]): sizes, storage and downloads only.
-class DownloadOnlyModelDetails implements OfflineModelDetails {
-  const new(this.details);
-
-  final OfflineModelDetails details;
-
-  @override
-  int downloadSize(String code) => details.downloadSize(code);
-
-  @override
-  Future<OfflineStorage> storage(Iterable<String> codes) =>
-      details.storage(codes);
-
-  @override
-  Future<void> download(
-    String code, {
-    required bool wifiOnly,
-    void Function(double fraction)? onProgress,
-  }) => details.download(code, wifiOnly: wifiOnly, onProgress: onProgress);
-}
-
 /// [OfflineModelDetails] of a [BergamotTranslator]: a language is its
 /// models to and from English ([ModelRouter.modelsFor]). Imports go to
 /// [BergamotModelManager.importFiles] with the translator's catalog.
@@ -155,18 +133,27 @@ class BergamotModelDetails implements OfflineModelDetails, OfflineModelImport {
     unmatchedFiles: unmatched,
   );
 
+  /// With a mirror as the model source, each file's [OfflineModelFile]
+  /// also has its URL there ([bergamotMirrorUrl]), where the app's own
+  /// downloads go.
   @override
-  List<OfflineModelFile> manualFiles(String code) => [
-    for (final model in translator.router.modelsFor(code))
-      for (final file in model.files.values)
-        OfflineModelFile(
-          source: ModelRouter.reportedCode(model.source),
-          target: ModelRouter.reportedCode(model.target),
-          name: file.downloadName,
-          url: '${file.url}',
-          size: file.size,
-        ),
-  ];
+  List<OfflineModelFile> manualFiles(String code) {
+    final mirror = _modelSource().mirror();
+    return [
+      for (final model in translator.router.modelsFor(code))
+        for (final file in model.files.values)
+          OfflineModelFile(
+            source: ModelRouter.reportedCode(model.source),
+            target: ModelRouter.reportedCode(model.target),
+            name: file.downloadName,
+            url: '${file.url}',
+            size: file.size,
+            mirrorUrl: mirror == null
+                ? null
+                : '${bergamotMirrorUrl(mirror, model, file)}',
+          ),
+    ];
+  }
 }
 
 /// [BergamotModelDetails] of the web app's translator (models in the

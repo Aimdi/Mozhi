@@ -3,6 +3,8 @@ import 'dart:convert';
 
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/core/network/url_credentials.dart';
+import 'package:mozhi/settings/data/provider_identity.dart';
+import 'package:mozhi/settings/data/settings_rebase.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -40,7 +42,21 @@ import 'package:translation_repository/translation_repository.dart';
 /// store a secret; the settings JSON is then not written either.
 ///
 /// [prefs] defaults to [PreferencesStore] and [secrets] to [SecureStore].
-/// Saves are serialised, so the last [save] call always wins.
+/// Saves and [update]s run one at a time, in the order they were called,
+/// so the last [save] call always wins.
+///
+/// Restores and sync merges change the stored settings with [update]
+/// (read and written in one step, after the saves before it) and read them
+/// with [read]; [load] and [save] are the app's (the settings it holds).
+/// When an [update] changed the stored settings after the app last loaded
+/// or saved them, [save] applies the app's change to the stored settings
+/// ([rebaseSettings]) instead of writing over them, until the app loads
+/// them again: neither the change nor the merge is lost.
+///
+/// Every provider a save removes is remembered ([removedProviders], under
+/// [removedProvidersKey] in [prefs]: its id and a hash of its server), so
+/// that a sync merge never brings it back or gives its id to another
+/// provider.
 class SettingsRepository {
   new({KeyValueStore? prefs, KeyValueStore? secrets})
     : prefs = prefs ?? PreferencesStore(),
@@ -68,6 +84,13 @@ class SettingsRepository {
   /// ([urlCredentials]).
   static const instanceCredentialsKey = 'instancecreds';
 
+  /// Key of the providers removed from this device ([removedProviders]) in
+  /// [prefs]: a JSON list of [RemovedProvider.toJson].
+  static const removedProvidersKey = 'settings.v1.removedProviders';
+
+  /// At most this many removed providers are remembered (the latest).
+  static const maxRemovedProviders = 200;
+
   final KeyValueStore prefs;
   final KeyValueStore secrets;
 
@@ -86,12 +109,85 @@ class SettingsRepository {
 
   bool _loadFailed = false;
 
+  /// The settings the app holds: what it last loaded or saved (null
+  /// before either).
+  AppSettings? _view;
+
+  /// Whether the stored settings are the app's ([_view]) as far as this
+  /// repository wrote them: not after an [update] changed them, until the
+  /// app loads them again.
+  bool _viewStored = false;
+
+  /// How many saves and updates were called (a load that one overtook
+  /// leaves the app's settings as they are).
+  int _epoch = 0;
+
+  /// [removedProviders], once read.
+  List<RemovedProvider>? _removed;
+
   /// Whether the last [load] could not read the stored settings because
   /// the storage failed (as opposed to nothing or invalid JSON being
   /// stored). [load] returned defaults in that case.
   bool get loadFailed => _loadFailed;
 
+  /// The stored settings, for the app to use (see the class docs).
   Future<AppSettings> load() async {
+    final epoch = _epoch;
+    final loaded = await _readMigrated();
+    // Not when a save or update was called meanwhile: the app's settings
+    // are then the saved ones, or the update's write may not be read yet.
+    if (!_loadFailed && _epoch == epoch) {
+      _view = loaded;
+      _viewStored = true;
+    }
+    return loaded;
+  }
+
+  /// The stored settings, like [load], for a reader that is not the app
+  /// (backups and sync: the settings the app holds are not taken to be
+  /// these). Check [loadFailed] after it.
+  Future<AppSettings> read() => _readMigrated();
+
+  /// Applies [change] to the stored settings and writes the result, in one
+  /// step after the saves and updates called before (a restore, a sync
+  /// merge); returns it. Nothing is written when [change] changes nothing.
+  /// Throws [SettingsUnavailableException] when the stored settings can't
+  /// be read, and what [save] throws.
+  Future<AppSettings> update(AppSettings Function(AppSettings current) change) {
+    _epoch++;
+    return _queued(() async {
+      final current = await _readMigrated(inQueue: true);
+      if (_loadFailed) throw const SettingsUnavailableException();
+      final next = change(current);
+      if (next == current) return current;
+      await _save(next);
+      _viewStored = false;
+      return next;
+    });
+  }
+
+  /// The providers removed from this device (oldest first), at most
+  /// [maxRemovedProviders]; none when they can't be read.
+  Future<List<RemovedProvider>> removedProviders() async {
+    if (_removed case final removed?) return removed;
+    try {
+      final raw = await prefs.read(removedProvidersKey);
+      if (raw == null) return _removed = const [];
+      final json = jsonDecode(raw);
+      return _removed = List.unmodifiable([
+        if (json is List)
+          for (final item in json) ?RemovedProvider.tryParse(item),
+      ]);
+    } on Object {
+      return const [];
+    }
+  }
+
+  /// The stored settings with their secrets, with what older versions
+  /// wrote moved where it belongs (see the class docs): written after the
+  /// saves called before, or right away when called by one of them
+  /// ([inQueue]).
+  Future<AppSettings> _readMigrated({bool inQueue = false}) async {
     AppSettings? stored;
     try {
       stored = _decode(await prefs.read(settingsKey));
@@ -157,7 +253,7 @@ class SettingsRepository {
     if (outdated && !_loadFailed) {
       try {
         // Moves secrets to [secrets] and drops them from the JSON.
-        await save(loaded);
+        await (inQueue ? _save(loaded) : _queued(() => _save(loaded)));
       } on Object {
         // Tried again on the next load or save.
       }
@@ -165,8 +261,31 @@ class SettingsRepository {
     return loaded;
   }
 
+  /// Writes [settings]: the app's settings after a change it made to those
+  /// it last loaded or saved. When an [update] changed the stored settings
+  /// since, the change is applied to them instead ([rebaseSettings]).
   Future<void> save(AppSettings settings) {
-    final result = _pendingSave.then((_) => _save(settings));
+    final base = _view;
+    _epoch++;
+    _view = settings;
+    return _queued(() async {
+      if (base != null && !_viewStored) {
+        final stored = await _readMigrated(inQueue: true);
+        if (!_loadFailed) {
+          await _save(
+            rebaseSettings(base: base, mine: settings, theirs: stored),
+          );
+          return;
+        }
+      }
+      await _save(settings);
+      _viewStored = true;
+    });
+  }
+
+  /// Runs [action] after the saves and updates called before it.
+  Future<T> _queued<T>(Future<T> Function() action) {
+    final result = _pendingSave.then((_) => action());
     _pendingSave = result.then<void>((_) {}, onError: (Object _) {});
     return result;
   }
@@ -217,6 +336,57 @@ class SettingsRepository {
     _knownProviderIds
       ..clear()
       ..addAll(settings.providers.map((p) => p.id));
+    await _rememberRemoved([
+      for (final provider in [...?previous?.providers])
+        if (staleIds.contains(provider.id)) provider,
+    ], present: settings.providers);
+  }
+
+  /// Adds [removed] to [removedProviders] and forgets those [present]
+  /// again (on the same server). Best effort: never throws.
+  Future<void> _rememberRemoved(
+    List<AiProviderConfig> removed, {
+    required List<AiProviderConfig> present,
+  }) async {
+    try {
+      final known = await removedProviders();
+      if (removed.isEmpty && known.isEmpty) return;
+      final back = {
+        for (final provider in present)
+          RemovedProvider(
+            id: provider.id,
+            server: ProviderIdentity.serverHash(provider),
+          ),
+      };
+      final added = [
+        for (final provider in removed)
+          RemovedProvider(
+            id: provider.id,
+            server: ProviderIdentity.serverHash(provider),
+          ),
+      ];
+      final next = <RemovedProvider>[
+        for (final item in known)
+          if (!back.contains(item) && !added.contains(item)) item,
+        ...added,
+      ];
+      if (next.length == known.length && removed.isEmpty) return;
+      final kept = next.length > maxRemovedProviders
+          ? next.sublist(next.length - maxRemovedProviders)
+          : next;
+      _removed = null;
+      if (kept.isEmpty) {
+        await prefs.delete(removedProvidersKey);
+      } else {
+        await prefs.write(
+          removedProvidersKey,
+          jsonEncode([for (final item in kept) item.toJson()]),
+        );
+      }
+      _removed = List.unmodifiable(kept);
+    } on Object {
+      // A removed provider may come back from another device's settings.
+    }
   }
 
   /// Stores [value] under [key] in [secrets], or deletes it when [value]

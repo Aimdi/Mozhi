@@ -41,8 +41,15 @@ void main() {
         excludedSections: {'presets', 'glossaries'},
         includeSecrets: true,
         wifiOnly: true,
+        joinedAt: DateTime.utc(2026, 10, 20, 9, 30),
       );
       expect(SyncConfig.tryParse(custom.toJson()), custom);
+      expect(custom.toJson()['joinedAt'], '2026-10-20T09:30:00.000Z');
+      expect(config.toJson().containsKey('joinedAt'), isFalse);
+      expect(
+        SyncConfig.tryParse({...config.toJson(), 'joinedAt': 'soon'}),
+        config,
+      );
       expect(custom.toJson()['excludedSections'], ['glossaries', 'presets']);
       expect(
         SyncConfig.tryParse({'server': 'https://a.example', 'username': 'u'}),
@@ -70,6 +77,22 @@ void main() {
         const SyncCursor(fingerprint: 'abc'),
       );
       expect(SyncCursor.tryParse({'etag': '"e"'}), isNull);
+    });
+
+    test("keeps the file's fingerprint when it differs from this device's", () {
+      const cursor = SyncCursor(
+        fingerprint: 'abc',
+        etag: '"e"',
+        remoteFingerprint: 'def',
+      );
+      expect(cursor.toJson()['remote'], 'def');
+      expect(SyncCursor.tryParse(cursor.toJson()), cursor);
+      expect(cursor.fileFingerprint, 'def');
+      // Written by earlier versions: the file held this device's data.
+      const earlier = SyncCursor(fingerprint: 'abc');
+      expect(earlier.toJson().containsKey('remote'), isFalse);
+      expect(earlier.fileFingerprint, 'abc');
+      expect(SyncCursor.tryParse({'fingerprint': 'abc', 'remote': 1}), earlier);
     });
   });
 

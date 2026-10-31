@@ -69,7 +69,10 @@ class PairingSendView extends StatelessWidget {
           void close() => Navigator.of(context).maybePop();
           return switch (state.step) {
             PairingSendStep.enterCode => const _EnterCode(),
-            PairingSendStep.connecting => _Busy(label: l10n.pairingConnecting),
+            PairingSendStep.connecting => _Busy(
+              label: l10n.pairingConnecting,
+              onCancel: cubit.cancelConnect,
+            ),
             PairingSendStep.confirm => PairingBody(
               children: [
                 PairingNumber(sas: state.sas!, title: l10n.pairingConfirmTitle),

@@ -1,5 +1,7 @@
 import 'package:equatable/equatable.dart';
 import 'package:mozhi/documents/core/document_format.dart';
+import 'package:mozhi/documents/core/parsers/json_parser.dart'
+    show DocumentParseException;
 
 /// Opening/closing characters of the numbered placeholders that stand for
 /// protected spans (code, URLs, tags, ICU arguments) inside a [Segment].
@@ -7,7 +9,34 @@ const placeholderOpen = '⟨';
 const placeholderClose = '⟩';
 
 /// The placeholder text for protected span [number] (1-based).
-String placeholder(int number) => '$placeholderOpen$number$placeholderClose';
+///
+/// Throws a [TooManyPlaceholdersException] for a number above
+/// [maxPlaceholder]: [placeholderPattern] would not find it in the
+/// translation, so the placeholder would be written out as text and the
+/// span it stands for moved to the end of the paragraph. Parsers let it
+/// through, so such a document is refused rather than corrupted.
+String placeholder(int number) {
+  if (number > maxPlaceholder) throw const TooManyPlaceholdersException();
+  return '$placeholderOpen$number$placeholderClose';
+}
+
+/// The highest placeholder number, the largest with
+/// [maxPlaceholderDigits] digits.
+const maxPlaceholder = 999999;
+
+/// A paragraph (a segment) with more protected spans than placeholders
+/// can number ([maxPlaceholder]): the document cannot be translated
+/// without corrupting it.
+class TooManyPlaceholdersException extends DocumentParseException {
+  const new()
+    : super(
+        'A paragraph has more than 999,999 protected spans (code, tags, '
+        'links), more than its placeholders can number.',
+      );
+
+  @override
+  String toString() => 'TooManyPlaceholdersException: $message';
+}
 
 /// Matches placeholders, tolerating spaces and CJK angle brackets that some
 /// engines substitute. Numbers have up to [maxPlaceholderDigits] digits
@@ -19,7 +48,8 @@ final placeholderPattern = RegExp(
   '[⟨〈]\\s*(\\d{1,$maxPlaceholderDigits})\\s*[⟩〉]',
 );
 
-/// Most digits of a placeholder number ([placeholderPattern]).
+/// Most digits of a placeholder number ([placeholderPattern]; see
+/// [maxPlaceholder]).
 const maxPlaceholderDigits = 6;
 
 /// A piece of natural-language text to translate.

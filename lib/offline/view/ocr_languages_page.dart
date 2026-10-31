@@ -204,6 +204,10 @@ class _LanguagesList extends StatelessWidget {
         enabled: state.isAvailable,
         onDownload: () => unawaited(cubit.download(code)),
         onDelete: () => unawaited(_delete(context, item)),
+        onCancel: state.canCancel
+            ? () => unawaited(cubit.cancelDownload(code))
+            : null,
+        cancelling: state.cancelling.contains(code),
         onShowFiles: () => unawaited(
           showOcrManualFileSheet(
             context,

@@ -364,9 +364,9 @@ class ShareRoom {
   }
 
   /// Adds a guest reading [languageCode], when [pin] is right. [client]
-  /// identifies the guest's device (the server passes its address): the
-  /// guest's limits are counted per device, so joining again doesn't
-  /// reset them.
+  /// identifies the guest's device (the server passes the device token
+  /// of its cookie, see `IoShareServer`): the guest's limits are counted
+  /// per device, so joining again doesn't reset them.
   ShareJoinResult join({
     required String languageCode,
     String? pin,

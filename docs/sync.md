@@ -14,6 +14,8 @@ only ever stores a file it can't read.
 - [What is synced](#what-is-synced)
 - [When it syncs](#when-it-syncs)
 - [How it works](#how-it-works)
+- [Delete history automatically on several devices](#delete-history-automatically-on-several-devices)
+- [Clear history on several devices](#clear-history-on-several-devices)
 - [What the server sees](#what-the-server-sees)
 - [Change or forget the passphrase](#change-or-forget-the-passphrase)
 - [Turn sync off](#turn-sync-off)
@@ -31,7 +33,7 @@ only ever stores a file it can't read.
 - A folder for Mozhi on that server. Mozhi creates it if it doesn't exist.
   Use one folder per person, the same on every device.
 - `https://`. Plain `http://` only works for this device, your local
-  network (`192.168.x.x`, `10.x.x.x`, `*.local`, a Tailscale name) and
+  network (`192.168.x.x`, `10.x.x.x`, `*.local`, a device on your tailnet) and
   `.onion` addresses, like every other server in Mozhi. The server's
   certificate must be one your device trusts: the Android app does not
   accept self-signed certificates or private certificate authorities.
@@ -76,8 +78,8 @@ choosing its own:
 | History and favorites | Yes | Per entry, the newer copy wins; a deletion (kept as a [deletion record](backup.md) for 180 days) wins over older copies |
 | Phrasebooks | Yes | Per phrase, collection and note, the newer copy wins; deletions win over older copies |
 | Practice progress | Yes | Per card, as the [practice](practice.md) section merges |
-| Presets, Glossaries | Yes | Per preset and glossary, the newer copy wins; a deletion (kept as a [deletion record](backup.md) for 180 days) wins over older copies; the order, and the default preset, of the device that changed them last |
-| Settings | **No** | This device keeps its own settings and gets the AI providers and pinned languages it doesn't have yet. The app lock never travels. Mozhi instances are never added this way (they would get your text when your own instances fail), and new providers that would get text without asking first (on your network, LibreTranslate) arrive turned off |
+| Presets, Glossaries | Yes | Per preset and glossary, the newer copy wins; a deletion (kept as a [deletion record](backup.md) for 180 days) wins over older copies; the order, and the default preset, of the device that changed them last. Two different copies that are equally new (saved before presets had change times) are decided the same way on every device |
+| Settings | **No** | This device keeps its own settings and gets the AI providers and pinned languages it doesn't have yet. The app lock never travels. Mozhi instances are never added this way (they would get your text when your own instances fail), and new providers that would get text without asking first (on your network, LibreTranslate) arrive turned off. A provider you removed here doesn't come back, and another device's provider with the id of one of yours (on another server) arrives under an id of its own |
 
 The settings are left out unless you choose them: some only make sense on
 one device (privacy mode, proxy, theme), and they change after every
@@ -130,6 +132,12 @@ AES-256-GCM under a key derived from your passphrase with Argon2id. A sync:
    in between, the server refuses (`412 Precondition Failed`), and Mozhi
    reads the new file, merges again and retries, up to three times.
 
+A change you make while a sync merges (an edited preset, a new glossary, a
+setting) is kept along with what the merge brought: each part is read and
+written in one step, after the changes started before it, and a change
+made from what a screen showed before the merge is applied to the merged
+data instead of being written over it. The screen then shows both.
+
 The **passphrase is never stored**. The key derived from it once (with the
 salt and Argon2id parameters of the sync file, which every device reads
 from the file's header) is kept in secure storage: the Android Keystore,
@@ -156,6 +164,99 @@ settings say what to do.
 Requests appear as **Encrypted sync** in **Settings > Privacy & data >
 Network activity**. They follow your [proxy](privacy.md#network) and the
 app's network rules like every other request.
+
+## Delete history automatically on several devices
+
+**Settings > Privacy & data > Delete history automatically** is a choice
+of each device. What it deletes leaves no [deletion
+record](backup.md), so it never deletes anything on another device:
+a phone that keeps one week and a tablet that keeps everything stay that
+way, and the tablet keeps all of its history.
+
+The sync file holds what any device still keeps. Each device notes in the
+file how long it keeps history (one note per setting, such as "7 days" or
+"for ever", renewed at most once a week by a device with that setting
+that syncs, and dropped when no such device has synced for 30 days). A
+device that keeps history for less time:
+
+- doesn't take in entries older than its setting (favorites always come
+  in), and deletes its own when they get that old, as without sync;
+- writes back the file's older entries it doesn't keep, as long as a note
+  says another device keeps them; entries older than every note leave the
+  file.
+
+So devices with different settings write the same file, and stop writing
+it once they agree. A new device that keeps history longer gets the older
+entries from the file. Deleting entries yourself still reaches every
+device, and so does **Clear history** (see
+[below](#clear-history-on-several-devices)). A note dated more than a day
+ahead of a device's clock (from a device whose clock is wrong) is ignored,
+and one ahead by less counts as written today, so no note keeps history in
+the file for ever.
+
+Mozhi chose this over making the shortest setting delete everywhere: a
+deletion record for each entry that expired would delete it on the
+devices that keep history longer, and those are the ones where you chose
+to keep it. Devices on an older version of Mozhi write no notes and drop
+the others' notes when they write the file, so until every device is
+updated the older entries may go on being added to and dropped from the
+file (as before), without being deleted from any device.
+
+## Clear history on several devices
+
+**Clear history** deletes what this device holds, and the sync file also
+records when it ran (and whether it kept the favorites). The devices of
+the sync folder then delete the entries that clear covers, including
+those this device never had, such as entries older than its **Delete
+history automatically** setting that a tablet keeping everything still
+holds:
+
+- the entries created and last changed before the clear (starring or
+  un-starring an entry changes it);
+- with **Keep favorites**, only those that are not favorites.
+
+An entry created, starred or un-starred on any device after the clear is
+kept, as is one you import or bring back afterwards. The device that
+cleared no longer writes the file's older entries back for the others,
+and leaves a [deletion record](backup.md) for each of them (as does every
+device that finds one), so they are deleted even on a device that syncs
+only later (deletion records are kept for 180 days).
+
+**A clear never deletes a device's own history from before it started
+syncing with the folder.** Each device notes when it was set up for the
+folder (set up again for another server, account or folder, it notes the
+new time; changing or entering the passphrase again keeps it). The first
+time it merges the sync file after that, everything it held counts as
+changed at that moment, which is later than any clear made before. From
+then on it applies every clear the file records, also an older one that
+reaches the folder only now (from a device that cleared without
+syncing), but such a clear only takes the folder's entries, never the
+joining device's. A clear made on a device before it was set up for the
+folder stays with that device and never reaches the file. Devices set up
+before this version noted no time: they count as having synced with the
+folder all along, so every clear applies to them.
+
+Backups and data sent [phone to phone](pairing.md) also carry the record,
+but restoring them never deletes anything by it: with **Merge with my
+data** this device's entries all stay, and with **Replace my data** the
+device gets the backup's entries. An entry they bring in that a clear on
+this device covers counts as changed then, so that clear doesn't take it
+either.
+
+The record stays as long as the sync file and the devices keep it (it is
+two dates, so it doesn't grow): with the rules above it never reaches
+what a device had before it joined, so it needs no expiry.
+
+The time comes from the clock of the device that cleared: a clear dated
+more than a day ahead of a device's clock is ignored there, and one ahead
+by less counts as now. A device whose clock is behind may lose an entry
+it makes right after the clear, within the time its clock is behind.
+
+A device on 0.1.0-rc.7 or earlier doesn't know the record: it deletes the
+entries the file held through the deletion records, while the ones only
+it had come back into the file until an updated device deletes them there
+(at its next sync). It drops the record from the file when it writes it,
+so until it is updated the file may change at every sync.
 
 ## What the server sees
 
@@ -347,19 +448,20 @@ parameters run as JavaScript).
   kilobytes. Mozhi reads at most 64 MiB.
 - **Settings** carry no change times: a new AI provider, instance or
   pinned language reaches your other devices, but editing or removing one
-  does not. Change them on each device, or sync them only from one.
-- **Presets and glossaries** saved before this version have no change
-  time: when two devices hold different copies of one, each keeps its own
-  until one of them changes it again (the change then wins everywhere).
-  Presets and glossaries sync in a newer format: a device with an older
-  version of Mozhi stops with **Another device synced with a newer version
-  of Mozhi** until it is updated.
-- **Delete history automatically** works on each device: a sync never
-  brings back the entries it would delete here, and they are left out of
-  what this device uploads. It doesn't delete them on your other devices:
-  one that keeps its history longer keeps them and syncs them again (this
-  device just doesn't take them in). Deleting entries yourself, or **Clear
-  history**, does travel.
+  does not (a provider removed on one device stays removed there, and
+  stays on the others). Change them on each device, or sync them only
+  from one. Each device's own settings (theme, last language pair...)
+  differ, so with the settings synced every sync of a device writes the
+  file.
+- **Presets and glossaries** saved before change times existed: when two
+  devices hold different copies of one, every device picks the same copy
+  (by a hash of their contents) and marks it, so they agree from the next
+  sync on; a change made since always wins. Presets and glossaries sync in
+  a newer format: a device with an older version of Mozhi stops with
+  **Another device synced with a newer version of Mozhi** until it is
+  updated.
+- **Delete history automatically** works on each device and deletes
+  nothing on the others; see [above](#delete-history-automatically-on-several-devices).
 - Sync isn't instant: other devices pick changes up when they start, when
   something changes there, or on **Sync now**.
 - No sharing between people: everyone who knows the folder's account and

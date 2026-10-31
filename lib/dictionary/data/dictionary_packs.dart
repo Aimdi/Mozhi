@@ -73,7 +73,9 @@ final class DictionaryPackUnsupportedException extends DictionaryPackException {
 ///   before it is installed; a pack replaces another version of itself at
 ///   once (see the storages). [install] tries the URLs of `downloadUrls`
 ///   (default: the catalogue's) in turn when a server fails, never after a
-///   checksum mismatch. Concurrent installs of one pack share a download.
+///   checksum mismatch. Concurrent installs of one pack share a download,
+///   which [cancelInstall] stops (nothing is kept: the next download starts
+///   from the beginning).
 /// * `isMeteredConnection` tells whether a `wifiOnly` install must stop.
 /// * An install first checks that the pack fits (`freeSpace`, default
 ///   [FreeSpace.instance]: the pack's size plus a margin, see
@@ -114,7 +116,7 @@ class DictionaryPacks implements OfflineDictionary {
   final List<Uri> Function(DictionaryPackInfo pack) _downloadUrls;
   final FreeSpace? _freeSpace;
   final StreamController<void> _changes = StreamController.broadcast();
-  final Map<String, Future<void>> _installing = {};
+  final Map<String, _PackInstall> _installing = {};
   final Map<String, Future<DictionaryPackReader>> _readers = {};
   Future<void>? _cleanedUp;
   Future<List<StoredDictionaryPack>>? _installed;
@@ -153,19 +155,45 @@ class DictionaryPacks implements OfflineDictionary {
   /// Downloads and installs [pack], replacing another version of it.
   /// Returns at once when it is installed already. With [wifiOnly] it
   /// throws [DictionaryPackMeteredException] on a metered network.
-  /// [onProgress] gets the fraction received (0 to 1).
+  /// [onProgress] gets the fraction received (0 to 1). [cancelInstall]
+  /// stops it with an [OfflineDownloadCancelledException].
   Future<void> install(
     DictionaryPackInfo pack, {
     bool wifiOnly = false,
     void Function(double fraction)? onProgress,
   }) {
     final key = '${pack.id}/${pack.sha256}';
-    // The callback must not return the removed future: whenComplete would
-    // then wait for itself.
-    return _installing[key] ??= _install(pack, wifiOnly, onProgress)
-        .whenComplete(() {
-          unawaited(_installing.remove(key));
-        });
+    final running = _installing[key];
+    if (running != null && !running.cancel.isCancelled) return running.result;
+    // A cancelled install winds down first (it may still be aborting its
+    // write).
+    final install = _PackInstall(
+      _DownloadCancel(pack.id),
+      (cancel) => _install(pack, wifiOnly, onProgress, cancel),
+      after: running?.settled,
+    );
+    _installing[key] = install;
+    unawaited(
+      install.settled.then((_) {
+        if (identical(_installing[key], install)) _installing.remove(key);
+      }),
+    );
+    return install.result;
+  }
+
+  /// Stops every running [install] of the pack [id]: the request is
+  /// closed, what was received is discarded and nothing is installed;
+  /// those calls fail with an [OfflineDownloadCancelledException].
+  /// Completes once they have stopped; does nothing when none runs. Never
+  /// throws.
+  Future<void> cancelInstall(String id) async {
+    final stopping = [
+      for (final MapEntry(:key, value: install) in _installing.entries)
+        if (key.startsWith('$id/')) install..cancel.cancel(),
+    ];
+    for (final install in stopping) {
+      await install.settled;
+    }
   }
 
   /// Deletes the installed pack [id] (closing it first).
@@ -444,6 +472,7 @@ class DictionaryPacks implements OfflineDictionary {
     DictionaryPackInfo pack,
     bool wifiOnly,
     void Function(double fraction)? onProgress,
+    _DownloadCancel cancel,
   ) async {
     if (!isSupported) throw DictionaryPackUnsupportedException(pack.id);
     final existing = await installedPack(pack.id);
@@ -454,10 +483,12 @@ class DictionaryPacks implements OfflineDictionary {
     await ensureFreeSpace(pack.size, freeSpace: _freeSpace);
     final urls = _downloadUrls(pack);
     for (final (index, url) in urls.indexed) {
+      cancel.check();
       try {
-        await _download(pack, url, onProgress);
+        await _download(pack, url, onProgress, cancel);
         break;
       } on DictionaryPackDownloadException {
+        cancel.check();
         if (index == urls.length - 1) rethrow;
       }
     }
@@ -466,17 +497,29 @@ class DictionaryPacks implements OfflineDictionary {
     _changes.add(null);
   }
 
+  /// Downloads [pack] from [url] and installs it; once [cancel] is
+  /// cancelled the request is aborted and this fails with an
+  /// [OfflineDownloadCancelledException] (nothing is written).
   Future<void> _download(
     DictionaryPackInfo pack,
     Uri url,
     void Function(double fraction)? onProgress,
+    _DownloadCancel cancel,
   ) async {
     final http.StreamedResponse response;
     try {
-      response = await _client
-          .send(http.Request('GET', url))
-          .timeout(requestTimeout);
+      response = await cancel.race(
+        _client
+            .send(
+              http.AbortableRequest('GET', url, abortTrigger: cancel.future),
+            )
+            .timeout(requestTimeout),
+        onLate: _discard,
+      );
+    } on OfflineDownloadCancelledException {
+      rethrow;
     } on Object catch (error) {
+      cancel.check();
       throw DictionaryPackDownloadException(pack.id, '$error', url: url);
     }
     if (response.statusCode != 200) {
@@ -491,9 +534,10 @@ class DictionaryPacks implements OfflineDictionary {
     }
     await _store(
       pack,
-      response.stream.timeout(requestTimeout),
+      cancel.guard(response.stream).timeout(requestTimeout),
       url: url,
       onProgress: onProgress,
+      cancel: cancel,
       wrap: (error) => DictionaryPackDownloadException(
         pack.id,
         '${pack.fileName}: $error',
@@ -502,16 +546,29 @@ class DictionaryPacks implements OfflineDictionary {
     );
   }
 
+  /// Stops reading [response] (closing its connection).
+  static void _discard(http.StreamedResponse response) {
+    unawaited(
+      response.stream
+          .listen(null, onError: (Object _) {})
+          .cancel()
+          .catchError((Object _) {}),
+    );
+  }
+
   /// Writes [bytes] as [pack] into the storage, checking them against the
   /// catalogue's size and SHA-256 (a [DictionaryPackChecksumException]
   /// naming [url] otherwise; nothing is installed). Other errors abort the
-  /// write and are rethrown, or replaced by what [wrap] makes of them.
+  /// write and are rethrown, or replaced by what [wrap] makes of them;
+  /// once [cancel] is cancelled, the write is aborted (also when every byte
+  /// came) with an [OfflineDownloadCancelledException].
   Future<void> _store(
     DictionaryPackInfo pack,
     Stream<List<int>> bytes, {
     Uri? url,
     void Function(double fraction)? onProgress,
     Exception Function(Object error)? wrap,
+    _DownloadCancel? cancel,
   }) async {
     final sink = await _storage.create(pack.id);
     final hash = Sha256();
@@ -536,8 +593,13 @@ class DictionaryPacks implements OfflineDictionary {
       rethrow;
     } on Object catch (error) {
       await sink.abort();
+      cancel?.check();
       if (wrap == null) rethrow;
       throw wrap(error);
+    }
+    if (cancel?.isCancelled ?? false) {
+      await sink.abort();
+      cancel?.check();
     }
     final digest = hash.close();
     if (received != pack.size || digest != pack.sha256) {
@@ -559,6 +621,123 @@ class DictionaryPacks implements OfflineDictionary {
         sha256: pack.sha256,
       ),
     );
+  }
+}
+
+/// An install of [DictionaryPacks] that callers share, with its [cancel].
+final class _PackInstall {
+  new(
+    this.cancel,
+    Future<void> Function(_DownloadCancel cancel) run, {
+    Future<void>? after,
+  }) {
+    result = after == null
+        ? Future.sync(() => run(cancel))
+        : after.then((_) => run(cancel));
+    settled = result.then<void>((_) {}, onError: (Object _) {});
+  }
+
+  final _DownloadCancel cancel;
+  late final Future<void> result;
+
+  /// Completes (never with an error) when [result] does.
+  late final Future<void> settled;
+}
+
+/// Stops a pack download once [cancel] is called: requests sent with
+/// [future] as their abort trigger are aborted, [guard]ed response streams
+/// end with an [OfflineDownloadCancelledException], [race]d futures fail
+/// with it and [check] throws it.
+final class _DownloadCancel {
+  new(this.packId);
+
+  final String packId;
+  final _stopped = Completer<void>();
+
+  bool get isCancelled => _stopped.isCompleted;
+
+  /// Completes when [cancel] is called (never with an error).
+  Future<void> get future => _stopped.future;
+
+  void cancel() {
+    if (!_stopped.isCompleted) _stopped.complete();
+  }
+
+  OfflineDownloadCancelledException get _error =>
+      OfflineDownloadCancelledException(packId);
+
+  void check() {
+    if (isCancelled) throw _error;
+  }
+
+  /// [work], or an [OfflineDownloadCancelledException] as soon as [cancel]
+  /// is called (`MockClient` and some platform clients do not abort a
+  /// request by its trigger); a later result goes to [onLate].
+  Future<T> race<T>(Future<T> work, {void Function(T value)? onLate}) {
+    final result = Completer<T>();
+    unawaited(
+      work.then(
+        (value) {
+          if (result.isCompleted) {
+            onLate?.call(value);
+          } else {
+            result.complete(value);
+          }
+        },
+        onError: (Object error, StackTrace stackTrace) {
+          if (!result.isCompleted) result.completeError(error, stackTrace);
+        },
+      ),
+    );
+    unawaited(
+      future.then((_) {
+        if (!result.isCompleted) result.completeError(_error);
+      }),
+    );
+    return result.future;
+  }
+
+  /// [stream] until [cancel] is called: then its subscription is cancelled
+  /// (closing the response) and the stream ends with an
+  /// [OfflineDownloadCancelledException] at once.
+  Stream<T> guard<T>(Stream<T> stream) {
+    final controller = StreamController<T>();
+    // Cancelled by stop() or onCancel.
+    // ignore: cancel_subscriptions
+    StreamSubscription<T>? subscription;
+    void stop() {
+      if (controller.isClosed) return;
+      final source = subscription;
+      subscription = null;
+      if (source != null) unawaited(source.cancel());
+      controller.addError(_error);
+      unawaited(controller.close());
+    }
+
+    controller
+      ..onListen = () {
+        if (isCancelled) {
+          unawaited(stream.listen(null, onError: (Object _) {}).cancel());
+          return stop();
+        }
+        subscription = stream.listen(
+          controller.add,
+          onError: controller.addError,
+          onDone: () {
+            subscription = null;
+            unawaited(controller.close());
+          },
+        );
+        unawaited(future.then((_) => stop()));
+      }
+      ..onPause = (() => subscription?.pause())
+      ..onResume = (() => subscription?.resume())
+      ..onCancel = () {
+        final source = subscription;
+        subscription = null;
+        return source?.cancel();
+      };
+    return controller.stream;
   }
 }
 

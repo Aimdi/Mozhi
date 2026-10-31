@@ -7,9 +7,9 @@ import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/speech_settings_cubit.dart';
 import 'package:mozhi/settings/view/widgets/choice_dialog.dart';
 import 'package:mozhi/settings/view/widgets/settings_section.dart';
-import 'package:mozhi/speech/speech_error_message.dart';
 import 'package:mozhi/speech/speech_service.dart';
 import 'package:mozhi/speech/widgets/prefer_device_voice_tile.dart';
+import 'package:mozhi/speech/widgets/speech_error_snack_bar.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 /// The "Read aloud" settings: the speech rate with a live preview, the
@@ -69,6 +69,41 @@ class SpeechSettingsView extends StatelessWidget {
   /// See [SpeechSettingsSection.languages].
   final List<Language> languages;
 
+  /// Says why the rate preview could not be played
+  /// ([showSpeechErrorSnackBar]); when the Mozhi servers failed or did not
+  /// answer, Retry plays it again (unless it plays already).
+  static void _showPreviewError(
+    BuildContext context,
+    SpeechSettingsState state,
+  ) {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    final error = state.previewError;
+    if (messenger == null || error == null) return;
+    messenger.hideCurrentSnackBar();
+    final cubit = context.read<SpeechSettingsCubit>();
+    final retry = state.failedPreviewId == SpeechSettingsCubit.ratePreviewId
+        ? (
+            text: context.l10n.speechRatePreviewText,
+            languageCode: _RateSetting._previewLanguage(context),
+          )
+        : null;
+    showSpeechErrorSnackBar(
+      context,
+      error,
+      onRetry: retry == null
+          ? null
+          : () {
+              if (cubit.isClosed || cubit.state.previewingRate) return;
+              unawaited(
+                cubit.previewRate(
+                  text: retry.text,
+                  languageCode: retry.languageCode,
+                ),
+              );
+            },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
@@ -84,13 +119,7 @@ class SpeechSettingsView extends StatelessWidget {
           current.previewError != null &&
           current.previewError != previous.previewError &&
           !SpeechSettingsCubit.isVoicePreviewId(current.failedPreviewId),
-      listener: (context, state) => ScaffoldMessenger.maybeOf(context)
-        ?..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(
-            content: Text(speechErrorMessage(l10n, state.previewError!)),
-          ),
-        ),
+      listener: _showPreviewError,
       child: SettingsSection(
         title: l10n.speechSettingsTitle,
         children: [

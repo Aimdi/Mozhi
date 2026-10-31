@@ -161,13 +161,51 @@ void main() {
       expect(extract('{}'), <String, Object?>{});
     });
 
-    test('gives up on a reply that is mostly unclosed brackets', () {
-      // Each bracket would start a search over the rest of the reply: the
-      // search stops after a few dozen (linear time).
-      expect(() => extract('${'[' * 200000}{"a": 1}'), throwsFormatException);
-      // Brackets that cannot start an object cost nothing.
+    test('finds the object in a reply that is mostly brackets', () {
+      // In linear time (see hostile_input_scaling_test.dart).
+      final stopwatch = Stopwatch()..start();
+      expect(extract('${'[' * 200000}{"a": 1}'), {'a': 1});
+      expect(extract('${'[' * 200000}{"a": 1}${']' * 1000}'), {'a': 1});
+      expect(extract('${'[x ' * 50000}{"a": 1}'), {'a': 1});
       expect(extract('${'{' * 200000}{"a": 1}'), {'a': 1});
       expect(extract('${'[1] ' * 40000}{"a": 1}'), {'a': 1});
+      expect(extract('${'[1, [2]] ' * 40000}[3, {"a": 1}]'), {'a': 1});
+      expect(extract('${'["a", ' * 40000}{"a": 1}'), {'a': 1});
+      expect(extract('${'{"{' * 40000}x {"a": 1}'), {'a': 1});
+      expect(extract('${'[1}' * 40000} {"a": 1}'), {'a': 1});
+      expect(extract('${'[' * 100000}${']' * 100000} {"a": 1}'), {'a': 1});
+      expect(stopwatch.elapsed, lessThan(const Duration(seconds: 10)));
+    });
+
+    test('looks into brackets that do not decode', () {
+      expect(extract('[note: {"a": 1}]'), {'a': 1});
+      expect(extract('[x [y {"a": 1}] [2]] {"b": 2}'), {'a': 1});
+      expect(extract('[[1], [x], [{"a": 1}]]'), {'a': 1});
+      // A value that decodes is searched: its parts are not decoded again.
+      expect(extract('[[1], [[{"a": 1}]]]'), {'a': 1});
+      expect(extract('{x {y [1] [[2]] {"a": 3}}}'), {'a': 3});
+    });
+
+    test('quotes in prose do not hide the object', () {
+      expect(extract('He said "hi. {"a": 1}'), {'a': 1});
+      expect(extract('[He said "hi]: {"a": 1}'), {'a': 1});
+      expect(extract('{see "x} {"a": 1}'), {'a': 1});
+      expect(extract('[Note: "{"a": 1}'), {'a': 1});
+    });
+
+    test('mismatched brackets end what is open', () {
+      expect(extract('{"a": "b"] {"c": 1}'), {'c': 1});
+      expect(extract('[{"a": 1}} {"b": 2}'), {'a': 1});
+      expect(extract('] } {"a": 1}'), {'a': 1});
+    });
+
+    test('truncated output after brackets that never close', () {
+      expect(extract('[x {"a": [1, 2'), {
+        'a': [1, 2],
+      });
+      expect(extract('[x [y {"a": [1, 2'), {
+        'a': [1, 2],
+      });
     });
 
     test('non-string keys are stringified', () {

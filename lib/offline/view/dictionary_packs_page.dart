@@ -201,6 +201,8 @@ class _PacksList extends StatelessWidget {
         enabled: state.isAvailable,
         onDownload: () => unawaited(cubit.download(id)),
         onDelete: () => unawaited(_delete(context, item)),
+        onCancel: () => unawaited(cubit.cancelDownload(id)),
+        cancelling: state.cancelling.contains(id),
       );
     }
 

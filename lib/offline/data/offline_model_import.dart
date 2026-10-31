@@ -75,6 +75,7 @@ class OfflineModelFile extends Equatable {
     required this.name,
     required this.url,
     required this.size,
+    this.mirrorUrl,
   });
 
   /// Language codes of the direction the file belongs to.
@@ -84,14 +85,23 @@ class OfflineModelFile extends Equatable {
   /// The file name as published (e.g. `vocab.deen.spm.gz`).
   final String name;
 
-  /// Where to download it.
+  /// Where to download it from its publisher.
   final String url;
+
+  /// Where the app downloads it from with the model source in use, when
+  /// that is a mirror (null for the publishers): the link to offer first,
+  /// with [url] as the fallback. The file is the same (checked by its
+  /// size and SHA-256 when imported).
+  final String? mirrorUrl;
+
+  /// [mirrorUrl], or [url] without a mirror: the link the app uses.
+  String get preferredUrl => mirrorUrl ?? url;
 
   /// Bytes to download.
   final int size;
 
   @override
-  List<Object?> get props => [source, target, name, url, size];
+  List<Object?> get props => [source, target, name, url, size, mirrorUrl];
 }
 
 /// Installing models from files the user copied to the device, for engines

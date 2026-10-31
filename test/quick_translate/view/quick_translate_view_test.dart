@@ -7,6 +7,8 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/quick_translate/quick_translate.dart';
+import 'package:mozhi/speech/speech_service.dart'
+    show SpeechUnavailableException;
 import 'package:mozhi/translate/widgets/translate_layout.dart'
     show TranslateLayout;
 import 'package:translation_repository/translation_repository.dart';
@@ -665,6 +667,81 @@ void main() {
         expect(find.text("Couldn't play audio."), findsOneWidget);
         await tester.pumpAndSettle(const Duration(seconds: 5));
         expect(find.text("Couldn't play audio."), findsNothing);
+      });
+
+      testWidgets('offers Retry when the servers could not read it', (
+        tester,
+      ) async {
+        final semantics = tester.ensureSemantics();
+        final serversFailed = SpeechUnavailableException(
+          'fr',
+          cause: AllInstancesFailedException(
+            'boom',
+            engine: TranslationEngine.mozhi('google', 'Google'),
+            instances: const [MozhiInstance(url: 'https://mozhi.example')],
+            statusCode: 502,
+          ),
+        );
+        var calls = 0;
+        when(
+          () => speech.toggle(
+            id: any(named: 'id'),
+            text: any(named: 'text'),
+            languageCode: any(named: 'languageCode'),
+          ),
+        ).thenAnswer((_) async {
+          if (calls++ == 0) throw serversFailed;
+        });
+        stub(done);
+        await tester.pumpQuick(quickView(cubit, speech: speech));
+
+        await tester.tap(byKey('quick_translate_listen'));
+        await tester.pump();
+        // The notice grows in.
+        await tester.pump(const Duration(milliseconds: 300));
+        expect(
+          find.textContaining("The volunteer servers couldn't read this"),
+          findsOneWidget,
+        );
+        final retry = byKey('quick_translate_notice_action');
+        expect(
+          find.descendant(of: retry, matching: find.text('Retry')),
+          findsOneWidget,
+        );
+        expect(tester.getSize(retry).height, greaterThanOrEqualTo(48));
+        expect(find.bySemanticsLabel('Retry'), findsOneWidget);
+
+        await tester.tap(retry);
+        await tester.pump();
+        verify(
+          () => speech.toggle(
+            id: QuickListenButton.defaultId,
+            text: 'Bonjour le monde',
+            languageCode: 'fr',
+          ),
+        ).called(2);
+        await tester.pumpAndSettle(const Duration(seconds: 15));
+        semantics.dispose();
+      });
+
+      testWidgets('offers no Retry for a language no voice reads', (
+        tester,
+      ) async {
+        when(
+          () => speech.toggle(
+            id: any(named: 'id'),
+            text: any(named: 'text'),
+            languageCode: any(named: 'languageCode'),
+          ),
+        ).thenThrow(const SpeechUnavailableException('fr'));
+        stub(done);
+        await tester.pumpQuick(quickView(cubit, speech: speech));
+
+        await tester.tap(byKey('quick_translate_listen'));
+        await tester.pump();
+        expect(byKey('quick_translate_notice'), findsOneWidget);
+        expect(byKey('quick_translate_notice_action'), findsNothing);
+        await tester.pumpAndSettle(const Duration(seconds: 5));
       });
 
       testWidgets('a long press reads slowly; failures show a notice', (

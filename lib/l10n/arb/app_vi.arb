@@ -2763,5 +2763,9 @@
   "liveCaptionsBarLocked": "Mozhi đang khóa",
   "offlineCancelDownloadTooltip": "Hủy tải xuống {language}",
   "offlineCancelling": "Đang dừng…",
-  "documentsPdfProgressCooling": "Trang {page}/{total}: điện thoại đang nóng, đang chờ máy nguội…"
+  "documentsPdfProgressCooling": "Trang {page}/{total}: điện thoại đang nóng, đang chờ máy nguội…",
+  "onboardingLanguagesSuggestionPicked": "Trước đó bạn đã chọn {language}.",
+  "offlineManualMirrorNote": "Các liên kết dẫn đến nguồn mô hình của bạn, {host}, nơi Mozhi tải xuống. Nếu thiếu tệp ở đó, hãy dùng liên kết của nhà phát hành.",
+  "offlineManualPublisherLink": "Liên kết của nhà phát hành, nếu máy chủ nhân bản không có tệp",
+  "offlineManualCopyPublisherLink": "Sao chép liên kết của nhà phát hành tới {file}"
 }

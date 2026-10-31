@@ -74,6 +74,32 @@ class _RecordingOffline implements OfflineTranslator {
   Future<void> dispose() async {}
 }
 
+/// [_RecordingOffline] whose downloads run until [cancelDownload] stops
+/// them (or [finish] ends them).
+class _CancellableOffline extends _RecordingOffline
+    implements CancellableDownloads {
+  new() : super(slow: true);
+
+  final cancelled = <String>[];
+  Completer<void>? _running;
+
+  @override
+  Future<void> downloadLanguage(String code, {bool wifiOnly = true}) async {
+    downloads.add((code, wifiOnly));
+    final running = _running = Completer<void>();
+    await Future.any([running.future, _finished.future]);
+    if (running.isCompleted) throw OfflineDownloadCancelledException(code);
+    downloaded.add(code);
+  }
+
+  @override
+  Future<void> cancelDownload(String code) async {
+    cancelled.add(code);
+    final running = _running;
+    if (running != null && !running.isCompleted) running.complete();
+  }
+}
+
 /// [finder] inside the language picker.
 Finder _inPicker(Finder finder) =>
     find.descendant(of: find.byType(LanguagePickerSheet), matching: finder);
@@ -468,6 +494,71 @@ void main() {
       await tester.pumpAndSettle();
       expect(progress, findsNothing);
       expect(_offlineMark('fr'), findsWidgets);
+    });
+
+    testWidgets('cancels a running download quietly', (tester) async {
+      final semantics = tester.ensureSemantics();
+      final offline = _CancellableOffline();
+      await open(
+        tester,
+        TranslateHarness(),
+        offline: offline,
+        store: MemoryStore(),
+      );
+      await tester.tap(_download('fr'));
+      await tester.pump();
+      await tester.pump();
+      final cancel = find.byKey(
+        const ValueKey('translate_language_cancel_download:fr'),
+      );
+      expect(cancel, findsWidgets);
+      // The plain progress ring is replaced by the Cancel button.
+      expect(
+        find.byKey(const ValueKey('translate_language_downloading:fr')),
+        findsNothing,
+      );
+      expect(tester.getSize(cancel.first).height, greaterThanOrEqualTo(48));
+      expect(tester.getSize(cancel.first).width, greaterThanOrEqualTo(48));
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is Tooltip &&
+              widget.message == 'Cancel downloading French',
+        ),
+        findsWidgets,
+      );
+      expect(find.bySemanticsLabel('Cancel downloading French'), findsWidgets);
+
+      await tester.tap(cancel.first);
+      await tester.pumpAndSettle();
+      expect(offline.cancelled, ['fr']);
+      expect(cancel, findsNothing);
+      // Offered again, and nothing is said about it.
+      expect(_download('fr'), findsWidgets);
+      expect(find.byType(SnackBar), findsNothing);
+      expect(_offlineMark('fr'), findsNothing);
+      semantics.dispose();
+    });
+
+    testWidgets('an engine without cancel shows only the progress', (
+      tester,
+    ) async {
+      final offline = _RecordingOffline(slow: true);
+      await open(
+        tester,
+        TranslateHarness(),
+        offline: offline,
+        store: MemoryStore(),
+      );
+      await tester.tap(_download('fr'));
+      await tester.pump();
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('translate_language_cancel_download:fr')),
+        findsNothing,
+      );
+      offline.finish();
+      await tester.pumpAndSettle();
     });
 
     testWidgets('offers no download outside the Android app', (tester) async {

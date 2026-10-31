@@ -3,11 +3,14 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:cryptography/cryptography.dart';
-import 'package:cryptography/dart.dart';
 import 'package:mozhi/pairing/protocol/byte_reader.dart';
 import 'package:mozhi/pairing/protocol/pairing_exception.dart';
+import 'package:mozhi/pairing/protocol/pairing_frame_codec.dart';
+import 'package:mozhi/pairing/protocol/pairing_frame_worker.dart';
 import 'package:mozhi/pairing/protocol/pairing_handshake.dart';
+
+export 'package:mozhi/pairing/protocol/pairing_frame_codec.dart'
+    show PairingDigests, PairingFrameType;
 
 /// One frame from the other phone.
 sealed class PairingFrame {
@@ -37,6 +40,13 @@ final class PairingData extends PairingFrame {
   String toString() => 'PairingData(${bytes.length})';
 }
 
+/// What a phone's `hello` can list besides the version (`features`).
+abstract final class PairingFeature {
+  /// It takes file data compressed with raw deflate
+  /// ([PairingFrameType.compressedData]).
+  static const deflate = 'deflate';
+}
+
 /// The encrypted frames of a pairing connection, after the
 /// [PairingHandshake]:
 ///
@@ -44,10 +54,20 @@ final class PairingData extends PairingFrame {
 ///   AES-256-GCM ciphertext and tag (one key per direction, the nonce the
 ///   frame's number in that direction, so a replayed, dropped or reordered
 ///   frame fails to decrypt like a changed one);
-/// * the plaintext is a type byte and its payload: 1 for a message (a
-///   UTF-8 JSON object, see [PairingMessage]), 2 for file data;
-/// * a payload holds at most [maxPayload] bytes: a longer frame is refused
-///   before it is read.
+/// * the plaintext is a type byte and its payload ([PairingFrameType]): 1
+///   for a message (a UTF-8 JSON object, see [PairingMessage]), 2 for
+///   file data, 3 for file data compressed with raw deflate, which only
+///   goes to a phone whose `hello` lists [PairingFeature.deflate]
+///   ([sendFileData]; a phone of an earlier version lists nothing and
+///   gets type 2);
+/// * a payload holds at most [maxPayload] bytes, also once inflated: a
+///   longer frame is refused before it is read.
+///
+/// File data and any frame larger than a few KiB are sealed, opened,
+/// compressed and hashed by a [PairingFrameWorker] (a background isolate
+/// in the app), so a large transfer doesn't load the UI isolate; small
+/// frames are handled at once (a small compressed one is inflated at once
+/// too, to at most [maxPayload]).
 ///
 /// Anything that fails ends the channel: a frame that does not decrypt
 /// ([PairingAuthenticationException]), a malformed or oversize one
@@ -57,24 +77,44 @@ final class PairingData extends PairingFrame {
 /// reported as [PairingCancelledException] by [receiveMessage]. Writes are
 /// queued, so they go out in order.
 class PairingChannel {
-  new({required this._input, required this._socket, required this._keys});
+  new({
+    required this._input,
+    required this._socket,
+    required this._keys,
+    PairingFrameWorker? worker,
+  }) : _codec = PairingFrameCodec(
+         outgoing: _keys.outgoing.bytes,
+         incoming: _keys.incoming.bytes,
+         deflate: PairingFrameWorker.deflate,
+       ),
+       _givenWorker = worker;
 
   /// Bytes a frame may carry after its type byte (256 KiB: an offer of
   /// many languages; file data goes in smaller pieces).
-  static const int maxPayload = 256 * 1024;
+  static const int maxPayload = PairingFrameCodec.maxPayload;
 
-  static const _messageType = 1;
-  static const _dataType = 2;
-  static const _tagLength = 16;
-  static final _cipher = DartAesGcm.with256bits();
+  /// Frames up to this size are handled on the caller's isolate.
+  static const int _inlineLimit = 4 * 1024;
+
+  static const int _tagLength = PairingFrameCodec.tagLength;
 
   final PairingByteReader _input;
   final Socket _socket;
   final PairingKeys _keys;
+  final PairingFrameCodec _codec;
+  final PairingFrameWorker? _givenWorker;
+  PairingFrameWorker? _startedWorker;
   int _sent = 0;
   int _received = 0;
+  bool _hashing = false;
+  Set<String> _peerFeatures = const {};
   Future<void> _writes = Future.value();
   Object? _broken;
+
+  /// Fails once the connection is closed for reading.
+  late final Future<void> _inputClosed = _input.closed.then<void>(
+    (_) => throw const PairingClosedException(),
+  )..ignore();
 
   /// The short authentication string of this connection.
   String get sas => _keys.sas;
@@ -82,21 +122,81 @@ class PairingChannel {
   /// The other phone's address.
   InternetAddress get remoteAddress => _socket.remoteAddress;
 
+  /// What this phone's `hello` lists ([PairingFeature]).
+  static List<String> get features => [
+    if (PairingFrameWorker.inflates) PairingFeature.deflate,
+  ];
+
+  /// What the other phone's `hello` listed ([acceptHello]).
+  Set<String> get peerFeatures => _peerFeatures;
+
+  /// Whether file data may go compressed ([sendFileData]).
+  bool get peerInflates => _peerFeatures.contains(PairingFeature.deflate);
+
+  PairingFrameWorker get _worker =>
+      _givenWorker ??
+      (_startedWorker ??= PairingFrameWorker.start(
+        outgoing: _keys.outgoing.bytes,
+        incoming: _keys.incoming.bytes,
+      ));
+
+  /// Sends this phone's `hello`: [pairingProtocolVersion] and [features].
+  Future<void> sendHello() => send('hello', {
+    'v': pairingProtocolVersion,
+    if (features.isNotEmpty) 'features': features,
+  });
+
+  /// Checks the other phone's [hello] ([checkHello]) and keeps what it
+  /// lists ([peerFeatures]).
+  void acceptHello(PairingMessage hello) {
+    checkHello(hello);
+    _peerFeatures = helloFeatures(hello);
+  }
+
   /// Sends the message [type] with [fields].
   Future<void> send(String type, [Map<String, Object?> fields = const {}]) {
     final json = utf8.encode(jsonEncode({...fields, 't': type}));
     if (json.length > maxPayload) {
       throw ArgumentError.value(type, 'type', 'Message too long');
     }
-    return _write(_messageType, json);
+    return _write(PairingFrameType.message, json);
   }
 
-  /// Sends file data, at most [maxPayload] bytes.
+  /// Sends file data, at most [maxPayload] bytes, as it is.
   Future<void> sendData(List<int> bytes) {
     if (bytes.length > maxPayload) {
       throw ArgumentError.value(bytes.length, 'bytes', 'Chunk too long');
     }
-    return _write(_dataType, bytes);
+    return _write(PairingFrameType.data, bytes);
+  }
+
+  /// Sends file data, at most [maxPayload] bytes: compressed when
+  /// [compress], the other phone inflates ([peerInflates]) and it gets
+  /// smaller. Returns the bytes of the payload that went across.
+  Future<int> sendFileData(List<int> bytes, {bool compress = true}) {
+    if (bytes.length > maxPayload) {
+      throw ArgumentError.value(bytes.length, 'bytes', 'Chunk too long');
+    }
+    return _write(
+      PairingFrameType.data,
+      bytes,
+      compress: compress && peerInflates,
+    );
+  }
+
+  /// Hashes the file data received from now on, in the worker, until
+  /// [finishHash].
+  Future<void> startHash({required bool sha256, required bool sha1}) async {
+    _checkUsable();
+    _hashing = true;
+    await _guard(() => _worker.startHash(sha256: sha256, sha1: sha1));
+  }
+
+  /// The hashes of the file data received since [startHash].
+  Future<PairingDigests> finishHash() async {
+    _checkUsable();
+    _hashing = false;
+    return await _guard(_worker.finishHash);
   }
 
   /// The next frame, which must arrive within [timeout].
@@ -109,28 +209,16 @@ class PairingChannel {
         throw PairingProtocolException('Frame of $length bytes');
       }
       final sealed = await _input.read(length, timeout: timeout);
-      final List<int> plain;
-      try {
-        plain = _cipher.decryptSync(
-          SecretBox(
-            Uint8List.sublistView(sealed, 0, length - _tagLength),
-            nonce: _nonce(_received),
-            mac: Mac(Uint8List.sublistView(sealed, length - _tagLength)),
-          ),
-          secretKeyData: _keys.incoming,
-        );
-      } on SecretBoxAuthenticationError {
-        throw const PairingAuthenticationException();
-      }
+      final number = _received;
+      final (type, payload) = length <= _inlineLimit && !_hashing
+          ? _codec.open(number, sealed)
+          : await _worker.open(number, sealed);
       _received++;
-      final payload = Uint8List.sublistView(Uint8List.fromList(plain), 1);
-      return switch (plain[0]) {
-        _messageType => _message(payload),
-        _dataType => PairingData(payload),
-        final type => throw PairingProtocolException('Frame type $type'),
-      };
+      return type == PairingFrameType.message
+          ? _message(payload)
+          : PairingData(payload);
     } on Object catch (error) {
-      _broken ??= error;
+      _break(error);
       rethrow;
     }
   }
@@ -153,7 +241,7 @@ class PairingChannel {
       PairingData() => const PairingProtocolException('Unexpected data'),
     };
     if (error != null) {
-      _broken ??= error;
+      _break(error);
       throw error;
     }
     return frame as PairingMessage;
@@ -168,6 +256,7 @@ class PairingChannel {
       // Closing a broken connection.
     } finally {
       _socket.destroy();
+      _stopWorker();
       await _input.cancel();
     }
   }
@@ -192,37 +281,67 @@ class PairingChannel {
   void destroy() {
     _broken ??= const PairingClosedException();
     _socket.destroy();
+    _stopWorker();
     unawaited(_input.cancel());
   }
 
-  Future<void> _write(int type, List<int> payload) {
+  /// The channel can't be used after [error]; its worker stops.
+  void _break(Object error) {
+    _broken ??= error;
+    _stopWorker();
+  }
+
+  void _stopWorker() {
+    _startedWorker?.close();
+    _givenWorker?.close();
+  }
+
+  Future<int> _write(int type, List<int> payload, {bool compress = false}) {
     _checkUsable();
     final write = _writes.then((_) async {
-      final plain = Uint8List(payload.length + 1)
-        ..[0] = type
-        ..setRange(1, payload.length + 1, payload);
-      final box = _cipher.encryptSync(
-        plain,
-        secretKeyData: _keys.outgoing,
-        nonce: _nonce(_sent++),
-      );
-      final length = box.cipherText.length + _tagLength;
-      final frame = Uint8List(4 + length);
-      ByteData.sublistView(frame).setUint32(0, length);
-      frame
-        ..setRange(4, 4 + box.cipherText.length, box.cipherText)
-        ..setRange(4 + box.cipherText.length, 4 + length, box.mac.bytes);
+      final number = _sent++;
+      final bytes = payload is Uint8List
+          ? payload
+          : Uint8List.fromList(payload);
+      final Uint8List frame;
+      var sent = bytes.length;
+      if (type == PairingFrameType.data && compress) {
+        final sealed = await _worker.sealData(number, bytes, compress: true);
+        frame = sealed.frame;
+        sent = sealed.sent;
+      } else if (bytes.length <= _inlineLimit) {
+        frame = _codec.seal(number, type, bytes);
+      } else {
+        frame = await _worker.seal(number, type, bytes);
+      }
       try {
         _socket.add(frame);
-        await _socket.flush();
+        // A socket whose other end went away may never finish a flush.
+        final flushed = _socket.flush()..ignore();
+        await Future.any([flushed, _inputClosed]);
       } on Object catch (error) {
-        _broken ??= error;
+        _break(error);
         throw PairingClosedException('$error');
       }
+      return sent;
     });
     // A failed write fails the later ones too, without an unhandled error.
-    _writes = write.catchError((Object _) {});
+    _writes = write.then(
+      (_) {},
+      onError: (Object error) {
+        _break(error);
+      },
+    );
     return write;
+  }
+
+  Future<T> _guard<T>(Future<T> Function() work) async {
+    try {
+      return await work();
+    } on Object catch (error) {
+      _break(error);
+      rethrow;
+    }
   }
 
   void _checkUsable() {
@@ -249,13 +368,23 @@ class PairingChannel {
     }
     return PairingMessage(type, json);
   }
+}
 
-  /// The 96-bit nonce of frame [number]: four zero bytes and the number.
-  static Uint8List _nonce(int number) {
-    final nonce = Uint8List(12);
-    ByteData.sublistView(nonce)
-      ..setUint32(4, number ~/ 0x100000000)
-      ..setUint32(8, number % 0x100000000);
-    return nonce;
+/// Version of the messages inside the channel (`hello`'s `v`).
+const pairingProtocolVersion = 1;
+
+/// Throws [PairingProtocolException] unless [hello] speaks
+/// [pairingProtocolVersion].
+void checkHello(PairingMessage hello) {
+  if (hello.fields['v'] != pairingProtocolVersion) {
+    throw const PairingProtocolException('Unsupported protocol version');
   }
 }
+
+/// The features [hello] lists ([PairingFeature]); none from a phone of an
+/// earlier version, and only the strings of a list.
+Set<String> helloFeatures(PairingMessage hello) =>
+    switch (hello.fields['features']) {
+      final List<Object?> list => {...list.whereType<String>()},
+      _ => const {},
+    };
