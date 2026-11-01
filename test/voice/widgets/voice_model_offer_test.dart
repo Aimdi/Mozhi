@@ -464,6 +464,25 @@ void main() {
     expect(system.initCalls, 0);
   });
 
+  testWidgets('a failure to start is explained once: no snack bar under the '
+      'offer, none left after "Not now"', (tester) async {
+    privacy = PrivacyMode.offlineOnly;
+    await pump(tester);
+    await tapMic(tester);
+    expect(find.byType(VoiceModelOfferDialog), findsOneWidget);
+    expect(find.byType(SnackBar), findsNothing);
+
+    await tester.tap(find.text(l10n.voiceOfferNotNow));
+    await settle(tester);
+    expect(find.byType(VoiceModelOfferDialog), findsNothing);
+    expect(find.byType(SnackBar), findsNothing);
+
+    // The same failure on the next tap is offered again.
+    await tapMic(tester);
+    expect(find.byType(VoiceModelOfferDialog), findsOneWidget);
+    expect(find.byType(SnackBar), findsNothing);
+  });
+
   testWidgets('a model that still does not work is explained, not offered '
       'again', (tester) async {
     // Listed as installed, but the engine does not take it.

@@ -360,6 +360,12 @@ SpeechInputService? _speechInputOf(BuildContext context) {
 /// app, screen off) or [child] is no longer shown (another tab, a page
 /// pushed above it: its tickers are disabled), so the microphone is never
 /// left open.
+///
+/// When [child] is shown (the tab opened, a page above it closed) it
+/// closes the snack bar of the screen before: a floating snack bar sits
+/// over the bottom of the page, where the large microphone is, and one
+/// with an action does not go away on its own while accessibility
+/// services run, so a tap on the microphone would land on it instead.
 class _SessionGuard extends StatefulWidget {
   const new({required this.child});
 
@@ -372,6 +378,9 @@ class _SessionGuard extends StatefulWidget {
 class _SessionGuardState extends State<_SessionGuard> {
   late final AppLifecycleListener _lifecycle;
 
+  /// Whether the child was shown at the last check (null before the first).
+  bool? _shown;
+
   @override
   void initState() {
     super.initState();
@@ -381,7 +390,15 @@ class _SessionGuardState extends State<_SessionGuard> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (!TickerMode.valuesOf(context).enabled) _stop();
+    final shown = TickerMode.valuesOf(context).enabled;
+    if (!shown) _stop();
+    if (shown && _shown != true) {
+      // After the frame: the messenger cannot change while building.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) ScaffoldMessenger.maybeOf(context)?.hideCurrentSnackBar();
+      });
+    }
+    _shown = shown;
   }
 
   void _stop() {
