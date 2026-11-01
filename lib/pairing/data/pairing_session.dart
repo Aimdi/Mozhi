@@ -8,6 +8,7 @@ import 'package:mozhi/pairing/data/pairing_packs.dart';
 import 'package:mozhi/pairing/models/pairing_item.dart';
 import 'package:mozhi/pairing/protocol/pairing_channel.dart';
 import 'package:mozhi/pairing/protocol/pairing_exception.dart';
+import 'package:mozhi/platform/free_space.dart';
 
 /// How long one phone waits for the other.
 class PairingTimeouts {
@@ -67,6 +68,16 @@ class PairingOfferedItem extends Equatable {
 
   final PairingItem item;
   final PairingPlan plan;
+
+  /// Storage the item takes on this phone while it is received and
+  /// installed: the data item stays in memory (none); on-device AI models
+  /// are moved into place (their size); every other kind is copied out of
+  /// the received files by its import (twice their size).
+  int get spaceNeeded => switch (item.kind) {
+    PairingItemKind.data => 0,
+    PairingItemKind.onDeviceAi => plan.size,
+    _ => plan.size * 2,
+  };
 
   @override
   List<Object?> get props => [item, plan];
@@ -278,13 +289,23 @@ class _Compression {
 /// ([PairingItemOutcome.damaged]) and nothing of the item is installed.
 /// The data item (at most [PairingBackupItem.maxSize]) stays in memory and
 /// is never written to storage.
+///
+/// Nothing is received that does not fit: [offer] plans an item that needs
+/// more storage than is free ([PairingOfferedItem.spaceNeeded] with the
+/// margin of [requiredFreeSpace]; `freeSpace`, default
+/// [FreeSpace.instance], asked for [workDirectory]) as
+/// [PairingItemStatus.noSpace], and [accept] refuses the accepted items
+/// that do not fit together (from the first that does not on) with
+/// [PairingItemOutcome.noSpace], without asking for them. Unknown free
+/// space lets everything through.
 class PairingReceiver {
   new(
     this._channel,
     this._library, {
     required this.workDirectory,
     this.timeouts = const PairingTimeouts(),
-  });
+    Future<int?> Function(String path)? freeSpace,
+  }) : _freeSpace = freeSpace ?? FreeSpace.instance.call;
 
   /// Most items an offer may have.
   static const maxItems = 1000;
@@ -293,7 +314,12 @@ class PairingReceiver {
   final PairingLibrary _library;
   final Directory workDirectory;
   final PairingTimeouts timeouts;
+  final Future<int?> Function(String path) _freeSpace;
   List<PairingOfferedItem> _offered = const [];
+  int? _freeBytes;
+
+  /// The free storage [offer] found (null: unknown).
+  int? get freeBytes => _freeBytes;
 
   /// The short authentication string of the connection.
   String get sas => _channel.sas;
@@ -317,9 +343,24 @@ class PairingReceiver {
       if ({for (final item in parsed) item.id}.length != parsed.length) {
         throw const PairingProtocolException('Duplicate item');
       }
-      return _offered = [
+      final planned = [
         for (final item in parsed)
           PairingOfferedItem(item, await _library.plan(item)),
+      ];
+      final free = _freeBytes = await _free();
+      return _offered = [
+        for (final offered in planned)
+          if (offered.plan.status == PairingItemStatus.available &&
+              !_fits(offered.spaceNeeded, free))
+            PairingOfferedItem(
+              offered.item,
+              PairingPlan.noSpace(
+                offered.plan.files,
+                language: offered.plan.language,
+              ),
+            )
+          else
+            offered,
       ];
     } on Object {
       // The transfer is over: so is the connection (and its worker).
@@ -351,13 +392,28 @@ class PairingReceiver {
     void Function(PairingProgress progress)? onProgress,
   }) async {
     try {
-      final accepted = [
+      final wanted = [
         for (final offered in _offered)
           if (ids.contains(offered.item.id) &&
               offered.plan.status == PairingItemStatus.available &&
               offered.plan.files.isNotEmpty)
             offered,
       ];
+      // What does not fit together is refused before anything comes.
+      final free = await _free();
+      final accepted = <PairingOfferedItem>[];
+      final refused = <PairingItemResult>[];
+      var space = 0;
+      for (final offered in wanted) {
+        if (refused.isEmpty && _fits(space + offered.spaceNeeded, free)) {
+          space += offered.spaceNeeded;
+          accepted.add(offered);
+        } else {
+          refused.add(
+            PairingItemResult(offered.item.id, PairingItemOutcome.noSpace),
+          );
+        }
+      }
       await _channel.send('accept', {
         'items': [
           for (final offered in accepted)
@@ -440,7 +496,7 @@ class PairingReceiver {
         );
         await _channel.send('done');
         await _channel.close();
-        return results;
+        return [...results, ...refused];
       } finally {
         await _deleteQuietly(workDirectory);
       }
@@ -456,6 +512,20 @@ class PairingReceiver {
 
   /// Closes the connection.
   Future<void> close() => _channel.close();
+
+  /// The free storage where the files are received (null: unknown).
+  Future<int?> _free() async {
+    try {
+      return await _freeSpace(workDirectory.path);
+    } on Object {
+      return null;
+    }
+  }
+
+  /// Whether [bytes] fit in [free] bytes, with the margin of
+  /// [requiredFreeSpace].
+  static bool _fits(int bytes, int? free) =>
+      free == null || bytes <= 0 || requiredFreeSpace(bytes) <= free;
 
   /// Receives the data of [expected] into [file] or [memory] (or discards
   /// it with neither: its item failed already), checking its size and

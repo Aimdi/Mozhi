@@ -16,6 +16,7 @@ import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 
 import '../../helpers/helpers.dart';
+import '../../helpers/terminal_font.dart';
 
 class MockSettingsCubit extends MockCubit<AppSettings> implements SettingsCubit;
 
@@ -804,6 +805,9 @@ void main() {
   });
 
   group('AppShell in the terminal look', () {
+    // The labels are measured in the real font (they shorten when cut).
+    setUpAll(loadTerminalFont);
+
     final theme = buildAppTheme(
       appColorScheme(
         brightness: Brightness.dark,
@@ -866,7 +870,8 @@ void main() {
         '1:translate',
         '2:dictionary',
         '3:proofread',
-        '4:conversation',
+        // Too long with its number: it shows without it, whole.
+        'conversation',
       ]) {
         expect(find.text(label), findsOneWidget);
       }
@@ -931,7 +936,7 @@ void main() {
       final selected = await pumpShell(tester, width: 390);
 
       await tester.tap(find.text('2:dictionary'));
-      await tester.tap(find.text('4:conversation'));
+      await tester.tap(find.text('conversation'));
       expect(selected, [1, 3]);
       // 48 dp targets.
       final size = tester.getSize(
@@ -968,6 +973,34 @@ void main() {
       await tester.tap(find.text('3:proofread'));
       expect(selected, [2]);
       expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('makes each sidebar entry a 48 dp target', (tester) async {
+      await pumpShell(tester, width: 1000);
+
+      for (final label in ['1:translate', '2:dictionary', '4:conversation']) {
+        final target = find
+            .ancestor(
+              of: find.text(label),
+              matching: find.byWidgetPredicate((w) => w is InkResponse),
+            )
+            .first;
+        expect(tester.getSize(target).height, greaterThanOrEqualTo(48));
+      }
+      expect(
+        tester.getCenter(find.text('2:dictionary')).dy -
+            tester.getCenter(find.text('1:translate')).dy,
+        greaterThanOrEqualTo(48),
+      );
+    });
+
+    testWidgets('shortens long labels instead of cutting them', (tester) async {
+      await pumpShell(tester, width: 360, locale: const Locale('de'));
+
+      expect(find.textContaining('…'), findsNothing);
+      for (final label in ['übersetzen', 'wörterbuch', '3:korrektur']) {
+        expect(find.textContaining(label), findsOneWidget);
+      }
     });
 
     testWidgets('puts the sidebar on the right in right-to-left languages', (

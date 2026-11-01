@@ -45,10 +45,12 @@ Matcher _apiException({
   Object? message = anything,
   Object? statusCode = anything,
   Object? body = anything,
+  Object? unreachable = anything,
 }) => isA<LlmApiException>()
     .having((e) => e.message, 'message', message)
     .having((e) => e.statusCode, 'statusCode', statusCode)
-    .having((e) => e.body, 'body', body);
+    .having((e) => e.body, 'body', body)
+    .having((e) => e.unreachable, 'unreachable', unreachable);
 
 /// A server at `api.example.com` that answers every request with
 /// `302 Location: http://other-host.example/collect`, behind a client that,
@@ -375,6 +377,7 @@ void main() {
             _apiException(
               message: 'No response from api.example.com within 50 ms.',
               statusCode: isNull,
+              unreachable: isTrue,
             ),
           ),
         );
@@ -410,6 +413,7 @@ void main() {
             emitsError(
               _apiException(
                 message: contains('stopped responding (no data for 100 ms)'),
+                unreachable: isTrue,
               ),
             ),
             emitsDone,
@@ -707,6 +711,7 @@ void main() {
             _apiException(
               message: 'Could not reach api.example.com: Connection refused',
               statusCode: isNull,
+              unreachable: isTrue,
             ),
           ),
         );

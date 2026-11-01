@@ -99,6 +99,9 @@ String _imageErrorMessage(
   ImageTranslateErrorKind.permissionDenied =>
     l10n.imageTranslateErrorPermission,
   ImageTranslateErrorKind.pickFailed => l10n.imageTranslateErrorPick,
+  ImageTranslateErrorKind.fileTooLarge => l10n.imageTranslateErrorFileTooLarge(
+    maxOpenedImageBytes ~/ (1024 * 1024),
+  ),
   ImageTranslateErrorKind.noCameraApp => l10n.imageTranslateErrorNoCameraApp,
   ImageTranslateErrorKind.noEngine => l10n.imageTranslateErrorNoEngine,
   ImageTranslateErrorKind.unsupportedLanguage =>

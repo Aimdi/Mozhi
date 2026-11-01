@@ -206,6 +206,16 @@ void main() {
       expect(speechListenOnlineLabel(l10n, error), isNull);
     });
 
+    test('says when the text-to-speech app did not answer', () {
+      const error = SpeechUnavailableException(
+        'de',
+        cause: DeviceTtsNoAnswerException(),
+      );
+
+      expect(speechErrorMessage(l10n, error), l10n.speechEngineNoAnswer);
+      expect(speechNeedsEngine(error), isFalse);
+    });
+
     test('explains a request the network policy refused', () {
       expect(
         speechErrorMessage(

@@ -33,6 +33,10 @@ import java.util.Locale
  * - `ACTION_PROCESS_TEXT` through the exported alias [TRANSLATE_OFFLINE_ALIAS]
  *   ("Translate offline", see [isTranslateOffline]): the same request, which
  *   Dart translates with the on-device engine only. Replace works the same.
+ * - `ACTION_PROCESS_TEXT` through the exported alias [IMPROVE_TEXT_ALIAS]
+ *   ("Improve with Mozhi", see [isImproveText]): the same request, which
+ *   Dart proofreads (quick improve sheet) instead of translating. Replace
+ *   works the same.
  * - [ACTION_TRANSLATE_CLIPBOARD] from the Quick Settings tile
  *   ([TranslateTileService]), the home-screen widget ([MozhiWidgetProvider])
  *   and the "Translate clipboard" launcher shortcut. It is only honoured when
@@ -42,7 +46,8 @@ import java.util.Locale
  *
  * Payloads are maps `{text: String, readOnly: Boolean, processText: Boolean}`;
  * a selection that arrived through [TRANSLATE_OFFLINE_ALIAS] also carries
- * `action: "translateOffline"`. Clipboard requests are always sent on the
+ * `action: "translateOffline"`, one through [IMPROVE_TEXT_ALIAS]
+ * `action: "improve"`. Clipboard requests are always sent on the
  * event channel, once the window has input focus (Android 10+ only lets the
  * focused app read the clipboard), as `{action: "translateClipboard"}`
  * alone: this side never reads the clipboard. Dart reads it itself, and
@@ -459,6 +464,9 @@ open class MainActivity : FlutterActivity() {
                     isTranslateOffline(intent) ->
                         payload(text, readOnly, processText = true) +
                             (KEY_ACTION to ACTION_VALUE_TRANSLATE_OFFLINE)
+                    isImproveText(intent) ->
+                        payload(text, readOnly, processText = true) +
+                            (KEY_ACTION to ACTION_VALUE_IMPROVE)
                     else -> payload(text, readOnly, processText = true)
                 }
             }
@@ -504,6 +512,19 @@ open class MainActivity : FlutterActivity() {
         } == true
 
     /**
+     * Whether [intent] arrived through the exported alias
+     * [IMPROVE_TEXT_ALIAS] ("Improve with Mozhi" in the text selection
+     * toolbar), whose selection Dart proofreads instead of translating.
+     * Any app may start the alias directly, like the quick translate window
+     * itself: the request goes through the same privacy rules as a
+     * proofread in the app, so it needs no protection either.
+     */
+    private fun isImproveText(intent: Intent?): Boolean =
+        intent?.component?.let {
+            it.packageName == packageName && it.className == IMPROVE_TEXT_ALIAS
+        } == true
+
+    /**
      * The `readOnly` flag sent to Dart for a PROCESS_TEXT [intent]. A missing
      * extra means editable, as in the platform's own text views.
      */
@@ -546,6 +567,14 @@ open class MainActivity : FlutterActivity() {
          */
         const val TRANSLATE_OFFLINE_ALIAS = "io.github.aimdi.mozhi.TranslateOfflineActivity"
 
+        /**
+         * Class name of the exported `<activity-alias>` of
+         * [QuickTranslateActivity] (AndroidManifest.xml) behind the
+         * "Improve with Mozhi" text selection action (see [isImproveText]).
+         * Like [TRANSLATE_CLIPBOARD_ALIAS], the same for every flavour.
+         */
+        const val IMPROVE_TEXT_ALIAS = "io.github.aimdi.mozhi.ImproveTextActivity"
+
         /** Scheme of the deep links handled by [deepLinkRoute]. */
         const val DEEP_LINK_SCHEME = "mozhi"
 
@@ -567,6 +596,7 @@ open class MainActivity : FlutterActivity() {
         private const val KEY_ACTION = "action"
         private const val ACTION_VALUE_TRANSLATE_CLIPBOARD = "translateClipboard"
         private const val ACTION_VALUE_TRANSLATE_OFFLINE = "translateOffline"
+        private const val ACTION_VALUE_IMPROVE = "improve"
         private const val DEFAULT_ROUTE = "/"
 
         /**

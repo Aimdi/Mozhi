@@ -12,6 +12,7 @@ import 'package:mozhi/pairing/protocol/pairing_channel.dart';
 import 'package:mozhi/pairing/protocol/pairing_code.dart';
 import 'package:mozhi/pairing/protocol/pairing_connection.dart';
 import 'package:mozhi/pairing/protocol/pairing_exception.dart';
+import 'package:mozhi/platform/free_space.dart';
 
 import '../helpers/fake_packs.dart';
 import '../helpers/loopback.dart';
@@ -63,6 +64,7 @@ void main() {
     Duration codeValidity = const Duration(minutes: 1),
     int maxFailures = 30,
     Exception? bindError,
+    Future<int?> Function(String path)? freeSpace,
   }) {
     final environment = TestPairingEnvironment(
       temp,
@@ -71,6 +73,7 @@ void main() {
       codeValidity: codeValidity,
       maxFailures: maxFailures,
       bindError: bindError,
+      freeSpace: freeSpace,
     );
     environments.add(environment);
     final cubit = PairingReceiveCubit(environment.environment);
@@ -174,6 +177,64 @@ void main() {
       // Nothing to accept twice.
       await cubit.accept();
       expect(cubit.state.step, PairingReceiveStep.done);
+    });
+
+    test('takes nothing that does not fit', () async {
+      var free = requiredFreeSpace(6000);
+      final cubit = build(freeSpace: (_) async => free);
+      await cubit.start();
+      final channel = await connect(cubit.state.code!);
+      unawaited(
+        PairingSender(channel)
+            .offer(await offer())
+            .then((_) {}, onError: (_) {}),
+      );
+      final offered = await until(
+        cubit,
+        (s) => s.step == PairingReceiveStep.offer,
+      );
+      expect(offered.freeBytes, free);
+      // German (3000 bytes, copied by its import) fits.
+      expect(offered.selected, contains('translation:de'));
+      expect(offered.selectionFits, isTrue);
+      await cubit.close();
+
+      free = requiredFreeSpace(6000) - 1;
+      final full = build(freeSpace: (_) async => free);
+      await full.start();
+      final again = await connect(full.state.code!);
+      unawaited(
+        PairingSender(again).offer(await offer()).then((_) {}, onError: (_) {}),
+      );
+      final refused = await until(
+        full,
+        (s) => s.step == PairingReceiveStep.offer,
+      );
+      final german = refused.offered.firstWhere(
+        (o) => o.item.id == 'translation:de',
+      );
+      expect(german.plan.status, PairingItemStatus.noSpace);
+      expect(refused.selected, isNot(contains('translation:de')));
+      full.toggle('translation:de');
+      expect(full.state.selected, isNot(contains('translation:de')));
+    });
+
+    test('does not accept a selection that does not fit', () async {
+      final cubit = build(freeSpace: (_) async => requiredFreeSpace(6000));
+      await cubit.start();
+      final channel = await connect(cubit.state.code!);
+      unawaited(
+        PairingSender(channel)
+            .offer(await offer())
+            .then((_) {}, onError: (_) {}),
+      );
+      await until(cubit, (s) => s.step == PairingReceiveStep.offer);
+      await cubit.confirm(match: true);
+      // Less room than the cubit was told (e.g. a stale reading).
+      cubit.emit(cubit.state.copyWith(freeBytes: 10));
+      expect(cubit.state.selectionFits, isFalse);
+      await cubit.accept();
+      expect(cubit.state.step, PairingReceiveStep.offer);
     });
 
     test('an offer with data selects it', () async {

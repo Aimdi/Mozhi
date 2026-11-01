@@ -1,11 +1,29 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart' show Locale;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/speech/browser_voices.dart';
-import 'package:mozhi/speech/device_tts.dart';
-import 'package:mozhi/speech/spoken_range.dart';
+import 'package:mozhi/speech/speech_error_message.dart';
+import 'package:mozhi/speech/speech_service.dart';
+import 'package:translation_repository/translation_repository.dart';
+
+class _MockTranslationRepository extends Mock implements TranslationRepository;
+
+/// An [AudioOutput] that is never used (no Mozhi instance).
+class _NoOutput extends Fake implements AudioOutput {
+  @override
+  Stream<void> get onComplete => const Stream.empty();
+
+  @override
+  Future<void> stop() async {}
+
+  @override
+  Future<void> dispose() async {}
+}
 
 /// Scriptable stand-in for the `flutter_tts` plugin; records calls.
 class _FakeFlutterTts extends Fake implements FlutterTts {
@@ -110,10 +128,35 @@ class _FakeFlutterTts extends Fake implements FlutterTts {
     return _answer(audioCategoryError ?? 1);
   }
 
+  /// Holds [speak] until completed (never: the plugin keeps a rejected
+  /// `speak` waiting and never answers it).
+  Completer<void>? speakGate;
+
   @override
   Future<dynamic> speak(String text, {bool focus = false}) async {
     calls.add('speak $text');
+    if (speakGate case final gate?) await gate.future;
     return _answer(speakResult);
+  }
+
+  /// The `getDefaultEngine` answer; an [Exception] is thrown.
+  Object? defaultEngine = 'org.woheller69.ttsengine';
+
+  /// Runs when `setEngine` binds the engine (e.g. voices appear).
+  VoidCallback? onSetEngine;
+  Object? setEngineResult = 1;
+
+  @override
+  Future<dynamic> get getDefaultEngine async {
+    calls.add('getDefaultEngine');
+    return _answer(defaultEngine);
+  }
+
+  @override
+  Future<dynamic> setEngine(String engine) async {
+    calls.add('setEngine $engine');
+    onSetEngine?.call();
+    return _answer(setEngineResult);
   }
 
   @override
@@ -131,6 +174,7 @@ void main() {
     TargetPlatform platform = TargetPlatform.android,
     bool isWeb = false,
     Duration settleTimeout = const Duration(seconds: 5),
+    Duration speakTimeout = const Duration(seconds: 5),
     List<BrowserVoice> browserVoices = const [],
   }) => FlutterTtsDeviceTts(
     createTts: () {
@@ -140,6 +184,7 @@ void main() {
     platform: platform,
     isWeb: isWeb,
     settleTimeout: settleTimeout,
+    speakTimeout: speakTimeout,
     webVoicesDelay: Duration.zero,
     browserVoices: () => browserVoices,
   );
@@ -1052,6 +1097,203 @@ void main() {
         }
         expect(created, 0);
       });
+    });
+  });
+
+  group('a speech engine installed while the app runs (Android)', () {
+    const sherpa = 'org.woheller69.ttsengine';
+    const voice = {'name': 'de-thorsten', 'locale': 'de-DE'};
+
+    /// The plugin's instance from the app's start, bound to no engine:
+    /// nothing is available or listed until it is bound again.
+    void deadUntilBound() {
+      var bound = false;
+      tts
+        ..available = ((_) => bound)
+        ..voices = const [<Object?>[]]
+        ..onSetEngine = () {
+          bound = true;
+          tts.voices = const [
+            [voice],
+          ];
+        };
+    }
+
+    test('binds the engine again and finds the language', () async {
+      deadUntilBound();
+      final device = deviceTts();
+
+      expect(await device.isLanguageAvailable('de'), isTrue);
+      expect(
+        tts.calls,
+        containsAllInOrder(['getEngines', 'setEngine $sherpa']),
+      );
+      expect(tts.calls.last, 'isLanguageAvailable de');
+    });
+
+    test('lists the voices after binding again', () async {
+      deadUntilBound();
+      final device = deviceTts();
+
+      final voices = await device.voices('de');
+
+      expect(voices.map((v) => v.name), ['de-thorsten']);
+      expect(tts.calls, contains('setEngine $sherpa'));
+    });
+
+    test('binds once per set of engines', () async {
+      tts
+        ..available = ((_) => false)
+        ..voices = const [<Object?>[]];
+      final device = deviceTts();
+
+      expect(await device.isLanguageAvailable('de'), isFalse);
+      expect(await device.isLanguageAvailable('xx'), isFalse);
+      expect(tts.calls.where((c) => c.startsWith('setEngine')), hasLength(1));
+
+      // Another engine installed: bound again.
+      tts.engines = const [sherpa, 'com.k2fsa.sherpa.onnx.tts.engine'];
+      expect(await device.isLanguageAvailable('de'), isFalse);
+      expect(tts.calls.where((c) => c.startsWith('setEngine')), hasLength(2));
+    });
+
+    test('binds the engine installed after there was none', () async {
+      deadUntilBound();
+      tts.engines = const <Object?>[];
+      final device = deviceTts();
+
+      expect(await device.isLanguageAvailable('de'), isFalse);
+      expect(tts.calls.where((c) => c.startsWith('setEngine')), isEmpty);
+
+      tts.engines = const [sherpa];
+      expect(await device.isLanguageAvailable('de'), isTrue);
+    });
+
+    test('picks the first engine when the default is not installed', () async {
+      deadUntilBound();
+      tts
+        ..defaultEngine = 'com.google.android.tts'
+        ..engines = const ['org.rhvoice', sherpa];
+      final device = deviceTts();
+
+      expect(await device.isLanguageAvailable('de'), isTrue);
+      expect(tts.calls, contains('setEngine org.rhvoice'));
+    });
+
+    test('keeps an instance that works', () async {
+      tts
+        ..available = ((tag) => tag == 'fr')
+        ..voices = const [
+          [voice],
+        ];
+      final device = deviceTts();
+
+      expect(await device.isLanguageAvailable('de'), isFalse);
+      expect(tts.calls.where((c) => c.startsWith('setEngine')), isEmpty);
+    });
+
+    test('a failing binding is not fatal', () async {
+      tts
+        ..available = ((_) => false)
+        ..setEngineResult = Exception('TtsError');
+      final device = deviceTts();
+
+      expect(await device.isLanguageAvailable('de'), isFalse);
+      tts.engines = Exception('no package manager');
+      expect(await device.isLanguageAvailable('de'), isFalse);
+    });
+  });
+
+  group('a speak the engine never answers', () {
+    test('fails after the timeout instead of waiting for ever', () async {
+      tts.speakGate = Completer<void>();
+      final device = deviceTts(speakTimeout: const Duration(milliseconds: 10));
+
+      await expectLater(
+        device.speak('Hallo'),
+        throwsA(isA<DeviceTtsNoAnswerException>()),
+      );
+    });
+
+    test('binds the engine again before the next language and stops what it '
+        'held back', () async {
+      tts.speakGate = Completer<void>();
+      final device = deviceTts(speakTimeout: const Duration(milliseconds: 10));
+      await device.setLanguage('de');
+      await expectLater(
+        device.speak('Hallo'),
+        throwsA(isA<DeviceTtsNoAnswerException>()),
+      );
+      tts
+        ..speakGate = null
+        ..calls.clear();
+
+      await device.setLanguage('de');
+      await device.speak('Hallo');
+
+      expect(tts.calls, [
+        'getEngines',
+        'getDefaultEngine',
+        'setEngine org.woheller69.ttsengine',
+        'stop',
+        'isLanguageInstalled de',
+        'isLanguageAvailable de',
+        'setLanguage de',
+        'getVoices',
+        'speak Hallo',
+      ]);
+    });
+  });
+
+  group("Listen with the app's speech service (Android)", () {
+    late _MockTranslationRepository repository;
+    final l10n = lookupAppLocalizations(const Locale('en'));
+
+    setUp(() {
+      repository = _MockTranslationRepository();
+      when(() => repository.instances).thenReturn(const []);
+    });
+
+    SpeechService service({
+      Duration speakTimeout = const Duration(seconds: 5),
+    }) {
+      final created = SpeechService(
+        repository: repository,
+        output: _NoOutput(),
+        deviceTts: deviceTts(speakTimeout: speakTimeout),
+      );
+      addTearDown(created.dispose);
+      return created;
+    }
+
+    test('reads with a speech engine installed while the app ran', () async {
+      var bound = false;
+      tts
+        ..available = ((_) => bound)
+        ..onSetEngine = () => bound = true;
+      final speech = service();
+
+      await speech.toggle(id: 'target', text: 'Hallo', languageCode: 'de');
+
+      expect(tts.calls, contains('speak Hallo'));
+      expect(speech.current, 'target');
+    });
+
+    test('an engine that never answers ends with a message, not a stuck '
+        'Stop', () async {
+      tts.speakGate = Completer<void>();
+      final speech = service(speakTimeout: const Duration(milliseconds: 10));
+
+      Object? error;
+      try {
+        await speech.toggle(id: 'target', text: 'Hallo', languageCode: 'de');
+      } on Object catch (caught) {
+        error = caught;
+      }
+
+      expect(error, isA<SpeechUnavailableException>());
+      expect(speechErrorMessage(l10n, error!), l10n.speechEngineNoAnswer);
+      expect(speech.current, isNull);
     });
   });
 }

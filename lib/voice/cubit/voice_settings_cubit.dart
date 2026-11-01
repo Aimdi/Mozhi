@@ -113,6 +113,16 @@ class VoiceSettingsCubit extends Cubit<VoiceSettingsState> {
     );
   }
 
+  /// Stops the running download of model [id] (or of the voice activity
+  /// model, under its id) that this cubit started: it ends without an
+  /// outcome (nothing to explain) and nothing is installed; the bytes
+  /// received so far are kept, so downloading it again resumes. Does
+  /// nothing when it is not downloading.
+  void cancel(String id) {
+    if (state.pending[id] != VoiceModelOperation.download) return;
+    _offline?.cancelDownload(id);
+  }
+
   /// Deletes model [id].
   Future<void> delete(String id) {
     final offline = _offline;
@@ -206,16 +216,20 @@ class VoiceSettingsCubit extends Cubit<VoiceSettingsState> {
     final failure = await _attempt(action);
     await _refresh();
     if (isClosed) return;
+    final cancelled = failure?.kind == VoiceModelErrorKind.cancelled;
     emit(
       state.copyWith(
         pending: {...state.pending}..remove(id),
         progress: {...state.progress}..remove(id),
-        outcome: () => VoiceModelOutcome(
-          model: id,
-          operation: operation,
-          succeeded: failure == null,
-          error: failure,
-        ),
+        // The user stopped it: nothing to tell.
+        outcome: () => cancelled
+            ? null
+            : VoiceModelOutcome(
+                model: id,
+                operation: operation,
+                succeeded: failure == null,
+                error: failure,
+              ),
       ),
     );
   }
@@ -229,7 +243,8 @@ class VoiceSettingsCubit extends Cubit<VoiceSettingsState> {
       return null;
     } on Object catch (error, stackTrace) {
       final failure = VoiceModelError.of(error);
-      if (failure.kind != VoiceModelErrorKind.metered) {
+      if (failure.kind != VoiceModelErrorKind.metered &&
+          failure.kind != VoiceModelErrorKind.cancelled) {
         addError(error, stackTrace);
       }
       return failure;

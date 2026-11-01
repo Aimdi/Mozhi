@@ -39,6 +39,19 @@ class ProofreadCommand extends MozhiCommand {
         help: 'Adjust the formality.',
       )
       ..addOption(
+        'tone',
+        allowed: [for (final value in WritingTone.values) value.name],
+        defaultsTo: WritingTone.automatic.name,
+        allowedHelp: {
+          'automatic': "Keep the author's tone.",
+          'enthusiastic': 'Energetic and positive.',
+          'friendly': 'Warm and approachable.',
+          'confident': 'Assertive, without hedging.',
+          'diplomatic': 'Tactful and constructive.',
+        },
+        help: 'Tone to rewrite toward.',
+      )
+      ..addOption(
         'context',
         valueHelp: 'text',
         help: 'What the text is for, e.g. "cover letter".',
@@ -80,6 +93,7 @@ class ProofreadCommand extends MozhiCommand {
             ? Formality.automatic
             : parseChoice('formality', formality, Formality.values),
         context: option('context') ?? '',
+        tone: parseChoice('tone', option('tone')!, WritingTone.values),
       ),
     );
     if (jsonOutput) {

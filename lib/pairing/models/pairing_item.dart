@@ -193,6 +193,10 @@ enum PairingItemStatus {
   /// This phone's catalogue does not have these files (another version of
   /// Mozhi), or cannot take this kind of item.
   incompatible,
+
+  /// It could take the item, but has not enough free storage for it
+  /// ([PairingPlan.files] are what it would need).
+  noSpace,
 }
 
 /// How the receiving phone would take an offered item: its [status] and,
@@ -210,6 +214,10 @@ class PairingPlan extends Equatable {
     : status = PairingItemStatus.incompatible,
       files = const [],
       language = null;
+
+  /// An available plan whose [files] do not fit on this phone.
+  const new noSpace(this.files, {this.language})
+    : status = PairingItemStatus.noSpace;
 
   final PairingItemStatus status;
   final List<PairingFile> files;

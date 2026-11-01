@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/theme.dart';
+import 'package:mozhi/core/widgets/app_bar_title.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/view/provider_editor_page.dart';
@@ -41,7 +42,7 @@ class ProvidersView extends StatelessWidget {
       (cubit) => cubit.state.providers,
     );
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.settingsProvidersTitle)),
+      appBar: AppBar(title: AppBarTitle(l10n.settingsProvidersTitle)),
       floatingActionButton: providers.isEmpty
           ? null
           : FloatingActionButton.extended(

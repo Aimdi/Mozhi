@@ -4,12 +4,20 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/core/haptics.dart';
 import 'package:mozhi/core/widgets/composer_card.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
+import 'package:mozhi/translate/widgets/language_bar.dart'
+    show FirstThatFits, LanguageLabelForm, languageLabelForms;
+import 'package:translation_repository/translation_repository.dart';
 
 /// One language of a [LanguagePairBar]: the name shown ([label]), what
 /// screen readers hear instead ([semanticLabel], e.g. "Translate into
 /// French"), the [tooltip] (else [label]) and an optional accent [icon]
 /// before the name. [onPressed] (usually opening a picker) null disables
 /// the button.
+///
+/// With [forms] (e.g. [languagePairForms]) the button shows the first of
+/// them that fits whole, like the translate screen's language bar ("Detect
+/// language", then the sparkle and "Auto"; a name, then its code), never a
+/// cut name; without, [icon] and [label], cut with an ellipsis when long.
 @immutable
 class LanguagePairSide {
   const new({
@@ -18,6 +26,7 @@ class LanguagePairSide {
     required this.onPressed,
     this.tooltip,
     this.icon,
+    this.forms,
     this.key,
   });
 
@@ -27,7 +36,32 @@ class LanguagePairSide {
   final String semanticLabel;
   final String? tooltip;
   final IconData? icon;
+
+  /// What the button may show, in order of preference (the first one
+  /// should be [icon] and [label]); null: only [icon] and [label].
+  final List<LanguageLabelForm>? forms;
   final VoidCallback? onPressed;
+}
+
+/// The [LanguagePairSide.forms] of [language] shown as [label]: for
+/// "Detect language" ([Language.isAuto]) [label], then the sparkle and
+/// [autoShort] ("Auto"), then the sparkle alone; for any other language
+/// [languageLabelForms] (the name, then its codes), with [icon] (e.g. the
+/// sparkle of a detected language) before them.
+List<LanguageLabelForm> languagePairForms(
+  Language language, {
+  required String label,
+  required String autoShort,
+  IconData? icon,
+}) {
+  if (language.isAuto) {
+    return [
+      (icon: null, text: label),
+      (icon: Icons.auto_awesome_outlined, text: autoShort),
+      (icon: Icons.auto_awesome_outlined, text: null),
+    ];
+  }
+  return languageLabelForms(language, name: label, icon: icon);
 }
 
 /// The languages of a screen in the look of the translate screen's
@@ -158,7 +192,11 @@ class _LanguagePair extends StatelessWidget {
       )..layout();
       final width = painter.width;
       painter.dispose();
-      return width + _chrome + (side.icon == null ? 0 : _iconChrome);
+      // Rounded up: a name that just fits is not shortened.
+      return width.ceilToDouble() +
+          1 +
+          _chrome +
+          (side.icon == null ? 0 : _iconChrome);
     }
 
     return LayoutBuilder(
@@ -212,6 +250,31 @@ class _LanguageButton extends StatelessWidget {
     final secondary = AppPalette.of(context).secondaryText;
     final enabled = side.onPressed != null;
     final icon = side.icon;
+    final accent = enabled
+        ? scheme.primary
+        : scheme.onSurface.withValues(alpha: 0.38);
+    final chevronIcon = Icon(
+      Icons.expand_more,
+      size: 16,
+      color: enabled ? secondary : secondary.withValues(alpha: 0.38),
+    );
+    // A form of [LanguagePairSide.forms], whole on one line.
+    Widget content(LanguageLabelForm form, {required bool chevron}) {
+      final (:icon, :text) = form;
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) Icon(icon, size: 18, color: accent),
+          if (icon != null && text != null) const SizedBox(width: 6),
+          if (text != null) Text(text, maxLines: 1, softWrap: false),
+          if (chevron) ...[
+            if (icon != null || text != null) const SizedBox(width: 2),
+            chevronIcon,
+          ],
+        ],
+      );
+    }
+
     return Tooltip(
       message: side.tooltip ?? side.label,
       excludeFromSemantics: true,
@@ -229,34 +292,36 @@ class _LanguageButton extends StatelessWidget {
           label: side.semanticLabel,
           // Hides only the visible name, not the button's actions.
           excludeSemantics: true,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (icon != null) ...[
-                Icon(
-                  icon,
-                  size: 18,
-                  color: enabled
-                      ? scheme.primary
-                      : scheme.onSurface.withValues(alpha: 0.38),
-                ),
-                const SizedBox(width: 6),
+          child: switch (side.forms) {
+            final forms? => FirstThatFits(
+              children: [
+                for (final form in forms) ...[
+                  content(form, chevron: true),
+                  // Without anything else, the chevron is all there is.
+                  if (form.icon != null || form.text != null)
+                    content(form, chevron: false),
+                ],
               ],
-              Flexible(
-                child: Text(
-                  side.label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+            ),
+            null => Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (icon != null) ...[
+                  Icon(icon, size: 18, color: accent),
+                  const SizedBox(width: 6),
+                ],
+                Flexible(
+                  child: Text(
+                    side.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 2),
-              Icon(
-                Icons.expand_more,
-                size: 16,
-                color: enabled ? secondary : secondary.withValues(alpha: 0.38),
-              ),
-            ],
-          ),
+                const SizedBox(width: 2),
+                chevronIcon,
+              ],
+            ),
+          },
         ),
       ),
     );

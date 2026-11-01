@@ -1,0 +1,5 @@
+• Korekta jak w DeepL Write: wydźwięk (entuzjastyczny, przyjazny, pewny siebie, dyplomatyczny) i dotknij zdania, by zobaczyć inne sformułowania
+• „Popraw w Mozhi” w menu zaznaczania tekstu w każdej aplikacji
+• Rozmowa: mikrofon działa na telefonach bez usług Google (model mowy na urządzeniu)
+• Zapasowy DuckDuckGo naprawiony dla ponad 100 języków; pobieranie można anulować i wznowić
+• Wiele poprawek

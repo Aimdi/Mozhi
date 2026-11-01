@@ -28,17 +28,59 @@ const duckDuckGo = TranslationEngine(
 /// Google's answer on today's public servers.
 const _rateLimited = 'request failed with status code: 429';
 
+/// DuckDuckGo's languages on Mozhi (part of libmozhi's list: Bing's codes,
+/// `auto` among the sources only).
+const _duckDuckGoLanguages = [
+  'en',
+  'de',
+  'fr',
+  'zh',
+  'zh-TW',
+  'he',
+  'fil',
+  'nb',
+  'sr-Cyrl',
+  'sr-Latn',
+  'mn-Cyrl',
+];
+
 /// Every server: Google fails with [googleError] (HTTP 500, as Mozhi
-/// reports upstream failures), DuckDuckGo translates.
+/// reports upstream failures), DuckDuckGo translates (with
+/// [duckDuckGoError], fails like that instead) and lists
+/// [_duckDuckGoLanguages] (with [listError], fails like that instead).
 class _Servers {
   String googleError = _rateLimited;
+  String? duckDuckGoError;
+  String? listError;
   final List<({String host, String engine, String text})> sent = [];
 
+  /// The `from` > `to` codes of every translation request.
+  final List<String> pairs = [];
+
+  /// The language lists asked for (`<endpoint>?<engine>`).
+  final List<String> lists = [];
+
   http.Client get client => MockClient((request) async {
+    if (request.method == 'GET') {
+      final endpoint = request.url.pathSegments.last;
+      final engine = request.url.queryParameters['engine']!;
+      lists.add('$endpoint?$engine');
+      if (listError case final error?) return http.Response(error, 500);
+      return http.Response(
+        jsonEncode([
+          if (endpoint == 'source_languages') {'Id': 'auto', 'Name': 'Detect'},
+          for (final code in _duckDuckGoLanguages) {'Id': code, 'Name': code},
+        ]),
+        200,
+        headers: {'content-type': 'application/json'},
+      );
+    }
     final fields = request.bodyFields;
     final engine = fields['engine']!;
     sent.add((host: request.url.host, engine: engine, text: fields['text']!));
+    pairs.add('${fields['from']}>${fields['to']}');
     if (engine == 'google') return http.Response(googleError, 500);
+    if (duckDuckGoError case final error?) return http.Response(error, 500);
     return http.Response(
       jsonEncode({
         'engine': engine,
@@ -240,6 +282,8 @@ void main() {
     Future<TranslateCubit> start({
       TranslationEngine engine = google,
       String input = 'Hallo',
+      Language source = de,
+      Language target = en,
       List<Language> extraTargets = const [],
     }) async {
       final cubit = TranslateCubit(
@@ -256,8 +300,12 @@ void main() {
           engines: const [google, duckDuckGo, deepl],
           assistEngine: null,
           input: input,
-          source: de,
-        ).copyWith(extraTargets: extraTargets),
+          source: source,
+          target: target,
+        ).copyWith(
+          extraTargets: extraTargets,
+          targetLanguages: {...targets, target, ...extraTargets}.toList(),
+        ),
       );
       return cubit;
     }
@@ -327,12 +375,16 @@ void main() {
         final cubit = await start();
         await cubit.translate();
 
+        final translations = [
+          for (final entry in ledger.entries)
+            if (entry.method == 'POST') entry,
+        ];
         expect(
-          [for (final entry in ledger.entries) entry.engine],
+          [for (final entry in translations) entry.engine],
           ['google', 'google', 'duckduckgo'],
         );
         expect(
-          [for (final entry in ledger.entries) entry.outcome],
+          [for (final entry in translations) entry.outcome],
           [
             EgressOutcome.httpError,
             EgressOutcome.httpError,
@@ -355,24 +407,7 @@ void main() {
 
       test('a DuckDuckGo failure is shown as it is', () async {
         use(online);
-        final failing = MockClient((request) async {
-          servers.sent.add((
-            host: request.url.host,
-            engine: request.bodyFields['engine']!,
-            text: request.bodyFields['text']!,
-          ));
-          return http.Response('upstream down', 503);
-        });
-        repository =
-            TranslationRepository(
-              mozhiClientFactory: (uri) =>
-                  MozhiApiClient(baseUrl: uri, httpClient: failing),
-              cache: TranslationCache(maxEntries: 0),
-            )..updateConfiguration(
-              instances: const [_one, _two],
-              providers: const [],
-            );
-        use(online);
+        servers.duckDuckGoError = 'upstream down';
         final cubit = await start();
         await cubit.translate();
 
@@ -391,6 +426,139 @@ void main() {
             duckDuckGo.id,
           ),
         );
+      });
+    });
+
+    group("Google's languages", () {
+      const chinese = Language(code: 'zh-CN', name: 'Chinese (Simplified)');
+      const hebrew = Language(code: 'iw', name: 'Hebrew');
+      const filipino = Language(code: 'tl', name: 'Filipino');
+      const norwegian = Language(code: 'no', name: 'Norwegian');
+      const serbian = Language(code: 'sr', name: 'Serbian');
+      const mongolian = Language(code: 'mn', name: 'Mongolian');
+      const javanese = Language(code: 'jw', name: 'Javanese');
+
+      Matcher googleFailure() => isA<AllInstancesFailedException>()
+          .having((e) => e.engine.id, 'engine', google.id)
+          .having((e) => e.rateLimited, 'rateLimited', isTrue);
+
+      test('are sent to DuckDuckGo by its own codes', () async {
+        use(online);
+        for (final (source, target, pair) in [
+          (hebrew, chinese, 'he>zh'),
+          (filipino, norwegian, 'fil>nb'),
+          (Language.auto, serbian, 'auto>sr-Cyrl'),
+          (de, mongolian, 'de>mn-Cyrl'),
+        ]) {
+          servers.pairs.clear();
+          final cubit = await start(source: source, target: target);
+          await cubit.translate();
+
+          expect(servers.pairs.last, pair);
+          expect(cubit.state.result?.engineId, duckDuckGo.id);
+          // The selection keeps Google's codes.
+          expect(cubit.state.source, source);
+          expect(cubit.state.target, target);
+        }
+        // DuckDuckGo's lists are loaded once.
+        expect(servers.lists, [
+          'source_languages?duckduckgo',
+          'target_languages?duckduckgo',
+        ]);
+      });
+
+      test("that DuckDuckGo lacks: no fallback, Google's failure is "
+          'shown', () async {
+        use(online);
+        final cubit = await start(target: javanese);
+        await cubit.translate();
+
+        expect(servers.engines, ['google', 'google']);
+        expect(cubit.state.status, TranslateStatus.failure);
+        expect(cubit.state.error, googleFailure());
+        expect(cubit.state.fallback, isNull);
+        expect(cubit.state.engine, google);
+      });
+
+      test(
+        "when DuckDuckGo still rejects them, Google's failure is shown",
+        () async {
+          use(online);
+          servers.duckDuckGoError = 'Target language code invalid';
+          final cubit = await start();
+          await cubit.translate();
+
+          expect(servers.engines, ['google', 'google', 'duckduckgo']);
+          expect(cubit.state.error, googleFailure());
+        },
+      );
+
+      test(
+        "an instance without DuckDuckGo: Google's failure is shown",
+        () async {
+          use(online);
+          servers.duckDuckGoError =
+              'Engine does not exist or has been disabled';
+          final cubit = await start();
+          await cubit.translate();
+          expect(cubit.state.error, googleFailure());
+        },
+      );
+
+      for (final listError in [
+        'Engine does not exist or has been disabled',
+        'upstream down',
+      ]) {
+        test("when DuckDuckGo's lists cannot be loaded ($listError), "
+            "Google's failure is shown", () async {
+          use(online);
+          servers.listError = listError;
+          final cubit = await start();
+          await cubit.translate();
+
+          expect(servers.engines, ['google', 'google']);
+          expect(cubit.state.error, googleFailure());
+        });
+      }
+
+      test("extra targets DuckDuckGo lacks keep Google's failure", () async {
+        use(online);
+        final cubit = await start(extraTargets: const [javanese, chinese]);
+        await cubit.translate();
+        await Future<void>.delayed(Duration.zero);
+
+        expect(
+          cubit.state.extraTranslationFor(javanese)?.error,
+          googleFailure(),
+        );
+        final chineseResult = cubit.state.extraTranslationFor(chinese)!;
+        expect(chineseResult.result?.engineId, duckDuckGo.id);
+        expect(servers.pairs, contains('de>zh'));
+      });
+
+      test('"Use DuckDuckGo when Google fails" maps them too', () async {
+        when(
+          () => mocks.settings.setFallbackToDuckDuckGo(
+            enabled: any(named: 'enabled'),
+          ),
+        ).thenAnswer((invocation) {
+          mocks.stubSettings(
+            mocks.settings.state.copyWith(fallbackToDuckDuckGo: true),
+          );
+        });
+        use(online.copyWith(fallbackToDuckDuckGo: false));
+        final cubit = await start(target: chinese);
+        await cubit.translate();
+        await cubit.useDuckDuckGoWhenGoogleFails();
+
+        expect(servers.pairs.last, 'de>zh');
+        expect(cubit.state.result?.engineId, duckDuckGo.id);
+
+        // Into a language DuckDuckGo lacks, Google's failure stays.
+        final other = await start(target: javanese);
+        await other.translate();
+        await other.useDuckDuckGoWhenGoogleFails();
+        expect(other.state.error, googleFailure());
       });
     });
 

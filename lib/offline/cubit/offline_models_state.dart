@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart';
 import 'package:mozhi/offline/data/offline_model_details.dart';
 import 'package:mozhi/offline/data/offline_model_error.dart';
 import 'package:mozhi/offline/data/offline_model_import.dart';
+import 'package:mozhi/translate/widgets/language_search.dart'
+    show foldForSearch;
 import 'package:translation_repository/translation_repository.dart'
     show Language, languageDisplayName;
 
@@ -45,14 +47,41 @@ class OfflineLanguage extends Equatable {
   String displayNameIn(String uiLocale) =>
       languageDisplayName(Language(code: code, name: name), uiLocale);
 
-  bool matches(String needle) =>
-      needle.isEmpty ||
-      name.toLowerCase().contains(needle) ||
-      (nativeName?.toLowerCase().contains(needle) ?? false) ||
-      code.toLowerCase() == needle;
+  /// Whether a search for [needle] finds it: in its English or native
+  /// name, in the name shown in [locale] (see [displayNameIn]) when given,
+  /// ignoring case and accents ("francais" finds "Français"), or its exact
+  /// code.
+  bool matches(String needle, {String? locale}) {
+    final query = needle.trim();
+    final folded = foldForSearch(query);
+    if (folded.isEmpty) return true;
+    bool has(String? text) =>
+        text != null && foldForSearch(text).contains(folded);
+    return has(name) ||
+        has(nativeName) ||
+        (locale != null && has(displayNameIn(locale))) ||
+        code.toLowerCase() == query.toLowerCase();
+  }
 
   @override
   List<Object?> get props => [code, name, nativeName, direction];
+}
+
+/// The [items] matching [query] (see [OfflineLanguage.matches], with
+/// [locale]: the UI language), in the order of the names shown in [locale]
+/// (ignoring case and accents).
+List<T> offlineLanguagesFor<T>(
+  Iterable<T> items,
+  OfflineLanguage Function(T item) language, {
+  required String query,
+  required String locale,
+}) {
+  final keyed = [
+    for (final item in items)
+      if (language(item).matches(query, locale: locale))
+        (foldForSearch(language(item).displayNameIn(locale)), item),
+  ]..sort((a, b) => a.$1.compareTo(b.$1));
+  return [for (final (_, item) in keyed) item];
 }
 
 /// Result of a finished download, update or deletion, shown once by the
@@ -275,6 +304,23 @@ class OfflineModelsState extends Equatable {
 
   List<OfflineLanguage> get visibleAvailable => [
     for (final language in visible)
+      if (!downloaded.contains(language.code)) language,
+  ];
+
+  /// [visible] as the UI language [locale] shows it: also matching the
+  /// names shown in it, sorted by them.
+  List<OfflineLanguage> visibleIn(String locale) =>
+      offlineLanguagesFor(languages, (l) => l, query: query, locale: locale);
+
+  /// [visibleDownloaded] in [locale] (see [visibleIn]).
+  List<OfflineLanguage> visibleDownloadedIn(String locale) => [
+    for (final language in visibleIn(locale))
+      if (downloaded.contains(language.code)) language,
+  ];
+
+  /// [visibleAvailable] in [locale] (see [visibleIn]).
+  List<OfflineLanguage> visibleAvailableIn(String locale) => [
+    for (final language in visibleIn(locale))
       if (!downloaded.contains(language.code)) language,
   ];
 

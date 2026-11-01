@@ -16,7 +16,9 @@ class OcrLanguageItem extends Equatable {
 
   String get code => ocr.code;
 
-  bool matches(String needle) => display.matches(needle) || ocr.code == needle;
+  bool matches(String needle, {String? locale}) =>
+      display.matches(needle, locale: locale) ||
+      ocr.code == needle.trim().toLowerCase();
 
   @override
   List<Object?> get props => [ocr, display];
@@ -110,6 +112,30 @@ class OcrLanguagesState extends Equatable {
 
   List<OcrLanguageItem> get visibleAvailable => [
     for (final language in visible)
+      if (!isInstalled(language.code)) language,
+  ];
+
+  /// [visible] as the UI language [locale] shows it: also matching the
+  /// names shown in it, sorted by them.
+  List<OcrLanguageItem> visibleIn(String locale) => [
+    for (final language in offlineLanguagesFor(
+      languages,
+      (language) => language.display,
+      query: '',
+      locale: locale,
+    ))
+      if (language.matches(query, locale: locale)) language,
+  ];
+
+  /// [visibleInstalled] in [locale] (see [visibleIn]).
+  List<OcrLanguageItem> visibleInstalledIn(String locale) => [
+    for (final language in visibleIn(locale))
+      if (isInstalled(language.code)) language,
+  ];
+
+  /// [visibleAvailable] in [locale] (see [visibleIn]).
+  List<OcrLanguageItem> visibleAvailableIn(String locale) => [
+    for (final language in visibleIn(locale))
       if (!isInstalled(language.code)) language,
   ];
 

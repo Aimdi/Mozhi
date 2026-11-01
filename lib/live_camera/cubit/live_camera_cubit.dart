@@ -12,6 +12,7 @@ import 'package:mozhi/live_camera/data/live_camera_controller.dart';
 import 'package:mozhi/live_camera/data/upright_frame.dart';
 import 'package:mozhi/live_camera/models/live_block.dart';
 import 'package:mozhi/platform/device_conditions.dart';
+import 'package:mozhi/transcribe/data/screen_awake.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 export 'live_camera_state.dart';
@@ -79,6 +80,9 @@ class LiveCameraTiming {
 ///   frozen, failed, the screen closed) and when the engine or the
 ///   languages change, so it can't let anything else through.
 ///
+/// * The screen stays on while the camera reads
+///   ([LiveCameraStatus.running], [ScreenAwake]).
+///
 /// Frames, stills and recognised text are never logged or stored.
 class LiveCameraCubit extends Cubit<LiveCameraState> {
   new({
@@ -98,7 +102,9 @@ class LiveCameraCubit extends Cubit<LiveCameraState> {
     this.maxCachedTranslations = 300,
     this.maxBatchBlocks = 12,
     this.maxBatchCharacters = 2000,
+    ScreenAwake? screenAwake,
   }) : _recognizer = recognizer,
+       _screenAwake = screenAwake ?? ScreenAwake(),
        _data = textRecognitionLanguageDataOf(recognizer),
        _pixels = textRecognitionPixelsOf(recognizer),
        _preferred = List.unmodifiable(preferredLanguages),
@@ -171,6 +177,22 @@ class LiveCameraCubit extends Cubit<LiveCameraState> {
   final LiveCameraTiming _timing;
   final Future<void> Function(Duration duration) _delay;
   final _subscriptions = <StreamSubscription<Object?>>[];
+  final ScreenAwake _screenAwake;
+
+  /// Whether the screen is kept on ([ScreenAwake]): while running.
+  bool _awake = false;
+
+  void _keepAwake({required bool awake}) {
+    if (awake == _awake) return;
+    _awake = awake;
+    unawaited(_screenAwake.setEnabled(enabled: awake));
+  }
+
+  @override
+  void onChange(Change<LiveCameraState> change) {
+    super.onChange(change);
+    _keepAwake(awake: change.nextState.status == LiveCameraStatus.running);
+  }
 
   /// Why the camera must stay closed now.
   final _pauses = <LivePauseReason>{};
@@ -991,6 +1013,7 @@ class LiveCameraCubit extends Cubit<LiveCameraState> {
       unawaited(subscription.cancel());
     }
     _cache.clear();
+    _keepAwake(awake: false);
     await stopped;
     await super.close();
   }

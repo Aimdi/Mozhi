@@ -9,6 +9,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/core/widgets/tab_hero.dart';
+import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/presets/cubit/presets_cubit.dart';
 import 'package:mozhi/presets/data/presets_repository.dart';
 import 'package:mozhi/presets/models/preset.dart';
@@ -72,6 +73,41 @@ void main() {
       expect(find.text('Level A2'), findsOneWidget);
       expect(find.byKey(const Key('presets_default_badge')), findsNothing);
       expect(find.byKey(const Key('presets_open_glossaries')), findsNothing);
+    });
+
+    testWidgets('shows and copies the examples in the UI language', (
+      tester,
+    ) async {
+      harness = PresetsHarness();
+      addTearDown(harness.close);
+      await harness.presets.load();
+      await harness.pump(
+        tester,
+        const PresetsPage(),
+        locale: const Locale('de'),
+      );
+      await settle(tester);
+      final german = lookupAppLocalizations(const Locale('de'));
+
+      expect(
+        find.textContaining(german.presetsContextEmailFormal),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining(german.presetsContextChatCasual),
+        findsOneWidget,
+      );
+
+      final name = german.presetsNameEmailFormal;
+      await tester.tap(find.byTooltip(german.presetsActionsTooltip(name)));
+      await settle(tester);
+      await tester.tap(find.text(german.presetsDuplicate));
+      await settle(tester);
+      final copy = state().presets[1];
+      expect(copy.builtIn, isNull);
+      expect(copy.options.context, german.presetsContextEmailFormal);
+      // The example itself keeps its stored sentence.
+      expect(state().presets.first.options, BuiltInPreset.emailFormal.options);
     });
 
     testWidgets('marks the default preset and toggles it', (tester) async {

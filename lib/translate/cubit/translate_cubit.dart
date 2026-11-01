@@ -476,6 +476,25 @@ class TranslateCubit extends Cubit<TranslateState> {
   Future<void> loadEngines({bool refresh = false}) =>
       _loadEngines(refresh: refresh);
 
+  /// Reloads the engines quietly (without the loading state) when the
+  /// Mozhi engine list could not be loaded last time
+  /// ([TranslationRepository.mozhiEnginesNeedReload]: no network at launch,
+  /// every server down), so that the Mozhi engines come back, e.g. when the
+  /// app returns to the front. Does nothing otherwise, or while the engines
+  /// load.
+  Future<void> reloadEnginesIfNeeded() {
+    if (_listPending || isClosed) return Future.value();
+    bool needed;
+    try {
+      needed = _repository.mozhiEnginesNeedReload;
+    } on Object {
+      // A repository test double without it.
+      needed = false;
+    }
+    if (!needed) return Future.value();
+    return _loadEngines(quiet: true);
+  }
+
   /// [loadEngines]; [quiet] neither shows the loading state nor reports a
   /// failure to list the engines (the lists shown stay).
   Future<void> _loadEngines({bool refresh = false, bool quiet = false}) async {
@@ -501,6 +520,7 @@ class TranslateCubit extends Cubit<TranslateState> {
           error: () => error,
         ),
       );
+      _runTranslateWhenReady(ready: false);
       return;
     }
     if (!_isCurrentEngines(request)) return;
@@ -522,6 +542,7 @@ class TranslateCubit extends Cubit<TranslateState> {
           bestEngine: () => null,
         ),
       );
+      _runTranslateWhenReady(ready: false);
       return;
     }
 
@@ -556,6 +577,7 @@ class TranslateCubit extends Cubit<TranslateState> {
           bestEngine: () => best,
         ),
       );
+      _runTranslateWhenReady(ready: false);
       return;
     }
     final languagesRequest = ++_languagesRequest;
@@ -579,6 +601,8 @@ class TranslateCubit extends Cubit<TranslateState> {
           bestEngine: () => best,
         ),
       );
+      // The engine picked meanwhile translates the input itself.
+      _runTranslateWhenReady(ready: false);
       return;
     }
 
@@ -607,6 +631,7 @@ class TranslateCubit extends Cubit<TranslateState> {
           bestEngine: () => best,
         ),
       );
+      _runTranslateWhenReady(ready: false);
       return;
     }
     // A pick made for a quality mode does not change the normal engine.
@@ -628,6 +653,8 @@ class TranslateCubit extends Cubit<TranslateState> {
       ),
     );
 
+    // Translate was pressed while the engines loaded: now.
+    if (_runTranslateWhenReady(ready: true)) return;
     // Text that arrived before engines were available (share intent), or
     // whose result a new engine cleared: translated only when that may
     // happen without a user action.
@@ -1307,6 +1334,22 @@ class TranslateCubit extends Cubit<TranslateState> {
     );
   }
 
+  /// Puts [text], the input the app had when it last went to the
+  /// background (`TranslateDraftKeeper`), back into the input after the app
+  /// was ended. Only into an empty input that nothing from outside the app
+  /// is waiting in (a share, a link or an intent wins); it is not
+  /// translated right away. Returns whether it was put back.
+  bool restoreDraft(String text) {
+    if (isClosed ||
+        text.trim().isEmpty ||
+        state.input.isNotEmpty ||
+        _externalPending) {
+      return false;
+    }
+    _applyInput(text, maxLength: maxInputLength, instant: false);
+    return true;
+  }
+
   /// Replaces input and translates immediately (history, user actions).
   ///
   /// With [external] (share intents, PROCESS_TEXT, deep links, clipboard
@@ -1315,6 +1358,48 @@ class TranslateCubit extends Cubit<TranslateState> {
     if (external) return setExternalInput(text);
     _typingEntryIds.clear();
     setInput(text);
+    unawaited(translate());
+  }
+
+  /// Opens the translation [entry] of the on-device history (the History
+  /// tab): its languages, each mapped onto the engine's lists like
+  /// [applyLanguagePair] (one the engine does not offer, or a custom
+  /// language it cannot take, keeps the current one) and saved like a pick,
+  /// and its text as the input, in one state change; then the text is
+  /// translated once (the old input is not translated again on the way).
+  /// Dictionary look-ups and empty entries are ignored (the History tab
+  /// opens look-ups in the Dictionary).
+  void openHistoryEntry(HistoryEntry entry) {
+    if (entry.isDictionary || entry.text.trim().isEmpty) return;
+    final source = _usableSource(entry.source);
+    final target = _usableTarget(entry.target);
+    final newSource = source != null && _applySource(source) ? source : null;
+    final newTarget = target != null && _applyTarget(target) ? target : null;
+    _debounceTimer?.cancel();
+    _cancelTranslation();
+    _cancelCompare();
+    _externalPending = false;
+    _typingEntryIds.clear();
+    final input = entry.text.length > maxInputLength
+        ? _truncate(entry.text, maxInputLength)
+        : entry.text;
+    final previous = state;
+    emit(
+      _clearedExtras(state).copyWith(
+        source: newSource,
+        target: newTarget,
+        input: input,
+        inputTruncated: input.length != entry.text.length,
+        compareEntries: const [],
+        comparing: false,
+        compareBaseline: () => null,
+        // A result kept until the translation arrives belongs to the
+        // previous text.
+        resultInput: previous.result != null && previous.resultInput == null
+            ? () => previous.input
+            : null,
+      ),
+    );
     unawaited(translate());
   }
 
@@ -1880,8 +1965,33 @@ class TranslateCubit extends Cubit<TranslateState> {
   /// the inline prompt.
   Future<void> translate() {
     _debounceTimer?.cancel();
+    if (state.engine == null &&
+        state.input.trim().isNotEmpty &&
+        state.enginesStatus == EnginesStatus.loading) {
+      // The engines are still loading: translate once one is ready
+      // ([_loadEngines]) instead of dropping the press.
+      return (_translateWhenReady ??= Completer<void>()).future;
+    }
     if (state.compareMode) return runCompare();
     return _translate(userAsked: true);
+  }
+
+  /// [translate] was asked for while the engines were loading: completed
+  /// once the translation it then starts finishes (or the engines failed).
+  Completer<void>? _translateWhenReady;
+
+  /// Runs the translation [translate] kept for the engines ([ready]), or
+  /// lets it go when they failed. Returns whether one ran.
+  bool _runTranslateWhenReady({required bool ready}) {
+    final pending = _translateWhenReady;
+    if (pending == null) return false;
+    _translateWhenReady = null;
+    if (!ready || state.engine == null || state.input.trim().isEmpty) {
+      pending.complete();
+      return false;
+    }
+    pending.complete(translate());
+    return true;
   }
 
   /// "Use DuckDuckGo when Google fails" on the error of a translation that
@@ -2191,9 +2301,11 @@ class TranslateCubit extends Cubit<TranslateState> {
     try {
       final Stream<TranslationResult> results;
       if (googleFailed != null) {
-        final duckDuckGo = _duckDuckGoEngine();
-        switchedToDuckDuckGo(duckDuckGo, googleFailed);
-        results = _repository.translate(duckDuckGo, request);
+        results = _duckDuckGoAfter(
+          googleFailed,
+          request,
+          onSwitch: switchedToDuckDuckGo,
+        );
       } else {
         results = _withDuckDuckGoFallback(
           request,
@@ -2423,10 +2535,39 @@ class TranslateCubit extends Cubit<TranslateState> {
     if (online == null) return local;
     late final StreamController<TranslationResult> controller;
     StreamSubscription<TranslationResult>? subscription;
+    var cancelled = false;
     void fail(Object error, [StackTrace? stackTrace]) {
       if (controller.isClosed) return;
       controller.addError(error, stackTrace);
       unawaited(controller.close());
+    }
+
+    Future<void> goOnline(Object error, StackTrace stackTrace) async {
+      // The on-device engine's codes are not all the online engine's
+      // (`zh-Hant`, `he` are Google's `zh-TW`, `iw`): without the languages
+      // in its lists, the download stays the way to translate this. Lists
+      // it can't give now: the common codes (the request still asks for
+      // consent first, and its failure is reported then).
+      final mapped = await _requestOnto(
+        online,
+        request,
+        catalogueWhenUnavailable: true,
+      );
+      if (cancelled || controller.isClosed) return;
+      if (mapped == null) return fail(error, stackTrace);
+      onRouted(_recognisedSource(error, request), online);
+      final Stream<TranslationResult> remote;
+      try {
+        remote = _repository.translate(online, mapped);
+      } on Object catch (error, stackTrace) {
+        return fail(error, stackTrace);
+      }
+      subscription = remote.listen(
+        controller.add,
+        onError: fail,
+        onDone: () => unawaited(controller.close()),
+        cancelOnError: true,
+      );
     }
 
     controller = StreamController<TranslationResult>(
@@ -2440,19 +2581,7 @@ class TranslateCubit extends Cubit<TranslateState> {
                 onlineFallbackOf(state, _settings.state)?.id != online.id) {
               return fail(error, stackTrace);
             }
-            onRouted(_recognisedSource(error, request), online);
-            final Stream<TranslationResult> remote;
-            try {
-              remote = _repository.translate(online, request);
-            } on Object catch (error, stackTrace) {
-              return fail(error, stackTrace);
-            }
-            subscription = remote.listen(
-              controller.add,
-              onError: fail,
-              onDone: () => unawaited(controller.close()),
-              cancelOnError: true,
-            );
+            unawaited(goOnline(error, stackTrace));
           },
           onDone: () => unawaited(controller.close()),
           cancelOnError: true,
@@ -2460,7 +2589,10 @@ class TranslateCubit extends Cubit<TranslateState> {
       },
       onPause: () => subscription?.pause(),
       onResume: () => subscription?.resume(),
-      onCancel: () => subscription?.cancel(),
+      onCancel: () {
+        cancelled = true;
+        return subscription?.cancel();
+      },
     );
     return controller.stream;
   }
@@ -2527,10 +2659,10 @@ class TranslateCubit extends Cubit<TranslateState> {
 
   /// [results], a text translation of [request] by [translatedBy] (asked
   /// when it fails), with the DuckDuckGo fallback: when they fail and
-  /// [duckDuckGoFallbackApplies], [onSwitch] gets the DuckDuckGo engine and
-  /// Google's failure, and the events of DuckDuckGo's translation of
-  /// [request] follow (once: its errors, a consent refusal included, are
-  /// forwarded). Other errors are forwarded as they are.
+  /// [duckDuckGoFallbackApplies], the events of DuckDuckGo's translation of
+  /// [request] follow ([_duckDuckGoAfter], once: [onSwitch] gets the
+  /// DuckDuckGo engine and Google's failure when it is asked). Other errors
+  /// are forwarded as they are.
   Stream<TranslationResult> _withDuckDuckGoFallback(
     TranslationRequest request,
     Stream<TranslationResult> results, {
@@ -2564,20 +2696,13 @@ class TranslateCubit extends Cubit<TranslateState> {
                 )) {
               return fail(error, stackTrace);
             }
-            final duckDuckGo = _duckDuckGoEngine();
-            final Stream<TranslationResult> retried;
-            try {
-              retried = _repository.translate(duckDuckGo, request);
-            } on Object catch (error, stackTrace) {
-              return fail(error, stackTrace);
-            }
-            onSwitch?.call(duckDuckGo, error);
-            subscription = retried.listen(
-              controller.add,
-              onError: fail,
-              onDone: () => unawaited(controller.close()),
-              cancelOnError: true,
-            );
+            subscription = _duckDuckGoAfter(error, request, onSwitch: onSwitch)
+                .listen(
+                  controller.add,
+                  onError: fail,
+                  onDone: () => unawaited(controller.close()),
+                  cancelOnError: true,
+                );
           },
           onDone: () => unawaited(controller.close()),
           cancelOnError: true,
@@ -2588,6 +2713,119 @@ class TranslateCubit extends Cubit<TranslateState> {
       onCancel: () => subscription?.cancel(),
     );
     return controller.stream;
+  }
+
+  /// DuckDuckGo's translation of [request] after Google's [failure] on
+  /// every server (the DuckDuckGo fallback). Google's language codes are
+  /// not all DuckDuckGo's (`zh-CN`, `iw`, `tl`, `no`, `sr` are its `zh`,
+  /// `he`, `fil`, `nb`, `sr-Cyrl`), so the languages are mapped onto
+  /// DuckDuckGo's lists first ([_requestOnto]); [onSwitch] gets the
+  /// DuckDuckGo engine and [failure] when it is asked.
+  ///
+  /// Fails with [failure] itself, so that the user sees why Google failed
+  /// (and what can be done about it), when DuckDuckGo does not offer one of
+  /// the languages, its lists cannot be loaded, or Mozhi rejects the
+  /// request as invalid ([TranslationRepository.isMozhiInputError], e.g.
+  /// an instance without DuckDuckGo: "Engine does not exist"). Its other
+  /// errors, a consent refusal included, are forwarded.
+  Stream<TranslationResult> _duckDuckGoAfter(
+    AllInstancesFailedException failure,
+    TranslationRequest request, {
+    void Function(
+      TranslationEngine duckDuckGo,
+      AllInstancesFailedException failure,
+    )?
+    onSwitch,
+  }) {
+    final duckDuckGo = _duckDuckGoEngine();
+    late final StreamController<TranslationResult> controller;
+    StreamSubscription<TranslationResult>? subscription;
+    var cancelled = false;
+    void fail(Object error, [StackTrace? stackTrace]) {
+      if (controller.isClosed) return;
+      if (TranslationRepository.isMozhiInputError(error)) {
+        controller.addError(failure);
+      } else {
+        controller.addError(error, stackTrace);
+      }
+      unawaited(controller.close());
+    }
+
+    Future<void> start() async {
+      final mapped = await _requestOnto(duckDuckGo, request);
+      if (cancelled || controller.isClosed) return;
+      if (mapped == null) return fail(failure);
+      final Stream<TranslationResult> results;
+      try {
+        results = _repository.translate(duckDuckGo, mapped);
+      } on Object catch (error, stackTrace) {
+        return fail(error, stackTrace);
+      }
+      onSwitch?.call(duckDuckGo, failure);
+      subscription = results.listen(
+        controller.add,
+        onError: fail,
+        onDone: () => unawaited(controller.close()),
+        cancelOnError: true,
+      );
+    }
+
+    controller = StreamController<TranslationResult>(
+      onListen: () => unawaited(start()),
+      onPause: () => subscription?.pause(),
+      onResume: () => subscription?.resume(),
+      onCancel: () {
+        cancelled = true;
+        return subscription?.cancel();
+      },
+    );
+    return controller.stream;
+  }
+
+  /// [request] with its languages as [engine] lists them
+  /// ([TranslationRepository.getSourceLanguages] and
+  /// [TranslationRepository.getTargetLanguages], which keep the lists;
+  /// [LanguageMatcher.match]), for an engine the languages were not picked
+  /// for: another engine may know them by other codes (Google's `zh-CN` is
+  /// DuckDuckGo's `zh`, the on-device engine's `zh-Hant` is Google's
+  /// `zh-TW`), and Mozhi rejects a code its engine does not list.
+  ///
+  /// Null when [engine] does not offer one of the languages (detection
+  /// included; custom languages only for an engine that takes them) or,
+  /// without [catalogueWhenUnavailable], its lists cannot be loaded. With
+  /// [catalogueWhenUnavailable], lists that cannot be loaded (not yet: a
+  /// [ConsentRequiredException] in offline first before a request was let
+  /// leave the device, nothing stored; or no server answered) are replaced
+  /// by the [LanguageCatalog], whose codes are the common ones.
+  Future<TranslationRequest?> _requestOnto(
+    TranslationEngine engine,
+    TranslationRequest request, {
+    bool catalogueWhenUnavailable = false,
+  }) async {
+    List<Language> sources;
+    List<Language> targets;
+    try {
+      sources = await _repository.getSourceLanguages(engine);
+      targets = await _repository.getTargetLanguages(engine);
+    } on Object {
+      if (!catalogueWhenUnavailable) return null;
+      sources = [Language.auto, ...LanguageCatalog.all];
+      targets = LanguageCatalog.all;
+    }
+    Language? onto(Language language, List<Language> languages) {
+      if (language.isAuto) {
+        return languages.contains(Language.auto) ? Language.auto : null;
+      }
+      if (language.isCustom) {
+        return engine.supportsCustomLanguages ? language : null;
+      }
+      return LanguageMatcher.match(language, languages);
+    }
+
+    final source = onto(request.source, sources);
+    final target = onto(request.target, targets);
+    if (source == null || target == null || target.isAuto) return null;
+    return request.copyWith(source: source, target: target);
   }
 
   /// [results], [selected]'s translation of [request], with the fallback of
@@ -5143,6 +5381,8 @@ class TranslateCubit extends Cubit<TranslateState> {
   @override
   Future<void> close() {
     _debounceTimer?.cancel();
+    _translateWhenReady?.complete();
+    _translateWhenReady = null;
     _enginesRequest++;
     _languagesRequest++;
     _cancelTranslation();

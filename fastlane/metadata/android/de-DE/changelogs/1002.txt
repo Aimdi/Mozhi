@@ -1,0 +1,5 @@
+• Korrektur wie DeepL Write: Tonfall (begeistert, freundlich, selbstbewusst, diplomatisch) und Satz antippen für andere Formulierungen
+• „Mit Mozhi verbessern“ im Textauswahlmenü jeder App
+• Gespräch: Das Mikrofon funktioniert auf Handys ohne Google-Dienste (Sprachmodell auf dem Gerät)
+• DuckDuckGo-Ausweichlösung für über 100 Sprachen repariert; Downloads abbrechen und fortsetzen
+• Viele Korrekturen, auch für die deutsche Oberfläche

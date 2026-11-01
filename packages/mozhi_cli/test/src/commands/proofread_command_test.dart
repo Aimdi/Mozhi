@@ -7,7 +7,10 @@ import 'package:translation_repository/translation_repository.dart';
 import '../../helpers.dart';
 
 void main() {
-  setUpAll(registerFallbacks);
+  setUpAll(() {
+    registerFallbacks();
+    registerFallbackValue(WritingTone.automatic);
+  });
 
   group('proofread', () {
     late Harness h;
@@ -48,6 +51,7 @@ void main() {
           level: any(named: 'level'),
           formality: any(named: 'formality'),
           context: any(named: 'context'),
+          tone: any(named: 'tone'),
         ),
       ).thenAnswer((_) async => result);
     });
@@ -109,6 +113,25 @@ void main() {
               ).captured.single
               as TranslationEngine;
       expect(engine.id, 'ai:claude');
+    });
+
+    test('passes the tone', () async {
+      expect(
+        await h.run(['proofread', '--tone', 'diplomatic', '-e', 'claude', 'x']),
+        0,
+      );
+      verify(
+        () => h.repository.proofread(any(), 'x', tone: WritingTone.diplomatic),
+      ).called(1);
+    });
+
+    test('keeps the tone by default', () async {
+      expect(await h.run(['proofread', '-e', 'claude', 'x']), 0);
+      verify(() => h.repository.proofread(any(), 'x')).called(1);
+    });
+
+    test('rejects an unknown tone', () async {
+      expect(await h.run(['proofread', '--tone', 'grumpy', 'x']), isNot(0));
     });
 
     test('prints JSON', () async {

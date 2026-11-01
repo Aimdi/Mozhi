@@ -2,10 +2,13 @@ import 'dart:async';
 
 import 'package:bergamot_translator/bergamot_translator.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/offline/cubit/offline_models_cubit.dart';
+import 'package:mozhi/offline/data/mirror_hosting.dart';
 import 'package:mozhi/offline/data/offline_model_details.dart';
 import 'package:mozhi/onboarding/onboarding.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
@@ -474,7 +477,11 @@ void main() {
         findsOneWidget,
       );
       expect(
-        find.byTooltip('Download French when you tap Next'),
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is Tooltip &&
+              widget.message == 'Download French when you tap Next',
+        ),
         findsOneWidget,
       );
       await tester.tap(checkbox('fr'));
@@ -513,6 +520,92 @@ void main() {
       await tester.tap(find.text('Delete'));
       await tester.pumpAndSettle();
       expect(translator.downloaded, isNot(contains('fr')));
+    });
+
+    testWidgets('the whole row is one concise checkbox', (tester) async {
+      final semantics = tester.ensureSemantics();
+      final (_, _) = await pumpFlow(
+        tester,
+        settings: const AppSettings(instances: testInstances, target: _french),
+      );
+      final row = find.byKey(const ValueKey('onboarding_offline_toggle_fr'));
+      final node = tester.getSemantics(checkbox('fr'));
+      final label = node.getSemanticsData().label;
+      expect(
+        node,
+        isSemantics(
+          hasCheckedState: true,
+          isChecked: false,
+          hasTapAction: true,
+        ),
+      );
+      expect(label, contains('French'));
+      expect(label, contains('40.0 MB download'));
+      expect(label, isNot(contains('when you tap Next')));
+      expect(label, isNot(contains('Checked languages')));
+
+      // A tap in the middle of the row toggles it, and again.
+      await tester.tap(row);
+      await tester.pumpAndSettle();
+      expect(isChecked(tester, 'fr'), isTrue);
+      await tester.tap(
+        find.descendant(
+          of: find.byKey(const ValueKey('onboarding_offline_fr')),
+          matching: find.text('French'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(isChecked(tester, 'fr'), isFalse);
+      semantics.dispose();
+    });
+
+    testWidgets('offers no download where this web server does not host them', (
+      tester,
+    ) async {
+      final source = ModelSource.current;
+      final probe = MirrorHostingProbe.instance;
+      addTearDown(() {
+        ModelSource.current = source;
+        MirrorHostingProbe.instance = probe;
+      });
+      ModelSource.current = const ModelSource(kind: ModelSourceKind.thisServer);
+      MirrorHostingProbe.instance = MirrorHostingProbe(
+        client: MockClient((request) async => http.Response('Not Found', 404)),
+        isWeb: true,
+        appBase: () => Uri.parse('https://translate.example.org/'),
+      );
+      final (onboarding, _) = await pumpFlow(
+        tester,
+        settings: const AppSettings(
+          instances: testInstances,
+          target: _french,
+          modelSource: ModelSource(kind: ModelSourceKind.thisServer),
+        ),
+        preselect: true,
+        freeBytes: 1 << 40,
+      );
+
+      expect(find.byKey(const Key('mirror_not_hosted')), findsOneWidget);
+      expect(checkbox('fr'), findsNothing);
+      expect(
+        find.byKey(const ValueKey('onboarding_offline_toggle_fr')),
+        findsNothing,
+      );
+      final french = find.byKey(const ValueKey('onboarding_offline_fr'));
+      expect(
+        find.descendant(of: french, matching: find.text('Download')),
+        findsNothing,
+      );
+      expect(find.byKey(const Key('onboarding_offline_on_next')), findsNothing);
+      expect(
+        find.byKey(const Key('onboarding_offline_wifi_only')),
+        findsNothing,
+      );
+
+      // Next downloads nothing, although the pair was preselected.
+      onboarding.next();
+      await tester.pumpAndSettle();
+      expect(translator.downloads, isEmpty);
     });
 
     testWidgets('Back and unchecked languages download nothing', (

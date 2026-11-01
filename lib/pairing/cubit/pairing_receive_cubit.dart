@@ -118,7 +118,8 @@ class PairingReceiveCubit extends Cubit<PairingReceiveState> {
     final receiver = _receiver;
     if (receiver == null ||
         state.step != PairingReceiveStep.offer ||
-        !state.numbersConfirmed) {
+        !state.numbersConfirmed ||
+        !state.selectionFits) {
       return;
     }
     emit(
@@ -191,6 +192,7 @@ class PairingReceiveCubit extends Cubit<PairingReceiveState> {
       _environment.library,
       workDirectory: await _environment.workDirectory(),
       timeouts: _environment.timeouts,
+      freeSpace: _environment.freeSpace,
     );
     if (run != _run || isClosed) {
       channel.destroy();
@@ -205,6 +207,7 @@ class PairingReceiveCubit extends Cubit<PairingReceiveState> {
         state.copyWith(
           step: PairingReceiveStep.offer,
           offered: offered,
+          freeBytes: receiver.freeBytes,
           selected: {
             for (final item in offered)
               if (item.plan.status == PairingItemStatus.available) item.item.id,

@@ -4,6 +4,7 @@
 <resources>
     <string name="translate_with_mozhi">Dịch bằng Mozhi</string>
     <string name="translate_offline">Dịch ngoại tuyến</string>
+    <string name="improve_with_mozhi">Cải thiện bằng Mozhi</string>
     <string name="tile_translate_label">Dịch</string>
     <string name="tile_translate_description">Dịch bảng nhớ tạm bằng Mozhi</string>
     <string name="shortcut_clipboard_short">Bảng nhớ tạm</string>

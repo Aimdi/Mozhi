@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/app/view/top_level_actions.dart';
+import 'package:mozhi/core/widgets/app_bar_title.dart';
 import 'package:mozhi/core/widgets/fold_aware_split.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
@@ -351,7 +352,7 @@ class _CategoryTitle extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final badge = category.badge(l10n);
-    final title = Text(category.title(l10n));
+    final title = AppBarTitle(category.title(l10n));
     if (badge == null) return title;
     return Row(
       children: [

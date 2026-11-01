@@ -34,6 +34,10 @@ enum VoiceModelErrorKind {
   /// downloaded.
   space,
 
+  /// The user cancelled the download (`VoiceSettingsCubit.cancel`):
+  /// nothing to explain.
+  cancelled,
+
   /// Anything else.
   unknown,
 }
@@ -48,6 +52,9 @@ class VoiceModelError extends Equatable {
   factory of(Object error) => switch (error) {
     VoiceModelMeteredException() => const VoiceModelError(
       VoiceModelErrorKind.metered,
+    ),
+    WhisperDownloadCancelledException() => const VoiceModelError(
+      VoiceModelErrorKind.cancelled,
     ),
     WhisperInsufficientSpaceException(:final mirror) => VoiceModelError(
       VoiceModelErrorKind.space,

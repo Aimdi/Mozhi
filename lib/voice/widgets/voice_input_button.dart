@@ -142,6 +142,10 @@ class _VoiceInputButtonState extends State<VoiceInputButton> {
   /// The session started after the offer installed a model is starting.
   bool _afterOffer = false;
 
+  /// The failed state explained last: a failure to start reaches both the
+  /// state stream and [_toggle] (in either order), and is explained once.
+  SpeechInputState? _explained;
+
   @override
   void initState() {
     super.initState();
@@ -198,7 +202,7 @@ class _VoiceInputButtonState extends State<VoiceInputButton> {
     if (wasActive != active) widget.onListeningChanged?.call(active);
     // Failures to start are explained once `listen` returns (_toggle).
     if (state is SpeechInputError && state.isOwnedBy(this) && !_starting) {
-      unawaited(_showError(state.failure));
+      unawaited(_explain(state, state.failure));
     }
   }
 
@@ -229,6 +233,9 @@ class _VoiceInputButtonState extends State<VoiceInputButton> {
       if (!mounted || starts != _starts) return;
     }
     final session = ++_starts;
+    // A new attempt: its failure is explained even when it repeats the
+    // last one (the service keeps the same state then).
+    _explained = null;
     setState(() => _startingSession = session);
     final started = await _service.listen(
       widget.languageCode,
@@ -254,7 +261,14 @@ class _VoiceInputButtonState extends State<VoiceInputButton> {
         error.failure,
       _ => null,
     };
-    if (failure != null) await _showError(failure);
+    if (failure != null) await _explain(_service.state, failure);
+  }
+
+  /// Explains [failure] of [state] ([_showError]) unless it was already.
+  Future<void> _explain(SpeechInputState state, SpeechInputFailure failure) {
+    if (identical(state, _explained)) return Future.value();
+    _explained = state;
+    return _showError(failure);
   }
 
   /// Explains [failure]; offers the offline speech model where it helps

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io' show File;
 import 'dart:typed_data';
 
@@ -127,11 +128,52 @@ class OfflineSpeech {
   /// the free space (checked first), [VoiceModelMeteredException] on a
   /// metered network when [wifiOnly] (unless [overMeteredNetwork]),
   /// [ArgumentError] for an unknown id, and the
-  /// [WhisperModelInstallException]s of the download.
+  /// [WhisperModelInstallException]s of the download
+  /// ([WhisperDownloadCancelledException] after [cancelDownload]).
   Future<void> download(
     String id, {
     bool overMeteredNetwork = false,
     void Function(double fraction)? onProgress,
+  }) => _cancellable(
+    id,
+    (abort) => _download(
+      id,
+      overMeteredNetwork: overMeteredNetwork,
+      onProgress: onProgress,
+      abort: abort,
+    ),
+  );
+
+  /// Stops the running [download] of model [id] (or
+  /// [downloadVoiceDetection], under the [vadModel]'s id): it fails with a
+  /// [WhisperDownloadCancelledException], nothing is installed, and the
+  /// bytes received so far are kept, so the next download resumes. Does
+  /// nothing when none runs.
+  void cancelDownload(String id) {
+    final abort = _aborts[id];
+    if (abort != null && !abort.isCompleted) abort.complete();
+  }
+
+  /// The abort triggers of the running downloads, by model id.
+  final Map<String, Completer<void>> _aborts = {};
+
+  Future<void> _cancellable(
+    String id,
+    Future<void> Function(Future<void> abort) run,
+  ) async {
+    final abort = _aborts[id] = Completer<void>();
+    try {
+      await run(abort.future);
+    } finally {
+      if (identical(_aborts[id], abort)) _aborts.remove(id);
+    }
+  }
+
+  Future<void> _download(
+    String id, {
+    required bool overMeteredNetwork,
+    required void Function(double fraction)? onProgress,
+    required Future<void> abort,
   }) async {
     final model = whisper.catalog.model(id);
     if (model == null) throw ArgumentError.value(id, 'id', 'Unknown model');
@@ -145,10 +187,10 @@ class OfflineSpeech {
     final total = model.size + (vad?.size ?? 0);
     void report(int done) => onProgress?.call(total == 0 ? 1 : done / total);
     if (vad != null) {
-      await _install(vad, report);
+      await _install(vad, report, abort);
     }
     final before = vad?.size ?? 0;
-    await _install(model, (received) => report(before + received));
+    await _install(model, (received) => report(before + received), abort);
     await select(id);
   }
 
@@ -177,9 +219,13 @@ class OfflineSpeech {
     if (!overMeteredNetwork && await wifiOnly() && await _isMetered()) {
       throw const VoiceModelMeteredException();
     }
-    await _install(
-      vad,
-      (received) => onProgress?.call(vad.size == 0 ? 1 : received / vad.size),
+    await _cancellable(
+      vad.id,
+      (abort) => _install(
+        vad,
+        (received) => onProgress?.call(vad.size == 0 ? 1 : received / vad.size),
+        abort,
+      ),
     );
   }
 
@@ -188,6 +234,7 @@ class OfflineSpeech {
   Future<void> _install(
     WhisperCatalogModel model,
     void Function(int received) onProgress,
+    Future<void> abort,
   ) async {
     final source = _modelSource();
     whisper.models
@@ -196,6 +243,7 @@ class OfflineSpeech {
     await whisper.download(
       model,
       onProgress: (progress) => onProgress(progress.receivedBytes),
+      abort: abort,
     );
   }
 

@@ -119,7 +119,9 @@ class FakeClipboard {
 }
 
 void stubProofreadCubit(MockProofreadCubit cubit) {
+  registerFallbackValue(const SentenceRange(0, 0));
   when(cubit.proofread).thenAnswer((_) async {});
+  when(() => cubit.loadAlternatives(any())).thenAnswer((_) async {});
 }
 
 void setSurface(WidgetTester tester, Size size) {

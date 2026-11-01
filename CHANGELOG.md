@@ -3,6 +3,74 @@
 All notable changes to Mozhi, by release tag on GitHub (pre-releases end
 in `-rc.N`).
 
+## 0.2.0-rc.1
+
+### Added
+
+- **Tones in Proofread**, as in DeepL Write: enthusiastic, friendly,
+  confident or diplomatic (or keep your own), next to the writing style.
+  `mozhi proofread --tone` does the same on the command line.
+- **Tap a sentence for other ways to say it** (Proofread): a sheet of
+  alternative phrasings in the same language, one tap to use one,
+  "Restore original" to undo. Works on texts with nothing to fix too.
+  Copy, share and "Use as input" include the chosen phrasings.
+- **"Improve with Mozhi" in Android's text-selection menu**: improve the
+  selected text in any app with your Proofread engine, see the changes
+  highlighted, and Replace the selection (in editable fields), copy it or
+  open it in Proofread. Same consent and Offline-only rules as the
+  Proofread tab; nothing is saved to history.
+- **Cancel voice-model downloads** (Settings › Voice input and the
+  download offer); a cancelled download resumes where it stopped.
+- **Dictionary downloads resume** after a dropped connection or a cancel.
+- **Downloads are visible everywhere**: an offline language downloading
+  from onboarding, the translate screen or the language picker shows its
+  progress and Cancel on Offline languages too, and a failure after you
+  left its screen is reported.
+- **The typed text survives** Android closing Mozhi in the background
+  (kept encrypted like history; not when history is off or incognito).
+
+### Fixed
+
+- **Conversation (Gespräch): tapping the microphone did nothing** on phones
+  without Google's speech service. Android reported a recogniser that
+  then failed at once, which was taken for a cancel. Mozhi now offers the
+  on-device voice model (and continues once it is installed), and every
+  other failure explains itself (microphone permission, no recogniser,
+  Offline only). The same fix applies to voice input on Translate.
+- **The DuckDuckGo fallback failed** for Chinese, Hebrew, Filipino,
+  Norwegian, Serbian, Mongolian and more than 100 other languages, and
+  showed "can't translate into this language": languages are now mapped
+  to DuckDuckGo's codes, and Google's own error is shown when DuckDuckGo
+  can't help. Offline first's switch to Google maps codes the same way.
+- **Two tabs or windows** (also the main window and the quick translate
+  window) no longer overwrite each other's history and settings.
+- A text-to-speech app installed while Mozhi runs is used at once (no
+  restart), and Listen no longer hangs when the engine doesn't answer.
+- AI errors say what happened (answer cut off at the output limit — the
+  partial text stays —, connection dropped while streaming, language not
+  supported by the model) instead of "Couldn't reach the AI provider".
+- Opening a history entry uses languages the current engine offers and
+  translates once.
+- The Mozhi engines come back after a launch without network.
+- Swap is disabled while "Detect language" has detected nothing yet; a
+  Translate tap while the engines load runs once they are ready.
+- Restoring a backup with "Replace" no longer deletes restored history
+  with the old auto-delete setting.
+- Phone-to-phone receive checks the free space first.
+- The screen stays on during the live camera and document translations;
+  leaving a running document translation asks first; a shared file that
+  is too large or unreadable says so; the share sheet offers Mozhi for
+  .po, .xliff, .arb and .strings files and for several items.
+- Web: shared text is no longer translated again on every reload, onboarding no longer offers downloads the server doesn't host,
+  the first visit downloads about 20 MB less, and browsers without speech
+  recognition show the microphone as unavailable up front.
+- German (and other languages): full labels in the Terminal bottom bar and
+  side rail (48 dp targets), language names instead of codes in the
+  language bars, localized preset contexts, instance countries, decimal
+  commas and dates; Offline languages, Dictionaries and Text recognition
+  sort and search by the names shown; long titles fit; the web notice no
+  longer mentions iOS or desktop apps.
+
 ## 0.1.0-rc.14
 
 ### Added

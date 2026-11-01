@@ -318,14 +318,40 @@ void main() {
         await expectLater(
           _client(server).streamChat(_request),
           emitsError(
-            isA<LlmApiException>()
-                .having((e) => e, 'type', isNot(isA<LlmRefusalException>()))
+            isA<LlmStoppedException>()
+                .having((e) => e.reason, 'reason', 'LANGUAGE')
+                .having((e) => e.unsupportedLanguage, 'unsupported', isTrue)
+                .having((e) => e.unreachable, 'unreachable', isFalse)
                 .having(
                   (e) => e.message,
                   'message',
                   'Gemini does not support this language.',
                 ),
           ),
+        );
+      });
+
+      test('redacts the API key in a stop reason', () async {
+        final server = FakeServer([
+          FakeResponse.text(
+            sse([
+              _chunk([
+                {'text': 'Partial'},
+              ], finishReason: 'KEY-123'),
+            ]),
+          ),
+        ]);
+        await expectLater(
+          _client(server, apiKey: 'KEY-123').streamChat(_request),
+          emitsInOrder(<Object>[
+            'Partial',
+            emitsError(
+              isA<LlmStoppedException>()
+                  .having((e) => e.reason, 'reason', '[redacted]')
+                  .having((e) => e.message, 'message', contains('[redacted]'))
+                  .having((e) => e.message, 'message', isNot(contains('KEY'))),
+            ),
+          ]),
         );
       });
 
@@ -349,8 +375,9 @@ void main() {
             emitsInOrder(<Object>[
               'Partial',
               emitsError(
-                isA<LlmApiException>()
-                    .having((e) => e, 'type', isNot(isA<LlmRefusalException>()))
+                isA<LlmStoppedException>()
+                    .having((e) => e.reason, 'reason', reason)
+                    .having((e) => e.unsupportedLanguage, 'language', isFalse)
                     .having(
                       (e) => e.message,
                       'message',

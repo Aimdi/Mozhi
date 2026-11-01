@@ -283,6 +283,9 @@ void main() {
       expect(liveCameraZoomLabel(1), '1');
       expect(liveCameraZoomLabel(2.5), '2.5');
       expect(liveCameraZoomLabel(1.04), '1');
+      // In the number format of the UI language.
+      expect(liveCameraZoomLabel(2.5, locale: 'de'), '2,5');
+      expect(liveCameraZoomLabel(2, locale: 'de'), '2');
       expect(nextLiveCameraZoom(1, min: 1, max: 8), 2);
       expect(nextLiveCameraZoom(2, min: 1, max: 8), 4);
       expect(nextLiveCameraZoom(4, min: 1, max: 5), 1);

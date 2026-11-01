@@ -1208,8 +1208,12 @@ void main() {
         l10n.translateErrorModelNotFound,
       );
       expect(
-        message(const LlmApiException('x')),
+        message(const LlmApiException('x', unreachable: true)),
         l10n.translateErrorUnreachableProvider,
+      );
+      expect(
+        message(const LlmApiException('x')),
+        l10n.translateErrorProviderFailed,
       );
       expect(
         message(const LlmApiException('x', statusCode: 500)),

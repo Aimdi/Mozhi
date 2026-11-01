@@ -20,6 +20,7 @@ class TestPairingEnvironment {
     PairingTimeouts timeouts = const PairingTimeouts(),
     int maxFailures = 30,
     Exception? bindError,
+    Future<int?> Function(String path)? freeSpace,
   }) {
     environment = PairingEnvironment(
       library: library,
@@ -41,6 +42,7 @@ class TestPairingEnvironment {
       keepScreenOn: ({required enabled}) async => screen.add(enabled),
       timeouts: timeouts,
       codeValidity: codeValidity,
+      freeSpace: freeSpace,
     );
   }
 

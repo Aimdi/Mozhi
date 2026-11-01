@@ -300,13 +300,19 @@ own and fails the job when it does not work:
   device to feed through `-allow-host-audio`), so no speech is recognized
   here: real transcription with the Fast model is tested in "Analyze and
   test" ([Voice input](voice-input.md#for-contributors)).
+- **Conversation voice**: the same for the Conversation tab's large
+  microphone (`mozhi://conversation`, "Start conversation"): it must offer
+  the offline speech model with its size (closed with Not now) or listen
+  (with a recognizer it hears nothing here and pauses with "Didn't hear
+  anything"). Nothing at all, an error, or a conversation still starting
+  after 40 s fails.
 
 Every step waits for its labels with a timeout and taps a button again
 when nothing happens. On failure it saves `<n>-<flow>-failed.png` and
 `.xml`, and the summary names the step and the text on screen.
 `--skip-offline-only`, `--skip-image`, `--skip-document`,
-`--skip-cancel` and `--skip-voice` leave a flow out, so you can look into a flaky one on
-your own emulator; CI runs all of them. `python3 tool/android_smoke_test.py`
+`--skip-cancel`, `--skip-voice` and `--skip-conversation-voice` leave a
+flow out, so you can look into a flaky one on your own emulator; CI runs all of them. `python3 tool/android_smoke_test.py`
 tests the script's parsing and flows without a device.
 
 Conventions:

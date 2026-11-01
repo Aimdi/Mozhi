@@ -214,6 +214,14 @@ void main() {
         expect(copy?.id, 'new0');
         expect(await cubit.duplicate('zz'), isNull);
         await cubit.duplicate('a');
+        // With other settings (without the glossary and instructions).
+        await cubit.duplicate(
+          'c',
+          options: const TranslationOptions(
+            context: 'Andere',
+            instructions: 'x',
+          ),
+        );
       },
       expect: () => [
         _ready([
@@ -228,6 +236,17 @@ void main() {
           _b,
           _b.copyWith(id: 'new0', name: 'B (copy)'),
           _c,
+        ], defaultId: 'b'),
+        _ready([
+          _a,
+          _a.copyWith(id: 'new1'),
+          _b,
+          _b.copyWith(id: 'new0', name: 'B (copy)'),
+          _c,
+          _c.copyWith(
+            id: 'new2',
+            options: const TranslationOptions(context: 'Andere'),
+          ),
         ], defaultId: 'b'),
       ],
     );

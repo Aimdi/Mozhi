@@ -4,6 +4,7 @@
 <resources>
     <string name="translate_with_mozhi">Mozhi で翻訳</string>
     <string name="translate_offline">オフラインで翻訳</string>
+    <string name="improve_with_mozhi">Mozhi で改善</string>
     <string name="tile_translate_label">翻訳</string>
     <string name="tile_translate_description">クリップボードを Mozhi で翻訳</string>
     <string name="shortcut_clipboard_short">クリップボード</string>

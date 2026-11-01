@@ -1,4 +1,5 @@
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/presets/cubit/presets_state.dart';
 import 'package:mozhi/presets/models/glossary.dart';
 import 'package:mozhi/presets/models/preset.dart';
 import 'package:translation_repository/translation_repository.dart';
@@ -15,6 +16,55 @@ extension PresetLabels on AppLocalizations {
       BuiltInPreset.simpleA2 => presetsNameSimpleA2,
       null => presetsUntitled,
     };
+  }
+
+  /// The context sentence of the built-in example [builtIn] in the UI
+  /// language; null for an example without one.
+  String? presetBuiltInContext(BuiltInPreset builtIn) => switch (builtIn) {
+    BuiltInPreset.emailFormal => presetsContextEmailFormal,
+    BuiltInPreset.chatCasual => presetsContextChatCasual,
+    BuiltInPreset.simpleA2 => null,
+  };
+
+  /// [preset] as shown and applied: a built-in example whose context is
+  /// still the one it was stored with ([BuiltInPreset.options], English)
+  /// gets it in the UI language ([presetBuiltInContext]), like its name.
+  /// Other presets, and examples whose context the user changed, are
+  /// returned as they are.
+  Preset localizedPreset(Preset preset) {
+    final builtIn = preset.builtIn;
+    if (builtIn == null) return preset;
+    final stored = builtIn.options.context;
+    final localized = presetBuiltInContext(builtIn);
+    if (localized == null ||
+        localized == stored ||
+        preset.options.context != stored) {
+      return preset;
+    }
+    return preset.copyWith(
+      options: preset.options.copyWith(context: localized),
+    );
+  }
+
+  /// [state] with its presets as shown and applied ([localizedPreset]):
+  /// pickers choose from these, so a chosen example applies its context in
+  /// the UI language and is found again by `PresetsState.presetFor`.
+  PresetsState localizedPresets(PresetsState state) => state.copyWith(
+    presets: [for (final preset in state.presets) localizedPreset(preset)],
+  );
+
+  /// [options] edited for the built-in example [preset], as stored: the
+  /// localised context ([localizedPreset]) goes back to the stored one, so
+  /// the example stays in the UI language while its context is unchanged.
+  TranslationOptions presetStoredOptions(
+    Preset preset,
+    TranslationOptions options,
+  ) {
+    final builtIn = preset.builtIn;
+    if (builtIn == null) return options;
+    final localized = presetBuiltInContext(builtIn);
+    if (localized == null || options.context != localized) return options;
+    return options.copyWith(context: builtIn.options.context);
   }
 
   /// Short description of the non-default settings, e.g.

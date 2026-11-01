@@ -73,9 +73,15 @@ final class DictionaryPackUnsupportedException extends DictionaryPackException {
 ///   before it is installed; a pack replaces another version of itself at
 ///   once (see the storages). [install] tries the URLs of `downloadUrls`
 ///   (default: the catalogue's) in turn when a server fails, never after a
-///   checksum mismatch. Concurrent installs of one pack share a download,
-///   which [cancelInstall] stops (nothing is kept: the next download starts
-///   from the beginning).
+///   checksum mismatch. Concurrent installs of one pack share a download
+///   (each caller gets its progress), which [cancelInstall] stops; the
+///   running ones are in [installing].
+/// * With a [ResumableDictionaryPackStorage] (the app's files on Android),
+///   a download that stops (no connection, a cancel) is kept, and the next
+///   one of that version from the same URL resumes it (`Range`; the whole
+///   file again when the server does not answer with the rest). The whole
+///   file is checked at the end as always; resumed bytes that do not match
+///   are downloaded again from the start.
 /// * `isMeteredConnection` tells whether a `wifiOnly` install must stop.
 /// * An install first checks that the pack fits (`freeSpace`, default
 ///   [FreeSpace.instance]: the pack's size plus a margin, see
@@ -152,11 +158,19 @@ class DictionaryPacks implements OfflineDictionary {
     return null;
   }
 
+  /// The packs [install] is downloading now, by id, with the fraction
+  /// received so far (0 to 1; null until the download starts).
+  Map<String, double?> get installing => {
+    for (final install in _installing.values)
+      if (!install.cancel.isCancelled) install.packId: install.fraction,
+  };
+
   /// Downloads and installs [pack], replacing another version of it.
   /// Returns at once when it is installed already. With [wifiOnly] it
   /// throws [DictionaryPackMeteredException] on a metered network.
-  /// [onProgress] gets the fraction received (0 to 1). [cancelInstall]
-  /// stops it with an [OfflineDownloadCancelledException].
+  /// [onProgress] gets the fraction received (0 to 1), also when this call
+  /// joins a running install of the pack. [cancelInstall] stops it with an
+  /// [OfflineDownloadCancelledException].
   Future<void> install(
     DictionaryPackInfo pack, {
     bool wifiOnly = false,
@@ -164,12 +178,16 @@ class DictionaryPacks implements OfflineDictionary {
   }) {
     final key = '${pack.id}/${pack.sha256}';
     final running = _installing[key];
-    if (running != null && !running.cancel.isCancelled) return running.result;
+    if (running != null && !running.cancel.isCancelled) {
+      if (onProgress != null) running.listen(onProgress);
+      return running.result;
+    }
     // A cancelled install winds down first (it may still be aborting its
     // write).
     final install = _PackInstall(
-      _DownloadCancel(pack.id),
-      (cancel) => _install(pack, wifiOnly, onProgress, cancel),
+      pack.id,
+      (install) => _install(pack, wifiOnly, install.report, install.cancel),
+      onProgress: onProgress,
       after: running?.settled,
     );
     _installing[key] = install;
@@ -182,7 +200,8 @@ class DictionaryPacks implements OfflineDictionary {
   }
 
   /// Stops every running [install] of the pack [id]: the request is
-  /// closed, what was received is discarded and nothing is installed;
+  /// closed, what was received is kept for resuming where the storage
+  /// can ([ResumableDictionaryPackStorage]) and nothing is installed;
   /// those calls fail with an [OfflineDownloadCancelledException].
   /// Completes once they have stopped; does nothing when none runs. Never
   /// throws.
@@ -480,12 +499,23 @@ class DictionaryPacks implements OfflineDictionary {
     if (wifiOnly && await _isMetered()) {
       throw DictionaryPackMeteredException(pack.id);
     }
-    await ensureFreeSpace(pack.size, freeSpace: _freeSpace);
     final urls = _downloadUrls(pack);
+    final kept = await _kept(pack);
+    // Only the rest of a download that resumes needs room.
+    final reused =
+        kept != null &&
+            urls.any((url) => kept.continues(pack.sha256, pack.size, url))
+        ? kept.received
+        : 0;
+    await ensureFreeSpace(pack.size - reused, freeSpace: _freeSpace);
     for (final (index, url) in urls.indexed) {
       cancel.check();
       try {
-        await _download(pack, url, onProgress, cancel);
+        final resume =
+            kept != null && kept.continues(pack.sha256, pack.size, url)
+            ? kept.received
+            : 0;
+        await _download(pack, url, resume, onProgress, cancel);
         break;
       } on DictionaryPackDownloadException {
         cancel.check();
@@ -497,53 +527,117 @@ class DictionaryPacks implements OfflineDictionary {
     _changes.add(null);
   }
 
-  /// Downloads [pack] from [url] and installs it; once [cancel] is
-  /// cancelled the request is aborted and this fails with an
-  /// [OfflineDownloadCancelledException] (nothing is written).
+  /// The kept download of [pack] (any version, see
+  /// [ResumableDictionaryPackStorage.partial]), if the storage keeps them.
+  Future<DictionaryPartialDownload?> _kept(DictionaryPackInfo pack) async {
+    final storage = _storage;
+    if (storage is! ResumableDictionaryPackStorage) return null;
+    try {
+      return await storage.partial(pack.id);
+    } on Object {
+      return null;
+    }
+  }
+
+  /// Downloads [pack] from [url] and installs it, resuming the kept bytes
+  /// from byte [resume] on when the server answers with the rest (`206`
+  /// from there; else the whole file); once [cancel] is cancelled the
+  /// request is aborted and this fails with an
+  /// [OfflineDownloadCancelledException] (what came is kept for resuming).
   Future<void> _download(
     DictionaryPackInfo pack,
     Uri url,
+    int resume,
     void Function(double fraction)? onProgress,
     _DownloadCancel cancel,
   ) async {
-    final http.StreamedResponse response;
-    try {
-      response = await cancel.race(
-        _client
-            .send(
-              http.AbortableRequest('GET', url, abortTrigger: cancel.future),
-            )
-            .timeout(requestTimeout),
-        onLate: _discard,
+    var from = resume;
+    while (true) {
+      final request = http.AbortableRequest(
+        'GET',
+        url,
+        abortTrigger: cancel.future,
       );
-    } on OfflineDownloadCancelledException {
-      rethrow;
-    } on Object catch (error) {
-      cancel.check();
-      throw DictionaryPackDownloadException(pack.id, '$error', url: url);
+      if (from > 0) request.headers['Range'] = 'bytes=$from-';
+      final http.StreamedResponse response;
+      try {
+        response = await cancel.race(
+          _client.send(request).timeout(requestTimeout),
+          onLate: _discard,
+        );
+      } on OfflineDownloadCancelledException {
+        rethrow;
+      } on Object catch (error) {
+        cancel.check();
+        throw DictionaryPackDownloadException(pack.id, '$error', url: url);
+      }
+      final status = response.statusCode;
+      final continues =
+          from > 0 && status == 206 && _rangeStart(response, pack) == from;
+      if (status != 200 && !continues) {
+        // Drain so the connection can be reused.
+        await response.stream.drain<void>().catchError((_) {});
+        if (from > 0 && (status == 206 || status == 416)) {
+          // Not the rest that was asked for: the whole file.
+          from = 0;
+          continue;
+        }
+        throw DictionaryPackDownloadException(
+          pack.id,
+          'HTTP $status for $url',
+          url: url,
+          statusCode: status,
+        );
+      }
+      try {
+        await _store(
+          pack,
+          cancel.guard(response.stream).timeout(requestTimeout),
+          url: url,
+          resumeFrom: continues ? from : 0,
+          onProgress: onProgress,
+          cancel: cancel,
+          wrap: (error) => DictionaryPackDownloadException(
+            pack.id,
+            '${pack.fileName}: $error',
+            url: url,
+          ),
+        );
+        return;
+      } on DictionaryPackChecksumException {
+        // Kept bytes that do not fit: the whole file once more.
+        if (!continues) rethrow;
+        from = 0;
+      }
     }
-    if (response.statusCode != 200) {
-      // Drain so the connection can be reused.
-      await response.stream.drain<void>().catchError((_) {});
-      throw DictionaryPackDownloadException(
-        pack.id,
-        'HTTP ${response.statusCode} for $url',
-        url: url,
-        statusCode: response.statusCode,
-      );
+  }
+
+  /// The first byte of a `206` [response] (`Content-Range: bytes F-L/T`),
+  /// or null when the header is missing, malformed or for a file of
+  /// another size than [pack]'s.
+  static int? _rangeStart(
+    http.StreamedResponse response,
+    DictionaryPackInfo pack,
+  ) {
+    final header = response.headers.entries
+        .where((entry) => entry.key.toLowerCase() == 'content-range')
+        .firstOrNull
+        ?.value;
+    if (header == null) return null;
+    final match = RegExp(r'^\s*bytes\s+(\d+)-(\d+)/(\d+|\*)\s*$')
+        .firstMatch(header);
+    if (match == null) return null;
+    final first = int.tryParse(match[1]!);
+    final last = int.tryParse(match[2]!);
+    final total = match[3] == '*' ? null : int.tryParse(match[3]!);
+    if (first == null ||
+        last == null ||
+        last < first ||
+        last >= pack.size ||
+        (total != null && total != pack.size)) {
+      return null;
     }
-    await _store(
-      pack,
-      cancel.guard(response.stream).timeout(requestTimeout),
-      url: url,
-      onProgress: onProgress,
-      cancel: cancel,
-      wrap: (error) => DictionaryPackDownloadException(
-        pack.id,
-        '${pack.fileName}: $error',
-        url: url,
-      ),
-    );
+    return first;
   }
 
   /// Stops reading [response] (closing its connection).
@@ -558,22 +652,58 @@ class DictionaryPacks implements OfflineDictionary {
 
   /// Writes [bytes] as [pack] into the storage, checking them against the
   /// catalogue's size and SHA-256 (a [DictionaryPackChecksumException]
-  /// naming [url] otherwise; nothing is installed). Other errors abort the
+  /// naming [url] otherwise; nothing is installed). Other errors stop the
   /// write and are rethrown, or replaced by what [wrap] makes of them;
-  /// once [cancel] is cancelled, the write is aborted (also when every byte
+  /// once [cancel] is cancelled, the write stops (also when every byte
   /// came) with an [OfflineDownloadCancelledException].
+  ///
+  /// A download (with its [url]) into a [ResumableDictionaryPackStorage]
+  /// is kept when it stops so (not after a checksum mismatch); with
+  /// [resumeFrom] its kept bytes come first ([bytes] are the rest).
   Future<void> _store(
     DictionaryPackInfo pack,
     Stream<List<int>> bytes, {
     Uri? url,
+    int resumeFrom = 0,
     void Function(double fraction)? onProgress,
     Exception Function(Object error)? wrap,
     _DownloadCancel? cancel,
   }) async {
-    final sink = await _storage.create(pack.id);
+    final storage = _storage;
     final hash = Sha256();
     var received = 0;
-    onProgress?.call(0);
+    final DictionaryPackSink sink;
+    if (url != null && storage is ResumableDictionaryPackStorage) {
+      if (resumeFrom > 0) {
+        try {
+          await for (final chunk in storage.readPartial(pack.id)) {
+            received += chunk.length;
+            hash.add(chunk);
+          }
+        } on Object catch (error) {
+          throw DictionaryPackChecksumException(pack.id, '$error', url: url);
+        }
+        if (received != resumeFrom) {
+          throw DictionaryPackChecksumException(
+            pack.id,
+            '${pack.fileName}: kept $received bytes, not $resumeFrom',
+            url: url,
+          );
+        }
+      }
+      sink = await storage.createPartial(
+        pack.id,
+        DictionaryPartialDownload(
+          url: url,
+          size: pack.size,
+          sha256: pack.sha256,
+        ),
+        append: resumeFrom > 0,
+      );
+    } else {
+      sink = await storage.create(pack.id);
+    }
+    onProgress?.call(received / pack.size);
     try {
       await for (final chunk in bytes) {
         received += chunk.length;
@@ -592,13 +722,13 @@ class DictionaryPacks implements OfflineDictionary {
       await sink.abort();
       rethrow;
     } on Object catch (error) {
-      await sink.abort();
+      await _stop(sink);
       cancel?.check();
       if (wrap == null) rethrow;
       throw wrap(error);
     }
     if (cancel?.isCancelled ?? false) {
-      await sink.abort();
+      await _stop(sink);
       cancel?.check();
     }
     final digest = hash.close();
@@ -624,20 +754,47 @@ class DictionaryPacks implements OfflineDictionary {
   }
 }
 
-/// An install of [DictionaryPacks] that callers share, with its [cancel].
+/// Stops writing [sink], keeping what was written for resuming when it
+/// can be.
+Future<void> _stop(DictionaryPackSink sink) =>
+    sink is ResumableDictionaryPackSink ? sink.keep() : sink.abort();
+
+/// An install of [DictionaryPacks] that callers share, with its [cancel]
+/// and the progress callbacks of every caller.
 final class _PackInstall {
   new(
-    this.cancel,
-    Future<void> Function(_DownloadCancel cancel) run, {
+    this.packId,
+    Future<void> Function(_PackInstall install) run, {
+    void Function(double fraction)? onProgress,
     Future<void>? after,
-  }) {
+  }) : cancel = _DownloadCancel(packId) {
+    if (onProgress != null) _listeners.add(onProgress);
     result = after == null
-        ? Future.sync(() => run(cancel))
-        : after.then((_) => run(cancel));
+        ? Future.sync(() => run(this))
+        : after.then((_) => run(this));
     settled = result.then<void>((_) {}, onError: (Object _) {});
   }
 
+  final String packId;
   final _DownloadCancel cancel;
+  final _listeners = <void Function(double fraction)>[];
+
+  /// The fraction received so far (null until the download starts).
+  double? fraction;
+
+  /// Adds a caller's progress callback (told the progress so far at once).
+  void listen(void Function(double fraction) onProgress) {
+    _listeners.add(onProgress);
+    if (fraction case final fraction?) onProgress(fraction);
+  }
+
+  void report(double fraction) {
+    this.fraction = fraction;
+    for (final listener in [..._listeners]) {
+      listener(fraction);
+    }
+  }
+
   late final Future<void> result;
 
   /// Completes (never with an error) when [result] does.

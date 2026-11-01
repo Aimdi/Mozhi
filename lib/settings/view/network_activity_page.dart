@@ -8,7 +8,9 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/network/network_session.dart';
 import 'package:mozhi/core/privacy/egress/egress.dart';
+import 'package:mozhi/core/widgets/app_bar_title.dart';
 import 'package:mozhi/core/widgets/consent_prompt.dart' show upstreamEngineName;
+import 'package:mozhi/core/widgets/decimal_format.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/platform/clipboard_service.dart'
@@ -51,7 +53,7 @@ class NetworkActivityView extends StatelessWidget {
     final hasEntries = state.entries.isNotEmpty || state.dropped > 0;
     return Scaffold(
       appBar: AppBar(
-        title: Text(l10n.settingsNetworkActivity),
+        title: AppBarTitle(l10n.settingsNetworkActivity),
         actions: [
           IconButton(
             key: const Key('network_activity_copy'),
@@ -331,7 +333,9 @@ String egressStatusLabel(AppLocalizations l10n, EgressEntry entry) =>
 String egressDurationLabel(AppLocalizations l10n, Duration duration) {
   final ms = duration.inMilliseconds;
   if (ms < 1000) return l10n.settingsNetworkDurationMs(ms);
-  return l10n.settingsNetworkDurationSeconds((ms / 1000).toStringAsFixed(1));
+  return l10n.settingsNetworkDurationSeconds(
+    formatDecimal(ms / 1000, l10n.localeName),
+  );
 }
 
 class _SectionTitle extends StatelessWidget {

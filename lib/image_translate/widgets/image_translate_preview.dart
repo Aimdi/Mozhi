@@ -19,8 +19,16 @@ import 'package:translation_repository/translation_repository.dart';
 ///
 /// With [expand] the viewer fills the available height (wide layouts),
 /// otherwise it is [height] tall.
+///
+/// The photo is decoded at most [maxDecodedSide] pixels on its long side
+/// (a photo shared from another app can be a 40 MB original; the picker
+/// downscales its own to the same size): the text is read from the file,
+/// not from what is shown.
 class ImageTranslatePreview extends StatelessWidget {
   const new({this.expand = false, this.height = 360, super.key});
+
+  /// The longest side the shown photo is decoded at.
+  static const maxDecodedSide = 2048;
 
   final bool expand;
   final double height;
@@ -64,8 +72,13 @@ class ImageTranslatePreview extends StatelessWidget {
                       target: state.target,
                       showOriginal: state.showOriginal,
                     )
-                  : Image.memory(
-                      bytes,
+                  : Image(
+                      image: ResizeImage(
+                        MemoryImage(bytes),
+                        width: maxDecodedSide,
+                        height: maxDecodedSide,
+                        policy: ResizeImagePolicy.fit,
+                      ),
                       key: ValueKey(showTranslated),
                       fit: BoxFit.contain,
                       gaplessPlayback: true,

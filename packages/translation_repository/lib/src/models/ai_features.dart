@@ -337,6 +337,13 @@ enum WritingStyle { general, academic, business, casual, creative, email }
 
 enum CorrectionLevel { light, standard, comprehensive }
 
+/// The tone a proofread or rephrased text is rewritten toward, like DeepL
+/// Write's tones.
+///
+/// [automatic] keeps the author's tone; the others rewrite toward that tone
+/// while keeping the meaning, the facts, the language and the formatting.
+enum WritingTone { automatic, enthusiastic, friendly, confident, diplomatic }
+
 /// A regional variety of a language (spelling, vocabulary and punctuation
 /// conventions) the user can ask a proofread text to follow.
 ///

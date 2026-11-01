@@ -265,6 +265,34 @@ void main() {
         expect(events.last, isA<LlmApiException>());
       });
 
+      for (final error in const [
+        LlmTruncatedException(partialText: 'ab'),
+        LlmInterruptedException(partialText: 'ab'),
+      ]) {
+        test(
+          'keeps the pending snapshot before ${error.runtimeType}',
+          () async {
+            final deltas = ControlledDeltas();
+            final events = <Object>[];
+            final done = Completer<void>();
+            build(
+              deltas.stream,
+              request: englishRequest,
+              interval: const Duration(hours: 1),
+            ).listen(events.add, onError: events.add, onDone: done.complete);
+            deltas.controller
+              ..add('a')
+              ..add('b')
+              ..addError(error);
+            await done.future;
+            expect(events, hasLength(3));
+            expect((events[1] as TranslationResult).text, 'ab');
+            expect((events[1] as TranslationResult).isComplete, isFalse);
+            expect(events.last, error);
+          },
+        );
+      }
+
       test('reports errors thrown when opening the request', () async {
         final stream = aiTranslationStream(
           open: () => throw ArgumentError('no provider'),

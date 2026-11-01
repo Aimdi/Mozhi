@@ -11,6 +11,7 @@ import 'package:mozhi/pairing/data/pairing_session.dart';
 import 'package:mozhi/pairing/models/pairing_item.dart';
 import 'package:mozhi/pairing/protocol/pairing_channel.dart';
 import 'package:mozhi/pairing/protocol/pairing_exception.dart';
+import 'package:mozhi/platform/free_space.dart';
 
 import '../helpers/fake_packs.dart';
 import '../helpers/loopback.dart';
@@ -84,11 +85,15 @@ void main() {
     timeouts: timeouts ?? const PairingTimeouts(),
   );
 
-  PairingReceiver receiver({PairingTimeouts? timeouts}) => PairingReceiver(
+  PairingReceiver receiver({
+    PairingTimeouts? timeouts,
+    Future<int?> Function(String path)? freeSpace,
+  }) => PairingReceiver(
     receiverChannel,
     PairingLibrary(backup: receiverBackup, packs: [receiverPacks]),
     workDirectory: Directory('${temp.path}/work'),
     timeouts: timeouts ?? const PairingTimeouts(),
+    freeSpace: freeSpace,
   );
 
   Future<List<PairingOutgoingItem>> offerAll() async => [
@@ -164,6 +169,115 @@ void main() {
         'data:backup',
         'translation:de',
       ]);
+    });
+
+    group('free space', () {
+      /// The bytes German takes here: received, then copied by its import.
+      int germanSpace() => 2 * (150000 + 1000);
+
+      test('an item that does not fit is not offered for taking', () async {
+        final paths = <String>[];
+        final sending = sender();
+        final receiving = receiver(
+          freeSpace: (path) async {
+            paths.add(path);
+            return requiredFreeSpace(germanSpace()) - 1;
+          },
+        );
+        final requested = sending.offer(await offerAll());
+        final offered = await receiving.offer();
+
+        expect(receiving.freeBytes, requiredFreeSpace(germanSpace()) - 1);
+        expect(paths, ['${temp.path}/work']);
+        final german = offered.firstWhere((o) => o.item.id == 'translation:de');
+        expect(german.plan.status, PairingItemStatus.noSpace);
+        expect(german.plan.size, 151000);
+        expect(german.spaceNeeded, germanSpace());
+        // The data item stays in memory: it always fits.
+        expect(offered.first.plan.status, PairingItemStatus.available);
+        expect(offered.first.spaceNeeded, 0);
+
+        final received = receiving.accept({
+          'data:backup',
+          'translation:de',
+        }, mode: BackupRestoreMode.merge);
+        final wanted = await requested;
+        expect([for (final w in wanted) w.item.id], ['data:backup']);
+        await sending.send(wanted);
+        expect(await received, [
+          const PairingItemResult('data:backup', PairingItemOutcome.installed),
+        ]);
+        expect(receiverPacks.installs, isEmpty);
+      });
+
+      test('what does not fit together is refused up front', () async {
+        var free = 1 << 40;
+        final sending = sender();
+        final receiving = receiver(freeSpace: (_) async => free);
+        final requested = sending.offer(await offerAll());
+        final offered = await receiving.offer();
+        expect(
+          offered.firstWhere((o) => o.item.id == 'translation:de').plan.status,
+          PairingItemStatus.available,
+        );
+
+        // Less is free by the time the user accepts.
+        free = requiredFreeSpace(germanSpace()) - 1;
+        final received = receiving.accept({
+          'data:backup',
+          'translation:de',
+        }, mode: BackupRestoreMode.merge);
+        final wanted = await requested;
+        expect([for (final w in wanted) w.item.id], ['data:backup']);
+        await sending.send(wanted);
+        expect(await received, [
+          const PairingItemResult('data:backup', PairingItemOutcome.installed),
+          const PairingItemResult('translation:de', PairingItemOutcome.noSpace),
+        ]);
+        expect(receiverPacks.installs, isEmpty);
+      });
+
+      test(
+        'unknown or unreadable free space lets everything through',
+        () async {
+          final sending = sender();
+          final receiving = receiver(freeSpace: (_) async => throw Exception());
+          final requested = sending.offer(await offerAll());
+          final offered = await receiving.offer();
+          expect(receiving.freeBytes, isNull);
+          expect(
+            offered
+                .firstWhere((o) => o.item.id == 'translation:de')
+                .plan
+                .status,
+            PairingItemStatus.available,
+          );
+          final received = receiving.accept({
+            'translation:de',
+          }, mode: BackupRestoreMode.merge);
+          await sending.send(await requested);
+          expect(await received, [
+            const PairingItemResult(
+              'translation:de',
+              PairingItemOutcome.installed,
+            ),
+          ]);
+        },
+      );
+
+      test('on-device AI models are moved, not copied', () {
+        const plan = PairingPlan.available([
+          PairingFile(name: 'model.gguf', size: 1000),
+        ]);
+        PairingOfferedItem of(PairingItemKind kind) => PairingOfferedItem(
+          PairingItem(kind: kind, key: 'x', files: plan.files),
+          plan,
+        );
+        expect(of(PairingItemKind.onDeviceAi).spaceNeeded, 1000);
+        expect(of(PairingItemKind.dictionary).spaceNeeded, 2000);
+        expect(of(PairingItemKind.ocr).spaceNeeded, 2000);
+        expect(of(PairingItemKind.speech).spaceNeeded, 2000);
+      });
     });
 
     test('carries secrets only when asked', () async {

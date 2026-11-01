@@ -87,6 +87,19 @@ void main() {
       device = _Device();
       sent = [];
       final client = MockClient((request) async {
+        if (request.method == 'GET') {
+          // Google's language lists.
+          return http.Response(
+            jsonEncode([
+              if (request.url.path.endsWith('source_languages'))
+                {'Id': 'auto', 'Name': 'Detect'},
+              for (final code in ['en', 'fr', 'es', 'de'])
+                {'Id': code, 'Name': code},
+            ]),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }
         final text = request.bodyFields['text']!;
         sent.add(text);
         return http.Response(

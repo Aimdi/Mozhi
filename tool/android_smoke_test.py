@@ -582,6 +582,9 @@ class StoreScreenshotsTest(unittest.TestCase):
 @mock.patch.object(smoke, "flow_document", lambda device: "the book")
 @mock.patch.object(smoke, "flow_cancel", lambda device: "back to Download")
 @mock.patch.object(smoke, "flow_voice", lambda device: "offered the model")
+@mock.patch.object(
+    smoke, "flow_conversation_voice", lambda device: "offered the model"
+)
 class MainTest(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
@@ -1036,8 +1039,8 @@ class SharingTest(unittest.TestCase):
         self.assertIsNone(smoke.split_skips(["a", "b", "--skip-camera"]))
         self.assertEqual(
             sorted(f"--skip-{name}" for name, _ in smoke.FLOWS),
-            ["--skip-cancel", "--skip-document", "--skip-image",
-             "--skip-offline-only", "--skip-voice"],
+            ["--skip-cancel", "--skip-conversation-voice", "--skip-document",
+             "--skip-image", "--skip-offline-only", "--skip-voice"],
         )
         for name, _ in smoke.FLOWS:
             self.assertTrue(callable(smoke.flow_function(name)))
@@ -1218,10 +1221,14 @@ class RunFlowsTest(ClockTestCase):
         with mock.patch.object(smoke, "flow_offline_only", lambda d: "fine"), \
                 mock.patch.object(smoke, "flow_image", boom), \
                 mock.patch.object(smoke, "flow_document", lambda d: "fine"):
-            results = smoke.run_flows(self.device, {"cancel", "voice"})
+            results = smoke.run_flows(
+                self.device, {"cancel", "voice", "conversation-voice"}
+            )
 
-        self.assertEqual([r.status for r in results],
-                         ["passed", "failed", "passed", "skipped", "skipped"])
+        self.assertEqual(
+            [r.status for r in results],
+            ["passed", "failed", "passed", "skipped", "skipped", "skipped"],
+        )
         self.assertIn("RuntimeError: adb install: no device", results[1].detail)
         self.assertIn("on screen: Settings | Privacy & data", results[1].detail)
         self.assertEqual(self.device.captured, ["image-failed"])
@@ -1953,6 +1960,133 @@ class VoiceFlowTest(ClockTestCase):
 
         with self.assertRaisesRegex(smoke.StepFailed, "no download size"):
             smoke.flow_voice(self.device)
+
+
+class ConversationVoiceFlowTest(ClockTestCase):
+    def setUp(self) -> None:
+        super().setUp()
+        d = self.device
+        d.screens = {
+            "conversation": [
+                node("Let's talk!"),
+                node("Start conversation", clickable=True),
+            ],
+            "starting": [
+                node("Listening in English…"),
+                node("Stop conversation", clickable=True),
+            ],
+            "offer": [
+                node("Download the speech model?"),
+                node("This device has no speech recognition service. ..."),
+                node("Other models", clickable=True),
+                node("Not now", clickable=True),
+                node("Download (74.1 MB)", clickable=True),
+            ],
+            "failed": [
+                node("There’s no speech recognition service on this device. "
+                     "Download the offline speech model in Settings › Read "
+                     "aloud & voice › Voice input to use voice input. Tap "
+                     "the microphone to try again."),
+                node("Continue conversation", clickable=True),
+            ],
+            "silence": [
+                node("Didn't hear anything. Tap the microphone to continue."),
+                node("Continue conversation", clickable=True),
+            ],
+        }
+        d.on_adb.append(
+            (self.link("mozhi://conversation"), "conversation", "Status: ok")
+        )
+        d.on_tap = {"Start conversation": "offer", "Not now": "failed"}
+
+    def then(self, screen: str, after: int) -> None:
+        """Shows [screen] once the current one was looked at [after] times."""
+        device = self.device
+        dump = device.dump
+        seen = {"count": 0}
+
+        def later() -> list[smoke.Node]:
+            seen["count"] += 1
+            if seen["count"] > after:
+                device.current = screen
+            return dump()
+
+        device.dump = later  # type: ignore[method-assign]
+
+    def tap_shows(self, screen: str, then: str | None = None, after: int = 3):
+        self.device.on_tap["Start conversation"] = screen
+        tap = self.device.tap
+
+        def tapped(target: smoke.Node) -> None:
+            tap(target)
+            if then is not None and target.label == "Start conversation":
+                self.then(then, after)
+
+        self.device.tap = tapped  # type: ignore[method-assign]
+
+    def test_the_mic_offers_the_model_with_its_size(self):
+        detail = smoke.flow_conversation_voice(self.device)
+
+        self.assertIn("offered “Download (74.1 MB)”", detail)
+        self.assertIn(("shell", "pm", "grant", smoke.PACKAGE,
+                       "android.permission.RECORD_AUDIO"), self.device.calls)
+        self.assertIn(self.link("mozhi://conversation"), self.device.calls)
+        # Closed without downloading anything.
+        self.assertEqual(self.taps(), ["Start conversation", "Not now"])
+        self.assertIn("conversation-voice-answer", self.device.captured)
+
+    def test_starting_first_then_the_offer(self):
+        self.tap_shows("starting", then="offer")
+
+        detail = smoke.flow_conversation_voice(self.device)
+
+        self.assertIn("offered", detail)
+        # Not tapped again while it started (that would stop it).
+        self.assertEqual(self.taps(), ["Start conversation", "Not now"])
+
+    def test_a_recogniser_that_listens_is_fine_too(self):
+        self.tap_shows("starting", then="silence")
+
+        detail = smoke.flow_conversation_voice(self.device)
+
+        self.assertIn("a recogniser listened", detail)
+        self.assertEqual(self.taps(), ["Start conversation"])
+
+    def test_a_conversation_that_never_gets_further_fails(self):
+        self.tap_shows("starting")
+
+        with self.assertRaisesRegex(smoke.StepFailed, "still starting"):
+            smoke.flow_conversation_voice(self.device)
+
+    def test_a_mic_that_does_nothing_fails(self):
+        self.tap_shows("conversation")
+
+        with self.assertRaisesRegex(
+            smoke.StepFailed, "tapping “Start conversation” twice"
+        ):
+            smoke.flow_conversation_voice(self.device)
+
+    def test_an_error_instead_of_the_offer_fails(self):
+        self.tap_shows("failed")
+
+        with self.assertRaisesRegex(
+            smoke.StepFailed, "no speech recognition service"
+        ):
+            smoke.flow_conversation_voice(self.device)
+
+    def test_the_failure_shown_just_before_the_offer_is_fine(self):
+        self.tap_shows("failed", then="offer", after=1)
+
+        detail = smoke.flow_conversation_voice(self.device)
+
+        self.assertIn("offered", detail)
+
+    def test_an_offer_without_a_size_fails(self):
+        self.device.screens["offer"] = [node("Download the speech model?"),
+                                        node("Not now", clickable=True)]
+
+        with self.assertRaisesRegex(smoke.StepFailed, "no download size"):
+            smoke.flow_conversation_voice(self.device)
 
 
 if __name__ == "__main__":

@@ -239,8 +239,8 @@ class _LanguagesList extends StatelessWidget {
       ],
     ];
 
-    final installed = state.visibleInstalled;
-    final available = state.visibleAvailable;
+    final installed = state.visibleInstalledIn(context.l10n.localeName);
+    final available = state.visibleAvailableIn(context.l10n.localeName);
     return LayoutBuilder(
       builder: (context, constraints) => ListView(
         // Rows run edge to edge on phones (their content keeps a 16 dp

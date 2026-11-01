@@ -28,4 +28,5 @@ export 'widgets/browser_speech_notice.dart';
 export 'widgets/prefer_on_device_speech_tile.dart';
 export 'widgets/voice_error_message.dart';
 export 'widgets/voice_input_button.dart';
+export 'widgets/voice_model_cancel_button.dart';
 export 'widgets/voice_model_offer.dart';

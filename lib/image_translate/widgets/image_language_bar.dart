@@ -73,6 +73,11 @@ class ImageLanguageBar extends StatelessWidget {
         ? imageLanguageLabel(l10n, state.source)
         : l10n.translateDetectedLanguage(detectedName);
     final targetLabel = imageLanguageLabel(l10n, state.target);
+    final sourceIcon = detectedName != null
+        ? Icons.auto_awesome_outlined
+        : state.source.isCustom
+        ? Icons.auto_awesome
+        : null;
     return LanguagePairBar(
       key: const Key('image_translate_language_bar'),
       source: LanguagePairSide(
@@ -80,11 +85,15 @@ class ImageLanguageBar extends StatelessWidget {
         label: detectedName ?? sourceDescription,
         semanticLabel: l10n.translateSourceLanguage(sourceDescription),
         tooltip: sourceDescription,
-        icon: detectedName != null
-            ? Icons.auto_awesome_outlined
-            : state.source.isCustom
-            ? Icons.auto_awesome
-            : null,
+        icon: sourceIcon,
+        forms: languagePairForms(
+          detected != null && detectedName != null
+              ? Language(code: detected, name: detectedName)
+              : state.source,
+          label: detectedName ?? sourceDescription,
+          autoShort: l10n.translateDetectLanguageShort,
+          icon: sourceIcon,
+        ),
         onPressed: () => unawaited(pickImageLanguage(context, source: true)),
       ),
       target: LanguagePairSide(
@@ -92,6 +101,11 @@ class ImageLanguageBar extends StatelessWidget {
         label: targetLabel,
         semanticLabel: l10n.translateTargetLanguage(targetLabel),
         icon: state.target.isCustom ? Icons.auto_awesome : null,
+        forms: languagePairForms(
+          state.target,
+          label: targetLabel,
+          autoShort: l10n.translateDetectLanguageShort,
+        ),
         onPressed: () => unawaited(pickImageLanguage(context, source: false)),
       ),
     );

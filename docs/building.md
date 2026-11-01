@@ -306,10 +306,12 @@ python3 tool/web_shell_manifest.py build/web
 - **Left out**: the worker and the list themselves, Flutter's deprecated
   `flutter_service_worker.js`, hidden files, source maps and `*.symbols`,
   and model files next to the app (`models/`, folders below `bergamot/`).
-- **Kept when first used** (`"lazy": true`): the fallback fonts and the
-  renderer files that no build in `_flutter.buildConfig` loads (`skwasm`
-  without a WebAssembly build of the app, CanvasKit's `webparagraph`);
-  about 34 MB are kept at the install, 38 MB more only as pages use them.
+- **Kept when first used** (`"lazy": true`): the fallback fonts, both
+  CanvasKit variants (`canvaskit/` and `canvaskit/chromium/`: a browser
+  loads one of them, which the install takes from the browser's cache)
+  and the renderer files that no build in `_flutter.buildConfig` loads
+  (`skwasm` without a WebAssembly build of the app, CanvasKit's
+  `webparagraph`); only what pages use is kept beyond the app's own code.
 - **`index.html`** is hashed with its `<base href>` emptied, so editing it
   for a sub-path keeps the list valid. Any other change to the files
   needs the tool again: the worker refuses a file that doesn't match.

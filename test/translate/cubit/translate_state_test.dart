@@ -20,7 +20,8 @@ void main() {
       expect(state.output, isEmpty);
       expect(state.isAiEngine, isFalse);
       expect(state.hasExtras, isFalse);
-      expect(state.canSwap, isTrue);
+      // "Detect language" without a detection yet.
+      expect(state.canSwap, isFalse);
     });
 
     test('supports value equality', () {
@@ -206,6 +207,20 @@ void main() {
 
     test('canSwap is false for custom targets', () {
       expect(readyState(target: pirate).canSwap, isFalse);
+    });
+
+    test('canSwap with "Detect language" needs a detected language the '
+        'engine offers as a target', () {
+      expect(readyState(source: de).canSwap, isTrue);
+      expect(readyState().canSwap, isFalse);
+      expect(readyState(result: resultOf('x')).canSwap, isFalse);
+      expect(readyState(result: resultOf('x', detected: '')).canSwap, isFalse);
+      expect(readyState(result: resultOf('x', detected: 'fr')).canSwap, isTrue);
+      // Japanese is not among the engine's targets.
+      expect(
+        readyState(result: resultOf('x', detected: 'ja')).canSwap,
+        isFalse,
+      );
     });
 
     test('effectiveSourceCode uses the detected language for auto', () {

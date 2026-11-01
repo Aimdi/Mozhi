@@ -66,6 +66,14 @@ labels of the moment it failed (<n>-<flow>-failed.png/.xml):
                 error, fails. The emulator runs without audio (-noaudio),
                 so no speech is recognised here: the real transcription is
                 tested in the job "Analyze and test".
+  conversation-voice
+                The same for the large microphone of the Conversation tab
+                (mozhi://conversation, "Start conversation"): it must
+                offer the offline speech model with its size (closed with
+                Not now) or listen (a recogniser hears nothing here, so the
+                conversation pauses with "Didn't hear anything"); nothing,
+                an error, or a conversation still starting after 40 s
+                fails.
 
 For a failed flow it also saves the log of Mozhi's processes and of
 Flutter since the flow started (<n>-<flow>-failed-logcat.txt; the last
@@ -73,7 +81,7 @@ lines go to the output too) and every text of the page, scrolled from top
 to bottom (<n>-<flow>-failed-page.txt, printed too).
 
   --skip-offline-only, --skip-image, --skip-document, --skip-cancel,
-  --skip-voice
+  --skip-voice, --skip-conversation-voice
 
 leave a flow out (to look into a flaky one without hiding the others; CI
 runs them all). They run after the store screenshots, which keep showing
@@ -155,6 +163,7 @@ FLOWS = (
     ("document", "Document translation"),
     ("cancel", "Cancel an offline language download"),
     ("voice", "Voice input without Google"),
+    ("conversation-voice", "Conversation voice input without Google"),
 )
 SHARE_ACTIVITY = f"{PACKAGE}/.ShareReceiverActivity"
 ASSETS = Path(__file__).resolve().parent / "smoke_assets"
@@ -1851,6 +1860,66 @@ def flow_voice(device: Device) -> str:
     stop = find_clickable(nodes, VOICE_LISTENING)
     if stop is not None:
         device.tap(stop)
+    return f"a recogniser listened (“{one_line(found.label)}”)"
+
+
+# Conversation: the large microphone (ConversationSessionMic's label),
+# what it may lead to and the errors it must not show.
+CONVERSATION_MIC = r"Start conversation"
+# The status while the conversation listens (or still starts).
+CONVERSATION_LISTENING = r"(?s)Listening in .*"
+# A recogniser listened and heard nothing (the emulator has no audio).
+CONVERSATION_SILENCE = r"(?s)Didn.t hear anything\b.*"
+CONVERSATION_ERRORS = (
+    r"(?s).*(Speech recognition isn’t available|Voice input failed|"
+    r"Couldn’t use the microphone|Microphone access is off|"
+    r"There’s no speech recognition service|"
+    r"Voice input needs the offline speech model).*"
+)
+
+
+def flow_conversation_voice(device: Device) -> str:
+    """Taps the Conversation tab's large microphone with the microphone
+    allowed; the offline speech model must be offered with its size, or
+    a recogniser must listen. See the docstring."""
+    device.adb(
+        "shell", "pm", "grant", PACKAGE, "android.permission.RECORD_AUDIO",
+        check=False,
+    )
+    show_screen(device, "mozhi://conversation")
+    final = any_of(VOICE_OFFER, CONVERSATION_ERRORS, CONVERSATION_SILENCE)
+    answer = any_of(VOICE_OFFER, CONVERSATION_ERRORS, CONVERSATION_SILENCE,
+                    CONVERSATION_LISTENING)
+    found = tap_until(
+        device, "tap Start conversation", CONVERSATION_MIC, answer, seconds=30
+    )
+    if re.fullmatch(CONVERSATION_LISTENING, found.label.strip()):
+        # Starting or listening: an offer, an error or the pause after
+        # silence follows (a conversation that never gets further is the
+        # microphone doing nothing).
+        found = wait_until(device, final, 40)
+        if found is None:
+            raise StepFailed(
+                "conversation-voice: still starting or listening after 40 s"
+            )
+    if re.fullmatch(CONVERSATION_ERRORS, found.label.strip(), re.DOTALL):
+        # The failure's status may show a moment before the offer opens.
+        found = wait_until(device, any_of(VOICE_OFFER), 4) or found
+    nodes = device.capture("conversation-voice-answer")
+    if re.fullmatch(CONVERSATION_ERRORS, found.label.strip(), re.DOTALL):
+        raise StepFailed(f"conversation-voice: “{one_line(found.label)}”")
+    if find(nodes, VOICE_OFFER) is not None:
+        download = wait_until(
+            device, lambda nodes: find_clickable(nodes, VOICE_DOWNLOAD), 20
+        )
+        if download is None:
+            raise StepFailed(
+                "conversation-voice: the model offer names no download size"
+            )
+        not_now = find_clickable(device.dump(), r"Not now")
+        if not_now is not None:
+            device.tap(not_now)
+        return f"no recogniser: offered “{one_line(download.label)}”"
     return f"a recogniser listened (“{one_line(found.label)}”)"
 
 

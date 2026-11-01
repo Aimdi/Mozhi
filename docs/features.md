@@ -760,6 +760,11 @@ first.
   *Standard*: also awkward or unclear phrasing; *Comprehensive*: a thorough
   polish of wording, flow and tone), **Formality**, the **Model**, and
   optionally add **Context** such as "cover letter for a job application".
+- **Tone** (like DeepL Write): **Automatic** keeps your own tone;
+  *Enthusiastic*, *Friendly*, *Confident* (no hedging) or *Diplomatic*
+  (tactful, softer criticism) rewrite the text toward that tone, keeping
+  its meaning, facts, language and formatting. The changes show up as
+  suggested edits in the *tone* category.
 - **Reading level**: **As written** keeps the author's level; a CEFR level
   from A1 to C2 rewords the text for readers at that level.
 - **Variety**: **As written** keeps the author's spelling and vocabulary; or
@@ -774,6 +779,19 @@ first.
   an explanation, and its own **Accept** (✓) and **Reject** (✕) buttons;
   after you reject one, **Reset** applies every suggestion again. Once there
   is a result, your text shrinks to make room for it.
+- **Rephrase a sentence**: tap any sentence of the corrected text (or,
+  when the check finds nothing to fix, of **Your text** below **Looks
+  good!**) for
+  three alternative phrasings in the same language, written in the chosen
+  style, tone and formality. Pick one to replace the sentence (it is
+  highlighted with a dotted underline), ask again with **Retry**, or open
+  it again for new ones and **Restore original**. The rephrasings are part
+  of what you copy, share and use as input; accepting or rejecting an edit
+  keeps those of the other sentences, and a new check starts afresh. Only
+  the text and that sentence go to the AI model, with the personal data
+  shield like any other request. With the changes shown you can also
+  press and hold anywhere in a sentence, even on a change; screen readers
+  offer a **Rephrase: …** action per sentence.
 - **Writing statistics** compares the original and the corrected text:
   words, characters, sentences, paragraphs, words per sentence and reading
   time, plus the **Flesch reading ease** score (0 to 100, higher is easier)

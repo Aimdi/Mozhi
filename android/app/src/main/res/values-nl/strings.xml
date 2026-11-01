@@ -4,6 +4,7 @@
 <resources>
     <string name="translate_with_mozhi">Vertalen met Mozhi</string>
     <string name="translate_offline">Offline vertalen</string>
+    <string name="improve_with_mozhi">Verbeteren met Mozhi</string>
     <string name="tile_translate_label">Vertalen</string>
     <string name="tile_translate_description">Klembord vertalen met Mozhi</string>
     <string name="shortcut_clipboard_short">Klembord</string>

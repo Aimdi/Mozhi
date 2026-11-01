@@ -647,7 +647,11 @@ void main() {
 
     test('cancellation echoes return to idle silently', () async {
       await service.listen('en');
-      recognizer.emitError('error_client');
+      // The recogniser answers (one that never does fails instead: see
+      // speech_input_service_unreachable_test.dart).
+      recognizer
+        ..emitLevel(-1)
+        ..emitError('error_client');
       await flush();
       expect(service.state, const SpeechInputIdle());
       expect(states.whereType<SpeechInputError>(), isEmpty);

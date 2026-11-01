@@ -6,6 +6,7 @@ class LlmApiException implements Exception {
     this.body,
     this.retryAfter,
     this.connectionDropped = false,
+    this.unreachable = false,
   });
 
   /// HTTP statuses of failures that usually pass: rate limits (429), server
@@ -30,6 +31,17 @@ class LlmApiException implements Exception {
   /// a response arrived (not refused, not a failed DNS lookup and not a
   /// network policy refusal), so trying again may well work.
   final bool connectionDropped;
+
+  /// No answer came from the server: the connection could not be made
+  /// (refused, failed DNS lookup, TLS error) or was lost
+  /// ([connectionDropped]), or the server did not respond in time. Not set
+  /// for an answer the server or the model gave (an error status, an error
+  /// in the stream, a response that stopped early).
+  final bool unreachable;
+
+  /// Whether this is a [LlmStoppedException]: the model stopped early for
+  /// a reason other than the output limit or a refusal.
+  bool get isStopped => this is LlmStoppedException;
 
   bool get isAuthError => statusCode == 401 || statusCode == 403;
   bool get isRateLimited => statusCode == 429;
@@ -118,4 +130,19 @@ class LlmInterruptedException extends LlmApiException {
 
   /// The text streamed before the interruption.
   final String partialText;
+}
+
+/// The model stopped before the response was complete, for a reason other
+/// than its output limit ([LlmTruncatedException]) or a refusal
+/// ([LlmRefusalException]): e.g. Gemini `finishReason: "LANGUAGE"` (a
+/// language the model does not support) or `"OTHER"`.
+class LlmStoppedException extends LlmApiException {
+  const new(super.message, {this.reason});
+
+  /// The provider's stop reason (e.g. `LANGUAGE`, `OTHER`). May be null.
+  final String? reason;
+
+  /// Whether the model stopped at a language it does not support (Gemini
+  /// `finishReason: "LANGUAGE"`).
+  bool get unsupportedLanguage => reason == 'LANGUAGE';
 }

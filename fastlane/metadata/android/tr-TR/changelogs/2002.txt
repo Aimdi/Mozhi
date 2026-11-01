@@ -1,0 +1,5 @@
+• DeepL Write gibi düzeltme: ton (coşkulu, samimi, kendinden emin, diplomatik) ve başka ifadeler için bir cümleye dokunun
+• Her uygulamanın metin seçimi menüsünde "Mozhi ile iyileştir"
+• Sohbet: mikrofon Google hizmetleri olmayan telefonlarda çalışır (cihazdaki ses modeli)
+• DuckDuckGo yedeği 100'den fazla dil için düzeltildi; indirmeler iptal edilip sürdürülebilir
+• Birçok düzeltme

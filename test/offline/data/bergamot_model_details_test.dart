@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -12,6 +13,8 @@ import 'package:mozhi/offline/data/offline_model_error.dart';
 import 'package:mozhi/offline/data/offline_model_import.dart';
 import 'package:mozhi/offline/data/unavailable_offline_translator.dart';
 import 'package:mozhi/settings/models/model_source.dart';
+import 'package:translation_repository/translation_repository.dart'
+    show OfflineDownloadCancelledException;
 
 class _Engine implements BergamotEngine {
   @override
@@ -204,6 +207,57 @@ void main() {
           totalBytes: installed,
         ),
       );
+    });
+
+    test('another screen sees a running download and its progress', () async {
+      final body = StreamController<List<int>>();
+      final held = MockClient.streaming((request, _) async {
+        final data = catalog.bodies[request.url]!;
+        return http.StreamedResponse(
+          body.stream,
+          200,
+          contentLength: data.length,
+        );
+      });
+      final bergamot = BergamotTranslator(
+        catalog: catalog.build(),
+        root: root,
+        isMeteredConnection: () async => false,
+        httpClient: held,
+        engine: _Engine(),
+        isAvailable: true,
+      );
+      final starter = BergamotModelDetails(bergamot);
+      final fractions = <double>[];
+      final download = expectLater(
+        starter.download('de', wifiOnly: false, onProgress: fractions.add),
+        throwsA(isA<OfflineDownloadCancelledException>()),
+      );
+      expect(starter.runningDownloads.keys, ['de']);
+
+      // Another screen (its own details) finds it.
+      final other = BergamotModelDetails(bergamot);
+      final running = other.runningDownloads['de']!;
+      final seen = <double>[];
+      running.progressChanges.listen(seen.add);
+      final ended = expectLater(
+        running.result,
+        throwsA(isA<OfflineDownloadCancelledException>()),
+      );
+      for (var i = 0; i < 500 && !body.hasListener; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 2));
+      }
+      body.add(List.filled(10, 0));
+      await pumpEventQueue();
+
+      expect(fractions, isNotEmpty);
+      expect(seen, fractions);
+      expect(other.runningDownloads['de']!.progress, fractions.last);
+
+      await bergamot.cancelDownload('de');
+      await download;
+      await ended;
+      expect(other.runningDownloads, isEmpty);
     });
 
     test('downloads nothing when everything is installed', () async {

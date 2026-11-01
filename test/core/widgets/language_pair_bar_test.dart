@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/core/widgets/composer_card.dart';
 import 'package:mozhi/core/widgets/language_pair_bar.dart';
+import 'package:translation_repository/translation_repository.dart';
 
 import '../../helpers/helpers.dart';
 
@@ -20,6 +21,39 @@ void main() {
     test('halves the width when neither fits, never below zero', () {
       expect(languagePairWidths(200, 150, 160), (100.0, 100.0));
       expect(languagePairWidths(-10, 10, 10), (0.0, 0.0));
+    });
+  });
+
+  group('languagePairForms', () {
+    test('shortens "Detect language" to the sparkle and "Auto"', () {
+      expect(
+        languagePairForms(
+          Language.auto,
+          label: 'Sprache erkennen',
+          autoShort: 'Auto',
+        ),
+        [
+          (icon: null, text: 'Sprache erkennen'),
+          (icon: Icons.auto_awesome_outlined, text: 'Auto'),
+          (icon: Icons.auto_awesome_outlined, text: null),
+        ],
+      );
+    });
+
+    test('shortens a name to its codes', () {
+      expect(
+        languagePairForms(
+          const Language(code: 'pt-BR', name: 'Portuguese (Brazil)'),
+          label: 'Portugiesisch (Brasilien)',
+          autoShort: 'Auto',
+        ),
+        [
+          (icon: null, text: 'Portugiesisch (Brasilien)'),
+          (icon: null, text: 'PT-BR'),
+          (icon: null, text: 'PT'),
+          (icon: null, text: null),
+        ],
+      );
     });
   });
 
@@ -159,6 +193,50 @@ void main() {
         tester.getCenter(find.byKey(const Key('options'))).dx,
         lessThan(tester.getCenter(find.byKey(const Key('go'))).dx),
       );
+    });
+  });
+
+  group('LanguagePairBar with label forms', () {
+    LanguagePairSide side(Language language, String label) => LanguagePairSide(
+      key: Key(language.code),
+      label: label,
+      semanticLabel: 'Language: $label',
+      forms: languagePairForms(language, label: label, autoShort: 'Auto'),
+      onPressed: () {},
+    );
+
+    Future<void> pump(WidgetTester tester, double width) async {
+      tester.view
+        ..physicalSize = Size(width, 300)
+        ..devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpApp(
+        Scaffold(
+          body: LanguagePairBar(
+            source: side(Language.auto, 'Sprache erkennen'),
+            target: side(
+              const Language(code: 'fr', name: 'French'),
+              'Französisch',
+            ),
+          ),
+        ),
+      );
+    }
+
+    testWidgets('shows the names where they fit', (tester) async {
+      await pump(tester, 800);
+      expect(find.text('Sprache erkennen'), findsOneWidget);
+      expect(find.text('Französisch'), findsOneWidget);
+    });
+
+    testWidgets('shortens them instead of cutting them', (tester) async {
+      await pump(tester, 300);
+      expect(find.text('Sprache erkennen'), findsNothing);
+      expect(find.text('Auto'), findsOneWidget);
+      expect(find.byIcon(Icons.auto_awesome_outlined), findsOneWidget);
+      expect(find.text('FR'), findsOneWidget);
+      expect(find.bySemanticsLabel('Language: Französisch'), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
   });
 

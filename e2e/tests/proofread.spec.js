@@ -117,11 +117,13 @@ test('the corrected text reads as one group with its actions', async ({
 }) => {
   await proofread(page);
 
-  // The result is a group named by its title and the model's summary;
-  // its actions are buttons of their own inside it.
+  // The result is a group named by its title, the hint that its
+  // sentences can be rephrased and the model's summary; its actions are
+  // buttons of their own inside it.
   const result = page.getByRole('group', { name: /^Corrected text / });
   await expect(result).toHaveAccessibleName(
-    'Corrected text Two grammar fixes; the tone is neutral.',
+    'Corrected text Tap a sentence for other ways to say it. ' +
+      'Two grammar fixes; the tone is neutral.',
   );
   for (const name of [
     /^Hide changes/,

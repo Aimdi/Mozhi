@@ -32,7 +32,11 @@ export 'dictionary_packs_state.dart';
 ///
 /// [cancelDownload] stops a running download or update quietly: no
 /// outcome (so no message), and the pack stays as it was
-/// ([DictionaryPacks.cancelInstall]).
+/// ([DictionaryPacks.cancelInstall]; what came is kept for resuming).
+///
+/// [load] also shows the downloads running already
+/// ([DictionaryPacks.installing], started on another screen): pending,
+/// with their progress and outcome.
 class DictionaryPacksCubit extends Cubit<DictionaryPacksState> {
   new({
     required this._packs,
@@ -73,6 +77,14 @@ class DictionaryPacksCubit extends Cubit<DictionaryPacksState> {
           wifiOnly: wifiOnly,
         ),
       );
+      // Downloads started on another screen: pending here too, with their
+      // progress (joining them) and outcome.
+      for (final MapEntry(key: id, value: fraction)
+          in _packs.installing.entries) {
+        if (state.item(id) == null || state.pending.containsKey(id)) continue;
+        unawaited(download(id));
+        if (fraction != null) _reportProgress(id, fraction);
+      }
     } on Object catch (error, stackTrace) {
       if (isClosed) return;
       emit(

@@ -335,6 +335,72 @@ void main() {
       expect(find.text('Replace my data'), findsNothing);
     });
 
+    testWidgets('an item without room is shown and cannot be taken', (
+      tester,
+    ) async {
+      const full = PairingOfferedItem(
+        de,
+        PairingPlan.noSpace([
+          PairingFile(name: 'de-en/model.bin', size: 2 << 20),
+        ], language: 'de'),
+      );
+      await pump(
+        tester,
+        const PairingReceiveState(
+          step: PairingReceiveStep.offer,
+          sas: '123456',
+          numbersConfirmed: true,
+          offered: [full],
+          freeBytes: 1 << 20,
+        ),
+      );
+      expect(
+        find.textContaining('Not enough free space on this phone'),
+        findsOneWidget,
+      );
+      final tile = tester.widget<CheckboxListTile>(
+        find.byKey(const ValueKey('pairing_item_translation:de')),
+      );
+      expect(tile.onChanged, isNull);
+      expect(tile.value, isFalse);
+    });
+
+    testWidgets('a selection that does not fit cannot be accepted', (
+      tester,
+    ) async {
+      final state = PairingReceiveState(
+        step: PairingReceiveStep.offer,
+        sas: '123456',
+        numbersConfirmed: true,
+        offered: offered,
+        selected: const {'translation:de'},
+        freeBytes: 1 << 20,
+      );
+      expect(state.selectionFits, isFalse);
+      expect(state.selectedSpace, 2 * (2 << 20));
+      await pump(tester, state);
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('pairing_accept')),
+        100,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(
+        find.byKey(const Key('pairing_selection_no_space')),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .widget<FilledButton>(find.byKey(const Key('pairing_accept')))
+            .onPressed,
+        isNull,
+      );
+
+      // The data item alone stays in memory: it fits.
+      final data = state.copyWith(selected: {PairingBackupItem.id});
+      expect(data.selectionFits, isTrue);
+      expect(const PairingReceiveState().selectionFits, isTrue);
+    });
+
     testWidgets('shows the progress and cancels by leaving', (tester) async {
       await pump(
         tester,

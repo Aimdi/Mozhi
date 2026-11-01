@@ -4,7 +4,8 @@ import 'package:mozhi/proofread/models/proofread_diff.dart';
 
 /// Colors and text styles for inline diffs, derived from the theme so they
 /// work in light and dark mode: removals use the error container, insertions
-/// a green container generated for the current brightness.
+/// a green container generated for the current brightness, rephrased
+/// sentences the tertiary container.
 @immutable
 class ProofreadDiffColors {
   const new({
@@ -12,6 +13,8 @@ class ProofreadDiffColors {
     required this.removedForeground,
     required this.insertedBackground,
     required this.insertedForeground,
+    this.rephrasedBackground,
+    this.rephrasedForeground,
   });
 
   factory of(BuildContext context) {
@@ -26,6 +29,8 @@ class ProofreadDiffColors {
       removedForeground: scheme.onErrorContainer,
       insertedBackground: green.primaryContainer,
       insertedForeground: green.onPrimaryContainer,
+      rephrasedBackground: scheme.tertiaryContainer,
+      rephrasedForeground: scheme.onTertiaryContainer,
     );
   }
 
@@ -37,6 +42,11 @@ class ProofreadDiffColors {
   final Color insertedBackground;
   final Color insertedForeground;
 
+  /// Colors of a sentence the user rephrased (the inserted colors when
+  /// null).
+  final Color? rephrasedBackground;
+  final Color? rephrasedForeground;
+
   TextStyle get removedStyle => TextStyle(
     color: removedForeground,
     backgroundColor: removedBackground,
@@ -46,6 +56,20 @@ class ProofreadDiffColors {
 
   TextStyle get insertedStyle =>
       TextStyle(color: insertedForeground, backgroundColor: insertedBackground);
+
+  /// A sentence the user replaced with an alternative phrasing: on the
+  /// tertiary container, with a dotted underline that tells it from an
+  /// edit without color.
+  TextStyle get rephrasedStyle {
+    final foreground = rephrasedForeground ?? insertedForeground;
+    return TextStyle(
+      color: foreground,
+      backgroundColor: rephrasedBackground ?? insertedBackground,
+      decoration: TextDecoration.underline,
+      decorationStyle: TextDecorationStyle.dotted,
+      decorationColor: foreground,
+    );
+  }
 
   TextStyle? styleFor(DiffType type) => switch (type) {
     DiffType.unchanged => null,

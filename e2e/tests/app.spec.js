@@ -161,6 +161,20 @@ test('first run with the on-device engine: the privacy step and downloads', asyn
     settings.onboardingComplete = false;
     localStorage.setItem('settings.v1', JSON.stringify(JSON.stringify(settings)));
   });
+  // This web server hosts the offline languages (models/bergamot/
+  // index.json, written by tool/mirror_models.py); without it the step
+  // offers no downloads.
+  await page.context().route('**/models/bergamot/index.json', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        schemaVersion: 1,
+        kind: 'bergamot',
+        items: ['en-fr', 'fr-en'],
+      }),
+    }),
+  );
   await page.reload();
   await waitForSemantics(page);
 
@@ -183,8 +197,9 @@ test('first run with the on-device engine: the privacy step and downloads', asyn
   ).toBeVisible();
   // The target language can be downloaded for offline use, with the
   // step's Next; nothing is downloaded unless it is checked.
+  // The whole row is the checkbox, named by the language and its size.
   const download = page.getByRole('checkbox', {
-    name: /^Download French when you tap Next/,
+    name: /^French\s+Français · [\d.]+ MB download/,
   });
   await expect(download).toBeVisible();
   await expect(download).not.toBeChecked();

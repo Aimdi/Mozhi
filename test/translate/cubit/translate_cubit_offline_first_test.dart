@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -342,6 +344,144 @@ void main() {
 
       expect(translatedWith(), [offline]);
       expect(cubit.state.error, isA<OfflineModelMissingException>());
+    });
+  });
+  group('Offline first: the online engine gets its own codes', () {
+    const chineseTraditional = Language(
+      code: 'zh-Hant',
+      name: 'Chinese (Traditional)',
+    );
+    const hebrew = Language(code: 'he', name: 'Hebrew');
+    const klingon = Language(code: 'tlh', name: 'Klingon');
+
+    /// Google's lists on Mozhi (its own codes), [error] instead when given.
+    void googleLists({Object? error}) {
+      when(() => mocks.repository.getSourceLanguages(any())).thenAnswer((call) {
+        final engine = call.positionalArguments.single as TranslationEngine;
+        if (engine.isOffline) return Future.value(sources);
+        if (error != null) return Future.error(error);
+        return Future.value(const [
+          Language.auto,
+          en,
+          Language(code: 'zh-CN', name: 'Chinese (Simplified)'),
+          Language(code: 'zh-TW', name: 'Chinese (Traditional)'),
+          Language(code: 'iw', name: 'Hebrew'),
+        ]);
+      });
+      when(() => mocks.repository.getTargetLanguages(any())).thenAnswer((call) {
+        final engine = call.positionalArguments.single as TranslationEngine;
+        if (engine.isOffline) return Future.value(targets);
+        if (error != null) return Future.error(error);
+        return Future.value(const [
+          en,
+          Language(code: 'zh-CN', name: 'Chinese (Simplified)'),
+          Language(code: 'zh-TW', name: 'Chinese (Traditional)'),
+          Language(code: 'iw', name: 'Hebrew'),
+        ]);
+      });
+    }
+
+    List<TranslationRequest> onlineRequests() {
+      final captured = verify(
+        () => mocks.repository.translate(captureAny(), captureAny()),
+      ).captured;
+      return [
+        for (var i = 0; i < captured.length; i += 2)
+          if (!(captured[i] as TranslationEngine).isOffline)
+            captured[i + 1] as TranslationRequest,
+      ];
+    }
+
+    test("the on-device languages are sent by Google's codes", () async {
+      googleLists();
+      answer(const OfflineModelMissingException(['zh-Hant']), ['Shalom']);
+      final cubit = mocks.build()
+        ..emit(
+          onDevice(
+            engines: [google],
+            source: chineseTraditional,
+            target: hebrew,
+          ),
+        );
+      addTearDown(cubit.close);
+
+      await cubit.translate();
+
+      final request = onlineRequests().single;
+      expect(request.source.code, 'zh-TW');
+      expect(request.target.code, 'iw');
+      expect(cubit.state.result?.engineId, google.id);
+      // The selection keeps the on-device engine's codes.
+      expect(cubit.state.source, chineseTraditional);
+      expect(cubit.state.target, hebrew);
+    });
+
+    test('a language Google lacks keeps the download needed', () async {
+      googleLists();
+      answer(const OfflineModelMissingException(['tlh']), ['unexpected']);
+      final cubit = mocks.build()
+        ..emit(onDevice(engines: [google], source: klingon));
+      addTearDown(cubit.close);
+
+      await cubit.translate();
+
+      expect(onlineRequests(), isEmpty);
+      expect(cubit.state.error, isA<OfflineModelMissingException>());
+      expect(cubit.state.consent, isNull);
+    });
+
+    test('lists that cannot be loaded: the common codes', () async {
+      googleLists(error: const MozhiApiException('down', statusCode: 503));
+      answer(const OfflineModelMissingException(['zh-Hant']), ['Shalom']);
+      final cubit = mocks.build()
+        ..emit(
+          onDevice(
+            engines: [google],
+            source: chineseTraditional,
+            target: hebrew,
+          ),
+        );
+      addTearDown(cubit.close);
+
+      await cubit.translate();
+
+      final request = onlineRequests().single;
+      expect(request.source.code, 'zh-TW');
+      expect(request.target.code, 'he');
+    });
+
+    test('lists not loaded yet (deferred): the common codes, and the consent '
+        'is asked', () async {
+      googleLists(error: _consent);
+      answer(const OfflineModelMissingException(['zh-Hant']), [_consent]);
+      final cubit = mocks.build()
+        ..emit(onDevice(source: chineseTraditional, target: hebrew));
+      addTearDown(cubit.close);
+
+      await cubit.translate();
+
+      final request = onlineRequests().single;
+      expect(request.source.code, 'zh-TW');
+      expect(request.target.code, 'he');
+      expect(cubit.state.consent?.fromOnDevice, isTrue);
+    });
+
+    test('cancelled while the lists load, nothing is sent', () async {
+      final lists = Completer<List<Language>>();
+      when(() => mocks.repository.getSourceLanguages(any())).thenAnswer((call) {
+        final engine = call.positionalArguments.single as TranslationEngine;
+        return engine.isOffline ? Future.value(sources) : lists.future;
+      });
+      answer(const OfflineModelMissingException(['fr']), ['Hello']);
+      final cubit = mocks.build()..emit(onDevice(engines: [google]));
+
+      unawaited(cubit.translate());
+      await Future<void>.delayed(Duration.zero);
+      await cubit.close();
+      lists.complete(sources);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(onlineRequests(), isEmpty);
     });
   });
 }

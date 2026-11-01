@@ -4,6 +4,7 @@
 <resources>
     <string name="translate_with_mozhi">Traduzir com o Mozhi</string>
     <string name="translate_offline">Traduzir off-line</string>
+    <string name="improve_with_mozhi">Melhorar com o Mozhi</string>
     <string name="tile_translate_label">Traduzir</string>
     <string name="tile_translate_description">Traduzir a área de transferência com o Mozhi</string>
     <string name="shortcut_clipboard_short">Colar</string>

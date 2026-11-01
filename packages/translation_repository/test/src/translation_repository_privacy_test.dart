@@ -629,6 +629,7 @@ void main() {
           to: english,
         ),
         () => repository.proofread(claude, 'Helo'),
+        () => repository.rephrase(claude, 'Helo. Hi.', 'Hi.'),
         () => repository.detectLanguage('Hallo', engine: claude),
         () => repository.textToSpeech(text: 'Hallo', languageCode: 'de'),
         () => repository.translateImage(
@@ -897,6 +898,10 @@ void main() {
       );
       await expectLater(
         repository.proofread(claude, 'Helo'),
+        throwsA(consent(ConsentKind.pair, source: 'auto', target: 'auto')),
+      );
+      await expectLater(
+        repository.rephrase(claude, 'Helo. Hi.', 'Hi.'),
         throwsA(consent(ConsentKind.pair, source: 'auto', target: 'auto')),
       );
       expectNoNetwork();

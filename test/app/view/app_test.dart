@@ -16,6 +16,7 @@ import 'package:mozhi/onboarding/view/onboarding_page.dart';
 import 'package:mozhi/platform/shared_text_service.dart';
 import 'package:mozhi/presets/cubit/glossary_cubit.dart';
 import 'package:mozhi/presets/cubit/presets_cubit.dart';
+import 'package:mozhi/quick_improve/view/quick_improve_sheet.dart';
 import 'package:mozhi/quick_translate/view/quick_translate_sheet.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_languages.dart';
@@ -458,6 +459,101 @@ void main() {
       });
     });
 
+    group('selected text to improve (PROCESS_TEXT)', () {
+      const provider = AiProviderConfig(
+        id: 'cloud',
+        name: 'Cloud',
+        provider: LlmProvider.openAiCompatible,
+        baseUrl: 'https://api.example.test/v1',
+        model: 'm',
+      );
+      const aiEngine = TranslationEngine(
+        id: 'ai:cloud',
+        kind: EngineKind.ai,
+        name: 'Cloud',
+        providerId: 'cloud',
+      );
+      const settings = AppSettings(
+        instances: [testInstance],
+        providers: [provider],
+        engineId: 'ai:cloud',
+        onboardingComplete: true,
+      );
+
+      setUpAll(() {
+        registerFallbackValue(WritingStyle.general);
+        registerFallbackValue(CorrectionLevel.standard);
+      });
+
+      setUp(() {
+        when(env.sharedTextService.initialText).thenAnswer(
+          (_) async => const SharedText(
+            'I has a cat.',
+            readOnly: false,
+            isProcessText: true,
+            action: SharedText.improveAction,
+          ),
+        );
+      });
+
+      testWidgets('shows quick improve and replaces the selection', (
+        tester,
+      ) async {
+        when(
+          () => env.translationRepository.getEngines(
+            refresh: any(named: 'refresh'),
+          ),
+        ).thenAnswer((_) async => const [aiEngine]);
+        when(
+          () => env.translationRepository.proofread(
+            any(),
+            any(),
+            style: any(named: 'style'),
+            level: any(named: 'level'),
+            uiLanguage: any(named: 'uiLanguage'),
+          ),
+        ).thenAnswer(
+          (_) async => const ProofreadResult(
+            correctedText: 'I have a cat.',
+            edits: [ProofreadEdit(original: 'has', replacement: 'have')],
+          ),
+        );
+        await pumpApp(tester, settings: settings);
+        await tester.pump(const Duration(seconds: 1));
+
+        expect(find.byType(QuickImproveSheet), findsOneWidget);
+        expect(find.byType(QuickTranslateSheet), findsNothing);
+        expect(translateCubit(tester).state.input, isEmpty);
+        verifyNever(() => env.translationRepository.translate(any(), any()));
+
+        await tester.tap(find.byKey(const Key('quick_improve_replace')));
+        await tester.pump();
+        await tester.pump(const Duration(seconds: 1));
+
+        verify(() => env.sharedTextService.returnResult('I have a cat.'))
+            .called(1);
+        expect(find.byType(QuickImproveSheet), findsNothing);
+      });
+
+      testWidgets('without an AI engine, nothing is sent', (tester) async {
+        await pumpApp(tester);
+        await tester.pump(const Duration(seconds: 1));
+
+        expect(find.byType(QuickImproveSheet), findsOneWidget);
+        expect(find.text('Proofreading needs an AI provider'), findsOneWidget);
+        verifyNever(
+          () => env.translationRepository.proofread(
+            any(),
+            any(),
+            style: any(named: 'style'),
+            level: any(named: 'level'),
+            uiLanguage: any(named: 'uiLanguage'),
+          ),
+        );
+        verifyNever(() => env.translationRepository.translate(any(), any()));
+      });
+    });
+
     testWidgets('does not auto-run AI translations of shared text while '
         'instant AI translation is off', (tester) async {
       const provider = AiProviderConfig(
@@ -752,6 +848,29 @@ void main() {
         final settings = shellContext(tester).read<SettingsCubit>().state;
         expect(settings.qualityMode, QualityMode.fast);
         expect(settings.bestEngineId, 'ai:p1');
+      });
+
+      testWidgets('stores the default quality mode it starts in', (
+        tester,
+      ) async {
+        // The settings are read again (another window may change them):
+        // the quality mode the app starts in must be the stored one.
+        const stored = AppSettings(
+          instances: [testInstance],
+          onboardingComplete: true,
+          fastEngineId: 'mozhi:google',
+          bestEngineId: 'ai:p1',
+          qualityMode: QualityMode.best,
+          rememberQuality: false,
+          multilineInput: false,
+        );
+        env.storedSettings = stored;
+        await pumpApp(tester, settings: stored);
+
+        expect(env.storedSettings.qualityMode, QualityMode.fast);
+        // Only that changed.
+        expect(env.storedSettings.multilineInput, isFalse);
+        verifyNever(() => env.settingsRepository.save(any()));
       });
 
       testWidgets('keeps the last quality mode when remembered', (

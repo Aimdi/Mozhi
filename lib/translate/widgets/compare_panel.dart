@@ -321,9 +321,11 @@ class CompareEntryCard extends StatelessWidget {
                   ),
                   if (elapsed != null)
                     Text(
-                      l10n.translateSeconds(formatSeconds(elapsed)),
+                      l10n.translateSeconds(
+                        formatSeconds(elapsed, locale: l10n.localeName),
+                      ),
                       semanticsLabel: l10n.translateSecondsSemantics(
-                        formatSeconds(elapsed),
+                        formatSeconds(elapsed, locale: l10n.localeName),
                       ),
                       style: theme.textTheme.labelMedium?.copyWith(
                         color: scheme.onSurfaceVariant,

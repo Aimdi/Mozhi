@@ -31,9 +31,30 @@ class SharedFile {
 /// Tokens are 32 lower-case hex digits ([isToken]); anything else, as in a
 /// `mozhi://` link made up by another app, is ignored, and a token only
 /// finds a file the platform stored for this app.
+///
+/// A file the platform could not store (too large, unreadable) has a token
+/// too, with no file, and says why ([errorParameter], [SharedFileError])
+/// and what its name was ([nameParameter]). When more than one item was
+/// shared at once, only the first is opened and [countParameter] says how
+/// many there were.
 abstract final class SharedFiles {
   /// The query parameter of the token.
   static const parameter = 'shared';
+
+  /// The query parameter of why the shared file is missing
+  /// ([SharedFileError.value]).
+  static const errorParameter = 'shared_error';
+
+  /// The query parameter of the missing file's name.
+  static const nameParameter = 'name';
+
+  /// The query parameter of the number of items shared at once.
+  static const countParameter = 'shared_count';
+
+  /// Whether [query] (of a shared file's link) says that more than one item
+  /// was shared ([countParameter]).
+  static bool sharedSeveral(Map<String, String> query) =>
+      (int.tryParse(query[countParameter] ?? '') ?? 1) > 1;
 
   /// The cache folder of the shared files.
   static const folder = 'shared_files';
@@ -73,5 +94,28 @@ abstract final class SharedFiles {
       // Unreadable: as if nothing was shared.
       return null;
     }
+  }
+}
+
+/// Why a shared file could not be opened ([SharedFiles.errorParameter]).
+enum SharedFileError {
+  /// Larger than the screen opens (Android copies no more than that).
+  tooLarge('too_large'),
+
+  /// The sharing app's file could not be read.
+  unreadable('unreadable');
+
+  new(this.value);
+
+  /// Its value in the link.
+  final String value;
+
+  /// The error of [value], or null (none, or one this version does not
+  /// know).
+  static SharedFileError? tryParse(String? value) {
+    for (final error in values) {
+      if (error.value == value) return error;
+    }
+    return null;
   }
 }

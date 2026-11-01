@@ -1,0 +1,5 @@
+• Proofread like DeepL Write: tones (enthusiastic, friendly, confident, diplomatic) and tap a sentence for other ways to say it
+• "Improve with Mozhi" in the text-selection menu of any app
+• Conversation: the microphone works on phones without Google services (on-device voice model)
+• DuckDuckGo fallback fixed for 100+ languages; downloads can be cancelled and resumed
+• Many fixes, also for German and other languages
