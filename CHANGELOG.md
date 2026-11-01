@@ -3,6 +3,20 @@
 All notable changes to Mozhi, by release tag on GitHub (pre-releases end
 in `-rc.N`).
 
+## 0.1.0-rc.14
+
+### Added
+
+- **Starter phrasebooks for 29 languages** (Phrasebook > Starter
+  phrasebooks): Arabic, Chinese, Croatian, Czech, Danish, Dutch, Finnish,
+  French, German, Greek, Hebrew, Hindi, Hungarian, Indonesian, Italian,
+  Japanese, Korean, Norwegian, Polish, Portuguese, Romanian, Russian,
+  Spanish, Swahili, Swedish, Thai, Turkish, Ukrainian and Vietnamese:
+  the phrase lists of English Wikivoyage's phrasebooks (CC BY-SA 4.0,
+  the `phrasebooks-2026-11-01` release), each phrase with its
+  translation and pronunciation, 9-27 KB each and checked against the
+  SHA-256 the app ships with. Until now the list was empty.
+
 ## 0.1.0-rc.13
 
 ### Added
