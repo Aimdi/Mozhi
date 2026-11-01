@@ -818,7 +818,9 @@ jobs:
   e2e-web:
     name: ${{ matrix.browser == 'chromium' && 'Web end-to-end tests' || format('Web end-to-end tests ({0})', matrix.title) }}
     needs: [analyze-test, build-bergamot-wasm]
-    runs-on: ubuntu-latest
+    # Pinned: Playwright 1.56 has no WebKit build (and no system deps) for
+    # the ubuntu-latest image, Ubuntu 26.04.
+    runs-on: ubuntu-24.04
     timeout-minutes: ${{ matrix.browser == 'chromium' && 30 || 45 }}
     strategy:
       fail-fast: false
