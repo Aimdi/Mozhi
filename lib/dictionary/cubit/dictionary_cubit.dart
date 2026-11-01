@@ -59,6 +59,7 @@ class DictionaryCubit extends Cubit<DictionaryState> {
     Language target = const Language(code: 'en', name: 'English'),
     DictionaryVerbosity verbosity = DictionaryVerbosity.standard,
     this._uiLanguage = 'English',
+    this._offlineName = offlineEngineDefaultName,
     this._usageTracker,
     this._history,
     this._settings,
@@ -104,6 +105,10 @@ class DictionaryCubit extends Cubit<DictionaryState> {
 
   final TranslationRepository _repository;
   final String _uiLanguage;
+
+  /// The name of [offlineEngine] for dictionaries without a source, in the
+  /// UI language (it is kept in the history).
+  final String _offlineName;
   final UsageTracker? _usageTracker;
   final HistoryCubit? _history;
   final SettingsCubit? _settings;
@@ -123,16 +128,20 @@ class DictionaryCubit extends Cubit<DictionaryState> {
   bool _aiRequest = false;
 
   /// The "engine" of entries from offline dictionaries, for the history:
-  /// named after their source ([DictionaryAttribution.source]).
-  static TranslationEngine offlineEngine(DictionaryAttribution attribution) =>
-      TranslationEngine(
-        id: offlineEngineId,
-        kind: EngineKind.offline,
-        name: attribution.source.trim().isEmpty
-            ? 'Offline dictionary'
-            : attribution.source.trim(),
-        isLocal: true,
-      );
+  /// named after their source ([DictionaryAttribution.source]), else
+  /// [name] (the cubit's is in the UI language).
+  static TranslationEngine offlineEngine(
+    DictionaryAttribution attribution, {
+    String name = offlineEngineDefaultName,
+  }) => TranslationEngine(
+    id: offlineEngineId,
+    kind: EngineKind.offline,
+    name: attribution.source.trim().isEmpty ? name : attribution.source.trim(),
+    isLocal: true,
+  );
+
+  /// The English name of [offlineEngine] for dictionaries without a source.
+  static const offlineEngineDefaultName = 'Offline dictionary';
 
   /// Id of [offlineEngine].
   static const offlineEngineId = 'dictionary:offline';
@@ -483,7 +492,7 @@ class DictionaryCubit extends Cubit<DictionaryState> {
     final answer = await _offlineAnswer(offline, word, source, target);
     if (isClosed || request != _request) return;
     if (answer != null) {
-      final engine = offlineEngine(answer.attribution);
+      final engine = offlineEngine(answer.attribution, name: _offlineName);
       final language = source.isAuto ? answer.language : source.code;
       _entryEngine = engine;
       emit(

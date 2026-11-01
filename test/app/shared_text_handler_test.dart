@@ -5,6 +5,7 @@ import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:mozhi/app/router.dart';
 import 'package:mozhi/app/shared_text_handler.dart';
 import 'package:mozhi/core/privacy/egress/egress.dart';
 import 'package:mozhi/platform/shared_text_service.dart';
@@ -29,6 +30,8 @@ void main() {
     late StreamController<SharedText> texts;
     late int shown;
     late List<QuickTranslateRequest> quick;
+    late List<QuickImproveRequest> improve;
+    late List<String> proofread;
     late String? clipboard;
     late SharedTextHandler handler;
 
@@ -46,6 +49,8 @@ void main() {
       texts = StreamController<SharedText>.broadcast();
       shown = 0;
       quick = [];
+      improve = [];
+      proofread = [];
       clipboard = null;
       when(() => cubit.state).thenReturn(_ready);
       when(() => cubit.isClosed).thenReturn(false);
@@ -57,6 +62,8 @@ void main() {
         translateCubit: cubit,
         onShowTranslate: () => shown++,
         onQuickTranslate: quick.add,
+        onQuickImprove: improve.add,
+        onShowProofread: proofread.add,
         readClipboard: () async => clipboard,
       );
     });
@@ -266,6 +273,120 @@ void main() {
       });
     });
 
+    group('Improve with Mozhi', () {
+      const selection = SharedText(
+        'I has a cat',
+        readOnly: false,
+        isProcessText: true,
+        action: SharedText.improveAction,
+      );
+
+      test('shows the selection in quick improve', () async {
+        await handler.handle(selection);
+
+        expect(shown, 0);
+        verifyNoInput();
+        expect(quick, isEmpty);
+        expect(proofread, isEmpty);
+        final request = improve.single;
+        expect(request.text, 'I has a cat');
+        expect(request.canReplace, isTrue);
+
+        request.onReplace!('I have a cat');
+        await pumpEventQueue();
+        verify(() => service.returnResult('I have a cat')).called(1);
+      });
+
+      test('a read-only selection cannot be replaced', () async {
+        await handler.handle(
+          const SharedText(
+            'I has a cat',
+            isProcessText: true,
+            action: SharedText.improveAction,
+          ),
+        );
+
+        final request = improve.single;
+        expect(request.canReplace, isFalse);
+        expect(request.onReplace, isNull);
+      });
+
+      test('arrives on the event channel too', () async {
+        await handler.start();
+
+        texts.add(selection);
+        await pumpEventQueue();
+
+        expect(improve.single.text, 'I has a cat');
+        expect(quick, isEmpty);
+        verifyNoInput();
+      });
+
+      test('also without the PROCESS_TEXT flag', () async {
+        await handler.handle(
+          const SharedText('I has a cat', action: SharedText.improveAction),
+        );
+
+        expect(improve, hasLength(1));
+        expect(quick, isEmpty);
+      });
+
+      test('"Open in Proofread" opens the Proofread tab', () async {
+        await handler.handle(selection);
+
+        improve.single.onOpenInProofread();
+        await pumpEventQueue();
+
+        expect(proofread, ['I has a cat']);
+        expect(shown, 0);
+        verifyNoInput();
+      });
+
+      test('opens the Proofread tab without the quick improve UI', () async {
+        handler = SharedTextHandler(
+          service: service,
+          translateCubit: cubit,
+          onShowTranslate: () => shown++,
+          onQuickTranslate: quick.add,
+          onShowProofread: proofread.add,
+        );
+
+        await handler.handle(selection);
+
+        expect(proofread, ['I has a cat']);
+        expect(quick, isEmpty);
+        expect(shown, 0);
+        verifyNoInput();
+      });
+
+      test('cuts long text for the Proofread tab', () async {
+        final long = 'a' * (TranslateCubit.maxExternalInputLength - 1);
+        // An emoji (a surrogate pair) across the limit is left out whole.
+        await handler.openInProofread('$long😀 and more');
+
+        expect(proofread.single, long);
+      });
+
+      test('does nothing for the Proofread tab once disposed', () async {
+        await handler.dispose();
+        await handler.openInProofread('I has a cat');
+        expect(proofread, isEmpty);
+      });
+
+      test('ignores a blank selection', () async {
+        await handler.handle(
+          const SharedText(
+            '  ',
+            isProcessText: true,
+            action: SharedText.improveAction,
+          ),
+        );
+
+        expect(improve, isEmpty);
+        expect(proofread, isEmpty);
+      });
+    });
+
     group('replaceSelection', () {
       test('returns the translation to the calling app', () async {
         await handler.replaceSelection('hello');
@@ -373,6 +494,7 @@ void main() {
       when(() => window.isActive).thenReturn(true);
       when(window.close).thenAnswer((_) async {});
       when(() => window.openTextInApp(any())).thenAnswer((_) async {});
+      when(() => window.openLocationInApp(any())).thenAnswer((_) async {});
     });
 
     tearDown(
@@ -418,6 +540,65 @@ void main() {
       await handler.start();
 
       expect(quick.single.text, 'plain');
+    });
+
+    test('shows an improve selection; "Open in Proofread" goes to the main '
+        'window', () async {
+      when(() => service.initialText()).thenAnswer(
+        (_) async => const SharedText(
+          'I has a cat',
+          readOnly: false,
+          isProcessText: true,
+          action: SharedText.improveAction,
+        ),
+      );
+      final improve = <QuickImproveRequest>[];
+      final handler = SharedTextHandler(
+        service: service,
+        translateCubit: cubit,
+        onShowTranslate: () => shown++,
+        onQuickTranslate: quick.add,
+        onQuickImprove: improve.add,
+        quickHost: window,
+        ledger: ledger,
+      );
+      addTearDown(handler.dispose);
+
+      await handler.start();
+      expect(quick, isEmpty);
+      expect(improve.single.canReplace, isTrue);
+      improve.single.onOpenInProofread();
+      await pumpEventQueue();
+
+      verify(
+        () => window.openLocationInApp(
+          AppRoutes.proofreadText(text: 'I has a cat'),
+        ),
+      ).called(1);
+      verifyNever(() => window.openTextInApp(any()));
+      verifyNever(window.close);
+      expect(shown, 0);
+    });
+
+    test('an improve selection without the quick improve UI opens in the '
+        "main window's Proofread tab", () async {
+      final handler = create();
+      addTearDown(handler.dispose);
+
+      await handler.handle(
+        const SharedText(
+          'I has a cat',
+          isProcessText: true,
+          action: SharedText.improveAction,
+        ),
+      );
+
+      verify(
+        () => window.openLocationInApp(
+          AppRoutes.proofreadText(text: 'I has a cat'),
+        ),
+      ).called(1);
+      expect(quick, isEmpty);
     });
 
     test('closes the window without a selection', () async {
@@ -542,6 +723,21 @@ void main() {
 
       expect(await readClipboardText(), isNull);
     });
+  });
+
+  test('QuickImproveRequest.canReplace follows onReplace', () {
+    expect(
+      QuickImproveRequest(text: 'a', onOpenInProofread: () {}).canReplace,
+      isFalse,
+    );
+    expect(
+      QuickImproveRequest(
+        text: 'a',
+        onOpenInProofread: () {},
+        onReplace: (_) {},
+      ).canReplace,
+      isTrue,
+    );
   });
 
   test('QuickTranslateRequest.canReplace follows onReplace', () {

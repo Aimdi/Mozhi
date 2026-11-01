@@ -1068,7 +1068,7 @@ class _OutputCardState extends State<OutputCard>
               complete && elapsed != null && result != null
                   ? l10n.translateEngineElapsed(
                       result.engineName,
-                      formatSeconds(elapsed),
+                      formatSeconds(elapsed, locale: l10n.localeName),
                     )
                   : engineName,
               key: const Key('translate_output_footer'),

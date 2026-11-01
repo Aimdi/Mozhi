@@ -15,6 +15,7 @@ import 'package:mozhi/image_translate/data/text_recognition_service.dart'
     show TextRecognitionLanguageData;
 import 'package:mozhi/image_translate/models/models.dart'
     show OcrDataMissingException;
+import 'package:mozhi/transcribe/data/screen_awake.dart';
 import 'package:mozhi/usage/usage.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -48,6 +49,8 @@ export 'document_translate_state.dart';
 ///   that run ends (done, failed, cancelled or replaced) and when the
 ///   screen closes, so it can't let anything else through.
 /// * Changing the document, engine or languages discards translations.
+/// * The screen stays on while translating ([ScreenAwake]): a long
+///   document or PDF takes minutes.
 class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
   new({
     required TranslationRepository repository,
@@ -68,7 +71,9 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
     UsageTracker? usageTracker,
     this._pdfTranslator,
     this._ocrPreferred = const [],
+    ScreenAwake? screenAwake,
   }) : _repository = repository,
+       _screenAwake = screenAwake ?? ScreenAwake(),
        _translator =
            translator ??
            DocumentTranslator(
@@ -88,6 +93,17 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
        );
 
   static const _english = Language(code: 'en', name: 'English');
+
+  final ScreenAwake _screenAwake;
+
+  /// Whether the screen is kept on ([ScreenAwake]): while translating.
+  bool _awake = false;
+
+  void _keepAwake({required bool awake}) {
+    if (awake == _awake) return;
+    _awake = awake;
+    unawaited(_screenAwake.setEnabled(enabled: awake));
+  }
 
   /// Counts each answered chunk request of a bring-your-own-key provider.
   static TranslatedCallback? _usageRecorder(UsageTracker? tracker) {
@@ -367,26 +383,11 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
       file = await _files.pickFile(extensions: DocumentFormat.allExtensions);
     } on DocumentFileTooLargeException catch (error) {
       if (isClosed) return;
-      // Too large to open: say so (with its name), not "could not read";
-      // a file of no known format could not be opened at any size.
-      final format = DocumentFormat.fromFileName(error.name);
-      emit(
-        _cleared(previous).copyWith(
-          mode: .file,
-          fileName: () => error.name,
-          format: () => format,
-          error: () => format == null
-              ? DocumentError.unsupportedFormat
-              : DocumentError.tooLarge,
-        ),
-      );
+      emit(_unavailable(previous, name: error.name, tooLarge: true));
       return;
     } on Object {
       if (isClosed) return;
-      emit(
-        _cleared(previous)
-            .copyWith(mode: .file, error: () => DocumentError.readFailed),
-      );
+      emit(_unavailable(previous, tooLarge: false));
       return;
     }
     if (isClosed) return;
@@ -395,6 +396,44 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
       return;
     }
     loadFile(file.name, file.bytes);
+  }
+
+  /// Shows that a file (one shared from another app) could not be opened:
+  /// it was too large ([tooLarge]) or could not be read; [name] is its
+  /// name, when known. Ignored while translating.
+  void fileUnavailable({required bool tooLarge, String? name}) {
+    if (state.isTranslating) return;
+    _loadRequest++;
+    _textRequest++;
+    _closePdf();
+    emit(_unavailable(state, name: name, tooLarge: tooLarge));
+  }
+
+  /// [previous] without its document, saying why the file [name] could not
+  /// be opened.
+  DocumentTranslateState _unavailable(
+    DocumentTranslateState previous, {
+    required bool tooLarge,
+    String? name,
+  }) {
+    if (!tooLarge) {
+      return _cleared(previous).copyWith(
+        mode: .file,
+        fileName: () => name,
+        error: () => DocumentError.readFailed,
+      );
+    }
+    // Too large to open: say so (with its name), not "could not read"; a
+    // file of no known format could not be opened at any size.
+    final format = name == null ? null : DocumentFormat.fromFileName(name);
+    return _cleared(previous).copyWith(
+      mode: .file,
+      fileName: () => name,
+      format: () => format,
+      error: () => format == null
+          ? DocumentError.unsupportedFormat
+          : DocumentError.tooLarge,
+    );
   }
 
   /// Loads a file's content (from the picker, a share intent or a drop).
@@ -1340,6 +1379,7 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
   @override
   void onChange(Change<DocumentTranslateState> change) {
     super.onChange(change);
+    _keepAwake(awake: change.nextState.isTranslating);
     // A PDF is read with its source language's recognition data: read the
     // preview again when that changes.
     final next = change.nextState;
@@ -1496,6 +1536,7 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
   Future<void> close() {
     _stop();
     _closePdf();
+    _keepAwake(awake: false);
     return super.close();
   }
 }

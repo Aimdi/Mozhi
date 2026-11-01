@@ -4,6 +4,7 @@
 <resources>
     <string name="translate_with_mozhi">Traduci con Mozhi</string>
     <string name="translate_offline">Traduci offline</string>
+    <string name="improve_with_mozhi">Migliora con Mozhi</string>
     <string name="tile_translate_label">Traduci</string>
     <string name="tile_translate_description">Traduci gli appunti con Mozhi</string>
     <string name="shortcut_clipboard_short">Appunti</string>

@@ -8,14 +8,18 @@ import 'package:translation_repository/translation_repository.dart';
 
 class _MockHistoryRepository extends Mock implements HistoryRepository;
 
-/// Counts how often the stored history is read.
-class _CountingStore extends MemoryStore {
-  int reads = 0;
+/// Counts how often the stored history is decrypted.
+class _CountingCipher extends HistoryCipher {
+  int decrypted = 0;
 
   @override
-  Future<String?> read(String key) {
-    if (key == HistoryRepository.storageKey) reads++;
-    return super.read(key);
+  Future<String> decrypt(
+    String stored,
+    List<int> key, {
+    String aad = HistoryCipher.associatedData,
+  }) {
+    if (aad == HistoryCipher.associatedData) decrypted++;
+    return super.decrypt(stored, key, aad: aad);
   }
 }
 
@@ -151,20 +155,24 @@ void main() {
   });
 
   group('HistoryRepository.forgetCache', () {
-    test('reads the stored history again next time', () async {
-      final store = _CountingStore();
-      final history = HistoryRepository(store: store, keyStore: MemoryStore());
+    test('decrypts the stored history again next time', () async {
+      final cipher = _CountingCipher();
+      final history = HistoryRepository(
+        store: MemoryStore(),
+        keyStore: MemoryStore(),
+        cipher: cipher,
+      );
       await history.add(one);
       await history.exportJson();
-      final reads = store.reads;
+      final decrypted = cipher.decrypted;
 
       await history.exportJson();
-      expect(store.reads, reads, reason: 'kept in memory');
+      expect(cipher.decrypted, decrypted, reason: 'kept in memory');
 
       await history.forgetCache();
       final json = await history.exportJson();
 
-      expect(store.reads, reads + 1);
+      expect(cipher.decrypted, decrypted + 1);
       expect(json, contains('text 1'));
     });
   });

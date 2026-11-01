@@ -204,10 +204,7 @@ class _HistoryViewState extends State<HistoryView>
       _openLookUp(entry);
       return;
     }
-    context.read<TranslateCubit>()
-      ..setSource(entry.source)
-      ..setTarget(entry.target)
-      ..setInputAndTranslate(entry.text);
+    context.read<TranslateCubit>().openHistoryEntry(entry);
     context.go(AppRoutes.translate);
   }
 

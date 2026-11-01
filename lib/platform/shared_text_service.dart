@@ -23,6 +23,12 @@ class SharedText {
   /// on-device engine only, whatever the privacy mode.
   static const translateOfflineAction = 'translateOffline';
 
+  /// [action] of a selection made with "Improve with Mozhi" in Android's
+  /// text selection toolbar (PROCESS_TEXT through the
+  /// `.ImproveTextActivity` alias): it is proofread (the quick improve
+  /// sheet) instead of translated.
+  static const improveAction = 'improve';
+
   /// The shared text. Empty when the payload only carried an [action].
   final String text;
 
@@ -41,6 +47,10 @@ class SharedText {
   /// Whether this selection is to be translated on the device only
   /// ([translateOfflineAction]).
   bool get isTranslateOffline => action == translateOfflineAction;
+
+  /// Whether this selection is to be improved (proofread) rather than
+  /// translated ([improveAction]).
+  bool get isImprove => action == improveAction;
 
   @override
   bool operator ==(Object other) =>
@@ -70,7 +80,9 @@ class SharedText {
 ///   tile / app shortcut, which may omit `text`, or `translateOffline` for
 ///   a PROCESS_TEXT selection made with "Translate offline", which keeps
 ///   `text`, `readOnly` and `processText: true` and is to be translated on
-///   the device only, see [SharedText.isTranslateOffline]),
+///   the device only, see [SharedText.isTranslateOffline], or `improve`
+///   for one made with "Improve with Mozhi", which keeps the same fields
+///   and is to be proofread, see [SharedText.isImprove]),
 ///   `returnResult(text)` -> finishes a PROCESS_TEXT activity with
 ///   `EXTRA_PROCESS_TEXT` = text (the argument is the plain string).
 /// * EventChannel `io.github.aimdi.mozhi/shared_text_events` streaming the

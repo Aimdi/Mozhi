@@ -15,6 +15,7 @@ import 'package:mozhi/translate/translate.dart';
 import 'package:mozhi/translate/widgets/widgets.dart';
 import 'package:translation_repository/translation_repository.dart';
 
+import '../../helpers/terminal_font.dart';
 import '../helpers/helpers.dart';
 
 HistoryEntry _entry(
@@ -36,7 +37,11 @@ HistoryEntry _entry(
 );
 
 void main() {
-  setUpAll(registerTranslateFallbacks);
+  setUpAll(() async {
+    registerTranslateFallbacks();
+    // The language cells pick what fits in the real font.
+    await loadTerminalFont();
+  });
 
   setUp(() => TranslateHero.clock = () => DateTime(2026, 10, 31, 9));
   tearDown(() => TranslateHero.clock = DateTime.now);
@@ -114,7 +119,7 @@ void main() {
       expect(title.style?.color, scheme.primary);
       expect(title.style?.fontWeight, FontWeight.w800);
 
-      // 3. One box: --from en | ⇄ | --to de.
+      // 3. One box: --from English | ⇄ | --to German.
       final bar = find.byKey(const Key('translate_language_bar'));
       expect(bar, findsOneWidget);
       expect(
@@ -123,9 +128,12 @@ void main() {
       );
       expect(find.descendant(of: bar, matching: glyph('--to')), findsOne);
       expect(find.descendant(of: bar, matching: glyph('↔')), findsOneWidget);
-      // The code where the name does not fit beside the flag.
-      expect(find.descendant(of: bar, matching: find.text('en')), findsOne);
-      expect(find.descendant(of: bar, matching: find.text('de')), findsOne);
+      // The names fit beside the flags.
+      expect(
+        find.descendant(of: bar, matching: find.text('English')),
+        findsOne,
+      );
+      expect(find.descendant(of: bar, matching: find.text('German')), findsOne);
 
       // 4. stdin: the prompt, the placeholder with its cursor, the tools
       // and run.
@@ -413,10 +421,14 @@ void main() {
           find.byKey(const ValueKey('translate_history_tail:0')),
         );
         await tester.pump();
-        verify(() => harness.translate.setSource(english)).called(1);
-        verify(() => harness.translate.setTarget(german)).called(1);
-        verify(() => harness.translate.setInputAndTranslate('hacker'))
-            .called(1);
+        final opened =
+            verify(() => harness.translate.openHistoryEntry(captureAny()))
+                    .captured
+                    .single
+                as HistoryEntry;
+        expect(opened.text, 'hacker');
+        expect(opened.source, english);
+        expect(opened.target, german);
       });
 
       testWidgets('is hidden without history', (tester) async {
@@ -584,10 +596,20 @@ void main() {
           tester.getCenter(find.byKey(const Key('translate_input_field'))).dx,
         ),
       );
-      // The flag before the language, on the right.
+      // The flag before the language, on the right ("--to <German>"; the
+      // source's name only fits without its flag).
       expect(
-        tester.getCenter(glyph('--from')).dx,
-        greaterThan(tester.getCenter(find.text('en')).dx),
+        tester.getCenter(glyph('--to')).dx,
+        greaterThan(
+          tester
+              .getCenter(
+                find.descendant(
+                  of: find.byKey(const Key('translate_target_button')),
+                  matching: find.text('الألمانية'),
+                ),
+              )
+              .dx,
+        ),
       );
       // The CLI words stay left to right.
       final stdin = tester.widget<Text>(glyph('stdin'));

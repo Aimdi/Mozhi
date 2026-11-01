@@ -51,6 +51,52 @@ void main() {
       await cubit.close();
     });
 
+    group('refresh', () {
+      blocTest<HistoryCubit, HistoryState>(
+        'reads what another window saved, without the loading state',
+        setUp: () =>
+            when(() => repository.load()).thenAnswer((_) async => [two, one]),
+        build: buildCubit,
+        seed: () => ready([one]),
+        act: (cubit) => cubit.refresh(),
+        expect: () => [
+          ready([two, one]),
+        ],
+      );
+
+      blocTest<HistoryCubit, HistoryState>(
+        'waits for the history to be loaded',
+        build: buildCubit,
+        act: (cubit) => cubit.refresh(),
+        expect: () => <HistoryState>[],
+        verify: (_) => verifyNever(() => repository.load()),
+      );
+
+      blocTest<HistoryCubit, HistoryState>(
+        'does not read while the app is locked',
+        setUp: () =>
+            when(() => repository.forgetCache()).thenAnswer((_) async {}),
+        build: buildCubit,
+        seed: () => ready(const []),
+        act: (cubit) async {
+          await cubit.forgetForLock();
+          await cubit.refresh();
+        },
+        verify: (_) => verifyNever(() => repository.load()),
+      );
+
+      blocTest<HistoryCubit, HistoryState>(
+        'keeps the shown history when the read fails',
+        setUp: () =>
+            when(() => repository.load()).thenThrow(StateError('store')),
+        build: buildCubit,
+        seed: () => ready([one]),
+        act: (cubit) => cubit.refresh(),
+        expect: () => <HistoryState>[],
+        errors: () => [isA<StateError>()],
+      );
+    });
+
     group('load', () {
       blocTest<HistoryCubit, HistoryState>(
         'emits loading then the entries',

@@ -1,8 +1,65 @@
 import 'package:equatable/equatable.dart';
 import 'package:mozhi/proofread/models/proofread_diff.dart';
+import 'package:mozhi/proofread/models/proofread_rephrasing.dart';
+import 'package:mozhi/proofread/models/sentence_segmenter.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 enum ProofreadStatus { idle, loading, success, failure }
+
+enum ProofreadAlternativesStatus { loading, success, failure }
+
+/// The alternative phrasings asked for one sentence of the corrected text
+/// (see `ProofreadCubit.loadAlternatives`).
+class ProofreadAlternatives extends Equatable {
+  const new({
+    required this.base,
+    required this.sentence,
+    required this.span,
+    this.status = ProofreadAlternativesStatus.loading,
+    this.alternatives = const [],
+    this.error,
+  });
+
+  /// The corrected text ([ProofreadState.outputText]) [sentence] is in.
+  final String base;
+
+  /// The sentence of [base] they are for.
+  final SentenceRange sentence;
+
+  /// The sentence as it was shown (its rephrasing, if any), which the
+  /// alternatives replace.
+  final String span;
+  final ProofreadAlternativesStatus status;
+  final List<String> alternatives;
+
+  /// Why loading them failed.
+  final Object? error;
+
+  bool get isLoading => status == ProofreadAlternativesStatus.loading;
+
+  ProofreadAlternatives copyWith({
+    ProofreadAlternativesStatus? status,
+    List<String>? alternatives,
+    Object? Function()? error,
+  }) => ProofreadAlternatives(
+    base: base,
+    sentence: sentence,
+    span: span,
+    status: status ?? this.status,
+    alternatives: alternatives ?? this.alternatives,
+    error: error != null ? error() : this.error,
+  );
+
+  @override
+  List<Object?> get props => [
+    base,
+    sentence,
+    span,
+    status,
+    alternatives,
+    error,
+  ];
+}
 
 class ProofreadState extends Equatable {
   const new({
@@ -12,6 +69,7 @@ class ProofreadState extends Equatable {
     this.writingStyle = WritingStyle.general,
     this.correctionLevel = CorrectionLevel.standard,
     this.formality = Formality.automatic,
+    this.tone = WritingTone.automatic,
     this.readingLevel = ReadingLevel.standard,
     this.variety,
     this.context = '',
@@ -19,6 +77,8 @@ class ProofreadState extends Equatable {
     this.result,
     this.proofreadInput = '',
     this.acceptedEdits = const {},
+    this.rephrasings = const [],
+    this.alternatives,
     this.error,
   });
 
@@ -33,6 +93,9 @@ class ProofreadState extends Equatable {
   final WritingStyle writingStyle;
   final CorrectionLevel correctionLevel;
   final Formality formality;
+
+  /// Tone to rewrite toward; [WritingTone.automatic] keeps the author's.
+  final WritingTone tone;
 
   /// CEFR level to reword the text for; [ReadingLevel.standard] keeps the
   /// author's level.
@@ -53,6 +116,13 @@ class ProofreadState extends Equatable {
 
   /// Indices into `result.edits` that are applied to the output.
   final Set<int> acceptedEdits;
+
+  /// Sentences of [outputText] the user replaced with an alternative
+  /// phrasing, in order (see [ProofreadRephrasings]); [finalText] has them.
+  final List<ProofreadRephrasing> rephrasings;
+
+  /// The alternatives asked for a sentence (while their sheet is open).
+  final ProofreadAlternatives? alternatives;
 
   /// Last proofreading error (`LlmApiException`, `LlmRefusalException`, ...).
   final Object? error;
@@ -87,6 +157,20 @@ class ProofreadState extends Equatable {
     return ProofreadDiff.apply(proofreadInput, edits, acceptedEdits);
   }
 
+  /// The sentences of [outputText] the user can tap for alternatives.
+  List<SentenceRange> get sentences => SentenceSegmenter.split(outputText);
+
+  /// The text the user gets: [outputText] with the [rephrasings].
+  String get finalText => ProofreadRephrasings.apply(outputText, rephrasings);
+
+  /// The rephrasing of [sentence] (of [outputText]), if any.
+  ProofreadRephrasing? rephrasingOf(SentenceRange sentence) {
+    for (final rephrasing in rephrasings) {
+      if (rephrasing.sentence == sentence) return rephrasing;
+    }
+    return null;
+  }
+
   /// Whether the input changed after [result] was computed, so the result
   /// no longer matches the text in the input field.
   bool get isStale => result != null && input != proofreadInput;
@@ -115,6 +199,7 @@ class ProofreadState extends Equatable {
     WritingStyle? writingStyle,
     CorrectionLevel? correctionLevel,
     Formality? formality,
+    WritingTone? tone,
     ReadingLevel? readingLevel,
     ProofreadVariety? Function()? variety,
     String? context,
@@ -122,6 +207,8 @@ class ProofreadState extends Equatable {
     ProofreadResult? Function()? result,
     String? proofreadInput,
     Set<int>? acceptedEdits,
+    List<ProofreadRephrasing>? rephrasings,
+    ProofreadAlternatives? Function()? alternatives,
     Object? Function()? error,
   }) {
     return ProofreadState(
@@ -131,6 +218,7 @@ class ProofreadState extends Equatable {
       writingStyle: writingStyle ?? this.writingStyle,
       correctionLevel: correctionLevel ?? this.correctionLevel,
       formality: formality ?? this.formality,
+      tone: tone ?? this.tone,
       readingLevel: readingLevel ?? this.readingLevel,
       variety: variety != null ? variety() : this.variety,
       context: context ?? this.context,
@@ -138,6 +226,8 @@ class ProofreadState extends Equatable {
       result: result != null ? result() : this.result,
       proofreadInput: proofreadInput ?? this.proofreadInput,
       acceptedEdits: acceptedEdits ?? this.acceptedEdits,
+      rephrasings: rephrasings ?? this.rephrasings,
+      alternatives: alternatives != null ? alternatives() : this.alternatives,
       error: error != null ? error() : this.error,
     );
   }
@@ -164,6 +254,7 @@ class ProofreadState extends Equatable {
     writingStyle,
     correctionLevel,
     formality,
+    tone,
     readingLevel,
     variety,
     context,
@@ -171,6 +262,8 @@ class ProofreadState extends Equatable {
     result,
     proofreadInput,
     acceptedEdits,
+    rephrasings,
+    alternatives,
     error,
   ];
 }

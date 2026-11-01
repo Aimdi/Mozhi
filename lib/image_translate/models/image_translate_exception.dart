@@ -21,6 +21,10 @@ enum ImageTranslateErrorKind {
   /// The picker failed for another reason.
   pickFailed,
 
+  /// The image is larger than the app opens ([maxOpenedImageBytes]; e.g.
+  /// one shared from another app).
+  fileTooLarge,
+
   /// "Take photo" found no camera app to take it with (Android's
   /// `ACTION_IMAGE_CAPTURE` has no handler: some phones without Google
   /// services, or with the camera app disabled). The live camera, which
@@ -51,6 +55,10 @@ enum ImageTranslateErrorKind {
   /// does not depend on it.
   serviceRefused,
 }
+
+/// The largest image file the app opens (Android copies no larger image
+/// shared from another app: `ShareReceiverActivity.MAX_IMAGE_BYTES`).
+const int maxOpenedImageBytes = 40 * 1024 * 1024;
 
 @immutable
 class ImageTranslateException implements Exception {

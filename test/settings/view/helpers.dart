@@ -72,6 +72,7 @@ extension PumpView on WidgetTester {
     GoRouter? router,
     double textScale = 1,
     ThemeData? theme,
+    Locale? locale,
   }) {
     return pumpWidget(
       RepositoryProvider<TranslationRepository>.value(
@@ -92,6 +93,7 @@ extension PumpView on WidgetTester {
             goRouter: router ?? createRouter(),
             child: MaterialApp(
               theme: theme ?? ThemeData(useMaterial3: true),
+              locale: locale,
               localizationsDelegates: appLocalizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               builder: (context, child) => MediaQuery(

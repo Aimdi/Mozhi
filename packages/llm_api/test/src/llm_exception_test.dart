@@ -38,6 +38,31 @@ void main() {
       expect(interrupted.message, LlmInterruptedException.defaultMessage);
     });
 
+    test('isStopped identifies LlmStoppedException', () {
+      const stopped = LlmStoppedException('stopped', reason: 'OTHER');
+      expect(stopped.isStopped, isTrue);
+      expect(stopped.unsupportedLanguage, isFalse);
+      expect(stopped.isTransient, isFalse);
+      expect(
+        const LlmStoppedException('x', reason: 'LANGUAGE').unsupportedLanguage,
+        isTrue,
+      );
+      expect(const LlmStoppedException('x').reason, isNull);
+      for (final exception in const [
+        LlmApiException('x'),
+        LlmRefusalException('no'),
+        LlmTruncatedException(),
+        LlmInterruptedException(),
+      ]) {
+        expect(exception.isStopped, isFalse, reason: '$exception');
+      }
+    });
+
+    test('unreachable is false unless the request got no answer', () {
+      expect(const LlmApiException('x').unreachable, isFalse);
+      expect(const LlmApiException('x', unreachable: true).unreachable, isTrue);
+    });
+
     test('isTransient is true for failures that usually pass', () {
       for (final status in [429, 500, 502, 503, 504, 529]) {
         expect(

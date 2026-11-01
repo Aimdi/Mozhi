@@ -80,6 +80,7 @@ final testEngines = [TranslationEngine.mozhi('google', 'Google')];
 const _english = Language(code: 'en', name: 'English');
 
 void registerAppFallbacks() {
+  registerFallbackValue((AppSettings settings) => settings);
   registerFallbackValue(testEngines.first);
   registerFallbackValue(testInstance);
   registerFallbackValue(const Language(code: 'en', name: 'English'));
@@ -132,8 +133,16 @@ void stubSpeechService(MockSpeechService speech) {
 
 /// Mocked dependencies and cubits for pumping routes/pages.
 class TestEnvironment {
-  new({AppSettings settings = const AppSettings(instances: [testInstance])}) {
+  new({AppSettings settings = const AppSettings(instances: [testInstance])})
+    : storedSettings = settings {
     stubTranslationRepository(translationRepository);
+    // The settings cubit writes its changes to the stored settings.
+    when(() => settingsRepository.update(any())).thenAnswer((invocation) async {
+      final change =
+          invocation.positionalArguments.single
+              as AppSettings Function(AppSettings current);
+      return storedSettings = change(storedSettings);
+    });
     stubSpeechService(speechService);
     when(() => sharedTextService.texts).thenAnswer((_) => const Stream.empty());
     when(sharedTextService.initialText).thenAnswer((_) async => null);
@@ -156,6 +165,10 @@ class TestEnvironment {
 
   final translationRepository = MockTranslationRepository();
   final settingsRepository = MockSettingsRepository();
+
+  /// The settings [settingsRepository] stores ([SettingsRepository.update]
+  /// applies its change to them).
+  AppSettings storedSettings;
   final historyRepository = MockHistoryRepository();
   final speechService = MockSpeechService();
   final sharedTextService = MockSharedTextService();

@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/core/key_value_store.dart';
+import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/presets/cubit/glossary_cubit.dart';
 import 'package:mozhi/presets/cubit/presets_cubit.dart';
 import 'package:mozhi/presets/data/glossary_repository.dart';
@@ -52,8 +53,14 @@ class PresetsHarness {
   }
 
   /// Pumps [child] with both cubits provided, a stubbed share sheet and a
-  /// fake clipboard. [size] sets the logical screen size.
-  Future<void> pump(WidgetTester tester, Widget child, {Size? size}) async {
+  /// fake clipboard. [size] sets the logical screen size; [locale] the UI
+  /// language.
+  Future<void> pump(
+    WidgetTester tester,
+    Widget child, {
+    Size? size,
+    Locale? locale,
+  }) async {
     if (size != null) {
       tester.view.physicalSize = size;
       tester.view.devicePixelRatio = 1;
@@ -82,13 +89,24 @@ class PresetsHarness {
         null,
       ),
     );
-    await tester.pumpApp(
-      MultiBlocProvider(
-        providers: [
-          BlocProvider.value(value: presets),
-          BlocProvider.value(value: glossaries),
-        ],
-        child: child,
+    final provided = MultiBlocProvider(
+      providers: [
+        BlocProvider.value(value: presets),
+        BlocProvider.value(value: glossaries),
+      ],
+      child: child,
+    );
+    if (locale == null) {
+      await tester.pumpApp(provided);
+      return;
+    }
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData(useMaterial3: true),
+        locale: locale,
+        localizationsDelegates: appLocalizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: provided,
       ),
     );
   }

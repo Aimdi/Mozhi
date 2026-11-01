@@ -4,6 +4,7 @@
 <resources>
     <string name="translate_with_mozhi">Przetłumacz w Mozhi</string>
     <string name="translate_offline">Przetłumacz offline</string>
+    <string name="improve_with_mozhi">Popraw w Mozhi</string>
     <string name="tile_translate_label">Tłumacz</string>
     <string name="tile_translate_description">Przetłumacz schowek za pomocą Mozhi</string>
     <string name="shortcut_clipboard_short">Schowek</string>

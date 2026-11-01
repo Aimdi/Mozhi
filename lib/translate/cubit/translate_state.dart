@@ -553,7 +553,22 @@ class TranslateState extends Equatable {
   String get output => result?.text ?? '';
   bool get isAiEngine => engine?.isAi ?? false;
   bool get hasExtras => assistEngine != null;
-  bool get canSwap => !target.isCustom;
+
+  /// Whether `TranslateCubit.swap` can swap the languages: not into a
+  /// custom target, and with "Detect language" only once a language was
+  /// detected that the engine offers as a target (the detected language
+  /// becomes the target).
+  bool get canSwap {
+    if (target.isCustom) return false;
+    if (!source.isAuto) return true;
+    final detected = result?.detectedSource;
+    if (detected == null || detected.isEmpty) return false;
+    return LanguageMatcher.match(
+          Language(code: detected, name: detected),
+          targetLanguages,
+        ) !=
+        null;
+  }
 
   /// Whether free-form custom languages can be picked (source and target):
   /// AI engines with the general prompt profile.

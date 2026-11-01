@@ -30,7 +30,8 @@ class BergamotModelDetails
     implements
         OfflineModelDetails,
         OfflineModelImport,
-        OfflineLanguageDirections {
+        OfflineLanguageDirections,
+        OfflineRunningDownloads {
   new(this.translator, {ModelSource Function()? modelSource})
     : _modelSource = modelSource ?? _currentSource;
 
@@ -87,35 +88,41 @@ class BergamotModelDetails
     );
   }
 
+  /// The progress is the translator's ([BergamotTranslator.downloads]):
+  /// the same on every screen that shows this download.
   @override
   Future<void> download(
     String code, {
     required bool wifiOnly,
     void Function(double fraction)? onProgress,
   }) async {
-    final missing = [
-      for (final model in translator.router.modelsFor(code))
-        if (!await translator.models.isInstalled(model)) model,
-    ];
-    final total = missing.fold(0, (sum, model) => sum + model.downloadSize);
-    final pairs = {for (final model in missing) model.pair};
-    final received = <String, int>{};
-    final subscription = translator.downloadProgress.listen((progress) {
-      if (total == 0 || !pairs.contains(progress.model.pair)) return;
-      received[progress.model.pair] = progress.receivedBytes;
-      final bytes = received.values.fold(0, (sum, value) => sum + value);
-      onProgress?.call((bytes / total).clamp(0, 1).toDouble());
-    });
     final source = _modelSource();
     translator.models
       ..mirror = source.mirror()
       ..fallbackToDefault = source.fallsBackToDefault;
+    // Registered in `downloads` before the call returns.
+    final running = translator.downloadLanguage(code, wifiOnly: wifiOnly);
+    final subscription = onProgress == null
+        ? null
+        : translator.downloads[code]?.progressChanges.listen(onProgress);
     try {
-      await translator.downloadLanguage(code, wifiOnly: wifiOnly);
+      await running;
     } finally {
-      await subscription.cancel();
+      await subscription?.cancel();
     }
   }
+
+  /// The translator's running downloads ([BergamotTranslator.downloads]).
+  @override
+  Map<String, OfflineRunningDownload> get runningDownloads => {
+    for (final MapEntry(key: code, value: download)
+        in translator.downloads.entries)
+      code: OfflineRunningDownload(
+        progress: download.progress,
+        progressChanges: download.progressChanges,
+        result: download.result,
+      ),
+  };
 
   @override
   Future<OfflineImportReport> importFiles(List<String> paths) async {

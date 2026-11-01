@@ -6,6 +6,10 @@
          device only (.TranslateOfflineActivity). Keep it short: the
          selection toolbar truncates long labels. -->
     <string name="translate_offline">Translate offline</string>
+    <!-- Label of the third text selection action, which proofreads the
+         selection (.ImproveTextActivity) and can replace it with the
+         improved text. Keep it short, like the other two. -->
+    <string name="improve_with_mozhi">Improve with Mozhi</string>
 
     <!-- Quick Settings tile (TranslateTileService). -->
     <string name="tile_translate_label">Translate</string>

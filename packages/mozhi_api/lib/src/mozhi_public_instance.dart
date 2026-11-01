@@ -9,6 +9,7 @@ import 'package:meta/meta.dart';
 /// {
 ///   "link": "https://mozhi.aryak.me",
 ///   "country": "India",
+///   "regions": ["IN"],
 ///   "host": "Airtel",
 ///   "cloudflare": false,
 ///   "onion": "http://mozhi.….onion",
@@ -23,6 +24,7 @@ class MozhiPublicInstance {
   const new({
     this.url,
     this.country,
+    this.regions = const [],
     this.isp,
     this.cloudflare = false,
     this.onion,
@@ -30,10 +32,19 @@ class MozhiPublicInstance {
   });
 
   /// Parses an upstream entry. Accepts `link` or `url`, `host` or `isp`,
-  /// and `onion` or `tor`; blank strings read as absent.
+  /// and `onion` or `tor`; blank strings read as absent. [regions] come
+  /// from `regions` (ISO codes), else from the [country] names the app
+  /// knows ([regionCodesOf]).
   factory fromJson(Map<String, dynamic> json) => MozhiPublicInstance(
     url: _text(json['link']) ?? _text(json['url']),
     country: _text(json['country']),
+    regions: switch (json['regions']) {
+      final List<dynamic> codes => [
+        for (final code in codes)
+          if (_text(code) case final code?) code.toUpperCase(),
+      ],
+      _ => regionCodesOf(_text(json['country'])),
+    },
     isp: _text(json['host']) ?? _text(json['isp']),
     cloudflare: json['cloudflare'] == true,
     onion: _text(json['onion']) ?? _text(json['tor']),
@@ -44,8 +55,13 @@ class MozhiPublicInstance {
   /// known by its Tor or I2P address.
   final String? url;
 
-  /// Where the server is, as upstream writes it (`Germany`, `USA`, ...).
+  /// Where the server is, as upstream writes it, in English (`Germany`,
+  /// `USA`, ...). Apps show [regions] in their UI language instead.
   final String? country;
+
+  /// Where the server is: ISO 3166-1 alpha-2 region codes (`DE`, `US`),
+  /// in the order of [country]; empty when unknown.
+  final List<String> regions;
 
   /// Who hosts the server (upstream `host`), when known.
   final String? isp;
@@ -68,6 +84,7 @@ class MozhiPublicInstance {
   Map<String, dynamic> toJson() => {
     'link': ?url,
     'country': ?country,
+    if (regions.isNotEmpty) 'regions': regions,
     'host': ?isp,
     'cloudflare': cloudflare,
     'onion': ?onion,
@@ -76,6 +93,29 @@ class MozhiPublicInstance {
 
   static String? _text(Object? value) =>
       value is String && value.trim().isNotEmpty ? value.trim() : null;
+
+  /// The region codes of an upstream [country] text (`Germany, USA` ->
+  /// `DE`, `US`); empty unless every name is one the app knows.
+  static List<String> regionCodesOf(String? country) {
+    if (country == null) return const [];
+    final codes = [
+      for (final name in country.split(','))
+        if (name.trim().isNotEmpty) _regionCodes[name.trim().toLowerCase()],
+    ];
+    return codes.isEmpty || codes.contains(null)
+        ? const []
+        : List.unmodifiable(codes.whereType<String>());
+  }
+
+  /// Upstream country names (lower case) -> ISO region codes.
+  static const _regionCodes = {
+    'germany': 'DE',
+    'usa': 'US',
+    'us': 'US',
+    'united states': 'US',
+    'russia': 'RU',
+    'india': 'IN',
+  };
 
   /// Where [all] comes from.
   static const sourceUrl =
@@ -100,19 +140,33 @@ class MozhiPublicInstance {
   /// 403), `mozhi.canine.tools` and `mozhi.bloat.cat` (a bot wall answers
   /// with an HTML page).
   static const all = <MozhiPublicInstance>[
-    MozhiPublicInstance(url: 'https://mozhi.adminforge.de', country: 'Germany'),
-    MozhiPublicInstance(url: 'https://mozhi.ducks.party', country: 'Germany'),
+    MozhiPublicInstance(
+      url: 'https://mozhi.adminforge.de',
+      country: 'Germany',
+      regions: ['DE'],
+    ),
+    MozhiPublicInstance(
+      url: 'https://mozhi.ducks.party',
+      country: 'Germany',
+      regions: ['DE'],
+    ),
     MozhiPublicInstance(
       url: 'https://mozhi.catsarch.com',
       country: 'USA',
+      regions: ['US'],
       onion:
           'http://mozhi.catsarchywsyuss6jdxlypsw5dc7owd5u5tr6bujxb7o6xw2hipqehyd'
           '.onion',
     ),
-    MozhiPublicInstance(url: 'https://mzh.dc09.xyz', country: 'Russia'),
+    MozhiPublicInstance(
+      url: 'https://mzh.dc09.xyz',
+      country: 'Russia',
+      regions: ['RU'],
+    ),
     MozhiPublicInstance(
       url: 'https://mozhi.aryak.me',
       country: 'India',
+      regions: ['IN'],
       onion:
           'http://mozhi.wsuno6lnjdcsiok5mrxvl6e2bdex7nhsqqav6ux7tkwrqiqnulejfbyd'
           '.onion',
@@ -120,10 +174,12 @@ class MozhiPublicInstance {
     MozhiPublicInstance(
       url: 'https://translate.projectsegfau.lt',
       country: 'Germany, USA, India',
+      regions: ['DE', 'US', 'IN'],
     ),
     MozhiPublicInstance(
       url: 'https://mozhi.pussthecat.org',
       country: 'Germany',
+      regions: ['DE'],
     ),
     MozhiPublicInstance(
       onion: 'http://42i2bzogwkph3dvoo2bm6srskf7vvabsphw7uzftymbjjlzgfluhnmid.onion',
@@ -146,13 +202,30 @@ class MozhiPublicInstance {
       other is MozhiPublicInstance &&
       other.url == url &&
       other.country == country &&
+      _sameList(other.regions, regions) &&
       other.isp == isp &&
       other.cloudflare == cloudflare &&
       other.onion == onion &&
       other.i2p == i2p;
 
   @override
-  int get hashCode => Object.hash(url, country, isp, cloudflare, onion, i2p);
+  int get hashCode => Object.hash(
+    url,
+    country,
+    Object.hashAll(regions),
+    isp,
+    cloudflare,
+    onion,
+    i2p,
+  );
+
+  static bool _sameList(List<String> a, List<String> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
 
   @override
   String toString() =>

@@ -19,6 +19,7 @@ import 'package:mozhi/conversation/share/cubit/conversation_share_cubit.dart';
 import 'package:mozhi/conversation/share/view/conversation_share_page.dart';
 import 'package:mozhi/conversation/view/conversation_page.dart';
 import 'package:mozhi/dictionary/view/dictionary_page.dart';
+import 'package:mozhi/documents/cubit/document_translate_cubit.dart';
 import 'package:mozhi/documents/view/document_translate_page.dart';
 import 'package:mozhi/history/view/history_page.dart';
 import 'package:mozhi/image_translate/cubit/image_translate_cubit.dart';
@@ -452,6 +453,11 @@ void main() {
       await tester.pump();
     }
 
+    DocumentTranslateState documentState(WidgetTester tester) => tester
+        .element(find.byType(DocumentTranslateView))
+        .read<DocumentTranslateCubit>()
+        .state;
+
     Future<void> go(WidgetTester tester, String location) async {
       router.go(location);
       await tester.pump();
@@ -691,6 +697,106 @@ void main() {
           find.byType(DocumentTranslatePage),
         );
         expect(page.initialFile, isNull);
+        // ...saying that the file could not be read.
+        expect(documentState(tester).error, DocumentError.readFailed);
+        expect(find.text("The file couldn't be read."), findsOneWidget);
+      });
+
+      testWidgets('a document too large to share says so, with its name', (
+        tester,
+      ) async {
+        await open(
+          tester,
+          '${AppRoutes.sharedDocument(token)}'
+          '&shared_error=too_large&name=big%20book.epub',
+        );
+        final page = tester.widget<DocumentTranslatePage>(
+          find.byType(DocumentTranslatePage),
+        );
+        expect(page.shareId, token);
+        expect(page.unavailableFile, (name: 'big book.epub', tooLarge: true));
+        final state = documentState(tester);
+        expect(state.error, DocumentError.tooLarge);
+        expect(state.fileName, 'big book.epub');
+        expect(find.textContaining('This file is too large.'), findsOneWidget);
+      });
+
+      testWidgets('an unreadable shared document says so', (tester) async {
+        await open(
+          tester,
+          '${AppRoutes.sharedDocument(token)}'
+          '&shared_error=unreadable&name=a.srt',
+        );
+        expect(documentState(tester).error, DocumentError.readFailed);
+      });
+
+      testWidgets('an image too large to share says so', (tester) async {
+        await open(
+          tester,
+          '${AppRoutes.sharedImage(token)}&shared_error=too_large&name=x.jpg',
+        );
+        expect(
+          tester
+              .widget<ImageTranslatePage>(find.byType(ImageTranslatePage))
+              .picker,
+          isA<SharedImagePicker>(),
+        );
+        expect(
+          find.text('This image is too large to open. The limit is 40 MB.'),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets('an unreadable shared image says so', (tester) async {
+        await open(tester, AppRoutes.sharedImage(token));
+        expect(find.text("The image couldn't be opened."), findsOneWidget);
+      });
+
+      testWidgets('says when only the first of several items opens', (
+        tester,
+      ) async {
+        share('talk.srt', '1\n00:00:01,000 --> 00:00:02,000\nHola\n'.codeUnits);
+        await open(tester, '${AppRoutes.sharedDocument(token)}&shared_count=3');
+        expect(find.text('Only the first item is opened.'), findsOneWidget);
+        expect(
+          tester
+              .widget<DocumentTranslatePage>(find.byType(DocumentTranslatePage))
+              .initialFile!
+              .name,
+          'talk.srt',
+        );
+      });
+
+      testWidgets('a new shared document goes to the open screen', (
+        tester,
+      ) async {
+        share('talk.srt', '1\n00:00:01,000 --> 00:00:02,000\nHola\n'.codeUnits);
+        await open(tester, AppRoutes.sharedDocument(token));
+        final cubit = tester
+            .element(find.byType(DocumentTranslateView))
+            .read<DocumentTranslateCubit>();
+        expect(cubit.state.fileName, 'talk.srt');
+
+        const other = 'fedcba9876543210fedcba9876543210';
+        router.go(
+          '${AppRoutes.sharedDocument(other)}'
+          '&shared_error=too_large&name=b.pdf',
+        );
+        for (var i = 0; i < 30; i++) {
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 5)),
+          );
+          await tester.pump();
+        }
+        // The same screen (and cubit) shows the new share.
+        expect(
+          tester
+              .element(find.byType(DocumentTranslateView))
+              .read<DocumentTranslateCubit>(),
+          same(cubit),
+        );
+        expect(cubit.state.fileName, 'b.pdf');
+        expect(cubit.state.error, DocumentError.tooLarge);
       });
 
       testWidgets('a malformed token is no shared file', (tester) async {
@@ -759,6 +865,15 @@ void main() {
         expect(page.picker, isA<SharedImagePicker>());
         expect(page.autoTranslate, isFalse);
       });
+    });
+
+    test('pushed pages show in the address of the web app', () {
+      addTearDown(() => GoRouter.optionURLReflectsImperativeAPIs = false);
+      GoRouter.optionURLReflectsImperativeAPIs = false;
+      reflectPushedPagesInUrl(isWeb: false);
+      expect(GoRouter.optionURLReflectsImperativeAPIs, isFalse);
+      reflectPushedPagesInUrl(isWeb: true);
+      expect(GoRouter.optionURLReflectsImperativeAPIs, isTrue);
     });
 
     WebTranslateState webState(WidgetTester tester) => tester

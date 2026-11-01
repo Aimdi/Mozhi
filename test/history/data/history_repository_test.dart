@@ -88,6 +88,15 @@ class _FailingWriteStore extends MemoryStore {
 class _CountingStore extends MemoryStore {
   int writes = 0;
 
+  /// Reads of the history ([HistoryRepository.storageKey]).
+  int reads = 0;
+
+  @override
+  Future<String?> read(String key) {
+    if (key == HistoryRepository.storageKey) reads++;
+    return super.read(key);
+  }
+
   @override
   Future<void> write(String key, String value) {
     writes++;
@@ -206,6 +215,51 @@ void main() {
         final entries = await repository.load();
 
         expect(() => entries.add(_entry('1')), throwsUnsupportedError);
+      });
+    });
+
+    group('two windows on one store (regression)', () {
+      // Android's quick translate window and the web app's tabs each have
+      // their own repository on the same store.
+      test('neither overwrites what the other saved', () async {
+        final other = _repo(store: store);
+        await repository.load();
+        await other.load();
+
+        await repository.add(_entry('a1', minute: 1));
+        await other.add(_entry('b1', minute: 2));
+        await repository.add(_entry('a2', minute: 3));
+
+        expect(await storedIds(), ['a2', 'b1', 'a1']);
+        expect(
+          [for (final e in await other.add(_entry('b2', minute: 4))) e.id],
+          ['b2', 'a2', 'b1', 'a1'],
+        );
+      });
+
+      test("a deletion or a star in one window keeps the other's "
+          'entries', () async {
+        final other = _repo(store: store);
+        await repository.add(_entry('1', minute: 1));
+        await other.load();
+        await other.add(_entry('2', minute: 2));
+
+        await repository.toggleFavorite('1');
+        expect(await storedIds(), ['2', '1']);
+
+        await other.delete('1');
+        await repository.delete('2');
+        expect(await storedIds(), isEmpty);
+      });
+
+      test('reads the store once per change when nothing else wrote', () async {
+        final counting = _CountingStore();
+        final own = _repo(store: counting);
+        await own.add(_entry('1', minute: 1));
+        final reads = counting.reads;
+        await own.add(_entry('2', minute: 2));
+        // One read to see that the stored history is still its own.
+        expect(counting.reads - reads, 1);
       });
     });
 

@@ -18,6 +18,8 @@ void main() {
         const MozhiPublicInstance(
           url: 'https://mozhi.example',
           country: 'Germany',
+          // Known country names get their region codes.
+          regions: ['DE'],
           isp: 'Hetzner',
           cloudflare: true,
           onion: 'http://abc.onion',
@@ -54,6 +56,60 @@ void main() {
         'cloudflare': false,
         'onion': 'http://abc.onion',
       });
+    });
+
+    test('reads region codes, else derives them from the country', () {
+      expect(
+        MozhiPublicInstance.fromJson(const {
+          'link': 'https://a.example',
+          'country': 'Somewhere',
+          'regions': ['fr', ' ', 7],
+        }).regions,
+        ['FR'],
+      );
+      expect(
+        MozhiPublicInstance.fromJson(const {
+          'link': 'https://a.example',
+          'country': 'Germany, USA, India',
+        }).regions,
+        ['DE', 'US', 'IN'],
+      );
+      // Not every name is known: no codes rather than some.
+      expect(
+        MozhiPublicInstance.fromJson(const {
+          'link': 'https://a.example',
+          'country': 'Germany, Atlantis',
+        }).regions,
+        isEmpty,
+      );
+      expect(MozhiPublicInstance.regionCodesOf(null), isEmpty);
+      expect(MozhiPublicInstance.regionCodesOf(' , '), isEmpty);
+      const instance = MozhiPublicInstance(
+        url: 'https://a.example',
+        country: 'Russia',
+        regions: ['RU'],
+      );
+      expect(instance.toJson()['regions'], ['RU']);
+      expect(MozhiPublicInstance.fromJson(instance.toJson()), instance);
+      expect(
+        instance,
+        isNot(
+          const MozhiPublicInstance(
+            url: 'https://a.example',
+            country: 'Russia',
+          ),
+        ),
+      );
+      expect(
+        instance,
+        isNot(
+          const MozhiPublicInstance(
+            url: 'https://a.example',
+            country: 'Russia',
+            regions: ['RS'],
+          ),
+        ),
+      );
     });
 
     test('equality, hash code and toString', () {
@@ -97,6 +153,19 @@ void main() {
         expect(addresses.toSet(), hasLength(addresses.length));
         for (final address in addresses) {
           expect(MozhiApiClient.normalizeBaseUrl(address).toString(), address);
+        }
+      });
+
+      test('clearnet servers with a country have its region codes', () {
+        for (final instance in all) {
+          if (instance.country case final country?) {
+            expect(
+              instance.regions,
+              MozhiPublicInstance.regionCodesOf(country),
+              reason: country,
+            );
+            expect(instance.regions, isNotEmpty, reason: country);
+          }
         }
       });
 

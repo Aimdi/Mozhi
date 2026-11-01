@@ -6,7 +6,14 @@
 library;
 
 export 'package:llm_api/llm_api.dart'
-    show LlmApiException, LlmModel, LlmProvider, LlmRefusalException;
+    show
+        LlmApiException,
+        LlmInterruptedException,
+        LlmModel,
+        LlmProvider,
+        LlmRefusalException,
+        LlmStoppedException,
+        LlmTruncatedException;
 export 'package:mozhi_api/mozhi_api.dart' show MozhiApiException;
 export 'package:mt_api/mt_api.dart'
     show

@@ -38,7 +38,7 @@ void main() {
         _unreachable,
         const MozhiApiException('Internal error', statusCode: 500),
         const MozhiApiException('Bad gateway', statusCode: 502),
-        const LlmApiException('connection reset'),
+        const LlmApiException('connection reset', unreachable: true),
         const LlmApiException('overloaded', statusCode: 503),
         const MtApiException('offline', kind: MtErrorKind.network),
         const MtApiException('slow', kind: MtErrorKind.timeout),

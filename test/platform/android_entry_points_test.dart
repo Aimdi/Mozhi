@@ -13,6 +13,7 @@ import 'package:mozhi/app/translate_link.dart';
 import 'package:mozhi/app_lock/data/app_lock_windows.dart';
 import 'package:mozhi/documents/documents.dart'
     show DocumentFormat, DocumentTranslateCubitDefaults;
+import 'package:mozhi/platform/shared_text_service.dart';
 import 'package:mozhi/quick_translate/quick_translate_host.dart';
 
 const _main = 'android/app/src/main';
@@ -124,6 +125,66 @@ void main() {
       );
     });
 
+    test('"Improve with Mozhi" uses the same window', () {
+      final alias = _component(
+        manifest,
+        'activity-alias',
+        '.ImproveTextActivity',
+      );
+      expect(alias.attributes['targetActivity'], '.QuickTranslateActivity');
+      expect(alias.attributes['exported'], 'true');
+      expect(alias.attributes['label'], '@string/improve_with_mozhi');
+      expect(_actions(alias.body), ['android.intent.action.PROCESS_TEXT']);
+      expect(_mimeTypes(alias.body), ['text/plain']);
+      expect(_metaData(alias.body), {
+        'io.flutter.embedding.android.NormalTheme': '@style/TransparentTheme',
+        'flutter_deeplinking_enabled': 'false',
+      });
+      expect(
+        alias.body,
+        contains('<intent-filter android:label="@string/improve_with_mozhi">'),
+      );
+    });
+
+    test('"Improve with Mozhi" marks the selection for Dart', () {
+      expect(
+        _constant('MainActivity.kt', 'IMPROVE_TEXT_ALIAS'),
+        'io.github.aimdi.mozhi.ImproveTextActivity',
+      );
+      expect(
+        _constant('MainActivity.kt', 'ACTION_VALUE_IMPROVE'),
+        SharedText.improveAction,
+      );
+      expect(
+        _constant('MainActivity.kt', 'ACTION_VALUE_TRANSLATE_OFFLINE'),
+        SharedText.translateOfflineAction,
+      );
+      final shared = _function('MainActivity.kt', 'sharedTextOf');
+      expect(shared, contains('isImproveText(intent) ->'));
+      expect(shared, contains('(KEY_ACTION to ACTION_VALUE_IMPROVE)'));
+      final check = _function('MainActivity.kt', 'isImproveText');
+      expect(check, contains('it.packageName == packageName'));
+      expect(check, contains('it.className == IMPROVE_TEXT_ALIAS'));
+    });
+
+    test('the selection labels are translated in every Android language', () {
+      final folders = Directory('$_main/res')
+          .listSync()
+          .whereType<Directory>()
+          .where((dir) => File('${dir.path}/strings.xml').existsSync());
+      expect(folders, isNotEmpty);
+      for (final folder in folders) {
+        final strings = _read('${folder.path}/strings.xml');
+        for (final name in [
+          'translate_with_mozhi',
+          'translate_offline',
+          'improve_with_mozhi',
+        ]) {
+          expect(strings, contains('name="$name"'), reason: folder.path);
+        }
+      }
+    });
+
     test('no longer reach the opaque main activity', () {
       final main = _component(manifest, 'activity', '.MainActivity');
       expect(
@@ -179,7 +240,11 @@ void main() {
       final share = _component(manifest, 'activity', '.ShareReceiverActivity');
       expect(share.attributes['exported'], 'true');
       expect(share.attributes['theme'], '@style/TransparentTheme');
-      expect(_actions(share.body), ['android.intent.action.SEND']);
+      // Several files at once too (the first is opened).
+      expect(_actions(share.body), [
+        'android.intent.action.SEND',
+        'android.intent.action.SEND_MULTIPLE',
+      ]);
       expect(
         _mimeTypes(share.body),
         unorderedEquals([
@@ -189,6 +254,13 @@ void main() {
           'application/json',
           for (final format in DocumentFormat.values)
             if (format.isBinary) format.mimeType,
+          // Translation files (.po, .xliff, .arb, .strings, .xcstrings) as
+          // file managers and mail apps type them.
+          'application/xml',
+          'application/x-xliff+xml',
+          'application/xliff+xml',
+          'application/x-gettext',
+          'application/octet-stream',
         ]),
       );
       // A shared PDF without a name still opens as one.
@@ -219,6 +291,44 @@ void main() {
       // Never a file:// path or one of Mozhi's own providers.
       expect(source, contains('ContentResolver.SCHEME_CONTENT'));
       expect(source, contains('provider?.packageName == packageName'));
+    });
+
+    test('says why a shared file is missing, and how many were shared', () {
+      const file = 'ShareReceiverActivity.kt';
+      expect(_constant(file, 'ERROR_PARAMETER'), SharedFiles.errorParameter);
+      expect(_constant(file, 'NAME_PARAMETER'), SharedFiles.nameParameter);
+      expect(_constant(file, 'COUNT_PARAMETER'), SharedFiles.countParameter);
+      expect(
+        _constant(file, 'ERROR_TOO_LARGE'),
+        SharedFileError.tooLarge.value,
+      );
+      expect(
+        _constant(file, 'ERROR_UNREADABLE'),
+        SharedFileError.unreadable.value,
+      );
+      final source = _code(_read('$_kotlin/$file'));
+      expect(source, contains('Intent.ACTION_SEND_MULTIPLE ->'));
+      // Too large, unreadable and empty files keep their token.
+      expect(source, contains('Stored(token, ERROR_TOO_LARGE, name)'));
+      expect(RegExp('return null').hasMatch(_function(file, 'store')), isFalse);
+      // The link the router reads.
+      final link = Uri.parse(
+        'mozhi://documents?shared=0123456789abcdef0123456789abcdef'
+        '&shared_error=too_large&name=big%20file.pdf&shared_count=3',
+      );
+      final location = Uri.parse(appRedirect(link, null)!);
+      expect(location.path, AppRoutes.documents);
+      expect(
+        SharedFileError.tryParse(
+          location.queryParameters[SharedFiles.errorParameter],
+        ),
+        SharedFileError.tooLarge,
+      );
+      expect(
+        location.queryParameters[SharedFiles.nameParameter],
+        'big file.pdf',
+      );
+      expect(SharedFiles.sharedSeveral(location.queryParameters), isTrue);
     });
 
     test('opens the image and document screens with the token', () {

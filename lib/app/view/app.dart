@@ -22,6 +22,7 @@ import 'package:mozhi/history/view/widgets/history_retention_listener.dart';
 import 'package:mozhi/image_translate/data/lost_image_recovery.dart'
     deferred as lost_image;
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/offline/widgets/offline_download_failure_listener.dart';
 import 'package:mozhi/on_device_ai/data/on_device_ai.dart';
 import 'package:mozhi/on_device_ai/data/on_device_models.dart';
 import 'package:mozhi/onboarding/onboarding_redirect.dart';
@@ -31,9 +32,12 @@ import 'package:mozhi/platform/app_shell_scope.dart';
 import 'package:mozhi/platform/secure_screen_listener.dart';
 import 'package:mozhi/platform/shared_text_service.dart';
 import 'package:mozhi/platform/system_bars.dart';
+import 'package:mozhi/platform/web_address.dart';
+import 'package:mozhi/platform/web_storage_changes.dart';
 import 'package:mozhi/practice/data/practice_repository.dart';
 import 'package:mozhi/presets/view/presets_providers.dart';
 import 'package:mozhi/presets/widgets/saved_glossaries_binding.dart';
+import 'package:mozhi/quick_improve/view/quick_improve_sheet.dart';
 import 'package:mozhi/quick_translate/quick_translate_host.dart';
 import 'package:mozhi/quick_translate/view/quick_translate_sheet.dart';
 import 'package:mozhi/screen_translate/screen_translate_host.dart';
@@ -46,6 +50,7 @@ import 'package:mozhi/speech/speech_service.dart';
 import 'package:mozhi/sync/data/sync_service.dart';
 import 'package:mozhi/sync/view/sync_scope.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
+import 'package:mozhi/translate/data/translate_draft_keeper.dart';
 import 'package:mozhi/usage/data/usage_tracker.dart';
 import 'package:mozhi/usage/widgets/usage_warning_listener.dart';
 import 'package:mozhi/voice/offline/offline_speech.dart';
@@ -55,7 +60,8 @@ import 'package:translation_repository/translation_repository.dart';
 /// Root widget: provides the [AppDependencies] and the app-wide cubits,
 /// keeps the [TranslationRepository] in sync with the settings, shows the
 /// first-run onboarding and routes text shared by the OS (quick translate
-/// for selections in other apps, the translate tab otherwise).
+/// for selections in other apps, quick improve for "Improve with Mozhi"
+/// ones, the translate tab otherwise).
 class App extends StatefulWidget {
   const new({required this.dependencies, super.key});
 
@@ -86,6 +92,21 @@ class _AppState extends State<App> {
   /// with its own copy of the settings, and a change made in another one
   /// (Offline only, above all) must hold here before anything is sent.
   late final AppLifecycleListener _resumeListener;
+
+  /// Reads the settings again when another tab of the web app changed
+  /// them (see [_resumeListener]).
+  late final StreamSubscription<String?> _settingsStorage;
+
+  /// The translator's and the history's part of coming back to the
+  /// front: the Mozhi engines that could not be listed (no network at
+  /// launch) are listed again, and the history is read again (another
+  /// window of the app, like the quick translate window or another browser
+  /// tab, may have saved to it).
+  late final AppLifecycleListener _translateLifecycle;
+
+  /// Keeps the Translate input across the app being ended in the
+  /// background (main window only, see [_keepsDraft]).
+  late final TranslateDraftKeeper _draft;
   late final SharedTextHandler _sharedText;
   final _navigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
   final _messengerKey = GlobalKey<ScaffoldMessengerState>();
@@ -95,15 +116,21 @@ class _AppState extends State<App> {
   @override
   void initState() {
     super.initState();
-    _settingsCubit = SettingsCubit(
-      repository: _deps.settingsRepository,
-      // Without "Remember quality selection" each start begins in the
-      // default quality mode.
-      initial: _deps.settings.atLaunch(),
-    );
+    _settingsCubit =
+        SettingsCubit(
+            repository: _deps.settingsRepository,
+            initial: _deps.settings,
+          )
+          // Without "Remember quality selection" each start begins in the
+          // default quality mode (stored too: the settings are read again).
+          ..update((settings) => settings.atLaunch());
     _resumeListener = AppLifecycleListener(
       onResume: () => unawaited(_settingsCubit.load()),
     );
+    // The web app's other tabs: each has its own copy of the settings.
+    _settingsStorage = webStorageChanges()
+        .where(SettingsCubit.isStorageKey)
+        .listen((_) => unawaited(_settingsCubit.load()));
     // Before anything is shown: whether it may be. A provided lock starts
     // with the settings' timeout too.
     _appLock =
@@ -142,6 +169,24 @@ class _AppState extends State<App> {
     );
     // The engines are needed by the first screen: start right away.
     unawaited(_translateCubit.loadEngines());
+    _draft = TranslateDraftKeeper(
+      translate: _translateCubit,
+      history: _historyCubit,
+      store: _deps.historyRepository,
+    );
+    if (_keepsDraft) _draft.start();
+    void saveDraft() {
+      if (_keepsDraft) unawaited(_draft.save());
+    }
+
+    _translateLifecycle = AppLifecycleListener(
+      onResume: () {
+        unawaited(_translateCubit.reloadEnginesIfNeeded());
+        unawaited(_historyCubit.refresh());
+      },
+      onHide: saveDraft,
+      onPause: saveDraft,
+    );
     _lookUpTailnetServers(_settingsCubit.state);
     // Installing, deleting or choosing an on-device model changes its AI
     // providers (computed locally: nothing to refresh over the network).
@@ -171,7 +216,13 @@ class _AppState extends State<App> {
           : onboardingRedirect(_settingsCubit.state, location) ??
                 homeRedirect(_settingsCubit.state, location),
     );
-    if (webLink != null) _openLink(webLink); // coverage:ignore-line
+    // coverage:ignore-start
+    if (webLink != null) {
+      _openLink(webLink);
+      // Handled once: a reload must not send it again.
+      clearWebAddressQuery();
+    }
+    // coverage:ignore-end
     // Links that arrive before the app lock first shows the router still
     // reach it: the route information provider only listens to the
     // platform while it has a listener.
@@ -182,6 +233,9 @@ class _AppState extends State<App> {
       translateCubit: _translateCubit,
       onShowTranslate: () => _router.go(AppRoutes.translate),
       onQuickTranslate: (request) => unawaited(_showQuickTranslate(request)),
+      onQuickImprove: (request) => unawaited(_showQuickImprove(request)),
+      onShowProofread: (text) =>
+          _router.go(AppRoutes.proofreadText(text: text)),
       // Nothing shared fills the translator, translates or is saved while
       // the app is locked; the clipboard is read once unlocked.
       untilUnlocked: _appLock.untilUnlocked,
@@ -202,8 +256,25 @@ class _AppState extends State<App> {
   void _loadAfterFirstFrame() {
     if (!mounted) return;
     unawaited(_historyCubit.load());
+    unawaited(_restoreDraft());
     unawaited(_deps.usageTracker.load().then<void>((_) {}, onError: (_) {}));
     unawaited(_recoverLostPhoto());
+  }
+
+  /// Whether this window keeps the Translate draft: the main window only
+  /// (the quick translate and screen-translate windows have their own
+  /// input, which must not replace it).
+  bool get _keepsDraft =>
+      !QuickTranslateHost.instance.isActive &&
+      !ScreenTranslateHost.instance.isActive;
+
+  /// Puts the input kept when the app was last ended in the background
+  /// back (once the app is unlocked, like the history; text shared or
+  /// linked meanwhile wins).
+  Future<void> _restoreDraft() async {
+    if (!_keepsDraft) return;
+    await _appLock.untilUnlocked();
+    if (mounted) await _draft.restore();
   }
 
   /// Reads the history (held since the start, see [initState]) once the
@@ -242,6 +313,9 @@ class _AppState extends State<App> {
   @override
   void dispose() {
     _resumeListener.dispose();
+    unawaited(_settingsStorage.cancel());
+    _translateLifecycle.dispose();
+    _draft.dispose();
     unawaited(_sharedText.dispose());
     _router.routeInformationProvider.removeListener(_keepRouteLinks);
     unawaited(_linkHold.dispose());
@@ -295,6 +369,33 @@ class _AppState extends State<App> {
       onReplace: request.onReplace,
       onOpenInApp: request.onOpenInApp,
       offlineOnly: request.offlineOnly,
+    );
+  }
+
+  /// Text selected with "Improve with Mozhi" in another app: the quick
+  /// improve sheet (dialog on wide windows) above whatever is shown.
+  Future<void> _showQuickImprove(QuickImproveRequest request) async {
+    // The app lock first: nothing of the app shows while it is locked.
+    await _appLock.untilUnlocked();
+    if (!mounted) return;
+    var context = _navigatorKey.currentContext;
+    // coverage:ignore-start
+    if (context == null) {
+      // Called before the first frame: wait for the navigator.
+      await WidgetsBinding.instance.endOfFrame;
+      context = _navigatorKey.currentContext;
+    }
+    if (!mounted || context == null || !context.mounted) {
+      // The Proofread tab sends nothing until the user asks.
+      request.onOpenInProofread();
+      return;
+    }
+    // coverage:ignore-end
+    await showQuickImprove(
+      context,
+      text: request.text,
+      onReplace: request.onReplace,
+      onOpenInProofread: request.onOpenInProofread,
     );
   }
 
@@ -505,7 +606,13 @@ class _AppState extends State<App> {
                                       // its "Update ready" notice.
                                       child: AppShellScope(
                                         messengerKey: _messengerKey,
-                                        child: child ?? const SizedBox.shrink(),
+                                        // Offline downloads that failed
+                                        // after their screen closed.
+                                        child: OfflineDownloadFailureListener(
+                                          messengerKey: _messengerKey,
+                                          child:
+                                              child ?? const SizedBox.shrink(),
+                                        ),
                                       ),
                                     ),
                                   ),

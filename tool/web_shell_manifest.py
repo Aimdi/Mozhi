@@ -25,10 +25,14 @@ other files has another version, which the browser installs as an update.
   only the offline engine's worker and WebAssembly files).
 - Lazy (`"lazy": true`, kept when a page first loads them instead of at
   the install): the fallback fonts (`fallback_fonts/`, 22 MB, of which a
-  page needs the fonts of the scripts it shows) and the renderer files no
-  build of `_flutter.buildConfig` in flutter_bootstrap.js loads (the
-  `skwasm`, `skwasm_heavy` and `wimp` renderers without a WebAssembly
-  build of the app, and CanvasKit's experimental `webparagraph` variant).
+  page needs the fonts of the scripts it shows), both CanvasKit variants
+  (`canvaskit/canvaskit.*` and `canvaskit/chromium/canvaskit.*`, about
+  7 MB each, of which a browser loads one: the page reports it, and the
+  worker's install takes it from the browser's HTTP cache) and the
+  renderer files no build of `_flutter.buildConfig` in flutter_bootstrap.js
+  loads (the `skwasm`, `skwasm_heavy` and `wimp` renderers without a
+  WebAssembly build of the app, and CanvasKit's experimental
+  `webparagraph` variant).
 - `index.html` is hashed with the value of its `<base href>` emptied
   (`"base": true`), so that changing it to serve the app from a sub-path
   keeps the manifest valid.
@@ -61,7 +65,9 @@ EXCLUDED_SUFFIXES = (".map", ".symbols")
 EXCLUDED_DIRS = ("models/",)
 ENGINE_DIR = "bergamot/"
 
-LAZY_DIRS = ("fallback_fonts/", "canvaskit/webparagraph/")
+LAZY_DIRS = ("fallback_fonts/", "canvaskit/webparagraph/", "canvaskit/chromium/")
+# CanvasKit's full variant (browsers without the Chromium variant's needs).
+CANVASKIT_FILES = re.compile(r"^canvaskit/canvaskit\.(?:js|wasm)$")
 # Renderer files only a WebAssembly (skwasm) build of the app loads.
 SKWASM_FILES = re.compile(r"^canvaskit/(?:skwasm|skwasm_heavy|wimp)\.(?:js|wasm)$")
 
@@ -122,7 +128,7 @@ def wasm_build(build: Path) -> bool:
 
 def lazy(path: str, *, skwasm: bool) -> bool:
     """Whether the worker keeps [path] only once a page loads it."""
-    if path.startswith(LAZY_DIRS):
+    if path.startswith(LAZY_DIRS) or CANVASKIT_FILES.match(path):
         return True
     return not skwasm and SKWASM_FILES.match(path) is not None
 

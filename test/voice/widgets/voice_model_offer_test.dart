@@ -167,6 +167,34 @@ void main() {
       expect(find.text(l10n.voiceErrorUnavailableOfflineModel), findsNothing);
     });
 
+    testWidgets('a download can be cancelled; the offer stays', (tester) async {
+      final gate = Completer<void>();
+      onDownload = (id, {required overMetered}) => gate.future;
+      when(() => offline.cancelDownload(any())).thenAnswer((_) {
+        if (!gate.isCompleted) {
+          gate.completeError(const WhisperDownloadCancelledException('tiny'));
+        }
+      });
+      await pump(tester);
+      await tapMic(tester);
+      await tester.tap(find.byKey(VoiceModelOfferDialog.downloadKey));
+      await tester.pump();
+      await tester.pump();
+
+      final label = l10n.voiceModelCancelDownloadTooltip(l10n.voiceModelFast);
+      expect(find.bySemanticsLabel(label), findsOneWidget);
+      await tester.tap(find.byKey(VoiceModelCancelButton.buttonKey));
+      await settle(tester);
+
+      verify(() => offline.cancelDownload('tiny')).called(1);
+      expect(find.byType(VoiceModelOfferDialog), findsOneWidget);
+      expect(find.byKey(VoiceModelOfferDialog.progressKey), findsNothing);
+      expect(find.byKey(VoiceModelCancelButton.buttonKey), findsNothing);
+      // Nothing failed: no error, and it can be downloaded again.
+      expect(find.byKey(VoiceModelOfferDialog.downloadKey), findsOneWidget);
+      expect(whisper.requests, isEmpty);
+    });
+
     testWidgets('downloading installs it and starts listening', (tester) async {
       final gate = Completer<void>();
       onDownload = (id, {required overMetered}) async {

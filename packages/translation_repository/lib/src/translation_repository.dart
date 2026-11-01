@@ -225,6 +225,17 @@ class TranslationRepository {
   /// revalidations started before do not repopulate them.
   int _metadataGeneration = 0;
 
+  /// See [mozhiEnginesNeedReload].
+  bool _mozhiEnginesFailed = false;
+
+  /// Whether the last load of the Mozhi engine list reached no instance
+  /// (no network at launch, every server down): [getEngines] then served
+  /// the stored list of any age, or listed no Mozhi engine without one.
+  /// Nothing is kept in memory then, so the next [getEngines] loads the
+  /// list again: call it (e.g. when the app comes back to the front) to get
+  /// the Mozhi engines back. False again once a load succeeds.
+  bool get mozhiEnginesNeedReload => _mozhiEnginesFailed;
+
   /// Fires when a background revalidation (see [getEngines]) found a Mozhi
   /// engine or language list that differs from the persisted one served
   /// before. Listeners reload the lists (the fresh ones are then served
@@ -326,6 +337,15 @@ class TranslationRepository {
   /// that language twice (`ja>ja`); proofreading and language detection
   /// use `auto>auto`.
   static String pairKey(String source, String target) => '$source>$target';
+
+  /// Whether [error] is one of Mozhi's own validation errors, which every
+  /// instance would repeat: an invalid language code ("Target language code
+  /// invalid"), an engine the instance does not have ("Engine does not
+  /// exist or has been disabled"), a missing parameter. The real server
+  /// reports them as HTTP 500, but no server failed: the request was wrong
+  /// for the engine.
+  static bool isMozhiInputError(Object? error) =>
+      error is MozhiApiException && MozhiPool.isInputError(error);
 
   /// The provider id ([AiProviderConfig.id]) of an AI or machine
   /// translation engine id (`ai:<id>`, `mt:<id>`), else null: what
@@ -785,9 +805,11 @@ class TranslationRepository {
   /// served one in memory and [metadataChanged] fires. A failed background
   /// reload keeps nothing in memory, so the next call tries again. Without
   /// a usable stored list, the list is loaded as without a store. With
-  /// `refresh: true` the engine list is loaded from the network first and
-  /// the stored one is only the fallback when no instance answers. Failures
-  /// are never stored; corrupt stored data is ignored. AI, machine
+  /// `refresh: true` the engine list is loaded from the network first.
+  /// When no instance answers, the stored list of any age is served
+  /// (nothing is kept in memory, so the next call tries the network again;
+  /// see [mozhiEnginesNeedReload]). Failures are never stored; corrupt
+  /// stored data is ignored. AI, machine
   /// translation and offline engines are computed locally and not stored.
   ///
   /// In [PrivacyMode.offlineOnly] nothing is loaded over the network: the
@@ -812,10 +834,18 @@ class TranslationRepository {
         if (provider.enabled) _engineFor(provider),
       if (hasOfflineEngine) TranslationEngine.offline(),
     ];
-    if (_mozhi.instances.isEmpty) return others;
+    if (_mozhi.instances.isEmpty) {
+      _mozhiEnginesFailed = false;
+      return others;
+    }
     try {
       return [...await _loadMozhiEngines(networkFirst: refresh), ...others];
+    } on ConsentRequiredException {
+      // Not loaded over the network by choice (see metadataDeferred).
+      if (others.isEmpty) rethrow;
+      return others;
     } on Object {
+      _mozhiEnginesFailed = true;
       if (others.isEmpty) rethrow;
       return others;
     }
@@ -865,6 +895,7 @@ class TranslationRepository {
     build: _enginesFromJson,
     engineId: 'mozhi:',
     networkFirst: networkFirst,
+    onLoaded: ({required failed}) => _mozhiEnginesFailed = failed,
   );
 
   /// Mozhi engines from their JSON form (`[{"id": ..., "name": ...}]`);
@@ -981,6 +1012,7 @@ class TranslationRepository {
     required T Function(Object? json, MozhiInstance instance) build,
     required String engineId,
     bool networkFirst = false,
+    void Function({required bool failed})? onLoaded,
   }) {
     String keyFor(String url) => suffix.isEmpty ? url : '$url|$suffix';
     final name = suffix.isEmpty ? 'engines' : suffix;
@@ -1001,6 +1033,7 @@ class TranslationRepository {
       try {
         final (url, json, value) = await load();
         if (generation != _metadataGeneration) return;
+        onLoaded?.call(failed: false);
         await _metadata?.write(url, name, json);
         if (!identical(cache[key], future)) return;
         cache
@@ -1025,6 +1058,7 @@ class TranslationRepository {
       try {
         final (url, json, value) = await load();
         if (generation == _metadataGeneration) {
+          onLoaded?.call(failed: false);
           unawaited(_metadata?.write(url, name, json));
         }
         final actual = keyFor(url);
@@ -1036,10 +1070,12 @@ class TranslationRepository {
         return value;
       } on Object {
         cache.removeWhere((_, value) => identical(value, future));
-        if (networkFirst) {
-          final stored = await _readStored(name, build);
-          if (stored != null) return stored.value;
-        }
+        if (generation == _metadataGeneration) onLoaded?.call(failed: true);
+        // No instance answered (no network at launch, say): a stored list
+        // of any age beats none. It is not kept in memory, so the next
+        // call tries the network again.
+        final stored = await _readStored(name, build, anyAge: true);
+        if (stored != null) return stored.value;
         rethrow;
       }
     }
@@ -3193,7 +3229,8 @@ class TranslationRepository {
   /// [maskPersonalData]) [text] and [context] are masked together, and the
   /// result gets the values back (its edits are located in [text]) and
   /// says how many items stayed on the device
-  /// ([ProofreadResult.maskedPersonalData]).
+  /// ([ProofreadResult.maskedPersonalData]). A [tone] other than
+  /// [WritingTone.automatic] rewrites toward that tone.
   Future<ProofreadResult> proofread(
     TranslationEngine engine,
     String text, {
@@ -3204,6 +3241,7 @@ class TranslationRepository {
     ProofreadVariety? variety,
     String context = '',
     String uiLanguage = 'English',
+    WritingTone tone = WritingTone.automatic,
   }) {
     final shield = _shieldTexts(_destinationFor(engine), [text, context]);
     return _chatJson(
@@ -3218,6 +3256,7 @@ class TranslationRepository {
           variety: variety,
           context: shield.texts[1],
           uiLanguage: uiLanguage,
+          tone: tone,
         ),
       ),
       (output) {
@@ -3229,6 +3268,54 @@ class TranslationRepository {
             ? result
             : result.withMaskedPersonalData(shield.personalCount);
       },
+      source: Language.auto.code,
+      target: Language.auto.code,
+    );
+  }
+
+  /// Up to [count] alternative phrasings of [span], a sentence or phrase
+  /// of [text] (which the model gets as context), with the AI [engine]
+  /// (see [TranslationPrompts.rephrase] and
+  /// [ResponseParsers.parseRephrasings]): each is a drop-in replacement for
+  /// exactly [span], in its language, written in [style] and, unless
+  /// automatic, toward [tone] and [formality]. None equals [span]; the list
+  /// may be empty.
+  ///
+  /// With the personal data shield (see [maskPersonalData]) [text] and
+  /// [span] are masked together and the alternatives get the values back.
+  /// Throws an [ArgumentError] when [span] is blank.
+  Future<List<String>> rephrase(
+    TranslationEngine engine,
+    String text,
+    String span, {
+    WritingStyle style = WritingStyle.general,
+    WritingTone tone = WritingTone.automatic,
+    Formality formality = Formality.automatic,
+    int count = 3,
+    String uiLanguage = 'English',
+  }) async {
+    if (span.trim().isEmpty) {
+      throw ArgumentError.value(span, 'span', 'Is empty');
+    }
+    final shield = _shieldTexts(_destinationFor(engine), [text, span]);
+    return await _chatJson(
+      engine,
+      () => shield.withNote(
+        TranslationPrompts.rephrase(
+          shield.texts[0],
+          shield.texts[1],
+          style: style,
+          tone: tone,
+          formality: formality,
+          count: count,
+          uiLanguage: uiLanguage,
+        ),
+      ),
+      (output) => ResponseParsers.parseRephrasings(
+        shield.restore(output),
+        span: span,
+        count: count.clamp(1, TranslationPrompts.maxRephrasings),
+      ),
       source: Language.auto.code,
       target: Language.auto.code,
     );

@@ -312,14 +312,12 @@ List<HistoryEntry> translateHistoryTail({
 
 /// Shows [entry] again, like "Continue" (`TranslateCubit.restoreHistoryEntry`:
 /// nothing is sent); where that is not possible (compare mode), the way
-/// the History tab opens it (its languages, then its text translated).
+/// the History tab opens it (`TranslateCubit.openHistoryEntry`: its
+/// languages and text, translated once).
 void restoreTranslateHistoryEntry(BuildContext context, HistoryEntry entry) {
   final cubit = context.read<TranslateCubit>();
   if (cubit.restoreHistoryEntry(entry)) return;
-  cubit
-    ..setSource(entry.source)
-    ..setTarget(entry.target)
-    ..setInputAndTranslate(entry.text);
+  cubit.openHistoryEntry(entry);
 }
 
 /// The terminal look's header of the translate screen: `// <greeting>`

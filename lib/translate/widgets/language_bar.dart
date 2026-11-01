@@ -841,10 +841,11 @@ class _LanguageButton extends StatelessWidget {
   }
 
   /// The terminal look's cell: `--from <language>` (`--to` for the
-  /// target) with the first form that fits (the name, else the code),
-  /// else the first form that fits without the flag; no chevron, language
-  /// codes in lower case (`en`, `pt-br`). Same tooltip, semantics and
-  /// motion.
+  /// target) with the name, else the name alone, else the first short
+  /// form (the code) that fits with the flag, else without it ("Detect
+  /// language": its short forms with the flag before the phrase alone); no
+  /// chevron, language codes in lower case (`en`, `pt-br`). Same tooltip,
+  /// semantics and motion.
   Widget _terminal(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
@@ -853,6 +854,13 @@ class _LanguageButton extends StatelessWidget {
       fontWeight: FontWeight.w700,
     );
     final flag = target ? '--to' : '--from';
+    // The short forms are codes ("EN"): the name goes without the flag
+    // before them.
+    final nameFirst = forms
+        .skip(1)
+        .every(
+          (form) => form.text == null || form.text == form.text!.toUpperCase(),
+        );
 
     Widget content(LanguageLabelForm form, {required bool flagged}) {
       final (:icon, :text) = form;
@@ -902,14 +910,21 @@ class _LanguageButton extends StatelessWidget {
         child: Semantics(
           label: semanticLabel,
           excludeSemantics: true,
-          // With the flag while any form fits with it ("--from en"), then
-          // without it.
+          // A language's name tells more than the flag: the name with the
+          // flag, then without it, then its codes with the flag ("--from
+          // en"), then without it. "Detect language" keeps the flag before
+          // its short form ("--from ✨ auto"), like before.
           child: FirstThatFits(
             children: [
-              for (final form in forms)
+              for (final form in forms.take(1)) ...[
+                content(form, flagged: true),
+                if (nameFirst) content(form, flagged: false),
+              ],
+              for (final form in forms.skip(1))
                 if (form.icon != null || form.text != null)
                   content(form, flagged: true),
-              for (final form in forms) content(form, flagged: false),
+              for (final form in nameFirst ? forms.skip(1) : forms)
+                content(form, flagged: false),
             ],
           ),
         ),

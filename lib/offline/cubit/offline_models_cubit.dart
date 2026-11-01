@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:bloc/bloc.dart';
 import 'package:mozhi/core/key_value_store.dart';
+import 'package:mozhi/offline/cubit/offline_download_notices.dart';
 import 'package:mozhi/offline/cubit/offline_models_state.dart';
 import 'package:mozhi/offline/data/offline_model_details.dart';
 import 'package:mozhi/offline/data/offline_model_error.dart';
@@ -7,6 +10,7 @@ import 'package:mozhi/offline/data/offline_model_file_picker.dart';
 import 'package:mozhi/offline/data/offline_model_import.dart';
 import 'package:translation_repository/translation_repository.dart';
 
+export 'offline_download_notices.dart';
 export 'offline_models_state.dart';
 
 /// Describes an offline language code for display.
@@ -40,6 +44,13 @@ typedef OfflineLanguageDescriber = OfflineLanguage Function(String code);
 /// [OfflineModelsState.canCancel] is true and [cancelDownload] stops a
 /// running download or update quietly: no outcome (so no message), and the
 /// language stays as it was (what was received is kept for resuming).
+///
+/// Downloads go on when the cubit closes. With `details` that are
+/// [OfflineRunningDownloads], [load] shows the downloads running already
+/// (started on another screen): pending, with their progress, and their
+/// outcome once they end. A download or update that fails after every
+/// cubit showing it has closed is told app-wide through `notices` (default
+/// [OfflineDownloadNotices.instance]).
 class OfflineModelsCubit extends Cubit<OfflineModelsState> {
   new({
     required this._translator,
@@ -48,7 +59,9 @@ class OfflineModelsCubit extends Cubit<OfflineModelsState> {
     OfflineModelImport? importer,
     this._picker = const OfflineModelFilePicker(),
     this._describe = describeOfflineLanguage,
-  }) : _importer =
+    OfflineDownloadNotices? notices,
+  }) : _notices = notices ?? OfflineDownloadNotices.instance,
+       _importer =
            importer ??
            switch (_details) {
              final OfflineModelImport details => details,
@@ -64,6 +77,13 @@ class OfflineModelsCubit extends Cubit<OfflineModelsState> {
   final OfflineModelImport? _importer;
   final OfflineModelFilePicker _picker;
   final OfflineLanguageDescriber _describe;
+  final OfflineDownloadNotices _notices;
+
+  /// The running operations by language code.
+  final _runs = <String, Future<void>>{};
+
+  /// The downloads this cubit follows, by language code.
+  final _watchers = <String, OfflineDownloadWatcher>{};
 
   Future<void> load() async {
     emit(state.copyWith(status: OfflineModelsStatus.loading));
@@ -112,6 +132,7 @@ class OfflineModelsCubit extends Cubit<OfflineModelsState> {
           canCancel: available && _translator is CancellableDownloads,
         ),
       );
+      if (available) _attachRunning();
     } on Object catch (error, stackTrace) {
       if (isClosed) return;
       emit(
@@ -123,7 +144,8 @@ class OfflineModelsCubit extends Cubit<OfflineModelsState> {
 
   /// Downloads the models for [code] (or updates them when a newer version
   /// exists), honouring [OfflineModelsState.wifiOnly] unless
-  /// [overMeteredNetwork] (the user chose "Download anyway").
+  /// [overMeteredNetwork] (the user chose "Download anyway"). While an
+  /// operation on [code] runs, this waits for it instead.
   Future<void> download(String code, {bool overMeteredNetwork = false}) {
     final wifiOnly = state.wifiOnly && !overMeteredNetwork;
     final details = _details;
@@ -230,50 +252,131 @@ class OfflineModelsCubit extends Cubit<OfflineModelsState> {
   /// Filters [OfflineModelsState.visible] (case-insensitive).
   void search(String query) => emit(state.copyWith(query: query));
 
+  /// The downloads running already (started on another screen, see
+  /// [OfflineRunningDownloads]): pending here too, with their progress and
+  /// outcome.
+  void _attachRunning() {
+    final Map<String, OfflineRunningDownload> running;
+    try {
+      running = switch (_details) {
+        final OfflineRunningDownloads details => details.runningDownloads,
+        _ => const {},
+      };
+    } on Object catch (error, stackTrace) {
+      addError(error, stackTrace);
+      return;
+    }
+    for (final MapEntry(key: code, value: download) in running.entries) {
+      if (_runs.containsKey(code)) continue;
+      unawaited(
+        _run(
+          code,
+          state.isOutdated(code)
+              ? OfflineModelOperation.update
+              : OfflineModelOperation.download,
+          () async {
+            final changes = download.progressChanges.listen(
+              (fraction) => _reportProgress(code, fraction),
+            );
+            try {
+              await download.result;
+            } finally {
+              await changes.cancel();
+            }
+          },
+          (downloaded) => {...downloaded, code},
+        ),
+      );
+      if (download.progress > 0) _reportProgress(code, download.progress);
+    }
+  }
+
+  /// Runs [operation] on [code] once at a time: while it runs, callers get
+  /// the running one.
   Future<void> _run(
     String code,
     OfflineModelOperation operation,
     Future<void> Function() action,
     Set<String> Function(Set<String> downloaded) update,
+  ) {
+    if (_runs[code] case final running?) return running;
+    if (state.pending.containsKey(code)) return Future.value();
+    return _runs[code] = _runOnce(code, operation, action, update);
+  }
+
+  Future<void> _runOnce(
+    String code,
+    OfflineModelOperation operation,
+    Future<void> Function() action,
+    Set<String> Function(Set<String> downloaded) update,
   ) async {
-    if (state.pending.containsKey(code)) return;
+    final watcher = operation == OfflineModelOperation.delete
+        ? null
+        : _watchers[code] = _notices.join(code);
     emit(
       state.copyWith(
         pending: {...state.pending, code: operation},
         outcome: () => null,
       ),
     );
-    final (:failure, :cancelled) = await _attempt(action);
-    final succeeded = failure == null && !cancelled;
-    // Cancelled by the user (whatever the download said as it stopped):
-    // nothing to report.
-    final quiet = !succeeded && (cancelled || state.cancelling.contains(code));
-    // With details the engine knows best what is downloaded now; reading
-    // the storage again also refreshes sizes and updates after a failure
-    // (e.g. a discarded download).
-    final fallback = succeeded ? update(state.downloaded) : null;
-    final downloaded = _details != null
-        ? await _readDownloaded() ?? fallback
-        : fallback;
-    final storage = _details != null ? await _readStorage() : state.storage;
-    if (isClosed) return;
-    emit(
-      state.copyWith(
-        downloaded: downloaded,
-        storage: () => storage,
-        pending: {...state.pending}..remove(code),
-        progress: {...state.progress}..remove(code),
-        cancelling: {...state.cancelling}..remove(code),
-        outcome: () => quiet
-            ? null
-            : OfflineModelOutcome(
-                language: _languageOf(code),
-                operation: operation,
-                succeeded: succeeded,
-                error: failure,
-              ),
-      ),
-    );
+    try {
+      final (:failure, :cancelled) = await _attempt(action);
+      final succeeded = failure == null && !cancelled;
+      // Cancelled by the user (whatever the download said as it stopped):
+      // nothing to report.
+      final quiet =
+          !succeeded && (cancelled || state.cancelling.contains(code));
+      final outcome = quiet
+          ? null
+          : OfflineModelOutcome(
+              language: _languageOf(code),
+              operation: operation,
+              succeeded: succeeded,
+              error: failure,
+            );
+      // No screen shows this cubit any more: a failure goes app-wide.
+      void unseen() {
+        if (outcome != null && !succeeded) watcher?.failedUnseen(outcome);
+      }
+
+      if (isClosed) return unseen();
+      // With details the engine knows best what is downloaded now; reading
+      // the storage again also refreshes sizes and updates after a failure
+      // (e.g. a discarded download).
+      final fallback = succeeded ? update(state.downloaded) : null;
+      final downloaded = _details != null
+          ? await _readDownloaded() ?? fallback
+          : fallback;
+      final storage = _details != null ? await _readStorage() : state.storage;
+      if (isClosed) return unseen();
+      emit(
+        state.copyWith(
+          downloaded: downloaded,
+          storage: () => storage,
+          pending: {...state.pending}..remove(code),
+          progress: {...state.progress}..remove(code),
+          cancelling: {...state.cancelling}..remove(code),
+          outcome: () => outcome,
+        ),
+      );
+      if (outcome != null) watcher?.shown();
+    } finally {
+      unawaited(_runs.remove(code));
+      if (watcher != null) {
+        if (identical(_watchers[code], watcher)) _watchers.remove(code);
+        watcher.end();
+      }
+    }
+  }
+
+  /// The screen has gone; running downloads go on (see
+  /// [OfflineDownloadNotices]).
+  @override
+  Future<void> close() {
+    for (final watcher in _watchers.values) {
+      watcher.leave();
+    }
+    return super.close();
   }
 
   /// Runs [action]: no failure when it succeeds or was cancelled

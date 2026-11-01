@@ -582,4 +582,120 @@ void main() {
       },
     );
   });
+
+  group('reloadEnginesIfNeeded', () {
+    test('lists the engines again, quietly, when the Mozhi list could not be '
+        'loaded', () async {
+      when(() => mocks.repository.getEngines(refresh: any(named: 'refresh')))
+          .thenAnswer((_) async => const [claude]);
+      when(() => mocks.repository.mozhiEnginesNeedReload).thenReturn(true);
+      final cubit = mocks.build();
+      addTearDown(cubit.close);
+      mocks.stubSettings(const AppSettings(engineId: 'ai:claude'));
+      await cubit.loadEngines();
+      expect(cubit.state.engines, const [claude]);
+
+      // Back to the front with the network: the Mozhi engines come back.
+      when(() => mocks.repository.getEngines(refresh: any(named: 'refresh')))
+          .thenAnswer((_) async => allEngines);
+      final statuses = <EnginesStatus>[];
+      final subscription = cubit.stream.listen(
+        (state) => statuses.add(state.enginesStatus),
+      );
+      addTearDown(subscription.cancel);
+      await cubit.reloadEnginesIfNeeded();
+
+      expect(cubit.state.engines, allEngines);
+      expect(cubit.state.engine, claude);
+      expect(statuses, isNot(contains(EnginesStatus.loading)));
+      verify(() => mocks.repository.getEngines(refresh: any(named: 'refresh')))
+          .called(2);
+    });
+
+    test('does nothing when the lists loaded', () async {
+      when(() => mocks.repository.mozhiEnginesNeedReload).thenReturn(false);
+      final cubit = mocks.build();
+      addTearDown(cubit.close);
+      await cubit.loadEngines();
+      await cubit.reloadEnginesIfNeeded();
+      verify(() => mocks.repository.getEngines(refresh: any(named: 'refresh')))
+          .called(1);
+    });
+
+    test('does nothing with a repository that cannot tell', () async {
+      final cubit = mocks.build();
+      addTearDown(cubit.close);
+      await cubit.loadEngines();
+      await cubit.reloadEnginesIfNeeded();
+      verify(() => mocks.repository.getEngines(refresh: any(named: 'refresh')))
+          .called(1);
+    });
+  });
+
+  group('translate while the engines load', () {
+    const manual = AppSettings(
+      engineId: 'mozhi:google',
+      instantTranslate: false,
+      instantTranslateAi: false,
+    );
+
+    test('runs once an engine is ready instead of being dropped', () async {
+      final engines = Completer<List<TranslationEngine>>();
+      when(() => mocks.repository.getEngines(refresh: any(named: 'refresh')))
+          .thenAnswer((_) => engines.future);
+      mocks
+        ..stubSettings(manual)
+        ..stubTranslate();
+      final cubit = mocks.build();
+      addTearDown(cubit.close);
+      unawaited(cubit.loadEngines());
+      cubit.setInput('Hallo');
+
+      var done = false;
+      unawaited(cubit.translate().then((_) => done = true));
+      await Future<void>.delayed(Duration.zero);
+      verifyNever(() => mocks.repository.translate(any(), any()));
+      expect(done, isFalse);
+
+      engines.complete(allEngines);
+      await Future<void>.delayed(afterDebounce);
+
+      final request = mocks.translateRequests().single;
+      expect(request.text, 'Hallo');
+      expect(cubit.state.output, 'Hallo->en');
+      expect(done, isTrue);
+    });
+
+    test('is let go when the engines fail to load', () async {
+      final engines = Completer<List<TranslationEngine>>();
+      when(() => mocks.repository.getEngines(refresh: any(named: 'refresh')))
+          .thenAnswer((_) => engines.future);
+      mocks
+        ..stubSettings(manual)
+        ..stubTranslate();
+      final cubit = mocks.build();
+      addTearDown(cubit.close);
+      unawaited(cubit.loadEngines());
+      cubit.setInput('Hallo');
+      final pending = cubit.translate();
+
+      engines.completeError(const MozhiApiException('offline'));
+      await pending;
+
+      verifyNever(() => mocks.repository.translate(any(), any()));
+      expect(cubit.state.enginesStatus, EnginesStatus.failure);
+    });
+
+    test('is let go when the cubit closes', () async {
+      when(() => mocks.repository.getEngines(refresh: any(named: 'refresh')))
+          .thenAnswer((_) => Completer<List<TranslationEngine>>().future);
+      mocks.stubSettings(manual);
+      final cubit = mocks.build();
+      unawaited(cubit.loadEngines());
+      cubit.setInput('Hallo');
+      final pending = cubit.translate();
+      await cubit.close();
+      await expectLater(pending, completes);
+    });
+  });
 }

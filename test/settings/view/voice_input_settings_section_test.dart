@@ -157,6 +157,10 @@ void main() {
     return cubit;
   }
 
+  Finder findTooltip(String message) => find.byWidgetPredicate(
+    (widget) => widget is Tooltip && widget.message == message,
+  );
+
   group(VoiceInputSettingsSection, () {
     testWidgets('renders nothing without voice input', (tester) async {
       await pumpSection(tester, withSpeech: false);
@@ -389,6 +393,37 @@ void main() {
         find.byTooltip(l10n.voiceModelDownloadTooltip(l10n.voiceModelBetter)),
         findsNothing,
       );
+    });
+
+    testWidgets('a download can be cancelled from its tile', (tester) async {
+      when(() => offline.cancelDownload(any())).thenReturn(null);
+      final cubit = await pumpView(tester);
+      cubit.emit(
+        cubit.state.copyWith(
+          pending: {'base': VoiceModelOperation.download},
+          progress: {'base': 0.42},
+        ),
+      );
+      await settle(tester);
+
+      final label = l10n.voiceModelCancelDownloadTooltip(l10n.voiceModelBetter);
+      expect(find.bySemanticsLabel(label), findsOneWidget);
+      expect(findTooltip(label), findsOneWidget);
+      expect(
+        tester.getSize(find.byKey(VoiceModelCancelButton.buttonKey)).height,
+        greaterThanOrEqualTo(48),
+      );
+      await tester.tap(find.byKey(VoiceModelCancelButton.buttonKey));
+      verify(() => offline.cancelDownload('base')).called(1);
+    });
+
+    testWidgets('a deletion has no Cancel', (tester) async {
+      final cubit = await pumpView(tester);
+      cubit.emit(
+        cubit.state.copyWith(pending: {'base': VoiceModelOperation.delete}),
+      );
+      await settle(tester);
+      expect(find.byKey(VoiceModelCancelButton.buttonKey), findsNothing);
     });
 
     testWidgets('asks before downloading over mobile data', (tester) async {

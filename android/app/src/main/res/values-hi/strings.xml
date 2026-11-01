@@ -4,6 +4,7 @@
 <resources>
     <string name="translate_with_mozhi">Mozhi से अनुवाद करें</string>
     <string name="translate_offline">ऑफ़लाइन अनुवाद करें</string>
+    <string name="improve_with_mozhi">Mozhi से सुधारें</string>
     <string name="tile_translate_label">अनुवाद</string>
     <string name="tile_translate_description">Mozhi से क्लिपबोर्ड का अनुवाद करें</string>
     <string name="shortcut_clipboard_short">क्लिपबोर्ड</string>

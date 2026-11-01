@@ -17,8 +17,9 @@ class DictionaryPackItem extends Equatable {
 
   String get id => pack.id;
 
-  bool matches(String needle) =>
-      display.matches(needle) || pack.language.toLowerCase() == needle;
+  bool matches(String needle, {String? locale}) =>
+      display.matches(needle, locale: locale) ||
+      pack.language.toLowerCase() == needle.trim().toLowerCase();
 
   @override
   List<Object?> get props => [pack, display];
@@ -120,6 +121,30 @@ class DictionaryPacksState extends Equatable {
 
   List<DictionaryPackItem> get visibleAvailable => [
     for (final pack in visible)
+      if (!isInstalled(pack.id)) pack,
+  ];
+
+  /// [visible] as the UI language [locale] shows it: also matching the
+  /// names shown in it, sorted by them.
+  List<DictionaryPackItem> visibleIn(String locale) => [
+    for (final pack in offlineLanguagesFor(
+      packs,
+      (pack) => pack.display,
+      query: '',
+      locale: locale,
+    ))
+      if (pack.matches(query, locale: locale)) pack,
+  ];
+
+  /// [visibleInstalled] in [locale] (see [visibleIn]).
+  List<DictionaryPackItem> visibleInstalledIn(String locale) => [
+    for (final pack in visibleIn(locale))
+      if (isInstalled(pack.id)) pack,
+  ];
+
+  /// [visibleAvailable] in [locale] (see [visibleIn]).
+  List<DictionaryPackItem> visibleAvailableIn(String locale) => [
+    for (final pack in visibleIn(locale))
       if (!isInstalled(pack.id)) pack,
   ];
 

@@ -4,6 +4,7 @@
 <resources>
     <string name="translate_with_mozhi">Mozhi ile çevir</string>
     <string name="translate_offline">Çevrimdışı çevir</string>
+    <string name="improve_with_mozhi">Mozhi ile iyileştir</string>
     <string name="tile_translate_label">Çeviri</string>
     <string name="tile_translate_description">Panoyu Mozhi ile çevir</string>
     <string name="shortcut_clipboard_short">Pano</string>

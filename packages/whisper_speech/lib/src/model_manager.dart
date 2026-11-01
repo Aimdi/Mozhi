@@ -47,6 +47,17 @@ final class WhisperDownloadException extends WhisperModelInstallException {
   String get _name => 'WhisperDownloadException';
 }
 
+/// The download was cancelled ([WhisperModelManager.install]'s `abort`):
+/// nothing was installed, and the bytes received so far are kept for
+/// resuming ([WhisperModelManager.partialBytes]).
+final class WhisperDownloadCancelledException
+    extends WhisperModelInstallException {
+  const new(String model) : super(model, 'download cancelled');
+
+  @override
+  String get _name => 'WhisperDownloadCancelledException';
+}
+
 /// There is not enough free storage for the model ([requiredBytes]: what
 /// is left to download or copy plus a margin, see
 /// [WhisperModelManager.requiredSpace]); nothing was downloaded or copied.
@@ -286,7 +297,7 @@ class WhisperModelManager {
 
   final http.Client _client;
   final bool _ownsClient;
-  final Map<String, Future<InstalledWhisperModel>> _installing = {};
+  final Map<String, _Install> _installing = {};
   List<InstalledWhisperModel>? _installedCache;
 
   static const manifestName = 'manifest.json';
@@ -347,10 +358,43 @@ class WhisperModelManager {
   /// Downloads and installs [model], replacing another file installed
   /// under the same id. Returns at once when it is already installed.
   /// Concurrent calls for the same model share one download.
+  ///
+  /// Once [abort] completes, the download stops (its request is aborted,
+  /// the response closed) and the install fails with a
+  /// [WhisperDownloadCancelledException], for every caller sharing it;
+  /// the bytes received so far stay in the `.part` file and the next
+  /// [install] resumes from there. A file that is already verified and
+  /// being moved into place is installed anyway. An [install] started
+  /// while a cancelled one winds down waits for it, so two never write
+  /// the same file.
   Future<InstalledWhisperModel> install(
     WhisperCatalogModel model, {
     void Function(WhisperDownloadProgress progress)? onProgress,
-  }) => _exclusive(model, () => _install(model, onProgress));
+    Future<void>? abort,
+  }) {
+    final key = model.id;
+    var running = _installing[key];
+    if (running == null || running.cancel.isCancelled) {
+      final after = running?.settled;
+      final created = running = _Install();
+      Future<InstalledWhisperModel> start() =>
+          _install(model, onProgress, created.cancel);
+      created.start(
+        after == null ? Future.sync(start) : after.then((_) => start()),
+      );
+      _installing[key] = created;
+      unawaited(
+        created.settled.then((_) {
+          if (identical(_installing[key], created)) _installing.remove(key);
+        }),
+      );
+    }
+    final current = running;
+    if (abort != null) {
+      unawaited(abort.then((_) => current.cancel.cancel(), onError: (_) {}));
+    }
+    return current.result;
+  }
 
   /// Installs models from files copied to the device by hand (downloaded
   /// elsewhere from [WhisperCatalogModel.url]), without any network
@@ -486,8 +530,10 @@ class WhisperModelManager {
   Future<InstalledWhisperModel> _install(
     WhisperCatalogModel model,
     void Function(WhisperDownloadProgress progress)? onProgress,
+    _Cancel cancel,
   ) async {
     _checkSafe(model.id);
+    cancel.check(model);
     final current = await installedModel(model.id);
     if (current != null && current.matches(model)) return current;
 
@@ -503,26 +549,37 @@ class WhisperModelManager {
     final part = await _download(
       model,
       report,
+      cancel,
       mirror: mirror,
       fallbackToDefault: fallbackToDefault,
     );
+    // Verified: kept for the next install when cancelled now.
+    cancel.check(model);
     return await _installStaged(model, (staging) async {
       await part.rename(p.join(staging.path, model.name));
     });
   }
 
   /// Runs [run] (installing [model]) unless an install of the same model is
-  /// already running, which is then shared.
+  /// already running, which is then shared (and cannot be cancelled).
   Future<InstalledWhisperModel> _exclusive(
     WhisperCatalogModel model,
     Future<InstalledWhisperModel> Function() run,
   ) {
     final key = model.id;
-    // The callback must not return the removed future: whenComplete would
-    // then wait for itself.
-    return _installing[key] ??= run().whenComplete(() {
-      unawaited(_installing.remove(key));
-    });
+    if (_installing[key] case final running? when !running.cancel.isCancelled) {
+      return running.result;
+    }
+    final after = _installing[key]?.settled;
+    final created = _Install()
+      ..start(after == null ? Future.sync(run) : after.then((_) => run()));
+    _installing[key] = created;
+    unawaited(
+      created.settled.then((_) {
+        if (identical(_installing[key], created)) _installing.remove(key);
+      }),
+    );
+    return created.result;
   }
 
   /// Installs [model] from a fresh staging directory that [fill] puts the
@@ -560,7 +617,8 @@ class WhisperModelManager {
   /// verifies its size, SHA-1 and SHA-256 (when the catalog has it).
   Future<File> _download(
     WhisperCatalogModel model,
-    void Function(int bytes) report, {
+    void Function(int bytes) report,
+    _Cancel cancel, {
     Uri? mirror,
     bool fallbackToDefault = false,
   }) async {
@@ -581,6 +639,7 @@ class WhisperModelManager {
       final (response, from) = await _request(
         model,
         existing,
+        cancel,
         mirror: mirror,
         fallbackToDefault: fallbackToDefault,
       );
@@ -611,7 +670,8 @@ class WhisperModelManager {
           mode: resumed ? FileMode.writeOnlyAppend : FileMode.writeOnly,
         );
         try {
-          await for (final chunk in response.stream.timeout(requestTimeout)) {
+          final chunks = cancel.guard(response.stream).timeout(requestTimeout);
+          await for (final chunk in chunks) {
             received += chunk.length;
             if (received > model.size) {
               throw WhisperChecksumException(
@@ -630,8 +690,9 @@ class WhisperModelManager {
           await _deleteQuietly(part);
           rethrow;
         } on Object catch (error) {
-          // Interrupted: keep the part for resuming.
+          // Interrupted (or cancelled): keep the part for resuming.
           await sink.close();
+          cancel.check(model);
           throw WhisperDownloadException(
             model.id,
             '${model.name}${_from(source)}: $error',
@@ -683,7 +744,8 @@ class WhisperModelManager {
   /// [WhisperDownloadException].
   Future<(http.StreamedResponse, Uri?)> _request(
     WhisperCatalogModel model,
-    int existing, {
+    int existing,
+    _Cancel cancel, {
     required Uri? mirror,
     required bool fallbackToDefault,
   }) async {
@@ -696,12 +758,23 @@ class WhisperModelManager {
       final url = urls[i];
       final source = i == 0 ? mirror : null;
       final last = i == urls.length - 1;
-      final request = http.Request('GET', url);
+      cancel.check(model);
+      final request = http.AbortableRequest(
+        'GET',
+        url,
+        abortTrigger: cancel.future,
+      );
       if (existing > 0) request.headers['Range'] = 'bytes=$existing-';
       final http.StreamedResponse response;
       try {
-        response = await _client.send(request).timeout(requestTimeout);
+        response = await cancel.race(
+          _client.send(request).timeout(requestTimeout),
+          // Answered after the cancel: close it.
+          onLate: (late) =>
+              unawaited(late.stream.listen(null, onError: (_) {}).cancel()),
+        );
       } on Object catch (error) {
+        cancel.check(model);
         if (!last) continue;
         throw WhisperDownloadException(
           model.id,
@@ -767,7 +840,7 @@ class WhisperModelManager {
       // it fails, the file is installed instead.
       if (_installing[model.id] case final running?) {
         try {
-          await running;
+          await running.result;
         } on Object {
           // Installed from the file below.
         }
@@ -903,6 +976,118 @@ class WhisperModelManager {
 }
 
 /// An imported file did not match the model it was taken for.
+/// A running [WhisperModelManager.install] (or import): its [result] and
+/// how to cancel it.
+final class _Install {
+  final cancel = _Cancel();
+  late final Future<InstalledWhisperModel> result;
+
+  /// Completes (never with an error) when [result] does.
+  late final Future<void> settled;
+
+  void start(Future<InstalledWhisperModel> work) {
+    result = work;
+    settled = work.then<void>((_) {}, onError: (Object _) {});
+  }
+}
+
+/// Stops a download once [cancel] is called: requests sent with [future]
+/// as their abort trigger are aborted, [race]d futures and [guard]ed
+/// response streams end at once, and [check] throws a
+/// [WhisperDownloadCancelledException].
+final class _Cancel {
+  final _stopped = Completer<void>();
+
+  bool get isCancelled => _stopped.isCompleted;
+
+  /// Completes when [cancel] is called (never with an error).
+  Future<void> get future => _stopped.future;
+
+  void cancel() {
+    if (!_stopped.isCompleted) _stopped.complete();
+  }
+
+  void check(WhisperCatalogModel model) {
+    if (isCancelled) throw WhisperDownloadCancelledException(model.id);
+  }
+
+  /// [work], or a [_Cancelled] error as soon as [cancel] is called (for
+  /// clients that do not abort by the trigger); a result that comes after
+  /// that goes to [onLate].
+  Future<T> race<T>(Future<T> work, {void Function(T value)? onLate}) {
+    final result = Completer<T>();
+    unawaited(
+      work.then(
+        (value) {
+          if (result.isCompleted) {
+            onLate?.call(value);
+          } else {
+            result.complete(value);
+          }
+        },
+        onError: (Object error, StackTrace stackTrace) {
+          if (!result.isCompleted) result.completeError(error, stackTrace);
+        },
+      ),
+    );
+    unawaited(
+      future.then((_) {
+        if (!result.isCompleted) result.completeError(const _Cancelled());
+      }),
+    );
+    return result.future;
+  }
+
+  /// [stream] until [cancel] is called: then its subscription is cancelled
+  /// (closing the response) and the stream ends with a [_Cancelled] error
+  /// without waiting for the next chunk.
+  Stream<T> guard<T>(Stream<T> stream) {
+    final controller = StreamController<T>();
+    // Cancelled by stop() or onCancel.
+    // ignore: cancel_subscriptions
+    StreamSubscription<T>? subscription;
+    void stop() {
+      if (controller.isClosed) return;
+      final source = subscription;
+      subscription = null;
+      if (source != null) unawaited(source.cancel());
+      controller.addError(const _Cancelled());
+      unawaited(controller.close());
+    }
+
+    controller
+      ..onListen = () {
+        if (isCancelled) {
+          unawaited(stream.listen(null, onError: (Object _) {}).cancel());
+          return stop();
+        }
+        subscription = stream.listen(
+          controller.add,
+          onError: controller.addError,
+          onDone: () {
+            subscription = null;
+            unawaited(controller.close());
+          },
+        );
+        unawaited(future.then((_) => stop()));
+      }
+      ..onPause = (() => subscription?.pause())
+      ..onResume = (() => subscription?.resume())
+      ..onCancel = () {
+        final source = subscription;
+        subscription = null;
+        return source?.cancel();
+      };
+    return controller.stream;
+  }
+}
+
+/// Raised inside a cancelled download; turned into a
+/// [WhisperDownloadCancelledException].
+final class _Cancelled implements Exception {
+  const new();
+}
+
 final class _NotTheModel implements Exception {
   const new();
 }

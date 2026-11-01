@@ -33,7 +33,10 @@ Future<Directory> _supportFolder() async => Directory(
 /// * `<root>/.downloads/<id>-<random>.part`: a pack being written. It is
 ///   moved into place with one rename once it is checked, so a reader
 ///   never sees a partial pack.
-class FileDictionaryPackStorage implements DictionaryPackStorage {
+/// * `<root>/.downloads/<id>.part`: a pack being downloaded, kept when the
+///   download stops for resuming it ([partial]); next to it
+///   `<id>.part.json` records where it comes from and which version it is.
+class FileDictionaryPackStorage implements ResumableDictionaryPackStorage {
   /// [_root] is resolved on first use (the app's support directory needs a
   /// platform call).
   new({required this._root});
@@ -70,10 +73,82 @@ class FileDictionaryPackStorage implements DictionaryPackStorage {
   @override
   Future<DictionaryPackSink> create(String id) async {
     _check(id);
-    final downloads = Directory(_join((await _directory).path, '.downloads'));
+    final downloads = await _downloads;
     await downloads.create(recursive: true);
     final part = File(_join(downloads.path, '$id-${_randomSuffix()}.part'));
     return _FileSink(this, part, part.openWrite());
+  }
+
+  @override
+  Future<DictionaryPartialDownload?> partial(String id) async {
+    _check(id);
+    final (part, record) = await _partialFiles(id);
+    try {
+      if (!part.existsSync() || !record.existsSync()) return null;
+      final DictionaryPartialDownload? download;
+      try {
+        download = DictionaryPartialDownload.fromJson(
+          jsonDecode(await record.readAsString()),
+        );
+      } on FormatException {
+        await _deleteQuietly(part);
+        await _deleteQuietly(record);
+        return null;
+      }
+      final received = await part.length();
+      if (download == null || received <= 0 || received >= download.size) {
+        await _deleteQuietly(part);
+        await _deleteQuietly(record);
+        return null;
+      }
+      return DictionaryPartialDownload(
+        url: download.url,
+        size: download.size,
+        sha256: download.sha256,
+        received: received,
+      );
+    } on Object {
+      return null;
+    }
+  }
+
+  @override
+  Stream<List<int>> readPartial(String id) async* {
+    _check(id);
+    final (part, _) = await _partialFiles(id);
+    yield* part.openRead();
+  }
+
+  @override
+  Future<ResumableDictionaryPackSink> createPartial(
+    String id,
+    DictionaryPartialDownload download, {
+    required bool append,
+  }) async {
+    _check(id);
+    final downloads = await _downloads;
+    await downloads.create(recursive: true);
+    final (part, record) = await _partialFiles(id);
+    if (!append) await _deleteQuietly(part);
+    await record.writeAsString(jsonEncode(download.toJson()), flush: true);
+    return _FileSink(
+      this,
+      part,
+      part.openWrite(mode: append ? FileMode.append : FileMode.write),
+      record: record,
+    );
+  }
+
+  Future<Directory> get _downloads async =>
+      Directory(_join((await _directory).path, '.downloads'));
+
+  /// The kept download of [id] and its record.
+  Future<(File, File)> _partialFiles(String id) async {
+    final downloads = (await _downloads).path;
+    return (
+      File(_join(downloads, '$id.part')),
+      File(_join(downloads, '$id.part.json')),
+    );
   }
 
   @override
@@ -92,12 +167,13 @@ class FileDictionaryPackStorage implements DictionaryPackStorage {
     await _deleteQuietly(File(await _packPath(id)));
   }
 
-  /// Removes partial downloads and pack files without a record.
+  /// Removes partial writes (but the downloads kept for resuming, see
+  /// [partial]) and pack files without a record.
   @override
   Future<void> cleanUp() async {
     final directory = await _directory;
     if (!directory.existsSync()) return;
-    await _deleteQuietly(Directory(_join(directory.path, '.downloads')));
+    await _cleanDownloads();
     final installed = {
       for (final pack in await list())
         _join(directory.path, '${pack.id}$_extension'),
@@ -108,6 +184,43 @@ class FileDictionaryPackStorage implements DictionaryPackStorage {
             entry.path.endsWith(_extension) &&
             !installed.contains(entry.path)) {
           await _deleteQuietly(entry);
+        }
+      }
+      // coverage:ignore-start
+    } on FileSystemException {
+      // Best effort.
+    }
+    // coverage:ignore-end
+  }
+
+  /// Keeps only the downloads kept for resuming: `<id>.part` with its
+  /// `<id>.part.json`.
+  Future<void> _cleanDownloads() async {
+    final downloads = await _downloads;
+    if (!downloads.existsSync()) return;
+    final names = <String>{};
+    try {
+      await for (final entry in downloads.list()) {
+        names.add(_basename(entry.path));
+      }
+      for (final name in names) {
+        final id = name.endsWith('.part.json')
+            ? name.substring(0, name.length - '.part.json'.length)
+            : name.endsWith('.part')
+            ? name.substring(0, name.length - '.part'.length)
+            : null;
+        final kept =
+            id != null &&
+            isDictionaryPackId(id) &&
+            names.contains('$id.part') &&
+            names.contains('$id.part.json');
+        if (!kept) {
+          await _deleteQuietly(
+            FileSystemEntity.typeSync(_join(downloads.path, name)) ==
+                    FileSystemEntityType.directory
+                ? Directory(_join(downloads.path, name))
+                : File(_join(downloads.path, name)),
+          );
         }
       }
       // coverage:ignore-start
@@ -194,12 +307,15 @@ class FileDictionaryPackStorage implements DictionaryPackStorage {
   }
 }
 
-class _FileSink implements DictionaryPackSink {
-  new(this._storage, this._part, this._sink);
+class _FileSink implements ResumableDictionaryPackSink {
+  new(this._storage, this._part, this._sink, {this._record});
 
   final FileDictionaryPackStorage _storage;
   final File _part;
   final IOSink _sink;
+
+  /// The record of a download kept for resuming (dropped with it).
+  final File? _record;
   bool _closed = false;
 
   @override
@@ -212,7 +328,13 @@ class _FileSink implements DictionaryPackSink {
       await FileDictionaryPackStorage._deleteQuietly(_part);
       throw FileSystemException('Pack size changed while writing', _part.path);
     }
-    await _storage._install(_part, pack);
+    try {
+      await _storage._install(_part, pack);
+    } finally {
+      if (_record case final record?) {
+        await FileDictionaryPackStorage._deleteQuietly(record);
+      }
+    }
   }
 
   @override
@@ -221,7 +343,18 @@ class _FileSink implements DictionaryPackSink {
       await _close();
     } finally {
       await FileDictionaryPackStorage._deleteQuietly(_part);
+      if (_record case final record?) {
+        await FileDictionaryPackStorage._deleteQuietly(record);
+      }
     }
+  }
+
+  /// Keeps the bytes for resuming (a sink without a record of its
+  /// download cannot be resumed: it is aborted).
+  @override
+  Future<void> keep() async {
+    if (_record == null) return await abort();
+    await _close();
   }
 
   Future<void> _close() async {

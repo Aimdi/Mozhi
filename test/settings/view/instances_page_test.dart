@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/intl.dart' show DateFormat;
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/core/network/network.dart';
@@ -108,6 +109,7 @@ void main() {
       double textScale = 1,
       List<MozhiPublicInstance> catalog = const [],
       bool proxyActive = false,
+      Locale? locale,
     }) async {
       tester.setScreenSize(size);
       await tester.pumpView(
@@ -118,6 +120,7 @@ void main() {
         ),
         settings: settings,
         textScale: textScale,
+        locale: locale,
       );
       await tester.pumpAndSettle();
     }
@@ -853,10 +856,11 @@ void main() {
         await pump(tester, catalog: catalog);
 
         expect(find.text('Public instances'), findsOneWidget);
-        expect(
-          find.textContaining('(${MozhiPublicInstance.snapshotDate})'),
-          findsOneWidget,
-        );
+        // The snapshot's date in the UI language's format, not ISO.
+        final date = DateFormat.yMMMd('en')
+            .format(DateTime.parse(MozhiPublicInstance.snapshotDate));
+        expect(date, isNot(MozhiPublicInstance.snapshotDate));
+        expect(find.textContaining('($date)'), findsOneWidget);
         expect(
           find.byKey(const ValueKey('catalog https://fast.example.com')),
           findsNothing,
@@ -896,7 +900,60 @@ void main() {
         expect(find.textContaining('once a proxy is set'), findsNothing);
       });
 
-      testWidgets('adds one with its country as the label', (tester) async {
+      testWidgets('names the regions in the UI language', (tester) async {
+        await pump(
+          tester,
+          locale: const Locale('de'),
+          catalog: const [
+            MozhiPublicInstance(
+              url: 'https://de.example.com',
+              country: 'Germany, USA',
+              regions: ['DE', 'US'],
+              isp: 'Hetzner',
+            ),
+            // A region the app has no name for: upstream's text.
+            MozhiPublicInstance(
+              url: 'https://nz.example.com',
+              country: 'New Zealand',
+              regions: ['NZ'],
+            ),
+          ],
+        );
+
+        expect(
+          find.text('Deutschland, Vereinigte Staaten · Hetzner'),
+          findsOneWidget,
+        );
+        expect(find.text('New Zealand'), findsOneWidget);
+        expect(find.textContaining('Germany'), findsNothing);
+      });
+
+      testWidgets('scrolls the last one clear of the add button', (
+        tester,
+      ) async {
+        await pump(
+          tester,
+          size: const Size(390, 844),
+          locale: const Locale('de'),
+          catalog: catalog,
+        );
+
+        await tester.drag(
+          find.byType(Scrollable).first,
+          const Offset(0, -4000),
+        );
+        await tester.pumpAndSettle();
+        final add = tester.getRect(
+          find.descendant(
+            of: find.byKey(const ValueKey('catalog https://cf.example.com')),
+            matching: find.byType(IconButton),
+          ),
+        );
+        final fab = tester.getRect(find.byType(FloatingActionButton));
+        expect(add.bottom, lessThanOrEqualTo(fab.top));
+      });
+
+      testWidgets('adds one without a label', (tester) async {
         await pump(tester, catalog: catalog);
 
         await tester.tap(find.byTooltip('Add cf.example.com'));
@@ -906,7 +963,10 @@ void main() {
             verify(() => settings.addInstance(captureAny())).captured.single
                 as MozhiInstance;
         expect(added.url, 'https://cf.example.com');
-        expect(added.label, 'cf.example.com (USA)');
+        // Not "cf.example.com (USA)": the list names it by its host, and
+        // the catalog shows where it is in the UI language.
+        expect(added.label, isNull);
+        expect(added.displayName, 'cf.example.com');
         expect(added.isCustom, isFalse);
         expect(find.text('Instance added'), findsOneWidget);
       });

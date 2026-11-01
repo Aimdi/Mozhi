@@ -130,6 +130,7 @@ abstract class HttpLlmClient implements LlmClient {
     } on TimeoutException {
       throw LlmApiException(
         'No response from ${url.host} within ${_describe(timeout)}.',
+        unreachable: true,
       );
     }
     final status = response.statusCode;
@@ -330,10 +331,12 @@ abstract class HttpLlmClient implements LlmClient {
       LlmApiException() => error,
       TimeoutException() => LlmApiException(
         'The server stopped responding (no data for ${_describe(timeout)}).',
+        unreachable: true,
       ),
       http.ClientException(:final message) => LlmApiException(
         'Could not reach ${endpoint.baseUrl.host}: $message',
         connectionDropped: _droppedConnection.hasMatch(message),
+        unreachable: true,
       ),
       FormatException(:final message, :final source) => LlmApiException(
         'The server sent malformed data: $message',
@@ -356,6 +359,7 @@ abstract class HttpLlmClient implements LlmClient {
     final key = apiKey;
     final category = switch (exception) {
       LlmRefusalException(:final category) => category,
+      LlmStoppedException(:final reason) => reason,
       _ => null,
     };
     final texts = [exception.message, exception.body, category];
@@ -379,12 +383,17 @@ abstract class HttpLlmClient implements LlmClient {
         message: message,
         partialText: partialText,
       ),
+      LlmStoppedException() => LlmStoppedException(
+        message,
+        reason: category?.replaceAll(key, redacted),
+      ),
       _ => LlmApiException(
         message,
         statusCode: exception.statusCode,
         body: exception.body?.replaceAll(key, redacted),
         retryAfter: exception.retryAfter,
         connectionDropped: exception.connectionDropped,
+        unreachable: exception.unreachable,
       ),
     };
   }

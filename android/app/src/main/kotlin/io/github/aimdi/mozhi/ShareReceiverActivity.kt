@@ -19,7 +19,9 @@ import java.util.concurrent.Executors
  *
  * - Text (`EXTRA_TEXT`) goes on as `ACTION_SEND` text/plain, which
  *   MainActivity shows in the translate tab (`SharedTextHandler`).
- * - A file (`EXTRA_STREAM`) is copied into the app's cache,
+ * - A file (`EXTRA_STREAM`; of several, `ACTION_SEND_MULTIPLE`, the first,
+ *   and the link says how many there were: `shared_count`) is copied
+ *   into the app's cache,
  *   `<cache>/[SHARED_FOLDER]/<token>/<name>`, on a background thread, then
  *   opened with the explicit link `mozhi://image?shared=<token>` (images) or
  *   `mozhi://documents?shared=<token>` (subtitles, text, Markdown, JSON,
@@ -31,8 +33,11 @@ import java.util.concurrent.Executors
  * Only `content://` streams of other apps are read: a `file://` path or a
  * content URI of one of Mozhi's own providers could otherwise make Mozhi
  * read its own private files. Files above [MAX_IMAGE_BYTES] or
- * [MAX_DOCUMENT_BYTES] are not copied (the screen opens without them), and
- * shared files older than [MAX_AGE_MILLIS] are deleted at every share.
+ * [MAX_DOCUMENT_BYTES] are not copied, nor are files that cannot be read:
+ * the screen then opens with a token without a file, the reason
+ * (`shared_error=too_large|unreadable`) and the file's name (`name`), and
+ * says why. Shared files older than [MAX_AGE_MILLIS] are deleted at every
+ * share.
  *
  * MainActivity is started into the sharing app's task, as when it was the
  * share target itself. A sender without a task of its own (one that starts
@@ -55,7 +60,13 @@ class ShareReceiverActivity : Activity() {
             return
         }
         val intent = intent
-        val stream = if (intent?.action == Intent.ACTION_SEND) streamOf(intent) else null
+        val streams = when (intent?.action) {
+            Intent.ACTION_SEND -> listOf(sharedStream(intent))
+            Intent.ACTION_SEND_MULTIPLE -> sharedStreams(intent)
+            else -> emptyList()
+        }
+        // Only the first item is opened.
+        val stream = streams.firstOrNull()?.let { readable(it) }
         if (stream == null) {
             forwardText(intent)
             finish()
@@ -63,20 +74,28 @@ class ShareReceiverActivity : Activity() {
         }
         val type = (contentResolver.getType(stream) ?: intent.type)?.lowercase(Locale.ROOT)
         val isImage = type?.startsWith("image/") == true
+        val count = streams.size
         executor.execute {
-            val token = try {
-                store(stream, type, isImage)
+            val name = fileName(stream, type, isImage)
+            val stored = try {
+                store(stream, name, isImage)
             } catch (e: IOException) {
-                null
+                Stored(newToken(), ERROR_UNREADABLE, name)
             } catch (e: SecurityException) {
-                null
+                Stored(newToken(), ERROR_UNREADABLE, name)
             }
             runOnUiThread {
-                if (!isDestroyed) open(isImage, token)
+                if (!isDestroyed) open(isImage, stored, count)
                 finish()
             }
         }
     }
+
+    /**
+     * What [store] made of a shared file: the [token] of the screen's link,
+     * and when the file could not be copied, why ([error]) and its [name].
+     */
+    private class Stored(val token: String, val error: String? = null, val name: String? = null)
 
     /** Hands shared text to MainActivity (or just opens it). */
     private fun forwardText(intent: Intent?) {
@@ -90,16 +109,16 @@ class ShareReceiverActivity : Activity() {
         startActivity(forwarded(forward))
     }
 
-    /** Opens the image or document screen, with the file of [token] if any. */
-    private fun open(isImage: Boolean, token: String?) {
-        val screen = if (isImage) "image" else "documents"
-        val link = StringBuilder("${MainActivity.DEEP_LINK_SCHEME}://$screen")
-        if (token != null) link.append("?$TOKEN_PARAMETER=").append(token)
+    /**
+     * Opens the image or document screen with the file of [stored] (or why
+     * there is none), saying how many items were shared ([count]).
+     */
+    private fun open(isImage: Boolean, stored: Stored, count: Int) {
         startActivity(
             forwarded(
                 Intent(this, MainActivity::class.java)
                     .setAction(Intent.ACTION_VIEW)
-                    .setData(Uri.parse(link.toString())),
+                    .setData(linkFor(isImage, stored.token, stored.error, stored.name, count)),
             ),
         )
     }
@@ -121,17 +140,32 @@ class ShareReceiverActivity : Activity() {
             intent
         }
 
-    /**
-     * The shared content URI of [intent], or null when there is none or it
-     * may not be read (see the class documentation).
-     */
-    private fun streamOf(intent: Intent): Uri? {
-        val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+    /** The URI of an `ACTION_SEND` [intent], if any. */
+    private fun sharedStream(intent: Intent): Uri? =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
         } else {
             @Suppress("DEPRECATION")
             intent.getParcelableExtra(Intent.EXTRA_STREAM) as? Uri
         } ?: intent.clipData?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.uri
+
+    /** The URIs of an `ACTION_SEND_MULTIPLE` [intent], in order. */
+    private fun sharedStreams(intent: Intent): List<Uri?> {
+        val uris = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM, Uri::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM)
+        }
+        if (!uris.isNullOrEmpty()) return uris
+        val clip = intent.clipData ?: return emptyList()
+        return (0 until clip.itemCount).map { clip.getItemAt(it)?.uri }
+    }
+
+    /**
+     * [uri] when Mozhi may read it, or null (see the class documentation).
+     */
+    private fun readable(uri: Uri?): Uri? {
         if (uri == null || uri.scheme != ContentResolver.SCHEME_CONTENT) return null
         val authority = uri.authority ?: return null
         // Mozhi's own providers always resolve; other apps' may be hidden
@@ -143,23 +177,32 @@ class ShareReceiverActivity : Activity() {
     }
 
     /**
-     * Copies [uri] into a new folder of the shared files and returns its
-     * token; null when it is too large or empty. Deletes old shared files
-     * first.
+     * Copies [uri] into a new folder of the shared files, as [name], and
+     * returns its token; when it is too large, empty or cannot be opened,
+     * a token without a file and why. Deletes old shared files first.
      */
-    private fun store(uri: Uri, type: String?, isImage: Boolean): String? {
+    private fun store(uri: Uri, name: String, isImage: Boolean): Stored {
         val root = File(cacheDir, SHARED_FOLDER)
         deleteExpired(root)
-        val token = UUID.randomUUID().toString().replace("-", "")
+        val token = newToken()
+        val unreadable = Stored(token, ERROR_UNREADABLE, name)
         val folder = File(root, token)
-        if (!folder.mkdirs()) return null
-        val target = File(folder, fileName(uri, type, isImage))
+        if (!folder.mkdirs()) return unreadable
+        val target = File(folder, name)
         val limit = if (isImage) MAX_IMAGE_BYTES else MAX_DOCUMENT_BYTES
         var copied = 0L
-        val input = contentResolver.openInputStream(uri)
+        val input = try {
+            contentResolver.openInputStream(uri)
+        } catch (e: IOException) {
+            folder.deleteRecursively()
+            throw e
+        } catch (e: SecurityException) {
+            folder.deleteRecursively()
+            throw e
+        }
         if (input == null) {
             folder.deleteRecursively()
-            return null
+            return unreadable
         }
         input.use { source ->
             target.outputStream().use { sink ->
@@ -171,7 +214,7 @@ class ShareReceiverActivity : Activity() {
                     if (copied > limit) {
                         sink.close()
                         folder.deleteRecursively()
-                        return null
+                        return Stored(token, ERROR_TOO_LARGE, name)
                     }
                     sink.write(buffer, 0, read)
                 }
@@ -179,9 +222,9 @@ class ShareReceiverActivity : Activity() {
         }
         if (copied == 0L) {
             folder.deleteRecursively()
-            return null
+            return unreadable
         }
-        return token
+        return Stored(token)
     }
 
     /**
@@ -224,6 +267,43 @@ class ShareReceiverActivity : Activity() {
         /** Query parameter of the token (`SharedFiles.parameter`). */
         const val TOKEN_PARAMETER = "shared"
 
+        /** Why the file is missing (`SharedFiles.errorParameter`). */
+        const val ERROR_PARAMETER = "shared_error"
+
+        /** The missing file's name (`SharedFiles.nameParameter`). */
+        const val NAME_PARAMETER = "name"
+
+        /** How many items were shared (`SharedFiles.countParameter`). */
+        const val COUNT_PARAMETER = "shared_count"
+
+        /** Larger than [MAX_IMAGE_BYTES] / [MAX_DOCUMENT_BYTES]. */
+        const val ERROR_TOO_LARGE = "too_large"
+
+        /** Not readable (or empty). */
+        const val ERROR_UNREADABLE = "unreadable"
+
+        private fun newToken(): String = UUID.randomUUID().toString().replace("-", "")
+
+        /**
+         * The link that opens the image or document screen with the shared
+         * file of [token]: `mozhi://image?shared=<token>` (images) or
+         * `mozhi://documents?shared=<token>`, with why it is missing
+         * ([error] and the file's [name]) and how many items were shared
+         * (more than one: [count]).
+         */
+        fun linkFor(isImage: Boolean, token: String, error: String?, name: String?, count: Int): Uri {
+            val link = Uri.Builder()
+                .scheme(MainActivity.DEEP_LINK_SCHEME)
+                .authority(if (isImage) "image" else "documents")
+                .appendQueryParameter(TOKEN_PARAMETER, token)
+            if (error != null) {
+                link.appendQueryParameter(ERROR_PARAMETER, error)
+                if (!name.isNullOrEmpty()) link.appendQueryParameter(NAME_PARAMETER, name)
+            }
+            if (count > 1) link.appendQueryParameter(COUNT_PARAMETER, count.toString())
+            return link.build()
+        }
+
         /** Largest image copied. */
         const val MAX_IMAGE_BYTES = 40L * 1024 * 1024
 
@@ -250,6 +330,8 @@ class ShareReceiverActivity : Activity() {
             "application/x-subrip", "text/x-subrip", "application/srt" -> "srt"
             "text/vtt" -> "vtt"
             "application/json" -> "json"
+            "application/x-xliff+xml", "application/xliff+xml" -> "xliff"
+            "application/x-gettext" -> "po"
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document" -> "docx"
             "application/vnd.openxmlformats-officedocument.presentationml.presentation" -> "pptx"
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" -> "xlsx"

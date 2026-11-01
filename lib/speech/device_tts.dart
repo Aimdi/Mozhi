@@ -20,6 +20,12 @@ class DeviceTtsException implements Exception {
   String toString() => 'DeviceTtsException: $message';
 }
 
+/// Thrown by [DeviceTts.speak] when the engine did not answer in time (a
+/// text-to-speech app that is broken or still being set up).
+class DeviceTtsNoAnswerException extends DeviceTtsException {
+  const new() : super('The speech engine did not answer.');
+}
+
 /// The platform's own text-to-speech engine. Works offline when the voice
 /// data is installed, so it is the fallback when no Mozhi instance can read
 /// the text aloud.
@@ -131,6 +137,21 @@ abstract interface class DeviceTtsEngines {
 ///   reports the whole text once). Reports for another text than the
 ///   latest [speak]'s, or while nothing is being spoken, are dropped;
 ///   the rest are cleaned with [cleanSpokenRange].
+/// * A speech engine installed while the app runs (Android): the plugin
+///   binds `TextToSpeech` once, when the app starts, and keeps answering
+///   with that instance, so without an engine at start no language is
+///   ever available, even after the user installed one (only `speak`
+///   rebinds, and it is never reached). When a language or the voice list
+///   comes out empty while `getEngines` (read fresh from the system) lists
+///   engines the instance was not bound with (none at start, an unknown
+///   start with no voice at all, or another list since the last binding),
+///   the engine is bound again (`setEngine`: the default engine, else the
+///   first one, within [bindTimeout]) and asked once more.
+/// * A `speak` the engine never answers (the plugin keeps a rejected or
+///   unbound `speak` waiting for the next binding, and never replies)
+///   fails after [speakTimeout] with a [DeviceTtsException], so a listen
+///   button does not stay on "Stop" for ever; the engine is bound again
+///   by the next [setLanguage], and what it held back is stopped.
 class FlutterTtsDeviceTts
     implements DeviceTts, DeviceTtsProgress, DeviceTtsEngines {
   new({
@@ -139,6 +160,8 @@ class FlutterTtsDeviceTts
     this._isWeb = kIsWeb,
     this.settleTimeout = const Duration(milliseconds: 500),
     this.webVoicesDelay = const Duration(milliseconds: 300),
+    this.bindTimeout = const Duration(seconds: 5),
+    this.speakTimeout = const Duration(seconds: 5),
     List<browser.BrowserVoice> Function()? browserVoices,
   }) : _createTts = createTts ?? FlutterTts.new,
        _platform = platform ?? defaultTargetPlatform,
@@ -149,6 +172,13 @@ class FlutterTtsDeviceTts
 
   /// Delay before re-checking a language on the web (voices load lazily).
   final Duration webVoicesDelay;
+
+  /// Longest wait for the engine to bind again (Android, see the class
+  /// docs).
+  final Duration bindTimeout;
+
+  /// Longest wait for the engine to accept a [speak] (see the class docs).
+  final Duration speakTimeout;
 
   final FlutterTts Function() _createTts;
   final TargetPlatform _platform;
@@ -182,6 +212,16 @@ class FlutterTtsDeviceTts
 
   /// Whether an utterance was accepted and has not ended yet.
   bool _speaking = false;
+
+  /// The engines (sorted) the plugin's `TextToSpeech` was bound with; null
+  /// while unknown (the instance the plugin made when the app started).
+  List<String>? _boundEngines;
+
+  /// The binding in progress, if any (see [_rebindIfStale]).
+  Future<bool>? _rebinding;
+
+  /// A [speak] was never answered: bind the engine again before the next.
+  bool _unanswered = false;
 
   /// Stopped utterances whose cancel/error event is still outstanding.
   int _stopped = 0;
@@ -300,6 +340,12 @@ class FlutterTtsDeviceTts
   }
 
   Future<bool> _isAvailable(String languageTag) async {
+    if (await _check(languageTag)) return true;
+    // An engine installed since the plugin bound its instance?
+    return _isAndroid && await _rebindIfStale() && await _check(languageTag);
+  }
+
+  Future<bool> _check(String languageTag) async {
     final tts = _engine;
     if (_isAndroid && await _isInstalled(tts, languageTag)) {
       _installed.add(languageTag);
@@ -312,6 +358,81 @@ class FlutterTtsDeviceTts
     }
     _webVoicesLoaded = _webVoicesLoaded || available;
     return available;
+  }
+
+  /// Android: binds the engine again when the plugin's instance cannot
+  /// know the installed engines (see the class docs; [force]: a [speak]
+  /// went unanswered). Whether it did, so a check is worth repeating.
+  /// Concurrent calls share one attempt. Never throws.
+  Future<bool> _rebindIfStale({bool force = false}) =>
+      _rebinding ??= _rebind(force: force)
+          .whenComplete(() => _rebinding = null);
+
+  Future<bool> _rebind({required bool force}) async {
+    // A language was available on this instance: it is bound.
+    if (!force && _resolved.isNotEmpty) return false;
+    final tts = _engine;
+    final List<String> engines;
+    try {
+      final listed = await tts.getEngines;
+      engines = [
+        if (listed is List)
+          for (final engine in listed)
+            if (engine is String && engine.isNotEmpty) engine,
+      ]..sort();
+    } on Object {
+      return false;
+    }
+    final bound = _boundEngines;
+    if (engines.isEmpty) {
+      // Nothing to bind to; once one is installed, bind to it.
+      _boundEngines = const [];
+      return false;
+    }
+    if (!force) {
+      if (bound != null && listEquals(bound, engines)) return false;
+      if (bound == null && await _hasVoices(tts)) {
+        // The instance made at start works.
+        _boundEngines = engines;
+        return false;
+      }
+    }
+    _boundEngines = engines;
+    try {
+      final preferred = await tts.getDefaultEngine;
+      final engine = preferred is String && engines.contains(preferred)
+          ? preferred
+          : engines.first;
+      await tts.setEngine(engine).timeout(bindTimeout);
+    } on Object {
+      return false;
+    }
+    // A new instance: nothing selected on the old one applies.
+    _language = null;
+    _voice = null;
+    _defaultVoice = null;
+    _rate = null;
+    _resolved.clear();
+    _installed.clear();
+    if (_unanswered) {
+      _unanswered = false;
+      // The plugin speaks what it held back once bound: not now.
+      try {
+        await tts.stop();
+      } on Object {
+        // Nothing else to do.
+      }
+    }
+    return true;
+  }
+
+  Future<bool> _hasVoices(FlutterTts tts) async {
+    try {
+      final voices = await tts.getVoices;
+      return voices is List && voices.isNotEmpty;
+    } on Object {
+      return false;
+    }
   }
 
   /// Android: voice data on the device (usable offline). Needs an exact
@@ -329,6 +450,9 @@ class FlutterTtsDeviceTts
 
   @override
   Future<void> setLanguage(String languageTag, {DeviceVoice? voice}) async {
+    // A speak went unanswered: a fresh binding (before the language is set
+    // on it).
+    if (_unanswered && _isAndroid) await _rebindIfStale(force: true);
     final tts = _engine;
     final language = await _resolve(languageTag) ?? languageTag;
     if (language != _language) {
@@ -439,6 +563,8 @@ class FlutterTtsDeviceTts
         // Browsers load their voices lazily.
         await Future<void>.delayed(webVoicesDelay);
         all = await _engineVoices();
+      } else if (all.isEmpty && _isAndroid && await _rebindIfStale()) {
+        all = await _engineVoices();
       }
       return DeviceVoice.sortFor(
         languageTag,
@@ -478,7 +604,14 @@ class FlutterTtsDeviceTts
     _speaking = true;
     _utterance = text;
     try {
-      if (await tts.speak(text) == 0) {
+      final Object? accepted;
+      try {
+        accepted = await tts.speak(text).timeout(speakTimeout);
+      } on TimeoutException {
+        _unanswered = true;
+        throw const DeviceTtsNoAnswerException();
+      }
+      if (accepted == 0) {
         throw const DeviceTtsException('The speech engine rejected the text.');
       }
     } on Object {

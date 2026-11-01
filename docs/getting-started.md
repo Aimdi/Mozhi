@@ -314,6 +314,16 @@ the text again once
 it's there. **Replace** works the same; **Open in app** continues in the
 full translator with your current engine.
 
+**Improve with Mozhi**, the third entry, checks your writing instead of
+translating it, like DeepL Write: the selection is proofread with the AI
+model of the **Proofread** tab, and the sheet shows the improved text with
+the changes highlighted. Pick a correction level or a style to try again,
+**Copy** it, **Replace** your selection with it (in an editable field), or
+**Open in Proofread** to review each change. It needs an AI provider or an
+on-device AI model, and follows your privacy settings like the Proofread
+tab: a cloud provider is asked about first, and **Offline only** keeps the
+text on the phone.
+
 **Share sheet.** Use **Share** in any app and pick **Mozhi** to translate the
 shared text.
 

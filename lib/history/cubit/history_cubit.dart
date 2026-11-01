@@ -66,6 +66,21 @@ class HistoryCubit extends Cubit<HistoryState> {
     }
   }
 
+  /// Reads the history again without the loading state, e.g. when the app
+  /// comes back to the front: another window of the app (Android's quick
+  /// translate window, another browser tab) may have saved entries
+  /// meanwhile. Only once the history is shown ([HistoryStatus.ready]) and
+  /// not while the app is locked ([forgetForLock]). Errors keep the shown
+  /// history.
+  Future<void> refresh() async {
+    if (_forgotten || isClosed || state.status != HistoryStatus.ready) return;
+    try {
+      _emitEntries(await _repository.load(maxAge: _maxAge));
+    } on Object catch (error, stackTrace) {
+      addError(error, stackTrace);
+    }
+  }
+
   /// Saves [entry] (see [HistoryRepository.add]). While history is
   /// [HistoryState.paused] only a favourite is saved, as kept only as a
   /// favourite ([HistoryEntry.favoriteOnly]).

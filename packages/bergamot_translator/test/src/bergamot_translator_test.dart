@@ -304,6 +304,148 @@ void main() {
     });
   });
 
+  group('downloads', () {
+    Future<void> until(bool Function() condition) async {
+      for (var i = 0; i < 500 && !condition(); i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 2));
+      }
+    }
+
+    test('is empty without a running download', () async {
+      expect(translator.downloads, isEmpty);
+      await translator.downloadLanguage('de');
+      expect(translator.downloads, isEmpty);
+    });
+
+    test('lists a running download with its progress and result', () async {
+      final body = StreamController<List<int>>();
+      server.stream = body;
+      final call = expectLater(
+        translator.downloadLanguage('de'),
+        throwsA(isA<OfflineDownloadCancelledException>()),
+      );
+      final download = translator.downloads['de']!;
+      expect(translator.downloads.keys, ['de']);
+      expect(download.progress, 0);
+      final fractions = <double>[];
+      download.progressChanges.listen(fractions.add);
+      var succeeded = false;
+      unawaited(
+        download.result.then((_) => succeeded = true, onError: (Object _) {}),
+      );
+
+      await until(() => body.hasListener);
+      body.add(List.filled(10, 0));
+      await until(() => fractions.isNotEmpty);
+      expect(download.progress, greaterThan(0));
+      expect(download.progress, lessThan(1));
+      expect(fractions.last, download.progress);
+      // The size of both directions is the whole.
+      expect(
+        download.progress,
+        closeTo(10 / translator.downloadSize('de'), 1e-9),
+      );
+      expect(succeeded, isFalse);
+
+      await translator.cancelDownload('de');
+      await call;
+      await pumpEventQueue();
+      expect(succeeded, isFalse);
+      expect(translator.downloads, isEmpty);
+    });
+
+    test('the result completes once the language is installed', () async {
+      final call = translator.downloadLanguage('de');
+      final download = translator.downloads['de']!;
+      final fractions = <double>[];
+      download.progressChanges.listen(fractions.add);
+      await download.result;
+      await call;
+      expect(await translator.downloadedLanguages(), {'en', 'de'});
+      expect(fractions.last, 1);
+      expect(download.progress, 1);
+      expect(translator.downloads, isEmpty);
+    });
+
+    test('the result fails like the call', () async {
+      metered = true;
+      final call = expectLater(
+        translator.downloadLanguage('de'),
+        throwsA(isA<MeteredConnectionException>()),
+      );
+      final download = translator.downloads['de']!;
+      await expectLater(
+        download.result,
+        throwsA(isA<MeteredConnectionException>()),
+      );
+      await call;
+    });
+
+    test('a failure nobody waits for is not an uncaught error', () async {
+      metered = true;
+      translator.downloadLanguage('de').ignore();
+      await pumpEventQueue();
+      expect(translator.downloads, isEmpty);
+    });
+
+    test('a cancelled download ends with the cancel', () async {
+      final body = StreamController<List<int>>();
+      server.stream = body;
+      final call = expectLater(
+        translator.downloadLanguage('de'),
+        throwsA(isA<OfflineDownloadCancelledException>()),
+      );
+      final download = translator.downloads['de']!;
+      await until(() => body.hasListener);
+      await translator.cancelDownload('de');
+      await expectLater(
+        download.result,
+        throwsA(
+          isA<OfflineDownloadCancelledException>().having(
+            (error) => error.language,
+            'language',
+            'de',
+          ),
+        ),
+      );
+      await call;
+    });
+
+    test('a shared model counts for every language that needs it', () async {
+      final body = StreamController<List<int>>();
+      server.stream = body;
+      final croatian = expectLater(
+        translator.downloadLanguage('hr'),
+        throwsA(isA<OfflineDownloadCancelledException>()),
+      );
+      final bosnian = expectLater(
+        translator.downloadLanguage('bs'),
+        throwsA(isA<OfflineDownloadCancelledException>()),
+      );
+      await until(() => body.hasListener);
+      body.add(List.filled(10, 0));
+      await until(
+        () =>
+            (translator.downloads['hr']?.progress ?? 0) > 0 &&
+            (translator.downloads['bs']?.progress ?? 0) > 0,
+      );
+      expect(translator.downloads.keys, unorderedEquals(['hr', 'bs']));
+      await translator.cancelDownload('hr');
+      await translator.cancelDownload('bs');
+      await croatian;
+      await bosnian;
+    });
+
+    test('English and installed languages are not listed', () async {
+      await translator.downloadLanguage('de');
+      final call = translator.downloadLanguage('de');
+      unawaited(translator.downloadLanguage('en'));
+      expect(translator.downloads.containsKey('en'), isFalse);
+      await call;
+      expect(translator.downloads, isEmpty);
+    });
+  });
+
   group('deleteLanguage', () {
     test('releases loaded models and deletes both directions', () async {
       await translator.downloadLanguage('de');

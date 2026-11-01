@@ -311,8 +311,9 @@ void main() {
       expect(requested, isEmpty);
     });
 
-    test('a later install starts again from the beginning', () async {
+    test('a later install resumes what was received', () async {
       var calls = 0;
+      final ranges = <String?>[];
       final dictionaries = packs(
         client: MockClient.streaming((request, _) async {
           requested.add(request.url);
@@ -320,8 +321,16 @@ void main() {
           if (calls == 1) {
             return http.StreamedResponse(body.stream, 200);
           }
-          expect(request.headers['Range'], isNull);
-          return http.StreamedResponse(Stream.value(spanish), 200);
+          ranges.add(request.headers['Range']);
+          return http.StreamedResponse(
+            Stream.value(spanish.sublist(100)),
+            206,
+            headers: {
+              'content-range':
+                  'bytes 100-${spanish.length - 1}/'
+                  '${spanish.length}',
+            },
+          );
         }),
       );
       final cancelled = dictionaries.install(es);
@@ -335,7 +344,9 @@ void main() {
       await stopping;
       await again;
       expect(calls, 2);
+      expect(ranges, ['bytes=100-']);
       expect((await dictionaries.installedPack('es'))?.sha256, es.sha256);
+      expect(await storage.partial('es'), isNull);
     });
 
     test('drops the pack when cancelled as the last bytes come', () async {

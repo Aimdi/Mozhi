@@ -1006,6 +1006,122 @@ void main() {
     );
   });
 
+  group('openHistoryEntry', () {
+    const chinese = Language(code: 'zh-CN', name: 'Chinese (Simplified)');
+
+    HistoryEntry entry({
+      Language source = fr,
+      Language target = de,
+      HistoryEntryKind kind = HistoryEntryKind.translation,
+      String text = 'Où est la gare ?',
+    }) => HistoryEntry(
+      id: '1',
+      text: text,
+      translation: 'Wo ist der Bahnhof?',
+      source: source,
+      target: target,
+      engineId: google.id,
+      engineName: google.name,
+      createdAt: DateTime(2026, 10, 20),
+      kind: kind,
+    );
+
+    blocTest<TranslateCubit, TranslateState>(
+      'sets the languages and the text at once and translates once',
+      setUp: () => mocks.stubTranslate(),
+      build: () => mocks.build(),
+      seed: () => readyState(input: 'old text', target: es),
+      act: (cubit) => cubit.openHistoryEntry(entry()),
+      wait: afterDebounce,
+      verify: (cubit) {
+        final request = mocks.translateRequests().single;
+        expect(request.text, 'Où est la gare ?');
+        expect(request.source, fr);
+        expect(request.target, de);
+        expect(cubit.state.output, 'Où est la gare ?->de');
+        verify(() => mocks.settings.setLanguages(source: fr)).called(1);
+        verify(() => mocks.settings.setLanguages(target: de)).called(1);
+      },
+    );
+
+    blocTest<TranslateCubit, TranslateState>(
+      "maps the languages onto the engine's lists",
+      setUp: () {
+        mocks.stubTranslate();
+        when(() => mocks.repository.getTargetLanguages(any()))
+            .thenAnswer((_) async => [...targets, chinese]);
+      },
+      build: () => mocks.build(),
+      seed: () =>
+          readyState(source: de)
+              .copyWith(targetLanguages: [...targets, chinese]),
+      act: (cubit) => cubit.openHistoryEntry(
+        entry(
+          source: const Language(code: 'EN', name: 'English'),
+          target: const Language(code: 'zh', name: 'Chinese'),
+        ),
+      ),
+      wait: afterDebounce,
+      verify: (cubit) {
+        expect(cubit.state.source, en);
+        expect(cubit.state.target, chinese);
+        final request = mocks.translateRequests().single;
+        expect(request.source, en);
+        expect(request.target.code, 'zh-CN');
+      },
+    );
+
+    blocTest<TranslateCubit, TranslateState>(
+      'keeps a language the engine does not offer',
+      setUp: () => mocks.stubTranslate(),
+      build: () => mocks.build(),
+      seed: () => readyState(source: de),
+      act: (cubit) => cubit.openHistoryEntry(entry(source: ja, target: pirate)),
+      wait: afterDebounce,
+      verify: (cubit) {
+        expect(cubit.state.source, de);
+        expect(cubit.state.target, en);
+        expect(mocks.translateRequests().single.text, 'Où est la gare ?');
+      },
+    );
+
+    blocTest<TranslateCubit, TranslateState>(
+      'emits the new languages and text in one state',
+      setUp: () => mocks.stubTranslate(),
+      build: () => mocks.build(),
+      seed: () => readyState(input: 'old text', target: es),
+      act: (cubit) => cubit.openHistoryEntry(entry()),
+      wait: afterDebounce,
+      verify: (cubit) {},
+      expect: () => [
+        isA<TranslateState>()
+            .having((s) => s.source, 'source', fr)
+            .having((s) => s.target, 'target', de)
+            .having((s) => s.input, 'input', 'Où est la gare ?'),
+        isA<TranslateState>().having(
+          (s) => s.status,
+          'status',
+          TranslateStatus.translating,
+        ),
+        isA<TranslateState>().having(
+          (s) => s.status,
+          'status',
+          TranslateStatus.success,
+        ),
+      ],
+    );
+
+    blocTest<TranslateCubit, TranslateState>(
+      'ignores look-ups and empty entries',
+      build: () => mocks.build(),
+      seed: readyState,
+      act: (cubit) => cubit
+        ..openHistoryEntry(entry(kind: HistoryEntryKind.dictionary))
+        ..openHistoryEntry(entry(text: '  ')),
+      expect: () => <TranslateState>[],
+    );
+  });
+
   group('restoreHistoryEntry', () {
     HistoryEntry entry({
       Language source = Language.auto,

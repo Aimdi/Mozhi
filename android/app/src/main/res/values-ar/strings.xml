@@ -4,6 +4,7 @@
 <resources>
     <string name="translate_with_mozhi">ترجمة باستخدام Mozhi</string>
     <string name="translate_offline">ترجمة بلا اتصال</string>
+    <string name="improve_with_mozhi">تحسين باستخدام Mozhi</string>
     <string name="tile_translate_label">ترجمة</string>
     <string name="tile_translate_description">ترجمة الحافظة باستخدام Mozhi</string>
     <string name="shortcut_clipboard_short">الحافظة</string>

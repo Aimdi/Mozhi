@@ -13,6 +13,7 @@ import 'package:mozhi/voice/offline/offline_speech.dart';
 import 'package:mozhi/voice/speech_input_service.dart';
 import 'package:mozhi/voice/speech_input_state.dart';
 import 'package:mozhi/voice/widgets/voice_error_message.dart';
+import 'package:mozhi/voice/widgets/voice_model_cancel_button.dart';
 
 /// The app's [OfflineSpeech] (`RepositoryProvider<OfflineSpeech>`) when
 /// Whisper runs here; null without one (the web app, unsupported CPUs).
@@ -50,7 +51,8 @@ bool canOfferVoiceModel(
 /// plain words (try again). "Other models" opens the voice input settings
 /// ([voiceSettingsLocation], with a [GoRouter] above) to pick another or
 /// import one; "Continue in background" closes the dialog while the
-/// download goes on.
+/// download goes on, and Cancel stops it (the bytes received are kept, so
+/// a later download resumes; the dialog stays open to try again).
 ///
 /// [failure] chooses the explanation: no speech recognition service on
 /// the device ([SpeechInputFailure.recognizerUnavailable]) or Whisper
@@ -246,6 +248,11 @@ class _VoiceModelOfferDialogState extends State<VoiceModelOfferDialog> {
                   ],
                 ),
           actions: [
+            if (downloading)
+              VoiceModelCancelButton(
+                model: name,
+                onPressed: () => cubit.cancel(model.id),
+              ),
             if (widget.onOtherModels case final open? when !downloading)
               TextButton(
                 onPressed: () {

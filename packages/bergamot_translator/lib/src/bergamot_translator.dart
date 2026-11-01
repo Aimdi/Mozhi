@@ -42,6 +42,8 @@ final class MeteredConnectionException implements Exception {
 ///
 /// * [downloadLanguage] can be stopped with [cancelDownload]; what was
 ///   received is kept, and the next download of the language resumes it.
+///   The running ones, with their progress and outcome, are in
+///   [downloads].
 ///
 /// [isAvailable] is true on Android (arm64-v8a, x86_64, armeabi-v7a with
 /// VFPv4) and false elsewhere (web, desktop) unless overridden.
@@ -120,6 +122,15 @@ class BergamotTranslator
   /// Progress of [downloadLanguage] (one event per received chunk).
   Stream<ModelDownloadProgress> get downloadProgress => _progress.stream;
 
+  /// The languages [downloadLanguage] is downloading now, by code: their
+  /// progress and how they end. A screen that opens while a download runs
+  /// (started from another screen) finds it here, to show its progress and
+  /// its outcome. With several calls running for one language, the first.
+  Map<String, LanguageDownload> get downloads => Map.unmodifiable({
+    for (final MapEntry(key: code, value: running) in _downloads.entries)
+      if (running.isNotEmpty) code: running.first,
+  });
+
   @override
   bool get isAvailable => _isAvailable ?? isPlatformSupported;
 
@@ -191,32 +202,60 @@ class BergamotTranslator
     final download = _Download();
     (_downloads[code] ??= []).add(download);
     try {
-      final missing = [
-        for (final model in needed)
-          if (!await models.isInstalled(model)) model,
-      ];
-      if (missing.isEmpty) return;
-      if (wifiOnly && await _isMeteredConnection()) {
-        throw const MeteredConnectionException();
-      }
-      for (final model in missing) {
-        if (download.isCancelled) {
-          throw OfflineDownloadCancelledException(code);
-        }
-        await models.install(
-          model,
-          onProgress: _progress.add,
-          abort: download.abort.future,
-        );
-      }
-    } on OfflineDownloadCancelledException {
-      throw OfflineDownloadCancelledException(code);
+      await _download(code, needed, download, wifiOnly: wifiOnly);
+      download.succeed();
+    } on OfflineDownloadCancelledException catch (_, stackTrace) {
+      final cancelled = OfflineDownloadCancelledException(code);
+      download.fail(cancelled, stackTrace);
+      throw cancelled;
+    } on Object catch (error, stackTrace) {
+      download.fail(error, stackTrace);
+      rethrow;
     } finally {
       final running = _downloads[code];
       if (running != null && running.remove(download) && running.isEmpty) {
         _downloads.remove(code);
       }
       download.done.complete();
+    }
+  }
+
+  /// Installs the models of [needed] that are missing, for [download].
+  Future<void> _download(
+    String code,
+    List<CatalogModel> needed,
+    _Download download, {
+    required bool wifiOnly,
+  }) async {
+    final missing = [
+      for (final model in needed)
+        if (!await models.isInstalled(model)) model,
+    ];
+    if (missing.isEmpty) return;
+    download.expect(missing);
+    if (wifiOnly && await _isMeteredConnection()) {
+      throw const MeteredConnectionException();
+    }
+    for (final model in missing) {
+      if (download.isCancelled) {
+        throw OfflineDownloadCancelledException(code);
+      }
+      await models.install(
+        model,
+        onProgress: _report,
+        abort: download.abort.future,
+      );
+    }
+  }
+
+  /// Passes [progress] on to [downloadProgress] and to every running
+  /// download that needs its model (a model can serve several languages).
+  void _report(ModelDownloadProgress progress) {
+    _progress.add(progress);
+    for (final running in _downloads.values) {
+      for (final download in running) {
+        download.report(progress);
+      }
     }
   }
 
@@ -573,16 +612,85 @@ final class _Piece {
   static final _padding = RegExp(r'^(\s*)([\s\S]*?)(\s*)$');
 }
 
+/// A language that [BergamotTranslator.downloadLanguage] is downloading
+/// (see [BergamotTranslator.downloads]).
+abstract interface class LanguageDownload {
+  /// The fraction (0 to 1) of the bytes to download that has been received
+  /// so far (resumed bytes count); 0 until the download starts.
+  double get progress;
+
+  /// [progress] each time it changes (a broadcast stream that is done
+  /// when the download ends).
+  Stream<double> get progressChanges;
+
+  /// Completes like the [BergamotTranslator.downloadLanguage] call: once
+  /// the models are installed, or with its error (also an
+  /// [OfflineDownloadCancelledException] when it was cancelled).
+  Future<void> get result;
+}
+
 /// One running [BergamotTranslator.downloadLanguage]: [abort] completes
-/// when it is cancelled, [done] when it has ended.
-final class _Download {
+/// when it is cancelled, [done] when it has ended (never with an error),
+/// [result] with its outcome.
+final class _Download implements LanguageDownload {
+  new() {
+    // Nobody has to wait for the result: the caller of downloadLanguage
+    // gets the error.
+    _result.future.ignore();
+  }
+
   final abort = Completer<void>();
   final done = Completer<void>();
+  final _result = Completer<void>();
+  final _changes = StreamController<double>.broadcast(sync: true);
+
+  /// The models to download ([expect]) and their bytes received so far.
+  final _received = <String, int>{};
+  var _total = 0;
+  var _progress = 0.0;
 
   bool get isCancelled => abort.isCompleted;
 
+  @override
+  double get progress => _progress;
+
+  @override
+  Stream<double> get progressChanges => _changes.stream;
+
+  @override
+  Future<void> get result => _result.future;
+
   void cancel() {
     if (!abort.isCompleted) abort.complete();
+  }
+
+  /// [missing] are the models this download installs.
+  void expect(List<CatalogModel> missing) {
+    for (final model in missing) {
+      _received[model.pair] = 0;
+    }
+    _total = missing.fold(0, (sum, model) => sum + model.downloadSize);
+  }
+
+  void report(ModelDownloadProgress progress) {
+    final pair = progress.model.pair;
+    if (_total == 0 || !_received.containsKey(pair)) return;
+    _received[pair] = progress.receivedBytes;
+    final bytes = _received.values.fold(0, (sum, value) => sum + value);
+    final fraction = (bytes / _total).clamp(0, 1).toDouble();
+    if (fraction == _progress) return;
+    _progress = fraction;
+    _changes.add(fraction);
+  }
+
+  void succeed() {
+    _result.complete();
+    unawaited(_changes.close());
+  }
+
+  void fail(Object error, StackTrace stackTrace) {
+    _result.completeError(error, stackTrace);
+    unawaited(_changes.close());
   }
 }
 

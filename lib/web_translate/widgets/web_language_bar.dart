@@ -24,7 +24,9 @@ import 'package:translation_repository/translation_repository.dart';
 /// language detected for the page yet, or a language the engine does not
 /// offer on its new side.
 LanguagePair? webSwapPair(TranslateState state, String? detectedSource) {
-  if (!state.canSwap) return null;
+  // Not `TranslateState.canSwap`: with "Detect language" that asks for the
+  // translate screen's own detection, the page has its own.
+  if (state.target.isCustom) return null;
   final Language from;
   if (state.source.isAuto) {
     final code = detectedSource?.trim() ?? '';
@@ -90,6 +92,12 @@ class WebLanguageBar extends StatelessWidget {
     final sourceDescription = detected == null
         ? sourceLabel
         : l10n.translateDetectedLanguage(detected);
+    final sourceIcon = source.isCustom
+        ? Icons.auto_awesome
+        : detected != null
+        ? Icons.auto_awesome_outlined
+        : null;
+    final targetLabel = context.languageName(target);
     return LanguagePairBar(
       key: const Key('web_translate_language_bar'),
       leading: const [OptionsButton()],
@@ -98,21 +106,28 @@ class WebLanguageBar extends StatelessWidget {
         label: sourceLabel,
         semanticLabel: l10n.translateSourceLanguage(sourceDescription),
         tooltip: sourceDescription,
-        icon: source.isCustom
-            ? Icons.auto_awesome
-            : detected != null
-            ? Icons.auto_awesome_outlined
-            : null,
+        icon: sourceIcon,
+        forms: languagePairForms(
+          detected != null && detectedCode != null
+              ? Language(code: detectedCode, name: detected)
+              : source,
+          label: sourceLabel,
+          autoShort: l10n.translateDetectLanguageShort,
+          icon: sourceIcon,
+        ),
         onPressed: () =>
             unawaited(pickTranslateLanguage(context, source: true)),
       ),
       target: LanguagePairSide(
         key: const Key('web_translate_target_button'),
-        label: context.languageName(target),
-        semanticLabel: l10n.translateTargetLanguage(
-          context.languageName(target),
-        ),
+        label: targetLabel,
+        semanticLabel: l10n.translateTargetLanguage(targetLabel),
         icon: target.isCustom ? Icons.auto_awesome : null,
+        forms: languagePairForms(
+          target,
+          label: targetLabel,
+          autoShort: l10n.translateDetectLanguageShort,
+        ),
         onPressed: () =>
             unawaited(pickTranslateLanguage(context, source: false)),
       ),

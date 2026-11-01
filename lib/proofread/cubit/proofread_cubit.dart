@@ -6,13 +6,24 @@ import 'package:bloc/bloc.dart';
 import 'package:flutter/foundation.dart';
 import 'package:mozhi/proofread/cubit/proofread_state.dart';
 import 'package:mozhi/proofread/models/proofread_diff.dart';
+import 'package:mozhi/proofread/models/proofread_rephrasing.dart';
+import 'package:mozhi/proofread/models/sentence_segmenter.dart';
 import 'package:mozhi/usage/usage.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 export 'proofread_state.dart';
 
 /// Drives the proofreading screen (Kagi-style): sends the input to an AI
-/// engine and lets the user accept or reject each suggested edit.
+/// engine and lets the user accept or reject each suggested edit, and
+/// replace any sentence of the result with an alternative phrasing (DeepL
+/// Write-style).
+///
+/// The corrected text ([ProofreadState.outputText]) comes from the
+/// accepted edits alone; the rephrasings ([ProofreadState.rephrasings])
+/// replace whole sentences of it, and the text the user copies, shares or
+/// keeps is [ProofreadState.finalText], the corrected text with them. A
+/// new result drops the rephrasings; accepting or rejecting an edit keeps
+/// those of the sentences it does not touch ([ProofreadRephrasings.remap]).
 class ProofreadCubit extends Cubit<ProofreadState> {
   new({
     required this._repository,
@@ -31,6 +42,13 @@ class ProofreadCubit extends Cubit<ProofreadState> {
 
   /// Incremented per request so stale responses are ignored.
   int _request = 0;
+
+  /// Incremented per alternatives request (and when the alternatives are
+  /// closed) so stale ones are ignored.
+  int _alternativesRequest = 0;
+
+  /// How many alternatives [loadAlternatives] asks for.
+  static const alternativesCount = 3;
 
   /// Whether the user picked the engine. Until then the engine follows the
   /// preferred (assist) engine passed to [setEngines].
@@ -122,6 +140,9 @@ class ProofreadCubit extends Cubit<ProofreadState> {
   void setFormality(Formality formality) =>
       emit(state.copyWith(formality: formality));
 
+  /// Rewrites toward a [tone]; [WritingTone.automatic] keeps the author's.
+  void setTone(WritingTone tone) => emit(state.copyWith(tone: tone));
+
   /// Rewords for a CEFR [level]; [ReadingLevel.standard] keeps the author's.
   void setReadingLevel(ReadingLevel level) =>
       emit(state.copyWith(readingLevel: level));
@@ -151,6 +172,7 @@ class ProofreadCubit extends Cubit<ProofreadState> {
         variety: state.variety,
         context: state.context.trim(),
         uiLanguage: _uiLanguage,
+        tone: state.tone,
       );
       // The provider billed the request even when its result is no longer
       // shown (the page closed or a newer proofread started).
@@ -158,12 +180,15 @@ class ProofreadCubit extends Cubit<ProofreadState> {
       if (isClosed || request != _request) return;
       final reconciled = await _reconcile(text, result);
       if (isClosed || request != _request) return;
+      _alternativesRequest++;
       emit(
         state.copyWith(
           status: ProofreadStatus.success,
           result: () => reconciled,
           proofreadInput: text,
           acceptedEdits: {for (var i = 0; i < reconciled.edits.length; i++) i},
+          rephrasings: const [],
+          alternatives: () => null,
         ),
       );
     } on Object catch (error, stackTrace) {
@@ -178,14 +203,24 @@ class ProofreadCubit extends Cubit<ProofreadState> {
     required String input,
     required ProofreadResult result,
   }) {
-    final tracker = _usageTracker;
-    final providerId = engine.providerId;
-    if (tracker == null || providerId == null || providerId.isEmpty) return;
     final output = [
       result.correctedText,
       result.summary,
       for (final edit in result.edits) edit.explanation,
     ].where((part) => part.isNotEmpty).join('\n');
+    _recordText(engine, input: input, output: output);
+  }
+
+  /// Counts [input] and [output] of a request to a bring-your-own-key
+  /// provider.
+  void _recordText(
+    TranslationEngine engine, {
+    required String input,
+    required String output,
+  }) {
+    final tracker = _usageTracker;
+    final providerId = engine.providerId;
+    if (tracker == null || providerId == null || providerId.isEmpty) return;
     try {
       unawaited(
         tracker
@@ -227,21 +262,136 @@ class ProofreadCubit extends Cubit<ProofreadState> {
     if (index < 0 || index >= state.edits.length) return;
     final accepted = {...state.acceptedEdits};
     if (!accepted.remove(index)) accepted.add(index);
-    emit(state.copyWith(acceptedEdits: accepted));
+    _emitAccepted(accepted);
   }
 
   /// Applies every edit again (the result as it arrived).
-  void acceptAll() => emit(
-    state.copyWith(
-      acceptedEdits: {for (var i = 0; i < state.edits.length; i++) i},
-    ),
-  );
+  void acceptAll() =>
+      _emitAccepted({for (var i = 0; i < state.edits.length; i++) i});
 
-  void rejectAll() => emit(state.copyWith(acceptedEdits: const {}));
+  void rejectAll() => _emitAccepted(const {});
 
-  /// Moves the output into the input and clears the result.
+  /// Emits [accepted] as the accepted edits, keeping the rephrasings of the
+  /// sentences the change does not touch. Open alternatives are dropped
+  /// when the corrected text changes (their sentence may have moved).
+  void _emitAccepted(Set<int> accepted) {
+    final next = state.copyWith(acceptedEdits: accepted);
+    final before = state.outputText;
+    final after = next.outputText;
+    if (before == after) {
+      emit(next);
+      return;
+    }
+    _alternativesRequest++;
+    emit(
+      next.copyWith(
+        rephrasings: ProofreadRephrasings.remap(
+          before,
+          after,
+          state.rephrasings,
+        ),
+        alternatives: () => null,
+      ),
+    );
+  }
+
+  /// Asks the engine for [alternativesCount] alternative phrasings of
+  /// [sentence] (one of [ProofreadState.sentences]) as it is shown (its
+  /// rephrasing, if any), with the whole [ProofreadState.finalText] as
+  /// context and the chosen style, tone and formality; the outcome is in
+  /// [ProofreadState.alternatives]. Also retries.
+  Future<void> loadAlternatives(SentenceRange sentence) async {
+    final engine = state.engine;
+    final base = state.outputText;
+    if (engine == null ||
+        state.result == null ||
+        !state.sentences.contains(sentence)) {
+      return;
+    }
+    final span = state.rephrasingOf(sentence)?.replacement ?? sentence.of(base);
+    final text = state.finalText;
+    final request = ++_alternativesRequest;
+    emit(
+      state.copyWith(
+        alternatives: () =>
+            ProofreadAlternatives(base: base, sentence: sentence, span: span),
+      ),
+    );
+    try {
+      final alternatives = await _repository.rephrase(
+        engine,
+        text,
+        span,
+        style: state.writingStyle,
+        tone: state.tone,
+        formality: state.formality,
+        uiLanguage: _uiLanguage,
+      );
+      _recordText(
+        engine,
+        input: '$text\n$span',
+        output: alternatives.join('\n'),
+      );
+      if (isClosed || request != _alternativesRequest) return;
+      emit(
+        state.copyWith(
+          alternatives: () => state.alternatives?.copyWith(
+            status: ProofreadAlternativesStatus.success,
+            alternatives: alternatives,
+          ),
+        ),
+      );
+    } on Object catch (error, stackTrace) {
+      if (isClosed || request != _alternativesRequest) return;
+      addError(error, stackTrace);
+      emit(
+        state.copyWith(
+          alternatives: () => state.alternatives?.copyWith(
+            status: ProofreadAlternativesStatus.failure,
+            error: () => error,
+          ),
+        ),
+      );
+    }
+  }
+
+  /// Forgets the alternatives of [sentence] (their sheet closed); a pending
+  /// request for them is ignored.
+  void closeAlternatives(SentenceRange sentence) {
+    if (isClosed || state.alternatives?.sentence != sentence) return;
+    _alternativesRequest++;
+    emit(state.copyWith(alternatives: () => null));
+  }
+
+  /// Replaces [sentence] (one of [ProofreadState.sentences]) with
+  /// [replacement] in [ProofreadState.finalText]; the sentence itself (or a
+  /// blank one) restores it. Closes its alternatives.
+  void rephraseSentence(SentenceRange sentence, String replacement) {
+    if (state.result == null) return;
+    final rephrasings = ProofreadRephrasings.replace(
+      state.outputText,
+      state.rephrasings,
+      sentence,
+      replacement,
+    );
+    final closing = state.alternatives?.sentence == sentence;
+    if (closing) _alternativesRequest++;
+    emit(
+      state.copyWith(
+        rephrasings: rephrasings,
+        alternatives: closing ? () => null : null,
+      ),
+    );
+  }
+
+  /// Puts [sentence] back as the corrected text has it.
+  void restoreSentence(SentenceRange sentence) =>
+      rephraseSentence(sentence, '');
+
+  /// Moves the output (with the rephrasings) into the input and clears the
+  /// result.
   void useOutputAsInput() {
-    final output = outputText;
+    final output = state.finalText;
     if (state.result == null) return;
     _request++;
     emit(_cleared(output));
@@ -253,12 +403,17 @@ class ProofreadCubit extends Cubit<ProofreadState> {
     emit(_cleared(''));
   }
 
-  ProofreadState _cleared(String input) => state.copyWith(
-    input: input,
-    status: ProofreadStatus.idle,
-    result: () => null,
-    proofreadInput: '',
-    acceptedEdits: const {},
-    error: () => null,
-  );
+  ProofreadState _cleared(String input) {
+    _alternativesRequest++;
+    return state.copyWith(
+      input: input,
+      status: ProofreadStatus.idle,
+      result: () => null,
+      proofreadInput: '',
+      acceptedEdits: const {},
+      rephrasings: const [],
+      alternatives: () => null,
+      error: () => null,
+    );
+  }
 }

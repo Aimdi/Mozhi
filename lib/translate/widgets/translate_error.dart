@@ -123,9 +123,30 @@ TranslateErrorInfo describeTranslateError(
       l10n.translateErrorModelNotFound,
       fix: TranslateErrorFix.providers,
     ),
+    // The model stopped at its output limit: the text so far stays shown.
+    LlmApiException(isTruncated: true) => TranslateErrorInfo(
+      l10n.translateErrorTruncated,
+    ),
+    // The answer was streaming when the connection dropped.
+    LlmApiException(isInterrupted: true) => TranslateErrorInfo(
+      l10n.translateErrorInterrupted,
+    ),
+    LlmStoppedException(unsupportedLanguage: true) => TranslateErrorInfo(
+      l10n.translateErrorModelLanguage,
+    ),
+    // The provider's own reason is in the details.
+    LlmStoppedException() => TranslateErrorInfo(
+      l10n.translateErrorProviderStopped,
+    ),
+    LlmApiException(statusCode: null) when _noAnswer(error) =>
+      TranslateErrorInfo(
+        l10n.translateErrorUnreachableProvider,
+        fix: TranslateErrorFix.providers,
+      ),
+    // An answer without a status (an error in the stream, malformed or
+    // empty data, the on-device model's own failure): not the connection.
     LlmApiException(statusCode: null) => TranslateErrorInfo(
-      l10n.translateErrorUnreachableProvider,
-      fix: TranslateErrorFix.providers,
+      l10n.translateErrorProviderFailed,
     ),
     LlmApiException(:final int statusCode) => TranslateErrorInfo(
       l10n.translateErrorProvider('$statusCode'),
@@ -226,15 +247,23 @@ String _languageName(AppLocalizations l10n, String code) =>
 /// answer (DNS, TLS, connection), a timeout or a 5xx status, from a Mozhi
 /// instance, an AI provider or a machine translation service. The
 /// on-device engine may still translate then. A cancelled request, a
-/// refusal or a truncated answer is not one.
+/// refusal, a truncated, interrupted or stopped answer, Mozhi's own
+/// validation errors (reported as HTTP 500,
+/// [TranslationRepository.isMozhiInputError]) and other answers without
+/// a status are not one.
 bool isNetworkFailure(Object? error) => switch (error) {
   // Every server failed (down, overloaded, blocked upstream).
   AllInstancesFailedException() => true,
   // isRetryable is false for a request the user cancelled.
   MozhiApiException(statusCode: null, isRetryable: true) => true,
+  MozhiApiException() when TranslationRepository.isMozhiInputError(error) =>
+    false,
   MozhiApiException(:final int statusCode) => statusCode >= 500,
-  LlmRefusalException() || LlmApiException(isTruncated: true) => false,
-  LlmApiException(statusCode: null) => true,
+  LlmRefusalException() ||
+  LlmApiException(isTruncated: true) ||
+  LlmApiException(isInterrupted: true) ||
+  LlmApiException(isStopped: true) => false,
+  final LlmApiException llm when llm.statusCode == null => _noAnswer(llm),
   LlmApiException(:final int statusCode) => statusCode >= 500,
   MtApiException(
     kind: MtErrorKind.network || MtErrorKind.timeout || MtErrorKind.server,
@@ -243,6 +272,11 @@ bool isNetworkFailure(Object? error) => switch (error) {
   TimeoutException() => true,
   _ => false,
 };
+
+/// Whether no answer came from the AI provider: no connection, a lost one
+/// or no response in time.
+bool _noAnswer(LlmApiException error) =>
+    error.unreachable || error.connectionDropped;
 
 final _rateLimited = RegExp('rate.?limit', caseSensitive: false);
 final _engineUnavailable = RegExp(

@@ -15,7 +15,7 @@ import 'package:llm_api/src/streaming/sse_decoder.dart';
 /// The response is complete at `finishReason: "STOP"`. `MAX_TOKENS` raises
 /// [LlmTruncatedException], the [refusalFinishReasons] raise
 /// [LlmRefusalException] and any other finish reason (`LANGUAGE`, `OTHER`,
-/// ...) raises [LlmApiException]. A body that ends without a finish reason
+/// ...) raises [LlmStoppedException]. A body that ends without a finish reason
 /// raises [LlmInterruptedException].
 class GeminiClient extends HttpLlmClient {
   new(super.endpoint, {super.httpClient, super.timeout, super.retryPolicy});
@@ -159,10 +159,14 @@ class GeminiClient extends HttpLlmClient {
             category: reason,
           );
         case 'LANGUAGE':
-          throw const LlmApiException('Gemini does not support this language.');
+          throw const LlmStoppedException(
+            'Gemini does not support this language.',
+            reason: 'LANGUAGE',
+          );
         case final reason:
-          throw LlmApiException(
+          throw LlmStoppedException(
             'Gemini stopped without completing the response ($reason).',
+            reason: reason is String ? reason : null,
           );
       }
     }

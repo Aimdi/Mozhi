@@ -367,10 +367,15 @@ void main() {
         );
       });
 
-      test('ends when another session took over', () async {
+      test('ends as interrupted when another session took over', () async {
+        // Not as silence: that would pause with "Nothing heard".
         expect(
           await lastEventWhen(const SpeechInputListening()),
-          const ConversationHeardEnd(),
+          const ConversationHeardEnd(interrupted: true),
+        );
+        expect(
+          await lastEventWhen(const SpeechInputIdle()),
+          const ConversationHeardEnd(interrupted: true),
         );
       });
 
@@ -550,6 +555,24 @@ void main() {
       await settle();
       expect(cubit.state.turns.single.original, 'Good morning');
       expect(cubit.state.turns.single.translation, 'Buenos días');
+    });
+
+    test('a recogniser that never answers fails as no speech recognition '
+        'service', () async {
+      // speech_to_text initialised, but listening ends at once with
+      // error_client (no recognition service on a de-Googled phone).
+      final recognizer = SpeechInputConversationRecognizer(service);
+      final events = <ConversationHearing>[];
+      var done = false;
+      recognizer.listen(english).listen(events.add, onDone: () => done = true);
+      await settle();
+      system.emitError('error_client');
+      await settle();
+      expect(events, const [
+        ConversationHeardStart(),
+        ConversationHeardFailure(SpeechInputFailure.recognizerUnavailable),
+      ]);
+      expect(done, isTrue);
     });
 
     test('reports silence as no match', () async {

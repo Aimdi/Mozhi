@@ -15,8 +15,11 @@
  *   of this build), then every file not marked lazy, checked against its
  *   size and SHA-256, into the cache of this version. A file that an older
  *   version holds with the same SHA-256 is copied from it, not downloaded.
- *   Lazy files (the fonts of scripts a page may never show, renderer builds
- *   this build never loads) are kept when the page first loads them.
+ *   Lazy files (the fonts of scripts a page may never show, the CanvasKit
+ *   variant this browser does not load, renderer builds this build never
+ *   loads) are kept when the page first loads them, or at the install when
+ *   the browser's HTTP cache holds them (the page loaded them before this
+ *   worker was there): the app then opens offline right after the install.
  * - Fetch: same-origin GET requests for the files of the manifest (and
  *   HEAD requests for them: the offline engine's worker asks whether its
  *   WebAssembly file is there), and navigations to the app (the scope
@@ -125,6 +128,7 @@ async function install() {
       if (await cache.match(key)) continue;
       if (await copyFromOlder(entry, older, cache)) continue;
       if (!entry.lazy) await cache.put(key, await download(entry));
+      else await keepIfCached(entry, cache);
     }
   }
   await Promise.all(Array.from({ length: PARALLEL }, next));
@@ -133,6 +137,25 @@ async function install() {
     urlOf(MANIFEST),
     new Response(text, { headers: { 'Content-Type': TYPES.json } }),
   );
+}
+
+/**
+ * Keeps the lazy [entry] into [cache] when the browser's HTTP cache holds
+ * it as the file of this build (checked); nothing is downloaded for it.
+ */
+async function keepIfCached(entry, cache) {
+  try {
+    const response = await fetch(urlOf(entry.path), {
+      cache: 'only-if-cached',
+      mode: 'same-origin',
+    });
+    if (!response.ok) return;
+    const kept = await verified(entry, response);
+    if (kept) await cache.put(urlOf(entry.path), kept);
+  } catch (_) {
+    // Not in the HTTP cache (or the browser cannot tell): kept when a
+    // page loads it.
+  }
 }
 
 /** The manifest's files, checked: relative paths, sizes, SHA-256. */

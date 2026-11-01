@@ -4,6 +4,7 @@
 <resources>
     <string name="translate_with_mozhi">Mozhi மூலம் மொழிபெயர்</string>
     <string name="translate_offline">ஆஃப்லைனில் மொழிபெயர்</string>
+    <string name="improve_with_mozhi">Mozhi மூலம் மேம்படுத்து</string>
     <string name="tile_translate_label">மொழிபெயர்ப்பு</string>
     <string name="tile_translate_description">Mozhi மூலம் கிளிப்போர்டை மொழிபெயர்</string>
     <string name="shortcut_clipboard_short">கிளிப்போர்டு</string>

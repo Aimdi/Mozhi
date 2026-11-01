@@ -10,9 +10,12 @@ import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/platform/clipboard_service.dart';
 import 'package:mozhi/proofread/cubit/proofread_cubit.dart';
 import 'package:mozhi/proofread/models/proofread_diff.dart';
-import 'package:mozhi/proofread/widgets/proofread_diff_text.dart';
+import 'package:mozhi/proofread/models/proofread_rephrasing.dart';
+import 'package:mozhi/proofread/models/sentence_segmenter.dart';
 import 'package:mozhi/proofread/widgets/proofread_edit_tile.dart';
 import 'package:mozhi/proofread/widgets/proofread_labels.dart';
+import 'package:mozhi/proofread/widgets/proofread_output_text.dart';
+import 'package:mozhi/proofread/widgets/proofread_rephrase_sheet.dart';
 import 'package:mozhi/proofread/widgets/proofread_stats_panel.dart';
 import 'package:mozhi/translate/widgets/on_device_ai_loading.dart';
 import 'package:mozhi/translate/widgets/translate_layout.dart';
@@ -77,6 +80,7 @@ class ProofreadResultSection extends StatelessWidget {
           previous.status != current.status ||
           previous.result != current.result ||
           previous.acceptedEdits != current.acceptedEdits ||
+          previous.rephrasings != current.rephrasings ||
           previous.proofreadInput != current.proofreadInput ||
           previous.error != current.error ||
           previous.engine != current.engine ||
@@ -108,15 +112,21 @@ class ProofreadResultSection extends StatelessWidget {
                 ),
               if (state.isStale && !state.isLoading)
                 _StaleNotice(canProofread: state.canProofread),
-              if (state.isClean)
-                _NoIssuesCard(summary: result.summary)
-              else
+              // A clean text can still be rephrased, sentence by sentence.
+              if (state.isClean) ...[
+                _NoIssuesCard(summary: result.summary),
+                ProofreadResultCard(
+                  key: const Key('proofread_clean_text'),
+                  state: state,
+                  clean: true,
+                ),
+              ] else
                 ProofreadResultCard(state: state),
               // Flat sections divided by hairlines, X style.
               const Hairline(),
               ProofreadStatsPanel(
                 original: state.proofreadInput,
-                corrected: state.outputText,
+                corrected: state.finalText,
                 languageCode: state.textLanguage,
               ),
               if (!state.isClean && result.edits.isNotEmpty) ...[
@@ -134,10 +144,22 @@ class ProofreadResultSection extends StatelessWidget {
 /// The corrected text (with or without highlighted changes, toggled with
 /// the eye button) at the input's text size, the summary, and the actions:
 /// "Copy corrected text" first, then share and "Use as input".
+///
+/// For a [clean] result (nothing to fix, see [ProofreadState.isClean]) it
+/// is the user's own text ("Your text", "Copy text") without the summary,
+/// which the "no issues" notice above it shows.
+///
+/// Every sentence can be tapped (or, with the changes shown, long-pressed)
+/// for alternative phrasings ([showProofreadRephraseSheet]); the chosen
+/// ones are shown in place of their sentences and are part of what is
+/// copied, shared and used as input ([ProofreadState.finalText]).
 class ProofreadResultCard extends StatefulWidget {
-  const new({required this.state, super.key});
+  const new({required this.state, this.clean = false, super.key});
 
   final ProofreadState state;
+
+  /// Whether the result found nothing to fix.
+  final bool clean;
 
   @override
   State<ProofreadResultCard> createState() => _ProofreadResultCardState();
@@ -150,6 +172,29 @@ class _ProofreadResultCardState extends State<ProofreadResultCard> {
   String? _cachedInput;
   Set<int>? _cachedAccepted;
   List<DiffSegment> _segments = const [];
+
+  String? _cachedBase;
+  List<SentenceRange> _sentences = const [];
+
+  /// The sentences of the corrected text (segmented once per text).
+  List<SentenceRange> _sentencesFor(ProofreadState state) {
+    final base = state.outputText;
+    if (base == _cachedBase) return _sentences;
+    _cachedBase = base;
+    return _sentences = SentenceSegmenter.split(base);
+  }
+
+  /// The text as shown: the diff ([_segmentsFor]) or the plain corrected
+  /// text, split into sentences, with the rephrasings in place.
+  List<OutputSegment> _outputSegmentsFor(ProofreadState state) {
+    final base = state.outputText;
+    return ProofreadRephrasings.overlay(
+      _showChanges ? _segmentsFor(state) : [DiffSegment.unchanged(base)],
+      base,
+      _sentencesFor(state),
+      state.rephrasings,
+    );
+  }
 
   /// Edit-based segments when they reproduce the output exactly, else a
   /// word-level diff of input vs output (e.g. when `correctedText` contains
@@ -205,8 +250,10 @@ class _ProofreadResultCardState extends State<ProofreadResultCard> {
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final state = widget.state;
-    final output = state.outputText;
-    final summary = state.result?.summary.trim() ?? '';
+    final output = state.finalText;
+    final clean = widget.clean;
+    // A clean result's summary is in the "no issues" notice.
+    final summary = clean ? '' : state.result?.summary.trim() ?? '';
     // The input's size; taller lines keep the highlighted changes from
     // touching.
     final textStyle = TranslateLayout.textStyle(
@@ -234,7 +281,9 @@ class _ProofreadResultCardState extends State<ProofreadResultCard> {
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     Text(
-                      l10n.proofreadResultTitle,
+                      clean
+                          ? l10n.proofreadCleanTextTitle
+                          : l10n.proofreadResultTitle,
                       style: theme.textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.w800,
                         letterSpacing: -0.3,
@@ -270,20 +319,40 @@ class _ProofreadResultCardState extends State<ProofreadResultCard> {
           ),
           Padding(
             padding: const EdgeInsets.only(top: 4, bottom: 12),
-            child: _showChanges
-                ? ProofreadDiffText(
-                    key: const Key('proofread_diff'),
-                    segments: _segmentsFor(state),
-                    style: textStyle,
-                    onEditTap: (index) =>
-                        showProofreadEditSheet(context, index),
-                  )
-                : SelectableText(
-                    output,
-                    key: const Key('proofread_output'),
-                    style: textStyle,
-                  ),
+            child: ProofreadOutputText(
+              key: Key(_showChanges ? 'proofread_diff' : 'proofread_output'),
+              segments: _outputSegmentsFor(state),
+              showChanges: _showChanges,
+              style: textStyle,
+              onEditTap: (index) => showProofreadEditSheet(context, index),
+              onSentenceTap: state.engine == null
+                  ? null
+                  : (index) => showProofreadRephraseSheet(context, index),
+            ),
           ),
+          if (state.engine != null && output.trim().isNotEmpty)
+            Padding(
+              key: const Key('proofread_rephrase_hint'),
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Row(
+                spacing: 8,
+                children: [
+                  Icon(
+                    Icons.touch_app_outlined,
+                    size: 16,
+                    color: palette.secondaryText,
+                  ),
+                  Expanded(
+                    child: Text(
+                      l10n.proofreadRephraseHint,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: palette.secondaryText,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           if (summary.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(bottom: 4),
@@ -359,7 +428,9 @@ class _ProofreadResultCardState extends State<ProofreadResultCard> {
                 key: const Key('proofread_copy_corrected'),
                 onPressed: output.isEmpty ? null : () => _copy(output),
                 icon: const Icon(Icons.copy_rounded),
-                label: Text(l10n.proofreadCopyCorrected),
+                label: Text(
+                  clean ? l10n.proofreadCopyText : l10n.proofreadCopyCorrected,
+                ),
               ),
               Builder(
                 builder: (buttonContext) => XActionButton(

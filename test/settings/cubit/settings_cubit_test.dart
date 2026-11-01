@@ -39,20 +39,47 @@ const _mirror = ModelSource(
   customUrl: 'https://mirror.example/models/',
 );
 
+typedef _Change = AppSettings Function(AppSettings current);
+
 void main() {
   late SettingsRepository repository;
 
+  /// The settings in the (mock) storage: [SettingsRepository.update]
+  /// applies its change to them.
+  AppSettings? stored;
+
+  /// How many times the mock's update wrote [stored].
+  var writes = 0;
+
   setUpAll(() {
     registerFallbackValue(const AppSettings());
+    registerFallbackValue((AppSettings s) => s);
   });
+
+  /// Stubs [SettingsRepository.update] to apply its change to [stored].
+  void storeWrites() {
+    when(() => repository.update(any())).thenAnswer((invocation) async {
+      final change = invocation.positionalArguments.single as _Change;
+      final current = stored ?? const AppSettings();
+      final next = change(current);
+      if (next == current) return current;
+      writes++;
+      return stored = next;
+    });
+  }
 
   setUp(() {
     repository = _MockSettingsRepository();
-    when(() => repository.save(any())).thenAnswer((_) async {});
+    stored = null;
+    writes = 0;
+    storeWrites();
   });
 
-  SettingsCubit buildCubit([AppSettings initial = const AppSettings()]) =>
-      SettingsCubit(repository: repository, initial: initial);
+  SettingsCubit buildCubit([AppSettings initial = const AppSettings()]) {
+    // The storage starts with the settings the app starts with.
+    stored ??= initial;
+    return SettingsCubit(repository: repository, initial: initial);
+  }
 
   /// bloc_test case for a mutation that emits [expected] and persists it.
   void mutation(
@@ -66,7 +93,11 @@ void main() {
       build: () => buildCubit(initial),
       act: act,
       expect: () => [expected],
-      verify: (_) => verify(() => repository.save(expected)).called(1),
+      verify: (_) {
+        expect(stored, expected);
+        expect(writes, 1);
+        verifyNever(() => repository.save(any()));
+      },
     );
   }
 
@@ -81,7 +112,7 @@ void main() {
       build: () => buildCubit(initial),
       act: act,
       expect: () => <AppSettings>[],
-      verify: (_) => verifyNever(() => repository.save(any())),
+      verify: (_) => verifyNever(() => repository.update(any())),
     );
   }
 
@@ -112,7 +143,7 @@ void main() {
         build: buildCubit,
         act: (cubit) => cubit.load(),
         expect: () => [const AppSettings(seedColor: 7)],
-        verify: (_) => verifyNever(() => repository.save(any())),
+        verify: (_) => verifyNever(() => repository.update(any())),
       );
 
       blocTest<SettingsCubit, AppSettings>(
@@ -144,7 +175,7 @@ void main() {
       blocTest<SettingsCubit, AppSettings>(
         'reports save errors via addError',
         setUp: () =>
-            when(() => repository.save(any())).thenThrow(StateError('disk')),
+            when(() => repository.update(any())).thenThrow(StateError('disk')),
         build: buildCubit,
         act: (cubit) => cubit.setPureBlack(enabled: false),
         expect: () => [const AppSettings(pureBlack: false)],
@@ -154,7 +185,7 @@ void main() {
       blocTest<SettingsCubit, AppSettings>(
         'reports asynchronous save errors via addError',
         setUp: () =>
-            when(() => repository.save(any()))
+            when(() => repository.update(any()))
                 .thenAnswer((_) => Future.error(StateError('disk'))),
         build: buildCubit,
         act: (cubit) => cubit.setPureBlack(enabled: false),
@@ -169,7 +200,7 @@ void main() {
 
       group('save failures', () {
         test('are reported on saveFailures', () async {
-          when(() => repository.save(any()))
+          when(() => repository.update(any()))
               .thenAnswer((_) => Future.error(StateError('disk')));
           final cubit = buildCubit();
           final failures = <SettingsSaveFailure>[];
@@ -182,7 +213,7 @@ void main() {
         });
 
         test('say when secure storage refused a secret', () async {
-          when(() => repository.save(any())).thenAnswer(
+          when(() => repository.update(any())).thenAnswer(
             (_) => Future.error(SecretStorageException(StateError('ks'))),
           );
           final cubit = buildCubit();
@@ -218,7 +249,7 @@ void main() {
 
         test('a save failing after close is not reported', () async {
           final gate = Completer<void>();
-          when(() => repository.save(any())).thenAnswer((_) async {
+          when(() => repository.update(any())).thenAnswer((_) async {
             await gate.future;
             throw StateError('late');
           });
@@ -243,7 +274,7 @@ void main() {
           cubit.setPureBlack(enabled: false);
         },
         expect: () => <AppSettings>[],
-        verify: (_) => verifyNever(() => repository.save(any())),
+        verify: (_) => verifyNever(() => repository.update(any())),
       );
 
       mutation(
@@ -251,6 +282,123 @@ void main() {
         act: (cubit) => cubit.update((s) => s.copyWith(seedColor: 42)),
         expected: const AppSettings(seedColor: 42),
       );
+    });
+
+    // Another window of the app (a second browser tab, the quick translate
+    // window) holds a copy of its own and writes the same storage.
+    group('changes of another window', () {
+      test('are kept by a change of another setting', () async {
+        final cubit = buildCubit();
+        // The other window turned Multiline input off.
+        stored = const AppSettings(multilineInput: false);
+        cubit.setPureBlack(enabled: false);
+        await pumpEventQueue();
+        expect(
+          stored,
+          const AppSettings(multilineInput: false, pureBlack: false),
+        );
+        verifyNever(() => repository.save(any()));
+        await cubit.close();
+      });
+
+      test('are kept by list changes, applied to the stored lists', () async {
+        final cubit = buildCubit(
+          const AppSettings(
+            instances: [_a, _b, _c],
+            pinnedLanguages: [_french],
+          ),
+        );
+        stored = AppSettings(
+          instances: const [_d, _a, _b, _c],
+          pinnedLanguages: const [_french, _english],
+          providers: [_provider('other')],
+        );
+        cubit
+          // Moves _c (as shown here) to the front.
+          ..moveInstance(2, 0)
+          ..togglePinnedLanguage(_german)
+          ..togglePinnedLanguage(_french)
+          ..saveProvider(_provider('mine'))
+          ..recordPair(_english, _german)
+          ..approveNetworkPair('en>de');
+        await pumpEventQueue();
+        expect(stored!.instances, [_c, _d, _a, _b]);
+        expect(stored!.pinnedLanguages, [_english, _german]);
+        expect(stored!.providers.map((p) => p.id), ['other', 'mine']);
+        expect(stored!.recentPairs, [
+          const LanguagePair(source: _english, target: _german),
+        ]);
+        expect(stored!.networkPairs, ['en>de']);
+        await cubit.close();
+      });
+
+      test('show after load, with the changes not written yet', () async {
+        final gate = Completer<void>();
+        when(() => repository.update(any())).thenAnswer((invocation) async {
+          await gate.future;
+          final change = invocation.positionalArguments.single as _Change;
+          return stored = change(stored!);
+        });
+        when(() => repository.load())
+            .thenAnswer((_) async => const AppSettings(multilineInput: false));
+        final cubit = buildCubit()..setSeedColor(5);
+        stored = const AppSettings(multilineInput: false);
+        await cubit.load();
+        expect(
+          cubit.state,
+          const AppSettings(multilineInput: false, seedColor: 5),
+        );
+        gate.complete();
+        await pumpEventQueue();
+        expect(stored, const AppSettings(multilineInput: false, seedColor: 5));
+        await cubit.close();
+      });
+
+      test('a change whose write failed is written with the next', () async {
+        var fail = true;
+        when(() => repository.update(any())).thenAnswer((invocation) async {
+          if (fail) {
+            fail = false;
+            throw StateError('disk');
+          }
+          final change = invocation.positionalArguments.single as _Change;
+          return stored = change(stored!);
+        });
+        final cubit = buildCubit();
+        final errors = <Object>[];
+        cubit.saveFailures.listen(errors.add);
+        cubit.setPureBlack(enabled: false);
+        await pumpEventQueue();
+        expect(stored, const AppSettings());
+        expect(errors, [SettingsSaveFailure.settings]);
+        // Another window's change meanwhile is kept too.
+        stored = const AppSettings(multilineInput: false);
+        cubit.setSeedColor(3);
+        await pumpEventQueue();
+        expect(
+          stored,
+          const AppSettings(
+            multilineInput: false,
+            pureBlack: false,
+            seedColor: 3,
+          ),
+        );
+        // Written: a reload no longer applies it again.
+        when(() => repository.load())
+            .thenAnswer((_) async => const AppSettings(seedColor: 9));
+        await cubit.load();
+        expect(cubit.state, const AppSettings(seedColor: 9));
+        await cubit.close();
+      });
+
+      test('isStorageKey tells the keys of the settings in web storage', () {
+        expect(SettingsCubit.isStorageKey(null), isTrue);
+        expect(SettingsCubit.isStorageKey('flutter.settings.v1'), isTrue);
+        expect(SettingsCubit.isStorageKey('x.apikey.openai'), isTrue);
+        expect(SettingsCubit.isStorageKey('x.apiheaders.openai'), isTrue);
+        expect(SettingsCubit.isStorageKey('x.instancecreds'), isTrue);
+        expect(SettingsCubit.isStorageKey('flutter.history.v1'), isFalse);
+      });
     });
 
     group('appearance', () {

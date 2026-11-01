@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:mozhi/app/router.dart' show AppRoutes;
 import 'package:mozhi/app/translate_link.dart';
 import 'package:mozhi/core/network/network_session.dart';
 import 'package:mozhi/core/privacy/egress/egress.dart';
@@ -38,6 +39,31 @@ class QuickTranslateRequest {
   bool get canReplace => onReplace != null;
 }
 
+/// Text selected in another app with "Improve with Mozhi" (Android
+/// `PROCESS_TEXT` through the `.ImproveTextActivity` alias) to show in the
+/// quick improve UI, which proofreads it.
+@immutable
+class QuickImproveRequest {
+  const new({
+    required this.text,
+    required this.onOpenInProofread,
+    this.onReplace,
+  });
+
+  final String text;
+
+  /// Opens [text] in the Proofread tab ("Open in Proofread"; nothing is
+  /// sent until the user asks there).
+  final VoidCallback onOpenInProofread;
+
+  /// Hands the improved text back to the calling app, which replaces the
+  /// selection with it; null for read-only selections.
+  final ValueChanged<String>? onReplace;
+
+  /// Whether the calling app accepts a replacement.
+  bool get canReplace => onReplace != null;
+}
+
 /// Reads the clipboard text (null when empty or unavailable).
 typedef ClipboardReader = Future<String?> Function();
 
@@ -55,7 +81,10 @@ Future<String?> readClipboardText() async {
 /// * a selection in another app (`PROCESS_TEXT`) opens the quick translate
 ///   UI via [onQuickTranslate], with Replace for writable selections; one
 ///   made with "Translate offline" ([SharedText.isTranslateOffline]) is
-///   marked [QuickTranslateRequest.offlineOnly];
+///   marked [QuickTranslateRequest.offlineOnly]; one made with "Improve
+///   with Mozhi" ([SharedText.isImprove]) opens the quick improve UI via
+///   [onQuickImprove] instead (without it, the Proofread tab with the
+///   text, which sends nothing on its own);
 /// * the "translate clipboard" action (quick-settings tile / app shortcut)
 ///   reads the clipboard ([readClipboard]) and opens it in the translate
 ///   tab;
@@ -79,6 +108,8 @@ class SharedTextHandler {
     required this.translateCubit,
     required this.onShowTranslate,
     this.onQuickTranslate,
+    this.onQuickImprove,
+    this.onShowProofread,
     this.readClipboard = readClipboardText,
     this.timeout = const Duration(seconds: 20),
     QuickTranslateHost? quickHost,
@@ -100,6 +131,15 @@ class SharedTextHandler {
   /// (network) engine, so only the translate screen is shown, without the
   /// text.
   final void Function(QuickTranslateRequest request)? onQuickTranslate;
+
+  /// Shows the quick improve UI for an "Improve with Mozhi" selection
+  /// ([SharedText.isImprove]). Without it, the selection opens in the
+  /// Proofread tab ([openInProofread]).
+  final void Function(QuickImproveRequest request)? onQuickImprove;
+
+  /// Shows the Proofread tab with the given text in its input (the main
+  /// window; see [openInProofread]). Nothing happens without it.
+  final ValueChanged<String>? onShowProofread;
 
   /// Reads the clipboard for [SharedText.isTranslateClipboard].
   final ClipboardReader readClipboard;
@@ -173,6 +213,10 @@ class SharedTextHandler {
       if (inWindow) await quickHost.close();
       return;
     }
+    if (shared.isImprove) {
+      await _improve(shared);
+      return;
+    }
     final quick = onQuickTranslate;
     final offlineOnly = shared.isTranslateOffline;
     if (inWindow && quick == null) {
@@ -206,6 +250,50 @@ class SharedTextHandler {
     if (_disposed || text.trim().isEmpty) return;
     onShowTranslate();
     await TranslateLink(text: text).applyTo(translateCubit, timeout: timeout);
+  }
+
+  /// Shows the Proofread tab with [text] in its input, cut to
+  /// [TranslateCubit.maxExternalInputLength] (it is never proofread
+  /// without the user asking there). In the quick translate window it
+  /// opens in the main window, which closes this one.
+  Future<void> openInProofread(String text) async {
+    if (_disposed || text.trim().isEmpty) return;
+    final cut = _cut(text, TranslateCubit.maxExternalInputLength);
+    if (quickHost.isActive) {
+      await quickHost.openLocationInApp(AppRoutes.proofreadText(text: cut));
+      return;
+    }
+    onShowProofread?.call(cut);
+  }
+
+  /// [text] cut to [length] UTF-16 units without splitting a surrogate
+  /// pair.
+  static String _cut(String text, int length) {
+    if (text.length <= length) return text;
+    var end = length;
+    final last = text.codeUnitAt(end - 1);
+    if (last >= 0xD800 && last <= 0xDBFF) end--;
+    return text.substring(0, end);
+  }
+
+  /// An "Improve with Mozhi" selection: the quick improve UI, with Replace
+  /// for writable selections, else the Proofread tab.
+  Future<void> _improve(SharedText shared) async {
+    final text = shared.text;
+    final improve = onQuickImprove;
+    if (improve == null) {
+      await openInProofread(text);
+      return;
+    }
+    improve(
+      QuickImproveRequest(
+        text: text,
+        onOpenInProofread: () => unawaited(openInProofread(text)),
+        onReplace: shared.readOnly
+            ? null
+            : (improved) => unawaited(replaceSelection(improved)),
+      ),
+    );
   }
 
   /// Answers the pending `PROCESS_TEXT` request with [translation]

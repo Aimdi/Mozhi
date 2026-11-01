@@ -8,6 +8,8 @@ import 'package:mozhi/app/router.dart' show AppRoutes;
 import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/network/network_policy.dart';
 import 'package:mozhi/core/privacy/ime_learning.dart';
+import 'package:mozhi/core/widgets/app_bar_title.dart';
+import 'package:mozhi/core/widgets/decimal_format.dart';
 import 'package:mozhi/core/widgets/local_overlay.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
@@ -489,7 +491,7 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
     final l10n = context.l10n;
     if (_notFound) {
       return Scaffold(
-        appBar: AppBar(title: Text(l10n.settingsProviderEditTitle)),
+        appBar: AppBar(title: AppBarTitle(l10n.settingsProviderEditTitle)),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
@@ -511,7 +513,7 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
     final keyField = _buildKeyField(context);
     return Scaffold(
       appBar: AppBar(
-        title: Text(title),
+        title: AppBarTitle(title),
         actions: [
           if (!_isNew)
             IconButton(
@@ -994,8 +996,9 @@ class _TemperatureField extends StatelessWidget {
                         value: current.clamp(0, 2),
                         max: 2,
                         divisions: 20,
-                        label: current.toStringAsFixed(1),
-                        semanticFormatterCallback: (v) => v.toStringAsFixed(1),
+                        label: formatDecimal(current, l10n.localeName),
+                        semanticFormatterCallback: (v) =>
+                            formatDecimal(v, l10n.localeName),
                         onChanged: onChanged,
                       ),
                     ),
@@ -1005,7 +1008,7 @@ class _TemperatureField extends StatelessWidget {
               ConstrainedBox(
                 constraints: const BoxConstraints(minWidth: 40),
                 child: Text(
-                  current.toStringAsFixed(1),
+                  formatDecimal(current, l10n.localeName),
                   textAlign: TextAlign.end,
                 ),
               ),
