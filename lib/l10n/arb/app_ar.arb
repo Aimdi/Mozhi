@@ -2799,5 +2799,17 @@
   "settingsStyleKeywords": "طرفية، الطرفية، كلاسيكي، مظهر، خط، أحادي المسافة، terminal، classic، monospace، monospaced، JetBrains Mono",
   "settingsThemeTerminalSubtitle": "في نمط الطرفية يعني النظام الوضع الداكن؛ ويمنح فاتح مظهر الورق",
   "settingsColorAmber": "كهرماني",
-  "settingsColorCyan": "سماوي"
+  "settingsColorCyan": "سماوي",
+  "offlineMirrorNotHostedTitle": "خادم الويب هذا لا يستضيف التنزيلات",
+  "offlineMirrorNotHostedBody": "يُنزّل تطبيق الويب هذه الملفات من الخادم الذي يأتي منه، وهذا الخادم لا يحتوي عليها. استورد ملفات نزّلتها من مكان آخر، أو اطلب من مالك الخادم توفير نسخة منها.",
+  "offlineMirrorNotHostedHelp": "كيفية استضافتها",
+  "dictionaryDefinitionsIn": "لغة التعريفات: {language}",
+  "phrasebookStarterPair": "{base} ↔ {language}",
+  "settingsFallbackDuckDuckGoOnSubtitle": "مفعّل افتراضيًا. عندما يفشل Google على كل خوادم المتطوّعين، يُرسَل نصك بدلًا من ذلك إلى مترجم DuckDuckGo عبر الخوادم نفسها (تأتي ترجماته من Microsoft Translator). أوقِف هذا الخيار لاستخدام Google فقط.",
+  "onboardingServiceViaDuckDuckGo": "عبر DuckDuckGo",
+  "onboardingServiceViaDuckDuckGoTooltip": "لا يترجم Google على هذا الخادم حاليًا. أما DuckDuckGo فيترجم، ويستخدمه التطبيق عند فشل Google.",
+  "commonSetUpOnDeviceAi": "إعداد الذكاء الاصطناعي على الجهاز",
+  "proofreadEmptyBodyOnDevice": "نزِّل نموذج ذكاء اصطناعي يعمل على هذا الهاتف، أو أضِف مزوّدًا متوافقًا مع OpenAI أو Anthropic أو Gemini أو Ollama، للتحقّق من القواعد والإملاء والأسلوب. لا تستطيع نماذج الترجمة المتخصّصة مثل Hy-MT أو TranslateGemma التدقيق.",
+  "dictionaryNoEngineBodyOnDevice": "نزِّل نموذج ذكاء اصطناعي يعمل على هذا الهاتف، أو أضِف مزوّدًا متوافقًا مع OpenAI أو Anthropic أو Gemini أو Ollama، للبحث عن الكلمات. لا يمكن استخدام نماذج الترجمة المتخصّصة مثل Hy-MT أو TranslateGemma.",
+  "dictionaryNoSourceBodyOnDevice": "نزِّل قاموسًا للبحث عن الكلمات دون اتصال بالشبكة، أو أعِدّ الذكاء الاصطناعي على الجهاز أو مزوّد ذكاء اصطناعي."
 }

@@ -46,7 +46,7 @@ class TranslationNotes extends StatelessWidget {
     ),
     TranslationWarningKind.echo => l10n.translateWarningEcho,
     TranslationWarningKind.wrongLanguage => l10n.translateWarningWrongLanguage(
-      target.name,
+      languageDisplayName(target, l10n.localeName),
     ),
     TranslationWarningKind.length => l10n.translateWarningLength,
     TranslationWarningKind.notATranslation => l10n.translateWarningReply,

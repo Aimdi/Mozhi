@@ -2799,5 +2799,17 @@
   "settingsStyleKeywords": "terminal, clássico, aparência, visual, fonte, monoespaçada, classic, monospace, monospaced, JetBrains Mono",
   "settingsThemeTerminalSubtitle": "No estilo Terminal, Sistema significa escuro; Claro dá a aparência de papel",
   "settingsColorAmber": "Âmbar",
-  "settingsColorCyan": "Ciano"
+  "settingsColorCyan": "Ciano",
+  "offlineMirrorNotHostedTitle": "Este servidor web não hospeda os downloads",
+  "offlineMirrorNotHostedBody": "O app da web baixa estes arquivos do servidor de onde ele vem, e este não os tem. Importe arquivos baixados em outro lugar ou peça a quem administra o servidor para manter uma cópia deles.",
+  "offlineMirrorNotHostedHelp": "Como hospedá-los",
+  "dictionaryDefinitionsIn": "Definições em: {language}",
+  "phrasebookStarterPair": "{base} ↔ {language}",
+  "settingsFallbackDuckDuckGoOnSubtitle": "Ativado por padrão. Quando o Google falha em todos os servidores voluntários, seu texto é enviado ao tradutor do DuckDuckGo pelos mesmos servidores (as traduções dele vêm do Microsoft Translator). Desative para usar só o Google.",
+  "onboardingServiceViaDuckDuckGo": "Via DuckDuckGo",
+  "onboardingServiceViaDuckDuckGoTooltip": "O Google não está traduzindo neste servidor agora. O DuckDuckGo está, e o app o usa quando o Google falha.",
+  "commonSetUpOnDeviceAi": "Configurar IA no dispositivo",
+  "proofreadEmptyBodyOnDevice": "Baixe um modelo de IA que roda neste celular ou adicione um provedor compatível com OpenAI, Anthropic, Gemini ou Ollama para verificar gramática, ortografia e estilo. Modelos de tradução dedicados, como o Hy-MT ou o TranslateGemma, não fazem revisão.",
+  "dictionaryNoEngineBodyOnDevice": "Baixe um modelo de IA que roda neste celular ou adicione um provedor compatível com OpenAI, Anthropic, Gemini ou Ollama para consultar palavras. Modelos de tradução dedicados, como o Hy-MT ou o TranslateGemma, não podem ser usados.",
+  "dictionaryNoSourceBodyOnDevice": "Baixe um dicionário para consultar palavras sem conexão, ou configure a IA no dispositivo ou um provedor de IA."
 }

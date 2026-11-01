@@ -9,9 +9,11 @@ import 'package:mozhi/image_translate/data/text_recognition_service.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/offline/cubit/ocr_languages_cubit.dart';
 import 'package:mozhi/offline/cubit/offline_models_state.dart';
+import 'package:mozhi/offline/data/mirror_hosting.dart';
 import 'package:mozhi/offline/data/offline_model_file_picker.dart';
 import 'package:mozhi/offline/view/offline_models_page.dart'
     show MeteredDownloadDialog, offlineOutcomeMessage;
+import 'package:mozhi/offline/widgets/mirror_hosting_banner.dart';
 import 'package:mozhi/offline/widgets/ocr_import_summary.dart';
 import 'package:mozhi/offline/widgets/ocr_manual_file_sheet.dart';
 import 'package:mozhi/offline/widgets/offline_language_tile.dart';
@@ -132,7 +134,9 @@ class OcrLanguagesView extends StatelessWidget {
               context: context,
               builder: (_) => OcrImportSummaryDialog(
                 report: state.importOutcome!,
-                nameOf: (code) => state.item(code)?.display.name ?? code,
+                nameOf: (code) =>
+                    state.item(code)?.display.displayNameIn(l10n.localeName) ??
+                    code,
               ),
             );
           },
@@ -179,14 +183,23 @@ class _LanguagesList extends StatelessWidget {
 
   Future<void> _delete(BuildContext context, OcrLanguageItem item) async {
     final cubit = context.read<OcrLanguagesCubit>();
-    final body = context.l10n.offlineOcrDeleteBody(item.display.name);
+    final l10n = context.l10n;
+    final body = l10n.offlineOcrDeleteBody(
+      item.display.displayNameIn(l10n.localeName),
+    );
     if (await confirmDeleteOfflineLanguage(context, item.display, body: body)) {
       await cubit.delete(item.code);
     }
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => MirrorHostingBuilder(
+    kind: MirrorDataKind.textRecognition,
+    builder: _list,
+  );
+
+  /// The list; [blocked]: the web app's server does not host the data.
+  Widget _list(BuildContext context, {required bool blocked}) {
     final l10n = context.l10n;
     final cubit = context.read<OcrLanguagesCubit>();
     final state = context.watch<OcrLanguagesCubit>().state;
@@ -202,6 +215,7 @@ class _LanguagesList extends StatelessWidget {
         downloadSize: item.ocr.downloadSize,
         installedSize: state.installed[code],
         enabled: state.isAvailable,
+        canDownload: !blocked,
         onDownload: () => unawaited(cubit.download(code)),
         onDelete: () => unawaited(_delete(context, item)),
         onCancel: state.canCancel
@@ -236,6 +250,11 @@ class _LanguagesList extends StatelessWidget {
             .resolve(TextDirection.ltr),
         children: [
           if (!state.isAvailable) const _UnavailableBanner(),
+          if (blocked && state.isAvailable)
+            MirrorNotHostedBanner(
+              importing: state.importing,
+              onImport: () => unawaited(cubit.importFromFiles()),
+            ),
           _Overview(state: state),
           const Padding(
             padding: EdgeInsets.fromLTRB(16, 8, 16, 8),

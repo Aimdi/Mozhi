@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
+import 'package:mozhi/l10n/l10n.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 /// Shared spacing, breakpoints and text styles of the translate screen.
@@ -335,6 +336,16 @@ String languageNameFor(String code, Iterable<Language> known) {
   }
   return LanguageCatalog.byCode(code)?.name ?? code;
 }
+
+/// [languageNameFor] in the UI language (`context.languageName`): the
+/// catalogue's name for [code] in it, else the engine's or English one.
+String localizedLanguageNameFor(
+  BuildContext context,
+  String code,
+  Iterable<Language> known,
+) => context.languageName(
+  Language(code: code, name: languageNameFor(code, known)),
+);
 
 /// Whether [options] differ from the defaults in a way the user chose
 /// (one-off refinement instructions are ignored).

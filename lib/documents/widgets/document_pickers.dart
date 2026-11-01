@@ -4,6 +4,7 @@ import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/documents/widgets/document_labels.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/widgets/engine_selector.dart';
+import 'package:mozhi/translate/widgets/language_search.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 /// Shows the engine list; resolves to the chosen engine (null when
@@ -133,6 +134,7 @@ class _DocumentLanguageSheetState extends State<DocumentLanguageSheet> {
     if (query.isEmpty) return true;
     final lower = query.toLowerCase();
     return language.name.toLowerCase().contains(lower) ||
+        context.languageName(language).toLowerCase().contains(lower) ||
         (language.nativeName?.toLowerCase().contains(lower) ?? false) ||
         language.code.toLowerCase() == lower;
   }
@@ -142,9 +144,14 @@ class _DocumentLanguageSheetState extends State<DocumentLanguageSheet> {
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final query = _query.trim();
+    // "Detect language" first, then by the names shown.
     final matches = [
       for (final language in widget.languages)
-        if (_matches(language, query)) language,
+        if (language.isAuto && _matches(language, query)) language,
+      ...sortLanguagesByName(
+        widget.languages.where((l) => !l.isAuto && _matches(l, query)),
+        context.languageName,
+      ),
     ];
     final exact = matches.any(
       (language) => language.name.toLowerCase() == query.toLowerCase(),
@@ -210,7 +217,8 @@ class _DocumentLanguageSheetState extends State<DocumentLanguageSheet> {
                     title: Text(documentLanguageLabel(l10n, language)),
                     subtitle:
                         language.nativeName == null ||
-                            language.nativeName == language.name
+                            language.nativeName ==
+                                documentLanguageLabel(l10n, language)
                         ? null
                         : Text(language.nativeName!),
                     selected: language == widget.selected,

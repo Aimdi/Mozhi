@@ -16,11 +16,11 @@ class QuickTargetChip extends StatelessWidget {
     final l10n = context.l10n;
     return ActionChip(
       key: const Key('quick_translate_target_chip'),
-      tooltip: l10n.translateTargetLanguage(target.name),
+      tooltip: l10n.translateTargetLanguage(context.languageName(target)),
       avatar: target.isCustom
           ? const Icon(Icons.auto_awesome_outlined)
           : LanguageAvatar(code: target.code, size: 22),
-      label: _ChipLabel(text: target.name),
+      label: _ChipLabel(text: context.languageName(target)),
       onPressed: onPressed,
     );
   }

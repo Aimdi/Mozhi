@@ -1,4 +1,6 @@
 import 'package:flutter/foundation.dart';
+import 'package:translation_repository/translation_repository.dart'
+    show languageNamesCldrVersion;
 
 /// Package name under which the app's own license is listed.
 const appLicensePackage = 'Mozhi app';
@@ -52,6 +54,10 @@ const jetBrainsMonoLicensePackage = 'JetBrains Mono (font)';
 /// Package name of the notice of the practice scheduler
 /// (`lib/practice/data/fsrs.dart`, a port of py-fsrs).
 const fsrsLicensePackage = 'FSRS spaced repetition scheduler (py-fsrs)';
+
+/// Package name of the notice of the language names (Unicode CLDR,
+/// `packages/translation_repository/lib/src/language_names_data.dart`).
+const cldrLicensePackage = 'Unicode CLDR (language names)';
 
 /// The app's own license (repository `LICENSE`).
 const appLicenseText = '''
@@ -487,6 +493,56 @@ not be used in advertising or otherwise to promote the sale, use or other
 dealings in these Data Files or Software without prior written
 authorization of the copyright holder.''';
 
+/// The notice of the language names in the app's languages, from Unicode
+/// CLDR ([languageNamesCldrVersion]; `tool/language_names.py`).
+const cldrLicenseText =
+    '''
+The names of languages in the app's languages ("Französisch", "英語")
+come from the Unicode Common Locale Data Repository (CLDR), version
+$languageNamesCldrVersion (https://cldr.unicode.org, npm package
+cldr-localenames-full), generated into the app by tool/language_names.py,
+under the Unicode License v3.
+
+COPYRIGHT AND PERMISSION NOTICE
+
+Copyright © 2001–2026 Unicode, Inc.
+
+UNICODE LICENSE V3
+
+NOTICE TO USER: Carefully read the following legal agreement. BY
+DOWNLOADING, INSTALLING, COPYING OR OTHERWISE USING DATA FILES, AND/OR
+SOFTWARE, YOU UNEQUIVOCALLY ACCEPT, AND AGREE TO BE BOUND BY, ALL OF THE
+TERMS AND CONDITIONS OF THIS AGREEMENT. IF YOU DO NOT AGREE, DO NOT
+DOWNLOAD, INSTALL, COPY, DISTRIBUTE OR USE THE DATA FILES OR SOFTWARE.
+
+Permission is hereby granted, free of charge, to any person obtaining a
+copy of data files and any associated documentation (the "Data Files") or
+software and any associated documentation (the "Software") to deal in the
+Data Files or Software without restriction, including without limitation
+the rights to use, copy, modify, merge, publish, distribute, and/or sell
+copies of the Data Files or Software, and to permit persons to whom the
+Data Files or Software are furnished to do so, provided that either (a)
+this copyright and permission notice appear with all copies of the Data
+Files or Software, or (b) this copyright and permission notice appear in
+associated Documentation.
+
+THE DATA FILES AND SOFTWARE ARE PROVIDED "AS IS", WITHOUT WARRANTY OF ANY
+KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT OF
+THIRD PARTY RIGHTS.
+
+IN NO EVENT SHALL THE COPYRIGHT HOLDER OR HOLDERS INCLUDED IN THIS NOTICE
+BE LIABLE FOR ANY CLAIM, OR ANY SPECIAL INDIRECT OR CONSEQUENTIAL DAMAGES,
+OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS,
+WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION,
+ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THE DATA
+FILES OR SOFTWARE.
+
+Except as contained in this notice, the name of a copyright holder shall
+not be used in advertising or otherwise to promote the sale, use or other
+dealings in these Data Files or Software without prior written
+authorization of the copyright holder.''';
+
 bool _registered = false;
 
 /// The license of JetBrains Mono 2.304, the terminal look's font
@@ -590,8 +646,9 @@ OTHER DEALINGS IN THE FONT SOFTWARE.''';
 /// Adds the notices Flutter does not collect from pub packages (the app's
 /// own license, the offline translation engine and models, the text
 /// recognition engine and data, the offline speech recognition engine and
-/// models, the on-device AI models, the practice scheduler, the terminal
-/// look's font, ML Kit and native platform libraries) to
+/// models, the on-device AI models, the practice scheduler, the language
+/// names (Unicode CLDR), the terminal look's font, ML Kit and native
+/// platform libraries) to
 /// the [LicenseRegistry] shown by `showLicensePage`. Safe to call
 /// repeatedly.
 ///
@@ -636,6 +693,7 @@ void registerThirdPartyLicenses({
         onDeviceAiModelsLicensePackage,
       ], onDeviceAiModelsLicenseText),
       const LicenseEntryWithLineBreaks([fsrsLicensePackage], fsrsLicenseText),
+      const LicenseEntryWithLineBreaks([cldrLicensePackage], cldrLicenseText),
       const LicenseEntryWithLineBreaks([
         jetBrainsMonoLicensePackage,
       ], jetBrainsMonoLicenseText),

@@ -1,10 +1,14 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/app/router.dart' show AppRoutes;
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/offline/offline.dart';
+import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/translate.dart';
 import 'package:mozhi/translate/widgets/widgets.dart';
 import 'package:translation_repository/translation_repository.dart';
@@ -68,8 +72,9 @@ void main() {
       Object? shown,
       bool dense = false,
       FakeOfflineTranslator? offline,
+      AppSettings settings = const AppSettings(),
     }) async {
-      final harness = TranslateHarness(state: state);
+      final harness = TranslateHarness(state: state, settings: settings);
       await harness.pump(
         tester,
         child: TranslateErrorView(
@@ -111,6 +116,39 @@ void main() {
 
       await tester.tap(find.text('Manage languages'));
       verify(() => harness.router.push<void>(AppRoutes.offline)).called(1);
+    });
+
+    testWidgets('no download where this web server does not host it', (
+      tester,
+    ) async {
+      final source = ModelSource.current;
+      final probe = MirrorHostingProbe.instance;
+      addTearDown(() {
+        ModelSource.current = source;
+        MirrorHostingProbe.instance = probe;
+      });
+      ModelSource.current = const ModelSource(kind: ModelSourceKind.thisServer);
+      MirrorHostingProbe.instance = MirrorHostingProbe(
+        client: MockClient((request) async => http.Response('Not Found', 404)),
+        isWeb: true,
+        appBase: () => Uri.parse('https://translate.example.org/'),
+      );
+
+      await pump(
+        tester,
+        _failed(const MozhiApiException('Bad gateway', statusCode: 502)),
+        offline: FakeOfflineTranslator(),
+        settings: const AppSettings(
+          modelSource: ModelSource(kind: ModelSourceKind.thisServer),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('translate_offline_download')), findsNothing);
+      // The rest of the error stays: Retry.
+      expect(find.byKey(const Key('translate_error_retry')), findsOneWidget);
+      // Manage languages stays: its page offers to import files.
+      expect(find.byKey(const Key('translate_offline_manage')), findsOneWidget);
     });
 
     testWidgets('only for the translation of the Translate screen', (

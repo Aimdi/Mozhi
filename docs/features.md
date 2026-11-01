@@ -239,11 +239,14 @@ else works with a Mozhi instance alone.
   servers report that the engine is limiting their requests (Google
   answering them with "too many requests"), the message says so instead:
   **Google is limiting requests from the volunteer servers right now.** For
-  Google, the error also offers **Use DuckDuckGo when Google fails**,
-  which turns on the setting below and translates the text with
-  DuckDuckGo right away.
-- **If Google fails, use DuckDuckGo** (off by default, **Settings >
-  Translation engines**, under the Mozhi instances): when a translation
+  Google, when you turned the setting below off, the error also offers
+  **Use DuckDuckGo when Google fails**, which turns it on again and
+  translates the text with DuckDuckGo right away.
+- **If Google fails, use DuckDuckGo** (on by default since 0.1.0-rc.14,
+  because Google rate-limits most volunteer servers; turn it off under
+  **Settings > Translation engines**, below the Mozhi instances, to only
+  use Google; settings from earlier versions get it on unless you set the
+  switch yourself): when a translation
   with Google fails on every volunteer server, Mozhi tries once more with
   the DuckDuckGo engine through the same servers (in your order, with the
   same failover). DuckDuckGo's translations come from Microsoft
@@ -258,7 +261,7 @@ else works with a Mozhi instance alone.
   The result says **Google failed on every server, so DuckDuckGo
   translated this.**; the engine name, the destination chip ("DuckDuckGo
   via …"), the history entry and **Network activity** name DuckDuckGo.
-  Without the setting, the engine never changes on its own.
+  With the setting off, the engine never changes on its own.
 - **More languages at once:** **Also translate into…** in **Tools** adds up
   to four more target languages; see
   [Extra target languages](#extra-target-languages).
@@ -696,14 +699,20 @@ words** (tap one to look it up). For a misspelled word the entry offers
 **Did you mean "…"?**. Definitions are written in the app's language by the
 AI model (the one under **Settings > AI > AI assistant for insights** when
 you translate with a Mozhi engine) and are marked **AI-generated**.
+Dedicated translation models (Hy-MT, TranslateGemma) can't write entries
+and aren't offered. Without an AI model that can, the tab offers **Add AI
+provider** and, on an Android phone that can run [on-device
+AI](on-device-ai.md), **Set up on-device AI** first.
 
 **Offline.** With dictionaries downloaded under **Settings > Offline
 languages > Dictionaries** (Wiktionary packs, one per language, checked
 against the app's SHA-256), the Dictionary tab answers from them first,
 without a network or an AI provider: definitions, part of speech,
 pronunciation, examples, synonyms, related words, a short etymology and
-translations, labelled **From Wiktionary · CC BY-SA 4.0** (tap it for the
-attribution and the licence) instead of **AI-generated**. Case and accents
+translations, labelled **From Wiktionary · CC BY-SA 4.0 · Definitions in
+English** (tap it for the attribution and the licence) instead of
+**AI-generated**: every pack (20 languages) explains its words in English,
+and each says so on the Dictionaries screen too. Case and accents
 don't matter (`cafe` finds *café*), and an inflected form finds its lemma
 (*“went” is a form of “go”*). **More detail** under such an entry asks your
 AI provider for its fuller entry; a word the dictionaries don't have goes to
@@ -740,7 +749,11 @@ spelling and style, one suggestion at a time.*) checks grammar, spelling,
 punctuation and style in any language. Its composer works like
 Translate's: the options, the language (it picks the regional variety) and
 the go button at the end; the app bar shows the AI model in use (**AI
-model: …**).
+model: …**). It offers the AI models that can proofread: dedicated
+translation models (Hy-MT, TranslateGemma) can't, and aren't listed.
+Without any, the tab offers **Add AI provider** and, on an Android phone
+that can run [on-device AI](on-device-ai.md), **Set up on-device AI**
+first.
 
 - In the options, choose the **Style** (General, Academic, Business, Casual,
   Creative, Email), the **Correction level** (*Light*: clear mistakes only;
@@ -1556,8 +1569,10 @@ Collections of phrases, on the device and offline (details in
   Wikivoyage · CC BY-SA 4.0**): downloaded once on request from your model
   source and checked against their SHA-256, then offline and read-only,
   with pronunciations; copy phrases out of them into your own collections.
-  None are available until their first release of data, and the app says
-  so.
+  29 languages, each listed as **English ↔ <language>** (they are
+  Wikivoyage's English phrasebooks); the one of the app's own language is
+  left out. The web zip carries them, so the web app downloads them from
+  its own server.
 - The phrasebook is encrypted on the device like the history, is part of
   [backups](#backup-and-restore) (not the starter phrasebooks, which can be
   downloaded again) and goes with **Delete all local data**.

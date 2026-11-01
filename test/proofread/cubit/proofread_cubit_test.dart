@@ -23,6 +23,16 @@ const _ollama = TranslationEngine(
   name: 'Ollama',
   isLocal: true,
 );
+
+/// A dedicated translation model: it can't proofread.
+const _hyMt = TranslationEngine(
+  id: 'ai:device-hy-mt2-1.8b-q4',
+  kind: EngineKind.ai,
+  name: 'Hy-MT2 1.8B (on this device)',
+  isLocal: true,
+  onDevice: true,
+  promptProfile: PromptProfile.hunyuanMt,
+);
 const _google = TranslationEngine(
   id: 'mozhi:google',
   kind: EngineKind.mozhi,
@@ -111,6 +121,16 @@ void main() {
         expect(build(engine: _google).state.engine, _openAi);
       });
 
+      test('leaves out translation-only AI models', () {
+        expect(_hyMt.supportsExtras, isFalse);
+        final cubit = build(engines: [_hyMt, _openAi], engine: _hyMt);
+        expect(cubit.state.availableEngines, [_openAi]);
+        expect(cubit.state.engine, _openAi);
+        final only = build(engines: [_hyMt], engine: _hyMt);
+        expect(only.state.availableEngines, isEmpty);
+        expect(only.state.engine, isNull);
+      });
+
       test('has no engine when no AI engine exists', () {
         final cubit = build(engines: [_google]);
         expect(cubit.state.availableEngines, isEmpty);
@@ -182,6 +202,22 @@ void main() {
       );
 
       blocTest<ProofreadCubit, ProofreadState>(
+        'leaves out translation-only AI models, even as the preferred one',
+        build: () => build(engines: const []),
+        act: (cubit) => cubit.setEngines([_hyMt, _ollama], preferred: _hyMt),
+        expect: () => const [
+          ProofreadState(engine: _ollama, availableEngines: [_ollama]),
+        ],
+      );
+
+      blocTest<ProofreadCubit, ProofreadState>(
+        'clears the engine when only translation-only models remain',
+        build: build,
+        act: (cubit) => cubit.setEngines([_google, _hyMt]),
+        expect: () => const [ProofreadState()],
+      );
+
+      blocTest<ProofreadCubit, ProofreadState>(
         'clears the engine when no AI engine remains',
         build: build,
         act: (cubit) => cubit.setEngines([_google]),
@@ -203,6 +239,13 @@ void main() {
         'ignores Mozhi engines',
         build: build,
         act: (cubit) => cubit.setEngine(_google),
+        expect: () => <ProofreadState>[],
+      );
+
+      blocTest<ProofreadCubit, ProofreadState>(
+        'ignores translation-only AI models',
+        build: build,
+        act: (cubit) => cubit.setEngine(_hyMt),
         expect: () => <ProofreadState>[],
       );
     });

@@ -2799,5 +2799,17 @@
   "settingsStyleKeywords": "ターミナル、クラシック、外観、見た目、フォント、等幅、terminal、classic、monospace、monospaced、JetBrains Mono",
   "settingsThemeTerminalSubtitle": "ターミナルスタイルでは「システム」はダークになり、「ライト」は紙のような外観になります",
   "settingsColorAmber": "アンバー",
-  "settingsColorCyan": "シアン"
+  "settingsColorCyan": "シアン",
+  "offlineMirrorNotHostedTitle": "このウェブサーバーはダウンロードファイルをホストしていません",
+  "offlineMirrorNotHostedBody": "ウェブアプリは配信元のサーバーからこれらのファイルをダウンロードしますが、このサーバーにはありません。別の場所でダウンロードしたファイルをインポートするか、サーバーの運営者にミラーを依頼してください。",
+  "offlineMirrorNotHostedHelp": "ホストする方法",
+  "dictionaryDefinitionsIn": "意味の言語: {language}",
+  "phrasebookStarterPair": "{base} ↔ {language}",
+  "settingsFallbackDuckDuckGoOnSubtitle": "デフォルトでオンです。Google がすべてのボランティアのサーバーで失敗した場合、テキストは同じサーバー経由で DuckDuckGo の翻訳に送られます（その翻訳は Microsoft Translator によるものです）。Google だけを使うにはオフにしてください。",
+  "onboardingServiceViaDuckDuckGo": "DuckDuckGo 経由",
+  "onboardingServiceViaDuckDuckGoTooltip": "現在このサーバーでは Google で翻訳できません。DuckDuckGo は使えるため、Google が失敗したときはアプリが DuckDuckGo を使います。",
+  "commonSetUpOnDeviceAi": "オンデバイス AI を設定",
+  "proofreadEmptyBodyOnDevice": "このスマートフォン上で動作する AI モデルをダウンロードするか、OpenAI 互換、Anthropic、Gemini、Ollama のプロバイダを追加すると、文法・スペル・文体をチェックできます。Hy-MT や TranslateGemma などの翻訳専用モデルでは校正できません。",
+  "dictionaryNoEngineBodyOnDevice": "このスマートフォン上で動作する AI モデルをダウンロードするか、OpenAI 互換、Anthropic、Gemini、Ollama のプロバイダを追加すると、単語を調べられます。Hy-MT や TranslateGemma などの翻訳専用モデルは使用できません。",
+  "dictionaryNoSourceBodyOnDevice": "辞書をダウンロードすると、ネットワークなしで単語を調べられます。オンデバイス AI や AI プロバイダを設定することもできます。"
 }

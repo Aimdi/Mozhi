@@ -9,9 +9,11 @@ import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/offline/cubit/offline_models_cubit.dart';
 import 'package:mozhi/offline/data/bergamot_model_details.dart'
     show offlineModelDetailsOf;
+import 'package:mozhi/offline/data/mirror_hosting.dart';
 import 'package:mozhi/offline/data/offline_model_details.dart';
 import 'package:mozhi/offline/view/offline_models_page.dart'
     show MeteredDownloadDialog, offlineOutcomeMessage;
+import 'package:mozhi/offline/widgets/mirror_hosting_banner.dart';
 import 'package:mozhi/offline/widgets/offline_language_tile.dart'
     show OfflineCancelDownloadButton;
 import 'package:mozhi/settings/view/widgets/delete_local_data.dart'
@@ -22,6 +24,14 @@ import 'package:translation_repository/translation_repository.dart';
 /// A language to download for translating on this device.
 typedef OfflineDownload = ({String code, String name, int? bytes});
 
+/// The name of [download]'s language to show: in the UI language
+/// ([languageDisplayName]; else its `name`).
+String offlineDownloadName(AppLocalizations l10n, OfflineDownload download) =>
+    languageDisplayName(
+      Language(code: download.code, name: download.name),
+      l10n.localeName,
+    );
+
 /// The label of a button that downloads [downloads]: "Download German
 /// (25 MB)", "Download German, Japanese (52 MB)", or without the size when
 /// it is unknown.
@@ -29,7 +39,9 @@ String offlineDownloadLabel(
   AppLocalizations l10n,
   List<OfflineDownload> downloads,
 ) {
-  final names = [for (final download in downloads) download.name].join(', ');
+  final names = [
+    for (final download in downloads) offlineDownloadName(l10n, download),
+  ].join(', ');
   final sizes = [for (final download in downloads) download.bytes];
   if (sizes.isEmpty || sizes.any((size) => size == null || size <= 0)) {
     return l10n.translateOfflineDownloadLanguage(names);
@@ -224,18 +236,33 @@ class _OfflineDownloadActionState extends State<OfflineDownloadAction> {
     if (mounted) widget.onManaged?.call();
   }
 
+  /// Where this web server does not host the offline languages
+  /// ([MirrorHostingBuilder]), only "Manage languages" is left (its page
+  /// says so and offers to import files): a download would fail.
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => MirrorHostingBuilder(
+    kind: MirrorDataKind.translation,
+    builder: (context, {required blocked}) => blocked && _current == null
+        ? Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: _manageButton(context),
+          )
+        : _content(context),
+  );
+
+  Widget _manageButton(BuildContext context) => TextButton(
+    key: const Key('translate_offline_manage'),
+    style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
+    onPressed: () => unawaited(_manage()),
+    child: Text(context.l10n.translateOfflineManageLanguages),
+  );
+
+  Widget _content(BuildContext context) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final current = _current;
     final error = _error;
-    final manage = TextButton(
-      key: const Key('translate_offline_manage'),
-      style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
-      onPressed: () => unawaited(_manage()),
-      child: Text(l10n.translateOfflineManageLanguages),
-    );
+    final manage = _manageButton(context);
     if (current != null) {
       final progress = _progress;
       final percent = progress == null ? null : (progress * 100).floor();
@@ -260,10 +287,10 @@ class _OfflineDownloadActionState extends State<OfflineDownloadAction> {
                       ? l10n.offlineCancelling
                       : percent == null
                       ? l10n.translateOfflineDownloadingLanguageStarted(
-                          current.name,
+                          offlineDownloadName(l10n, current),
                         )
                       : l10n.translateOfflineDownloadingLanguage(
-                          current.name,
+                          offlineDownloadName(l10n, current),
                           percent,
                         ),
                   style: theme.textTheme.bodyMedium?.copyWith(
@@ -275,7 +302,7 @@ class _OfflineDownloadActionState extends State<OfflineDownloadAction> {
             if (_models?.state.canCancel ?? false)
               OfflineCancelDownloadButton(
                 key: const Key('translate_offline_cancel'),
-                language: current.name,
+                language: offlineDownloadName(l10n, current),
                 onPressed: _cancelled ? null : () => unawaited(_cancel()),
               ),
           ],

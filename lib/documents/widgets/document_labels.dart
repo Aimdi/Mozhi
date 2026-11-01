@@ -110,6 +110,9 @@ String documentErrorLabel(
   };
 }
 
-/// Display name of [language] ("Detect language" is localised).
+/// Display name of [language] in the UI language ([languageDisplayName];
+/// "Detect language" is localised).
 String documentLanguageLabel(AppLocalizations l10n, Language language) =>
-    language.isAuto ? l10n.documentsDetectLanguage : language.name;
+    language.isAuto
+    ? l10n.documentsDetectLanguage
+    : languageDisplayName(language, l10n.localeName);

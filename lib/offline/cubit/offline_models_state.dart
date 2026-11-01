@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart';
 import 'package:mozhi/offline/data/offline_model_details.dart';
 import 'package:mozhi/offline/data/offline_model_error.dart';
 import 'package:mozhi/offline/data/offline_model_import.dart';
+import 'package:translation_repository/translation_repository.dart'
+    show Language, languageDisplayName;
 
 enum OfflineModelsStatus { initial, loading, ready, failure }
 
@@ -36,6 +38,12 @@ class OfflineLanguage extends Equatable {
         nativeName: nativeName,
         direction: direction,
       );
+
+  /// The name to show in the UI language [uiLocale]
+  /// (`AppLocalizations.localeName`): the catalogue's name for [code] in
+  /// it ([languageDisplayName]), else [name].
+  String displayNameIn(String uiLocale) =>
+      languageDisplayName(Language(code: code, name: name), uiLocale);
 
   bool matches(String needle) =>
       needle.isEmpty ||

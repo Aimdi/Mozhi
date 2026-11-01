@@ -54,6 +54,48 @@ void main() {
         ),
       );
 
+  /// [url] answers [engine]'s test with [answer].
+  void stubEngine(
+    String url,
+    String engine,
+    Future<Duration> Function() answer,
+  ) {
+    when(
+      () => repository.pingInstance(
+        any(that: isA<MozhiInstance>().having((i) => i.url, 'url', url)),
+        engine: engine,
+      ),
+    ).thenAnswer((_) => answer());
+  }
+
+  /// [url]'s Google is rate-limited (HTTP 500 with Google's 429) and its
+  /// DuckDuckGo answers in [duckDuckGo] ms (fails when null).
+  void stubGoogleLimited(String url, {int? duckDuckGo}) {
+    stubEngine(
+      url,
+      'google',
+      () => Future.error(
+        const InstanceDoesNotTranslateException(
+          'request failed with status code: 429',
+          engine: 'google',
+          statusCode: 500,
+        ),
+      ),
+    );
+    stubEngine(
+      url,
+      'duckduckgo',
+      () => duckDuckGo == null
+          ? Future.error(
+              const InstanceDoesNotTranslateException(
+                'duckduckgo returned no translation',
+                engine: 'duckduckgo',
+              ),
+            )
+          : Future.value(Duration(milliseconds: duckDuckGo)),
+    );
+  }
+
   void stubLatencies(Map<String, int?> millis) {
     for (final MapEntry(key: url, value: ms) in millis.entries) {
       stubPing(
@@ -393,6 +435,256 @@ void main() {
       expect(cubit.state.fastestUrl, instanceB.url);
       expect(cubit.state.noneReachable, isFalse);
       expect(urlsOf(settings), [instanceB.url, instanceA.url, instanceC.url]);
+    });
+
+    group('with the DuckDuckGo fallback (on by default)', () {
+      test('tests a server whose Google fails with DuckDuckGo and counts '
+          'it as working', () async {
+        stubGoogleLimited(instanceA.url, duckDuckGo: 50);
+        stubGoogleLimited(instanceB.url, duckDuckGo: 30);
+        stubLatencies({instanceC.url: 400});
+        final cubit = build();
+
+        await cubit.findFastestInstance();
+
+        expect(cubit.state.pings, {
+          instanceA.url: const InstancePing.success(
+            Duration(milliseconds: 50),
+            fallbackEngine: 'duckduckgo',
+          ),
+          instanceB.url: const InstancePing.success(
+            Duration(milliseconds: 30),
+            fallbackEngine: 'duckduckgo',
+          ),
+          instanceC.url: const InstancePing.success(
+            Duration(milliseconds: 400),
+          ),
+        });
+        expect(cubit.state.noneReachable, isFalse);
+        // Translations ask Google first: the server where it works leads,
+        // then the others by speed.
+        expect(cubit.state.selectedUrl, instanceC.url);
+        expect(urlsOf(settings), [instanceC.url, instanceB.url, instanceA.url]);
+        verifyNever(
+          () => repository.pingInstance(
+            any(
+              that: isA<MozhiInstance>().having(
+                (i) => i.url,
+                'url',
+                instanceC.url,
+              ),
+            ),
+            engine: 'duckduckgo',
+          ),
+        );
+      });
+
+      test(
+        'picks the fastest DuckDuckGo server when Google works on none',
+        () async {
+          stubGoogleLimited(instanceA.url, duckDuckGo: 80);
+          stubGoogleLimited(instanceB.url, duckDuckGo: 20);
+          stubGoogleLimited(instanceC.url);
+          final cubit = build();
+
+          await cubit.findFastestInstance();
+
+          expect(cubit.state.selectedUrl, instanceB.url);
+          expect(cubit.state.noneReachable, isFalse);
+          // DuckDuckGo failed there too: Google's failure is the result.
+          expect(
+            cubit.state.pings[instanceC.url],
+            const InstancePing.noTranslation(
+              'request failed with status code: 429',
+            ),
+          );
+          expect(urlsOf(settings), [
+            instanceB.url,
+            instanceA.url,
+            instanceC.url,
+          ]);
+        },
+      );
+
+      test('is not used when the user turned it off', () async {
+        settings.setFallbackToDuckDuckGo(enabled: false);
+        stubGoogleLimited(instanceA.url, duckDuckGo: 10);
+        stubLatencies({instanceB.url: 100, instanceC.url: null});
+        final cubit = build();
+
+        await cubit.findFastestInstance();
+
+        expect(
+          cubit.state.pings[instanceA.url]?.status,
+          PingStatus.noTranslation,
+        );
+        expect(cubit.state.selectedUrl, instanceB.url);
+        verifyNever(() => repository.pingInstance(any(), engine: 'duckduckgo'));
+      });
+
+      test('is not used in Offline only', () async {
+        settings.setPrivacyMode(PrivacyMode.offlineOnly);
+        stubGoogleLimited(instanceA.url, duckDuckGo: 10);
+        stubLatencies({instanceB.url: 100, instanceC.url: null});
+        final cubit = build();
+
+        await cubit.findFastestInstance();
+
+        expect(
+          cubit.state.pings[instanceA.url]?.status,
+          PingStatus.noTranslation,
+        );
+        verifyNever(() => repository.pingInstance(any(), engine: 'duckduckgo'));
+      });
+
+      test('is not used while another engine is tested', () async {
+        settings.setEngine('mozhi:deepl');
+        stubEngine(
+          instanceA.url,
+          'deepl',
+          () => Future.error(
+            const InstanceDoesNotTranslateException(
+              'quota',
+              engine: 'deepl',
+              statusCode: 500,
+            ),
+          ),
+        );
+        stubLatencies({instanceB.url: 100, instanceC.url: null});
+        final cubit = build();
+
+        await cubit.findFastestInstance();
+
+        expect(
+          cubit.state.pings[instanceA.url],
+          const InstancePing.noTranslation('quota'),
+        );
+        verifyNever(() => repository.pingInstance(any(), engine: 'duckduckgo'));
+      });
+
+      test('the whole test, DuckDuckGo included, has one timeout', () async {
+        stubEngine(
+          instanceA.url,
+          'google',
+          () => Future.error(
+            const InstanceDoesNotTranslateException(
+              '429',
+              engine: 'google',
+              statusCode: 500,
+            ),
+          ),
+        );
+        stubEngine(
+          instanceA.url,
+          'duckduckgo',
+          () => Completer<Duration>().future,
+        );
+        stubLatencies({instanceB.url: 5, instanceC.url: 5});
+        final cubit = build(pingTimeout: const Duration(milliseconds: 20));
+
+        await cubit.findFastestInstance();
+
+        expect(cubit.state.pings[instanceA.url], const InstancePing.timedOut());
+      });
+
+      test('adds an own instance whose Google fails but DuckDuckGo '
+          'translates', () async {
+        const url = 'https://mine.example';
+        stubGoogleLimited(url, duckDuckGo: 60);
+        final cubit = build();
+
+        await cubit.addOwnInstance(url);
+
+        expect(cubit.state.ownInstanceStatus, OwnInstanceStatus.success);
+        expect(
+          cubit.state.ownInstanceLatency,
+          const Duration(milliseconds: 60),
+        );
+        expect(
+          cubit.state.pings[url],
+          const InstancePing.success(
+            Duration(milliseconds: 60),
+            fallbackEngine: 'duckduckgo',
+          ),
+        );
+        expect(urlsOf(settings).first, url);
+      });
+    });
+
+    group('fallbackApplies', () {
+      const on = AppSettings(privacyMode: PrivacyMode.online);
+      const googleFailed = InstanceDoesNotTranslateException(
+        'request failed with status code: 429',
+        engine: 'google',
+        statusCode: 500,
+      );
+
+      bool applies(
+        Object error, {
+        String engine = 'google',
+        AppSettings settings = on,
+      }) => OnboardingCubit.fallbackApplies(
+        error,
+        engine: engine,
+        settings: settings,
+      );
+
+      test('when Google answered that it failed, or rate-limited', () {
+        expect(applies(googleFailed), isTrue);
+        expect(applies(googleFailed, engine: 'Google'), isTrue);
+        expect(
+          applies(
+            const InstanceDoesNotTranslateException(
+              'google returned no translation',
+              engine: 'google',
+            ),
+          ),
+          isTrue,
+        );
+        expect(
+          applies(const MozhiApiException('Too many', statusCode: 429)),
+          isTrue,
+        );
+        expect(applies(googleFailed, settings: const AppSettings()), isTrue);
+      });
+
+      test('not for a server without Google, nor one that did not '
+          'answer', () {
+        expect(
+          applies(
+            const InstanceDoesNotTranslateException(
+              'Engine does not exist or has been disabled',
+              engine: 'google',
+              statusCode: 500,
+            ),
+          ),
+          isFalse,
+        );
+        expect(applies(const MozhiApiException('down')), isFalse);
+        expect(
+          applies(const MozhiApiException('Forbidden', statusCode: 403)),
+          isFalse,
+        );
+        expect(applies(StateError('x')), isFalse);
+      });
+
+      test('not for another engine, when off, or in Offline only', () {
+        expect(applies(googleFailed, engine: 'deepl'), isFalse);
+        expect(
+          applies(
+            googleFailed,
+            settings: on.copyWith(fallbackToDuckDuckGo: false),
+          ),
+          isFalse,
+        );
+        expect(
+          applies(
+            googleFailed,
+            settings: on.copyWith(privacyMode: PrivacyMode.offlineOnly),
+          ),
+          isFalse,
+        );
+      });
     });
 
     test('says when servers answered but none translated', () async {

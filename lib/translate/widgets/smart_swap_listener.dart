@@ -53,7 +53,11 @@ class _SmartSwapListenerState extends State<SmartSwapListener> {
       ..showSnackBar(
         SnackBar(
           key: ValueKey('translate_smart_swap_${notice.id}'),
-          content: Text(l10n.translateSmartSwapNotice(notice.newTarget.name)),
+          content: Text(
+            l10n.translateSmartSwapNotice(
+              context.languageName(notice.newTarget),
+            ),
+          ),
           persist: true,
           showCloseIcon: true,
           action: SnackBarAction(

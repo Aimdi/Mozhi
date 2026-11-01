@@ -323,6 +323,43 @@ void main() {
       expect(find.textContaining('none translated'), findsNothing);
     });
 
+    testWidgets('marks servers that translate through DuckDuckGo as '
+        'working', (tester) async {
+      await pump(
+        tester,
+        OnboardingState(
+          serviceStatus: ServiceStatus.done,
+          pings: {
+            instanceA.url: const InstancePing.success(
+              Duration(milliseconds: 70),
+              fallbackEngine: 'duckduckgo',
+            ),
+            instanceB.url: const InstancePing.success(
+              Duration(milliseconds: 90),
+            ),
+          },
+        ),
+      );
+
+      // Alpha, in use, works through DuckDuckGo.
+      expect(find.text('Doesn’t translate'), findsNothing);
+      expect(find.text('Via DuckDuckGo'), findsOneWidget);
+      expect(find.text('70 ms'), findsOneWidget);
+      await openList(tester);
+      expect(find.text('Via DuckDuckGo'), findsNWidgets(2));
+      expect(
+        find.byTooltip(
+          "Google doesn't translate on this server right now. DuckDuckGo "
+          'does, and the app uses it when Google fails.',
+        ),
+        findsNWidgets(2),
+      );
+      // The fastest is the one where Google translates.
+      expect(find.text('Fastest'), findsOneWidget);
+      expect(find.textContaining('none translated'), findsNothing);
+      expect(find.textContaining('No instance answered'), findsNothing);
+    });
+
     testWidgets('warns when no instance answered', (tester) async {
       await pump(
         tester,

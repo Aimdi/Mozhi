@@ -18,8 +18,15 @@ A translation counts when the answer is JSON with a non-empty
 `translated-text` that differs from the English. Nothing but the fixed test
 sentence is sent.
 
+The requests carry an `Origin: https://example.org` header, as a browser
+sends for the web app (served from another site): the table's "Web" column
+says whether every answer allowed that origin (`Access-Control-Allow-Origin`
+`*` or the origin). A server without it works in the Android app but not in
+the web app. This is only a warning, never a failure.
+
 On GitHub Actions the table also goes to the job summary, and each server
-that no longer translates with the default engine gets a `::warning::`.
+that no longer translates with the default engine, or that the web app
+can't use (CORS), gets a `::warning::`.
 
 Exit status: 0 when at least --min-working servers (default 1) translate
 with the default engine, 1 otherwise (a new install could not translate
@@ -60,6 +67,9 @@ KNOWN_ENGINES = (
 )
 TEXT = "Good morning! Where is the train station?"
 TIMEOUT = 20
+# The Origin a browser sends with the web app's requests (any other site
+# than the server's own).
+CORS_ORIGIN = "https://example.org"
 
 
 @dataclass
@@ -71,10 +81,25 @@ class Result:
     translated: dict[str, str] = field(default_factory=dict)
     failed: dict[str, str] = field(default_factory=dict)
     default_seconds: float | None = None
+    # The requests whose answer did not allow CORS_ORIGIN ("engines", or the
+    # engine of a translation); None until an answer was checked.
+    cors_missing: list[str] | None = None
 
     @property
     def default_works(self) -> bool:
         return DEFAULT_ENGINE in self.translated
+
+    @property
+    def cors_ok(self) -> bool | None:
+        """Whether every checked answer allowed the web app's origin (None
+        when no answer came)."""
+        return None if self.cors_missing is None else not self.cors_missing
+
+    def _cors(self, request: str, headers) -> None:
+        if self.cors_missing is None:
+            self.cors_missing = []
+        if not allows_origin(headers):
+            self.cors_missing.append(request)
 
 
 def public_instances(source: Path = INSTANCES) -> list[str]:
@@ -91,7 +116,20 @@ def public_instances(source: Path = INSTANCES) -> list[str]:
     return urls
 
 
-def _request(url: str, data: dict[str, str] | None = None) -> tuple[int, bytes]:
+def allows_origin(headers, origin: str = CORS_ORIGIN) -> bool:
+    """Whether answer [headers] let a page from [origin] read the answer:
+    `Access-Control-Allow-Origin` is `*` or [origin]."""
+    if headers is None:
+        return False
+    value = (headers.get("Access-Control-Allow-Origin") or "").strip()
+    return value == "*" or value.rstrip("/") == origin.rstrip("/")
+
+
+def _request_with_headers(
+    url: str, data: dict[str, str] | None = None
+) -> tuple[int, bytes, object]:
+    """The status, body and headers of the app's request to [url] (a POST
+    form with [data], else a GET), sent with the web app's `Origin`."""
     body = urllib.parse.urlencode(data).encode() if data is not None else None
     request = urllib.request.Request(
         url,
@@ -100,6 +138,7 @@ def _request(url: str, data: dict[str, str] | None = None) -> tuple[int, bytes]:
         headers={
             "User-Agent": USER_AGENT,
             "Accept": "application/json",
+            "Origin": CORS_ORIGIN,
             **(
                 {"Content-Type": "application/x-www-form-urlencoded"}
                 if data is not None
@@ -109,9 +148,14 @@ def _request(url: str, data: dict[str, str] | None = None) -> tuple[int, bytes]:
     )
     try:
         with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
-            return response.status, response.read(1 << 20)
+            return response.status, response.read(1 << 20), response.headers
     except urllib.error.HTTPError as error:
-        return error.code, error.read(4096)
+        return error.code, error.read(4096), error.headers
+
+
+def _request(url: str, data: dict[str, str] | None = None) -> tuple[int, bytes]:
+    status, body, _ = _request_with_headers(url, data)
+    return status, body
 
 
 def _short(error: object) -> str:
@@ -143,10 +187,11 @@ def check_instance(url: str, text: str = TEXT) -> Result:
     result = Result(url)
     base = url.rstrip("/")
     try:
-        status, body = _request(f"{base}/api/engines")
+        status, body, headers = _request_with_headers(f"{base}/api/engines")
     except (urllib.error.URLError, TimeoutError, OSError) as error:
         result.error = _short(getattr(error, "reason", error))
         return result
+    result._cors("engines", headers)
     if status != 200:
         result.error = f"engines: HTTP {status}"
         return result
@@ -163,13 +208,14 @@ def check_instance(url: str, text: str = TEXT) -> Result:
     for engine in result.engines:
         started = time.monotonic()
         try:
-            status, body = _request(
+            status, body, headers = _request_with_headers(
                 f"{base}/api/translate",
                 {"engine": engine, "from": "en", "to": "fr", "text": text},
             )
         except (urllib.error.URLError, TimeoutError, OSError) as error:
             result.failed[engine] = _short(getattr(error, "reason", error))
             continue
+        result._cors(engine, headers)
         translated = translation_of(body, text) if status == 200 else None
         if translated is None:
             result.failed[engine] = (
@@ -182,21 +228,37 @@ def check_instance(url: str, text: str = TEXT) -> Result:
     return result
 
 
+def _web(result: Result) -> str:
+    """The "Web" (CORS) cell: ✓, ✗ (with the requests whose answer did not
+    allow the web app's origin, when not all did) or empty (no answer, or
+    the server is unreachable)."""
+    if not result.reachable or result.cors_ok is None:
+        return ""
+    if result.cors_ok:
+        return "✓"
+    missing = result.cors_missing or []
+    every = ["engines", *result.engines]
+    if all(request in missing for request in every):
+        return "✗"
+    return f"✗ ({', '.join(missing)})"
+
+
 def table(results: list[Result]) -> str:
     lines = [
-        f"| Server | {DEFAULT_ENGINE} | Time | Engines that translate | Failing |",
-        "|---|---|---|---|---|",
+        f"| Server | {DEFAULT_ENGINE} | Time | Web (CORS) | "
+        "Engines that translate | Failing |",
+        "|---|---|---|---|---|---|",
     ]
     for r in results:
         host = urllib.parse.urlsplit(r.url).netloc
         if not r.reachable:
-            lines.append(f"| {host} | ✗ | | | unreachable: {r.error} |")
+            lines.append(f"| {host} | ✗ | | | | unreachable: {r.error} |")
             continue
         seconds = f"{r.default_seconds:.1f} s" if r.default_seconds else ""
         failing = ", ".join(f"{e} ({why})" for e, why in r.failed.items())
         lines.append(
             f"| {host} | {'✓' if r.default_works else '✗'} | {seconds} | "
-            f"{', '.join(r.translated) or '–'} | {failing} |"
+            f"{_web(r)} | {', '.join(r.translated) or '–'} | {failing} |"
         )
     return "\n".join(lines)
 
@@ -208,9 +270,17 @@ def summary(results: list[Result]) -> str:
         for engine in KNOWN_ENGINES
     }
     engines = ", ".join(f"{e} {n}" for e, n in per_engine.items())
+    answered = [r for r in results if r.reachable and r.cors_ok is not None]
+    web = sum(bool(r.cors_ok) for r in answered)
+    cors = (
+        f"\n{web} of {len(answered)} reachable instances allow the web app "
+        f"(CORS: `Access-Control-Allow-Origin` for {CORS_ORIGIN})"
+    )
+    if web < len(answered):
+        cors += "; a warning only, the Android app does not need it"
     return (
         f"{working} of {len(results)} public instances translate with "
-        f"{DEFAULT_ENGINE}; servers per engine: {engines}"
+        f"{DEFAULT_ENGINE}; servers per engine: {engines}{cors}"
     )
 
 
@@ -292,6 +362,12 @@ def main(argv: list[str] | None = None) -> int:
                 print(
                     f"::warning::{r.url} does not translate with "
                     f"{DEFAULT_ENGINE}: {why}"
+                )
+            if r.reachable and r.cors_ok is False:
+                print(
+                    f"::warning::{r.url} does not allow the web app (no "
+                    "Access-Control-Allow-Origin for "
+                    f"{CORS_ORIGIN}: {', '.join(r.cors_missing or [])})"
                 )
         step_summary = os.environ.get("GITHUB_STEP_SUMMARY")
         if step_summary:

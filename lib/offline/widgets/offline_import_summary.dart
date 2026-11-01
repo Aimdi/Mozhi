@@ -14,8 +14,8 @@ String offlineDirectionLabel(
   OfflineLanguage source,
   OfflineLanguage target,
 ) => l10n.offlineModelDirection(
-  bidiIsolate(source.name),
-  bidiIsolate(target.name),
+  bidiIsolate(source.displayNameIn(l10n.localeName)),
+  bidiIsolate(target.displayNameIn(l10n.localeName)),
 );
 
 /// What an import from files did: one line per direction (installed,

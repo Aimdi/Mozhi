@@ -15,6 +15,7 @@ import 'package:mozhi/image_translate/data/text_recognition_service.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/offline/cubit/offline_models_cubit.dart';
 import 'package:mozhi/offline/data/bergamot_model_details.dart';
+import 'package:mozhi/offline/data/mirror_hosting.dart';
 import 'package:mozhi/offline/data/offline_model_details.dart';
 import 'package:mozhi/offline/data/offline_model_error.dart';
 import 'package:mozhi/offline/data/offline_model_file_picker.dart';
@@ -22,6 +23,7 @@ import 'package:mozhi/offline/data/unavailable_offline_translator.dart';
 import 'package:mozhi/offline/view/dictionary_packs_page.dart'
     show DictionaryPacksEntry;
 import 'package:mozhi/offline/view/ocr_languages_page.dart';
+import 'package:mozhi/offline/widgets/mirror_hosting_banner.dart';
 import 'package:mozhi/offline/widgets/offline_import_summary.dart';
 import 'package:mozhi/offline/widgets/offline_language_tile.dart';
 import 'package:mozhi/offline/widgets/offline_manual_files_sheet.dart';
@@ -207,7 +209,7 @@ String offlineOutcomeMessage(
   AppLocalizations l10n,
   OfflineModelOutcome outcome,
 ) {
-  final name = outcome.language.name;
+  final name = outcome.language.displayNameIn(l10n.localeName);
   final error = outcome.error;
   if (outcome.succeeded || error == null) {
     return switch ((outcome.operation, outcome.succeeded)) {
@@ -280,9 +282,11 @@ class MeteredDownloadDialog extends StatelessWidget {
       title: Text(l10n.offlineMeteredTitle, style: theme.textTheme.titleLarge),
       content: Text(
         size == null || size == 0
-            ? l10n.offlineMeteredBodyUnknownSize(language.name)
+            ? l10n.offlineMeteredBodyUnknownSize(
+                language.displayNameIn(l10n.localeName),
+              )
             : l10n.offlineMeteredBody(
-                language.name,
+                language.displayNameIn(l10n.localeName),
                 formatStoredSize(l10n, size),
               ),
         style: theme.textTheme.bodyMedium?.copyWith(
@@ -338,7 +342,11 @@ class _ModelsList extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      MirrorHostingBuilder(kind: MirrorDataKind.translation, builder: _list);
+
+  /// The list; [blocked]: the web app's server does not host the models.
+  Widget _list(BuildContext context, {required bool blocked}) {
     final l10n = context.l10n;
     final cubit = context.read<OfflineModelsCubit>();
     final state = context.watch<OfflineModelsCubit>().state;
@@ -356,6 +364,7 @@ class _ModelsList extends StatelessWidget {
         outdated: state.isOutdated(code),
         builtIn: state.isBuiltIn(code),
         enabled: state.isAvailable,
+        canDownload: !blocked,
         onDownload: () => unawaited(cubit.download(code)),
         onDelete: () => unawaited(_delete(context, language)),
         onCancel: state.canCancel
@@ -393,7 +402,14 @@ class _ModelsList extends StatelessWidget {
             .resolve(TextDirection.ltr),
         children: [
           if (!state.isAvailable)
-            _UnavailableBanner(webRequirement: webRequirement),
+            _UnavailableBanner(webRequirement: webRequirement)
+          else if (blocked)
+            MirrorNotHostedBanner(
+              importing: state.importing,
+              onImport: state.canImport
+                  ? () => unawaited(cubit.importFromFiles())
+                  : null,
+            ),
           _Overview(state: state, textRecognition: textRecognition),
           const Padding(
             padding: EdgeInsets.fromLTRB(16, 8, 16, 8),

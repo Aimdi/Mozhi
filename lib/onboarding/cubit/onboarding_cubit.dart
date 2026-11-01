@@ -8,6 +8,7 @@ import 'package:mozhi/onboarding/cubit/onboarding_state.dart';
 import 'package:mozhi/platform/android_device.dart';
 import 'package:mozhi/platform/free_space.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
+import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi_api/mozhi_api.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -243,15 +244,48 @@ class OnboardingCubit extends Cubit<OnboardingState> {
   /// [pingEngineOf] when no Mozhi engine is chosen.
   static const defaultPingEngine = 'google';
 
+  /// The engine a server is tested with once more when Google fails there
+  /// and the app's "If Google fails, use DuckDuckGo" is on
+  /// ([fallbackApplies]).
+  static const fallbackPingEngine = 'duckduckgo';
+
   String get _pingEngine => pingEngineOf(_settings.state.engineId);
+
+  /// Whether a server whose test with [engine] failed with [error] is
+  /// tested once more with [fallbackPingEngine], as translations would
+  /// fall back to it with [settings] (`AppSettings.fallbackToDuckDuckGo`,
+  /// on by default, never in Offline only): [engine] is Google, and the
+  /// server answered that Google failed (an HTTP 5xx, such as Google's
+  /// rate limit behind it, or no translation; not that it lacks Google) or
+  /// it is rate-limited (HTTP 429).
+  static bool fallbackApplies(
+    Object error, {
+    required String engine,
+    required AppSettings settings,
+  }) {
+    if (engine.toLowerCase() != defaultPingEngine ||
+        !settings.fallbackToDuckDuckGo ||
+        settings.privacyMode == PrivacyMode.offlineOnly) {
+      return false;
+    }
+    return switch (error) {
+      InstanceDoesNotTranslateException(:final engineUnavailable) =>
+        !engineUnavailable,
+      MozhiApiException(statusCode: 429) => true,
+      _ => false,
+    };
+  }
 
   /// Tests every configured instance concurrently (each bounded by the ping
   /// timeout) by translating a fixed word with [pingEngineOf] (never any of
   /// the user's text), reporting results as they arrive: a server that
   /// answers but doesn't translate is [PingStatus.noTranslation], not
-  /// fast. When all finished, the fastest instance (unless the user picked
-  /// one) becomes preferred and, with [OnboardingState.sortBySpeed], the
-  /// list is sorted by latency.
+  /// fast, unless it translates with DuckDuckGo where translations would
+  /// fall back to it ([fallbackApplies]; a success
+  /// [InstancePing.viaFallback], ranked after the servers whose engine
+  /// translates). When all finished, the fastest instance (unless the
+  /// user picked one) becomes preferred and, with
+  /// [OnboardingState.sortBySpeed], the list is sorted by latency.
   Future<void> findFastestInstance() async {
     if (state.serviceStatus == ServiceStatus.pinging) return;
     final instances = _settings.state.instances;
@@ -280,10 +314,7 @@ class OnboardingCubit extends Cubit<OnboardingState> {
   Future<void> _ping(MozhiInstance instance, String engine, int run) async {
     InstancePing result;
     try {
-      final latency = await _repository
-          .pingInstance(instance, engine: engine)
-          .timeout(_pingTimeout);
-      result = InstancePing.success(latency);
+      result = await _translatingPing(instance, engine).timeout(_pingTimeout);
     } on TimeoutException {
       result = const InstancePing.timedOut();
     } on InstanceDoesNotTranslateException catch (error) {
@@ -293,6 +324,34 @@ class OnboardingCubit extends Cubit<OnboardingState> {
     }
     if (isClosed || run != _pingRun) return;
     emit(state.copyWith(pings: {...state.pings, instance.url: result}));
+  }
+
+  /// The successful ping of [instance] with [engine], or with
+  /// [fallbackPingEngine] when [engine] failed there and [fallbackApplies]
+  /// (marked [InstancePing.fallbackEngine]). Throws [engine]'s failure
+  /// when the fallback does not apply or fails too.
+  Future<InstancePing> _translatingPing(
+    MozhiInstance instance,
+    String engine,
+  ) async {
+    try {
+      return InstancePing.success(
+        await _repository.pingInstance(instance, engine: engine),
+      );
+    } on MozhiApiException catch (error, stackTrace) {
+      if (!fallbackApplies(error, engine: engine, settings: _settings.state)) {
+        rethrow;
+      }
+      try {
+        return InstancePing.success(
+          await _repository.pingInstance(instance, engine: fallbackPingEngine),
+          fallbackEngine: fallbackPingEngine,
+        );
+      } on Object {
+        // DuckDuckGo did not translate either: Google's failure tells.
+        Error.throwWithStackTrace(error, stackTrace);
+      }
+    }
   }
 
   void setSortBySpeed({required bool enabled}) {
@@ -324,17 +383,23 @@ class OnboardingCubit extends Cubit<OnboardingState> {
     if (selected != null) _settings.preferInstance(selected);
   }
 
-  /// Answering instances by ascending latency, then the others in their
-  /// current order.
+  /// Answering instances by ascending latency (those that translate only
+  /// through the fallback after the others, see
+  /// [OnboardingState.comparePings]), then the others in their current
+  /// order.
   List<String> _rankByLatency(List<String> urls) {
-    Duration? latency(String url) {
+    InstancePing? answered(String url) {
       final ping = state.pings[url];
-      return ping != null && ping.isSuccess ? ping.latency : null;
+      return ping != null && ping.isSuccess && ping.latency != null
+          ? ping
+          : null;
     }
 
-    final answered = urls.where((url) => latency(url) != null).toList()
-      ..sort((a, b) => latency(a)!.compareTo(latency(b)!));
-    return [...answered, ...urls.where((url) => latency(url) == null)];
+    final ranked = urls.where((url) => answered(url) != null).toList()
+      ..sort(
+        (a, b) => OnboardingState.comparePings(answered(a)!, answered(b)!),
+      );
+    return [...ranked, ...urls.where((url) => answered(url) == null)];
   }
 
   void _reorder(List<String> desired) {
@@ -400,7 +465,8 @@ class OnboardingCubit extends Cubit<OnboardingState> {
         .firstOrNull;
     final instance = existing ?? MozhiInstance(url: url);
     try {
-      final latency = await _pingOwn(instance);
+      final ping = await _pingOwn(instance);
+      final latency = ping.latency!;
       if (isClosed || run != _ownRun) return;
       if (existing == null) _settings.addInstance(instance);
       _userChoseInstance = true;
@@ -409,7 +475,7 @@ class OnboardingCubit extends Cubit<OnboardingState> {
           ownInstanceStatus: OwnInstanceStatus.success,
           ownInstanceLatency: () => latency,
           selectedUrl: () => url,
-          pings: {...state.pings, url: InstancePing.success(latency)},
+          pings: {...state.pings, url: ping},
         ),
       );
       _settings.preferInstance(url);
@@ -425,17 +491,21 @@ class OnboardingCubit extends Cubit<OnboardingState> {
     }
   }
 
-  /// The latency of [instance] translating the test word with
-  /// [pingEngineOf]; that of its answer when it is a Mozhi server without
+  /// The successful ping of [instance] translating the test word with
+  /// [pingEngineOf] (or the DuckDuckGo fallback, see [fallbackApplies]);
+  /// with the latency of its answer when it is a Mozhi server without
   /// that engine (`InstanceDoesNotTranslateException.engineUnavailable`).
-  Future<Duration> _pingOwn(MozhiInstance instance) async {
+  Future<InstancePing> _pingOwn(MozhiInstance instance) async {
     final stopwatch = Stopwatch()..start();
     try {
-      return await _repository
-          .pingInstance(instance, engine: _pingEngine)
-          .timeout(_pingTimeout);
+      return await _translatingPing(
+        instance,
+        _pingEngine,
+      ).timeout(_pingTimeout);
     } on InstanceDoesNotTranslateException catch (error) {
-      if (error.engineUnavailable) return stopwatch.elapsed;
+      if (error.engineUnavailable) {
+        return InstancePing.success(stopwatch.elapsed);
+      }
       rethrow;
     }
   }

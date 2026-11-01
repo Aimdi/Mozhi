@@ -75,9 +75,10 @@ class InstanceTile extends StatelessWidget {
   }
 }
 
-/// Latency badge (or progress) for an [InstancePing]: the speed, or
-/// "Unreachable", "Timed out" or "Doesn't translate" (with the server's
-/// message as a tooltip).
+/// Latency badge (or progress) for an [InstancePing]: the speed (with "Via
+/// DuckDuckGo" when only the DuckDuckGo fallback translated there,
+/// [InstancePing.viaFallback]), or "Unreachable", "Timed out" or "Doesn't
+/// translate" (with the server's message as a tooltip).
 class PingIndicator extends StatelessWidget {
   const new({
     required this.ping,
@@ -127,6 +128,16 @@ class PingIndicator extends StatelessWidget {
             color: color,
             icon: Icons.speed,
           ),
+          if (ping.viaFallback)
+            Tooltip(
+              key: const Key('onboarding_ping_via_fallback'),
+              message: l10n.onboardingServiceViaDuckDuckGoTooltip,
+              child: OnboardingBadge(
+                label: l10n.onboardingServiceViaDuckDuckGo,
+                color: colors.onboardingWarning,
+                icon: Icons.alt_route,
+              ),
+            ),
           if (isFastest)
             OnboardingBadge(
               label: l10n.onboardingServiceFastest,

@@ -6,6 +6,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/dictionary/data/dictionary_packs.dart';
 import 'package:mozhi/dictionary/dictionary.dart';
 import 'package:mozhi/offline/view/dictionary_packs_page.dart';
+import 'package:mozhi/on_device_ai/data/on_device_models.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/settings/view/widgets/link_launcher.dart';
@@ -13,6 +14,7 @@ import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 import '../../helpers/helpers.dart';
+import '../../translate/helpers/fake_on_device_models.dart';
 import '../data/dictionary_pack_fixtures.dart';
 import '../helpers/dictionary_helpers.dart';
 import '../helpers/offline_dictionary_helpers.dart';
@@ -61,6 +63,7 @@ void main() {
     WidgetTester tester, {
     DictionaryPage page = const DictionaryPage(),
     TranslateState state = _readyWithAi,
+    OnDeviceModels? onDeviceModels,
   }) async {
     tester.view
       ..physicalSize = const Size(600, 1600)
@@ -81,7 +84,12 @@ void main() {
               BlocProvider<TranslateCubit>.value(value: translateCubit),
               BlocProvider<SettingsCubit>.value(value: settingsCubit),
             ],
-            child: page,
+            child: onDeviceModels == null
+                ? page
+                : RepositoryProvider<OnDeviceModels>.value(
+                    value: onDeviceModels,
+                    child: page,
+                  ),
           ),
         ),
       ),
@@ -137,7 +145,10 @@ void main() {
         find.textContaining('cat  (masculine)', findRichText: true),
         findsOneWidget,
       );
-      expect(find.text('From Wiktionary · CC BY-SA 4.0'), findsOneWidget);
+      expect(
+        find.text('From Wiktionary · CC BY-SA 4.0 · Definitions in English'),
+        findsOneWidget,
+      );
       expect(find.text('AI-generated'), findsNothing);
       expect(find.byKey(const Key('dictionary_more_detail')), findsOneWidget);
       verifyNoAiLookUp();
@@ -325,6 +336,32 @@ void main() {
       await tester.tap(find.byKey(const Key('dictionary_get_packs')));
       await tester.pumpAndSettle();
       expect(find.byType(DictionaryPacksPage), findsOneWidget);
+    });
+
+    testWidgets('no AI and no dictionary on a phone with on-device AI: '
+        'offers it too', (tester) async {
+      await pumpPage(
+        tester,
+        state: _readyWithoutAi,
+        onDeviceModels: FakeOnDeviceModels(testCatalog),
+      );
+      expect(find.byKey(const Key('dictionary_no_source')), findsOneWidget);
+      expect(
+        find.text(
+          'Download a dictionary to look up words without a network, or set '
+          'up on-device AI or an AI provider.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('dictionary_get_packs')), findsOneWidget);
+      expect(
+        find.byKey(const Key('dictionary_set_up_on_device_ai')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('dictionary_set_up_providers')),
+        findsOneWidget,
+      );
     });
 
     testWidgets('with AI: the usual greeting', (tester) async {

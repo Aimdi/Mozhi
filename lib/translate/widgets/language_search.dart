@@ -59,11 +59,11 @@ bool _isCombining(int rune) =>
     (rune >= 0x1DC0 && rune <= 0x1DFF) ||
     (rune >= 0x20D0 && rune <= 0x20FF);
 
-/// [text] for diacritic-insensitive search: lower case, accents removed
-/// ("Français" → "francais", "Tiếng Việt" → "tieng viet", "Ελληνικά" →
-/// "ελληνικα") and a few letters spelled out ("Bokmål" → "bokmal",
-/// "Føroyskt" → "foroyskt", "ß" → "ss"). Other scripts are kept as they
-/// are.
+/// [text] for diacritic-insensitive search (and sorting): lower case,
+/// accents removed ("Français" → "francais", "Tiếng Việt" → "tieng viet",
+/// "Ελληνικά" → "ελληνικα") and a few letters spelled out ("Bokmål" →
+/// "bokmal", "Føroyskt" → "foroyskt", "ß" → "ss"). Other scripts are kept
+/// as they are.
 String foldForSearch(String text) {
   final buffer = StringBuffer();
   for (final rune in text.toLowerCase().runes) {
@@ -80,12 +80,18 @@ String foldForSearch(String text) {
 }
 
 /// The languages of [languages] that match [query], best first: those
-/// whose English or native name (or a word in it) starts with the query or
-/// whose code is the query, then those whose name contains it. Matching
-/// ignores case and diacritics ([foldForSearch]): "francais" finds French
-/// (Français), "espanol" Spanish (Español). "Detect language" is never a
-/// match.
-List<Language> matchLanguages(Iterable<Language> languages, String query) {
+/// whose English or native name, or name in the UI language
+/// ([displayName], e.g. `context.languageName`: "Französisch"), or a word
+/// in one of them, starts with the query or whose code is the query, then
+/// those whose name contains it. Matching ignores case and diacritics
+/// ([foldForSearch]): "francais" finds French (Français), "espanol"
+/// Spanish (Español), "franzosisch" French in German. "Detect language" is
+/// never a match.
+List<Language> matchLanguages(
+  Iterable<Language> languages,
+  String query, {
+  String Function(Language language)? displayName,
+}) {
   final q = foldForSearch(query.trim());
   if (q.isEmpty) return const [];
   final starts = <Language>[];
@@ -97,6 +103,9 @@ List<Language> matchLanguages(Iterable<Language> languages, String query) {
       foldForSearch(language.name),
       if (language.nativeName case final native? when native.isNotEmpty)
         foldForSearch(native),
+      if (displayName?.call(language) case final shown?
+          when shown != language.name)
+        foldForSearch(shown),
     ];
     final code = language.code.toLowerCase();
     if (code == q || names.any((name) => name.startsWith(q))) {
@@ -108,6 +117,32 @@ List<Language> matchLanguages(Iterable<Language> languages, String query) {
     }
   }
   return [...starts, ...words, ...contains];
+}
+
+/// [languages] in the order of the names they are shown with
+/// ([displayName], e.g. `context.languageName`), ignoring case and
+/// diacritics ([foldForSearch]): "Ägyptisch" next to "Afrikaans". Equal
+/// names keep their order. When no language is shown with a name other
+/// than its [Language.name] (an English UI), the order is kept as given.
+List<Language> sortLanguagesByName(
+  Iterable<Language> languages,
+  String Function(Language language) displayName,
+) {
+  final named = [
+    for (final language in languages) (language, displayName(language)),
+  ];
+  if (named.every((entry) => entry.$2 == entry.$1.name)) {
+    return [for (final (language, _) in named) language];
+  }
+  final keyed =
+      [
+        for (final (index, (language, name)) in named.indexed)
+          (language: language, key: foldForSearch(name), index: index),
+      ]..sort((a, b) {
+        final byName = a.key.compareTo(b.key);
+        return byName != 0 ? byName : a.index.compareTo(b.index);
+      });
+  return [for (final entry in keyed) entry.language];
 }
 
 /// Whether a word of [name] after the first starts with [query] ("Chinese

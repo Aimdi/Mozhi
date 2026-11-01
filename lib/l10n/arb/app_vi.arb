@@ -2799,5 +2799,17 @@
   "settingsStyleKeywords": "terminal, cổ điển, giao diện, phông chữ, font, đơn cách, classic, monospace, monospaced, JetBrains Mono",
   "settingsThemeTerminalSubtitle": "Ở phong cách Terminal, Hệ thống nghĩa là tối; Sáng cho giao diện giấy",
   "settingsColorAmber": "Hổ phách",
-  "settingsColorCyan": "Xanh lơ"
+  "settingsColorCyan": "Xanh lơ",
+  "offlineMirrorNotHostedTitle": "Máy chủ web này không lưu trữ các tệp tải xuống",
+  "offlineMirrorNotHostedBody": "Ứng dụng web tải các tệp này xuống từ máy chủ cung cấp ứng dụng, nhưng máy chủ này không có chúng. Hãy nhập các tệp bạn đã tải xuống ở nơi khác, hoặc nhờ chủ sở hữu máy chủ đặt bản sao của chúng tại đó.",
+  "offlineMirrorNotHostedHelp": "Cách lưu trữ các tệp này",
+  "dictionaryDefinitionsIn": "Ngôn ngữ định nghĩa: {language}",
+  "phrasebookStarterPair": "{base} ↔ {language}",
+  "settingsFallbackDuckDuckGoOnSubtitle": "Bật theo mặc định. Khi Google lỗi trên mọi máy chủ tình nguyện, văn bản của bạn được gửi tới trình dịch của DuckDuckGo qua chính các máy chủ đó (bản dịch của DuckDuckGo đến từ Microsoft Translator). Tắt tùy chọn này để chỉ dùng Google.",
+  "onboardingServiceViaDuckDuckGo": "Qua DuckDuckGo",
+  "onboardingServiceViaDuckDuckGoTooltip": "Hiện Google không dịch trên máy chủ này. DuckDuckGo thì có, và ứng dụng dùng DuckDuckGo khi Google lỗi.",
+  "commonSetUpOnDeviceAi": "Thiết lập AI trên thiết bị",
+  "proofreadEmptyBodyOnDevice": "Hãy tải xuống một mô hình AI chạy trên điện thoại này, hoặc thêm nhà cung cấp tương thích OpenAI, Anthropic, Gemini hoặc Ollama, để kiểm tra ngữ pháp, chính tả và văn phong. Các mô hình chuyên dịch như Hy-MT hoặc TranslateGemma không thể soát lỗi.",
+  "dictionaryNoEngineBodyOnDevice": "Hãy tải xuống một mô hình AI chạy trên điện thoại này, hoặc thêm nhà cung cấp tương thích OpenAI, Anthropic, Gemini hoặc Ollama, để tra từ. Không thể dùng các mô hình chuyên dịch như Hy-MT hoặc TranslateGemma.",
+  "dictionaryNoSourceBodyOnDevice": "Hãy tải xuống một từ điển để tra từ mà không cần mạng, hoặc thiết lập AI trên thiết bị hay nhà cung cấp AI."
 }

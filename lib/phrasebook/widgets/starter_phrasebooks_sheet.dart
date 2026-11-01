@@ -18,10 +18,13 @@ final Uri ccBySa4Url = Uri.parse(
   'https://creativecommons.org/licenses/by-sa/4.0/',
 );
 
-/// Shows the starter phrasebooks of [packs]: the catalogue's with their
-/// sizes, Download (once; checked against the catalogue's SHA-256),
-/// Update and Delete, and Wikivoyage's credit. Says so gracefully while
-/// the catalogue is empty (until the first release of the data).
+/// Shows the starter phrasebooks of [packs]: the catalogue's, each named
+/// by its languages ("English ↔ Arabic"), with their sizes, Download
+/// (once; checked against the catalogue's SHA-256), Update and Delete, and
+/// Wikivoyage's credit. The phrasebooks of the app's own language are left
+/// out unless installed ([StarterPhrasebooksState.itemsFor]). Says so
+/// gracefully while the catalogue is empty (until the first release of
+/// the data).
 Future<void> showStarterPhrasebooks(
   BuildContext context,
   StarterPhrasebooks packs,
@@ -50,6 +53,7 @@ class StarterPhrasebooksView extends StatelessWidget {
     final theme = Theme.of(context);
     final muted = AppPalette.of(context).secondaryText;
     final state = context.watch<StarterPhrasebooksCubit>().state;
+    final items = state.itemsFor(context.languageNamesLocale);
     return DraggableScrollableSheet(
       expand: false,
       initialChildSize: 0.7,
@@ -82,7 +86,7 @@ class StarterPhrasebooksView extends StatelessWidget {
               padding: EdgeInsets.all(24),
               child: Center(child: CircularProgressIndicator()),
             )
-          else if (state.items.isEmpty)
+          else if (items.isEmpty)
             Padding(
               key: const Key('phrasebook_starter_empty'),
               padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
@@ -101,7 +105,7 @@ class StarterPhrasebooksView extends StatelessWidget {
               ),
             )
           else
-            for (final item in state.items) _StarterTile(item: item),
+            for (final item in items) _StarterTile(item: item),
           Padding(
             padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
             child: Text(
@@ -197,7 +201,16 @@ class _StarterTile extends StatelessWidget {
     return ListTile(
       key: ValueKey('phrasebook_starter_${info.id}'),
       leading: LanguageAvatar(code: info.language),
-      title: Text(info.name),
+      title: Text(
+        l10n.phrasebookStarterPair(
+          context.languageNameOf(info.baseLanguage),
+          switch (context.languageNameOf(info.language)) {
+            // A language the app does not know keeps the catalogue's name.
+            final name when name == info.language => info.name,
+            final name => name,
+          },
+        ),
+      ),
       subtitle: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

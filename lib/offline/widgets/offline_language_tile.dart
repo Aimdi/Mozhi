@@ -14,7 +14,9 @@ import 'package:mozhi/settings/view/widgets/delete_local_data.dart'
 /// for built-in languages, and accent progress while an operation runs:
 /// with [onCancel], a running download or update also shows Cancel next to
 /// its progress ([cancelling]: being stopped). With [onShowFiles], tapping
-/// the row shows the files to download by hand.
+/// the row shows the files to download by hand. [canDownload] false
+/// disables Download and Update only (the server has no files to offer);
+/// [note] adds a line under the details (e.g. "Definitions in English").
 class OfflineLanguageTile extends StatelessWidget {
   const new({
     required this.language,
@@ -28,6 +30,8 @@ class OfflineLanguageTile extends StatelessWidget {
     this.outdated = false,
     this.builtIn = false,
     this.enabled = true,
+    this.canDownload = true,
+    this.note,
     this.onShowFiles,
     this.onCancel,
     this.cancelling = false,
@@ -55,6 +59,13 @@ class OfflineLanguageTile extends StatelessWidget {
 
   /// False disables the actions (e.g. on platforms without the engine).
   final bool enabled;
+
+  /// False disables Download and Update (deleting still works), e.g. in
+  /// the web app when its server does not host the files.
+  final bool canDownload;
+
+  /// A second line under the details, when given.
+  final String? note;
 
   /// Downloads or, when [outdated], updates the language.
   final VoidCallback onDownload;
@@ -105,13 +116,18 @@ class OfflineLanguageTile extends StatelessWidget {
     final direction = switch (language.direction) {
       OfflineLanguageDirection.both => null,
       OfflineLanguageDirection.intoOnly => l10n.offlineDirectionIntoOnly(
-        language.name,
+        language.displayNameIn(l10n.localeName),
       ),
       OfflineLanguageDirection.fromOnly => l10n.offlineDirectionFromOnly(
-        language.name,
+        language.displayNameIn(l10n.localeName),
       ),
     };
-    final parts = [?language.nativeName, ?direction, ?size];
+    // The native name, unless it is the name shown ("Deutsch" in German).
+    final native =
+        language.nativeName == language.displayNameIn(l10n.localeName)
+        ? null
+        : language.nativeName;
+    final parts = [?native, ?direction, ?size];
     return parts.isEmpty ? null : parts.join(' · ');
   }
 
@@ -120,26 +136,38 @@ class OfflineLanguageTile extends StatelessWidget {
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final palette = AppPalette.of(context);
+    final name = language.displayNameIn(l10n.localeName);
     final status = _status(l10n);
     final subtitle = status ?? _details(l10n);
     final accent = status != null || (outdated && pending == null);
+    final download = enabled && canDownload ? onDownload : null;
+    final note = this.note;
+    final subtitleStyle = theme.textTheme.bodyMedium?.copyWith(
+      color: accent ? theme.colorScheme.primary : palette.secondaryText,
+    );
     final tile = ListTile(
       enabled: enabled,
       onTap: onShowFiles,
       contentPadding: const EdgeInsetsDirectional.only(start: 16, end: 12),
       minVerticalPadding: 12,
       leading: _Avatar(code: language.code, downloaded: downloaded),
-      title: Text(language.name, style: theme.textTheme.titleSmall),
-      subtitle: subtitle == null
-          ? null
-          : Text(
-              subtitle,
+      title: Text(name, style: theme.textTheme.titleSmall),
+      subtitle: switch ((subtitle, note)) {
+        (null, null) => null,
+        (final subtitle?, null) => Text(subtitle, style: subtitleStyle),
+        (final subtitle, final note?) => Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (subtitle != null) Text(subtitle, style: subtitleStyle),
+            Text(
+              note,
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: accent
-                    ? theme.colorScheme.primary
-                    : palette.secondaryText,
+                color: palette.secondaryText,
               ),
             ),
+          ],
+        ),
+      },
       trailing: switch ((pending, downloaded)) {
         (OfflineModelOperation.download || OfflineModelOperation.update, _)
             when onCancel != null =>
@@ -148,7 +176,7 @@ class OfflineLanguageTile extends StatelessWidget {
             children: [
               _Progress(value: progress, label: status),
               OfflineCancelDownloadButton(
-                language: language.name,
+                language: name,
                 onPressed: enabled && !cancelling ? onCancel : null,
               ),
             ],
@@ -164,25 +192,25 @@ class OfflineLanguageTile extends StatelessWidget {
             _InversePill(
               key: const Key('offline_update_pill'),
               label: l10n.offlineUpdateAction,
-              tooltip: l10n.offlineUpdateTooltip(language.name),
-              onPressed: enabled ? onDownload : null,
+              tooltip: l10n.offlineUpdateTooltip(name),
+              onPressed: download,
             ),
             IconButton(
-              tooltip: l10n.offlineDeleteTooltip(language.name),
+              tooltip: l10n.offlineDeleteTooltip(name),
               icon: const Icon(Icons.delete_outline),
               onPressed: enabled ? onDelete : null,
             ),
           ],
         ),
         (null, true) => _DownloadedPill(
-          tooltip: l10n.offlineDeleteTooltip(language.name),
+          tooltip: l10n.offlineDeleteTooltip(name),
           onPressed: enabled ? onDelete : null,
         ),
         (null, false) => _InversePill(
           key: const Key('offline_download_pill'),
           label: l10n.offlineDownloadAction,
-          tooltip: l10n.offlineDownloadTooltip(language.name),
-          onPressed: enabled ? onDownload : null,
+          tooltip: l10n.offlineDownloadTooltip(name),
+          onPressed: download,
         ),
       },
     );
@@ -409,11 +437,11 @@ class DeleteOfflineLanguageDialog extends StatelessWidget {
     final colors = theme.colorScheme;
     return AlertDialog(
       title: Text(
-        l10n.offlineDeleteTitle(language.name),
+        l10n.offlineDeleteTitle(language.displayNameIn(l10n.localeName)),
         style: theme.textTheme.titleLarge,
       ),
       content: Text(
-        body ?? l10n.offlineDeleteBody(language.name),
+        body ?? l10n.offlineDeleteBody(language.displayNameIn(l10n.localeName)),
         style: theme.textTheme.bodyMedium?.copyWith(
           color: AppPalette.of(context).secondaryText,
         ),

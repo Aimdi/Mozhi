@@ -373,7 +373,9 @@ class _PinnedTargetActionsState extends State<_PinnedTargetActions> {
     // Also when it already was the target: the key press is confirmed.
     final target = cubit.state.target;
     setState(() {
-      _announcement = context.l10n.translatePinnedTargetSelected(target.name);
+      _announcement = context.l10n.translatePinnedTargetSelected(
+        context.languageName(target),
+      );
       _announcements++;
     });
   }

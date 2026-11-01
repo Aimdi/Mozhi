@@ -67,6 +67,7 @@ class TranslateConsentListener extends StatelessWidget {
       maybeOfflineTranslator(context),
       source: request.onDeviceSource ?? consent.source,
       target: consent.target,
+      nameOf: context.languageNameOf,
     );
     final router = GoRouter.maybeOf(context);
     final granted = await requestConsent(
@@ -86,11 +87,14 @@ class TranslateConsentListener extends StatelessWidget {
 /// The name of the language to download so that [translator] translates
 /// [source] (a code; null or `auto` while detecting) into [target] on the
 /// device: the first of them that is not English (built in), when the
-/// engine supports both. Null otherwise (also without an engine).
+/// engine supports both. Null otherwise (also without an engine). [nameOf]
+/// names it (by default in English; the prompt passes
+/// `context.languageNameOf`, the UI language).
 String? onDeviceDownloadLanguage(
   OfflineTranslator? translator, {
   required String? source,
   required String? target,
+  String Function(String code) nameOf = LanguageCatalog.nameOf,
 }) {
   if (translator == null || !translator.isAvailable || target == null) {
     return null;
@@ -106,7 +110,7 @@ String? onDeviceDownloadLanguage(
     return null;
   }
   for (final code in codes) {
-    if (offlineLanguageKey(code) != 'en') return LanguageCatalog.nameOf(code);
+    if (offlineLanguageKey(code) != 'en') return nameOf(code);
   }
   return null;
 }

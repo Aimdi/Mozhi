@@ -2799,5 +2799,17 @@
   "settingsStyleKeywords": "terminal, clásico, aspecto, apariencia, fuente, tipografía, monoespaciada, monoespacio, classic, monospace, monospaced, JetBrains Mono",
   "settingsThemeTerminalSubtitle": "En el estilo Terminal, Sistema significa oscuro; Claro da el aspecto de papel",
   "settingsColorAmber": "Ámbar",
-  "settingsColorCyan": "Cian"
+  "settingsColorCyan": "Cian",
+  "offlineMirrorNotHostedTitle": "Este servidor web no aloja las descargas",
+  "offlineMirrorNotHostedBody": "La aplicación web descarga estos archivos del servidor del que procede, y este no los tiene. Importa archivos que hayas descargado en otro lugar o pide a quien administra el servidor que ofrezca un espejo de ellos.",
+  "offlineMirrorNotHostedHelp": "Cómo alojarlos",
+  "dictionaryDefinitionsIn": "Definiciones en: {language}",
+  "phrasebookStarterPair": "{base} ↔ {language}",
+  "settingsFallbackDuckDuckGoOnSubtitle": "Activado de forma predeterminada. Cuando Google falla en todos los servidores de voluntarios, tu texto se envía al traductor de DuckDuckGo a través de los mismos servidores (sus traducciones provienen de Microsoft Translator). Desactívalo para usar solo Google.",
+  "onboardingServiceViaDuckDuckGo": "Vía DuckDuckGo",
+  "onboardingServiceViaDuckDuckGoTooltip": "Google no traduce en este servidor ahora mismo. DuckDuckGo sí, y la aplicación lo usa cuando falla Google.",
+  "commonSetUpOnDeviceAi": "Configurar IA en el dispositivo",
+  "proofreadEmptyBodyOnDevice": "Descarga un modelo de IA que funcione en este teléfono o añade un proveedor compatible con OpenAI, Anthropic, Gemini u Ollama para revisar la gramática, la ortografía y el estilo. Los modelos de traducción especializados, como Hy-MT o TranslateGemma, no pueden corregir textos.",
+  "dictionaryNoEngineBodyOnDevice": "Descarga un modelo de IA que funcione en este teléfono o añade un proveedor compatible con OpenAI, Anthropic, Gemini u Ollama para buscar palabras. No se pueden usar modelos de traducción especializados, como Hy-MT o TranslateGemma.",
+  "dictionaryNoSourceBodyOnDevice": "Descarga un diccionario para buscar palabras sin conexión, o configura la IA en el dispositivo o un proveedor de IA."
 }

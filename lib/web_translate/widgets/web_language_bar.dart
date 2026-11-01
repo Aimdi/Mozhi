@@ -11,7 +11,7 @@ import 'package:mozhi/translate/widgets/language_bar.dart'
 import 'package:mozhi/translate/widgets/options_sheet.dart' show OptionsButton;
 import 'package:mozhi/translate/widgets/recent_pairs_sheet.dart';
 import 'package:mozhi/translate/widgets/translate_layout.dart'
-    show languageNameFor;
+    show languageNameFor, localizedLanguageNameFor;
 import 'package:mozhi/web_translate/cubit/web_translate_cubit.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -82,11 +82,11 @@ class WebLanguageBar extends StatelessWidget {
           ),
         );
     final detected = source.isAuto && detectedCode != null
-        ? languageNameFor(detectedCode, languages)
+        ? localizedLanguageNameFor(context, detectedCode, languages)
         : null;
     final sourceLabel = source.isAuto
         ? detected ?? l10n.translateDetectLanguage
-        : source.name;
+        : context.languageName(source);
     final sourceDescription = detected == null
         ? sourceLabel
         : l10n.translateDetectedLanguage(detected);
@@ -108,8 +108,10 @@ class WebLanguageBar extends StatelessWidget {
       ),
       target: LanguagePairSide(
         key: const Key('web_translate_target_button'),
-        label: target.name,
-        semanticLabel: l10n.translateTargetLanguage(target.name),
+        label: context.languageName(target),
+        semanticLabel: l10n.translateTargetLanguage(
+          context.languageName(target),
+        ),
         icon: target.isCustom ? Icons.auto_awesome : null,
         onPressed: () =>
             unawaited(pickTranslateLanguage(context, source: false)),

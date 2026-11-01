@@ -111,8 +111,8 @@ class ConversationMenuButton extends StatelessWidget {
       ConversationTranscript.format(
         state.turns,
         title: context.l10n.conversationTranscriptTitle(
-          state.languageA.name,
-          state.languageB.name,
+          context.languageName(state.languageA),
+          context.languageName(state.languageB),
         ),
         formatTime: (time) => formatConversationTime(context, time),
       );

@@ -59,6 +59,7 @@ class _ImageLanguagePickerSheetState extends State<ImageLanguagePickerSheet> {
     return [
       for (final language in widget.languages)
         if (language.name.toLowerCase().contains(query) ||
+            context.languageName(language).toLowerCase().contains(query) ||
             (language.nativeName?.toLowerCase().contains(query) ?? false) ||
             language.code.toLowerCase() == query)
           language,
@@ -118,7 +119,9 @@ class _ImageLanguagePickerSheetState extends State<ImageLanguagePickerSheet> {
                         selected: selected,
                         leading: LanguageAvatar(code: language.code),
                         title: Text(imageLanguageLabel(l10n, language)),
-                        subtitle: native == null || native == language.name
+                        subtitle:
+                            native == null ||
+                                native == imageLanguageLabel(l10n, language)
                             ? null
                             : Text(
                                 native,

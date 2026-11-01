@@ -94,7 +94,7 @@ TranslateErrorInfo describeTranslateError(
       languages.isEmpty
           ? l10n.translateErrorOfflineModelMissing
           : l10n.translateErrorOfflineModelMissingFor(
-              languages.map(_languageName).join(', '),
+              languages.map((code) => _languageName(l10n, code)).join(', '),
             ),
       offlineModels: true,
     ),
@@ -218,7 +218,9 @@ String? _titleOf(
   };
 }
 
-String _languageName(String code) => LanguageCatalog.byCode(code)?.name ?? code;
+/// The name of the language [code] in the UI language.
+String _languageName(AppLocalizations l10n, String code) =>
+    languageDisplayNameOf(code, l10n.localeName);
 
 /// Whether [error] says the server could not be reached or failed: no
 /// answer (DNS, TLS, connection), a timeout or a 5xx status, from a Mozhi
@@ -623,7 +625,7 @@ class TranslateErrorView extends StatelessWidget {
       onUseSourceLanguage,
     )) {
       (final language?, final use?) when chooseSource != null => (
-        label: l10n.translateUseSourceLanguage(language.name),
+        label: l10n.translateUseSourceLanguage(context.languageName(language)),
         onPressed: () => use(language),
       ),
       _ => null,
@@ -976,7 +978,7 @@ class TranslateErrorView extends StatelessWidget {
           for (final code in codes)
             (
               code: code,
-              name: _languageName(code),
+              name: context.languageNameOf(code),
               bytes: details?.downloadSize(code),
             ),
         ],
@@ -1000,7 +1002,7 @@ class TranslateErrorView extends StatelessWidget {
       for (final code in codes)
         (
           code: code,
-          name: _languageName(code),
+          name: _languageName(l10n, code),
           bytes: details?.downloadSize(code),
         ),
     ]);

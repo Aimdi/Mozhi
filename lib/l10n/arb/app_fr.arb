@@ -2799,5 +2799,17 @@
   "settingsStyleKeywords": "terminal, classique, apparence, aspect, police, chasse fixe, classic, monospace, monospaced, JetBrains Mono",
   "settingsThemeTerminalSubtitle": "Avec le style Terminal, Système signifie sombre ; Clair donne l’aspect papier",
   "settingsColorAmber": "Ambre",
-  "settingsColorCyan": "Cyan"
+  "settingsColorCyan": "Cyan",
+  "offlineMirrorNotHostedTitle": "Ce serveur web n’héberge pas les téléchargements",
+  "offlineMirrorNotHostedBody": "L’application web télécharge ces fichiers depuis le serveur qui la fournit, et celui-ci ne les a pas. Importez des fichiers téléchargés ailleurs, ou demandez à la personne qui gère le serveur d’en proposer un miroir.",
+  "offlineMirrorNotHostedHelp": "Comment les héberger",
+  "dictionaryDefinitionsIn": "Définitions en : {language}",
+  "phrasebookStarterPair": "{base} ↔ {language}",
+  "settingsFallbackDuckDuckGoOnSubtitle": "Activé par défaut. Quand Google échoue sur tous les serveurs bénévoles, votre texte est envoyé au traducteur de DuckDuckGo par les mêmes serveurs (ses traductions proviennent de Microsoft Translator). Désactivez cette option pour n’utiliser que Google.",
+  "onboardingServiceViaDuckDuckGo": "Via DuckDuckGo",
+  "onboardingServiceViaDuckDuckGoTooltip": "Google ne traduit pas sur ce serveur pour le moment. DuckDuckGo, lui, le fait, et l’application l’utilise quand Google échoue.",
+  "commonSetUpOnDeviceAi": "Configurer l’IA sur l’appareil",
+  "proofreadEmptyBodyOnDevice": "Téléchargez un modèle d’IA qui fonctionne sur ce téléphone, ou ajoutez un fournisseur compatible OpenAI, Anthropic, Gemini ou Ollama, pour vérifier la grammaire, l’orthographe et le style. Les modèles de traduction spécialisés, comme Hy-MT ou TranslateGemma, ne peuvent pas corriger de texte.",
+  "dictionaryNoEngineBodyOnDevice": "Téléchargez un modèle d’IA qui fonctionne sur ce téléphone, ou ajoutez un fournisseur compatible OpenAI, Anthropic, Gemini ou Ollama, pour rechercher des mots. Les modèles de traduction spécialisés, comme Hy-MT ou TranslateGemma, ne peuvent pas être utilisés.",
+  "dictionaryNoSourceBodyOnDevice": "Téléchargez un dictionnaire pour rechercher des mots sans connexion, ou configurez l’IA sur l’appareil ou un fournisseur d’IA."
 }

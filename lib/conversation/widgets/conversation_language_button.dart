@@ -50,11 +50,11 @@ class ConversationLanguageButton extends StatelessWidget {
       (cubit) => cubit.state.languageOf(side),
     );
     return Tooltip(
-      message: l10n.conversationChangeLanguage(language.name),
+      message: l10n.conversationChangeLanguage(context.languageName(language)),
       excludeFromSemantics: true,
       child: Semantics(
         button: true,
-        label: l10n.conversationChangeLanguage(language.name),
+        label: l10n.conversationChangeLanguage(context.languageName(language)),
         excludeSemantics: true,
         // An outlined pill led by the language's avatar; the side's colour
         // draws the outline.
@@ -79,7 +79,7 @@ class ConversationLanguageButton extends StatelessWidget {
               const SizedBox(width: 8),
               Flexible(
                 child: Text(
-                  language.name,
+                  context.languageName(language),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -163,9 +163,11 @@ class _PillLanguage extends StatelessWidget {
     final active = turn ?? false;
     final colors = ConversationSideColors.of(context, side);
     final shape = AppLook.of(context).control;
-    final pick = l10n.conversationChangeLanguage(language.name);
+    final pick = l10n.conversationChangeLanguage(
+      context.languageName(language),
+    );
     final label = inSession
-        ? l10n.conversationSessionSpeakNext(language.name)
+        ? l10n.conversationSessionSpeakNext(context.languageName(language))
         : pick;
     void openPicker() => unawaited(pickConversationLanguage(context, side));
     void speakNext() => context.read<ConversationCubit>().switchTurn(side);
@@ -209,7 +211,7 @@ class _PillLanguage extends StatelessWidget {
                       const SizedBox(width: 8),
                       Flexible(
                         child: Text(
-                          language.name,
+                          context.languageName(language),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: theme.textTheme.titleSmall?.copyWith(

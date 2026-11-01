@@ -12,7 +12,7 @@ import 'package:mozhi/translate/widgets/offline_download_action.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 export 'offline_download_action.dart'
-    show OfflineDownload, offlineDownloadLabel;
+    show OfflineDownload, offlineDownloadLabel, offlineDownloadName;
 
 /// The device's offline engine when one is provided above [context] (the
 /// app provides Bergamot, or an unavailable one on the web), else null.

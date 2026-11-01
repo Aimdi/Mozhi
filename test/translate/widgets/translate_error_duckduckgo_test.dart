@@ -109,7 +109,11 @@ void main() {
     Future<TranslateHarness> pump(
       WidgetTester tester,
       TranslateState state, {
-      AppSettings settings = const AppSettings(),
+      // The user turned the fallback off (it is on by default).
+      AppSettings settings = const AppSettings(
+        fallbackToDuckDuckGo: false,
+        fallbackToDuckDuckGoChosen: true,
+      ),
       bool dense = false,
     }) async {
       final harness = TranslateHarness(state: state, settings: settings);
@@ -160,11 +164,15 @@ void main() {
       verify(harness.translate.useDuckDuckGoWhenGoogleFails).called(1);
     });
 
-    testWidgets('is left out while the fallback is on already', (tester) async {
+    testWidgets('is left out while the fallback is on (the default)', (
+      tester,
+    ) async {
+      await pump(tester, _failed(_googleFailed), settings: const AppSettings());
+      expect(find.byKey(action), findsNothing);
       await pump(
         tester,
         _failed(_googleFailed),
-        settings: const AppSettings(fallbackToDuckDuckGo: true),
+        settings: const AppSettings(fallbackToDuckDuckGoChosen: true),
       );
       expect(find.byKey(action), findsNothing);
     });
@@ -173,7 +181,10 @@ void main() {
       await pump(
         tester,
         _failed(_googleFailed),
-        settings: const AppSettings(privacyMode: PrivacyMode.offlineOnly),
+        settings: const AppSettings(
+          fallbackToDuckDuckGo: false,
+          privacyMode: PrivacyMode.offlineOnly,
+        ),
       );
       expect(find.byKey(action), findsNothing);
     });

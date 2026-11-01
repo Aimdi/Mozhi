@@ -2799,5 +2799,17 @@
   "settingsStyleKeywords": "terminal, klassiek, uiterlijk, weergave, lettertype, vaste breedte, classic, monospace, monospaced, JetBrains Mono",
   "settingsThemeTerminalSubtitle": "In de stijl Terminal betekent Systeem donker; Licht geeft de papierlook",
   "settingsColorAmber": "Amber",
-  "settingsColorCyan": "Cyaan"
+  "settingsColorCyan": "Cyaan",
+  "offlineMirrorNotHostedTitle": "Deze webserver host de downloads niet",
+  "offlineMirrorNotHostedBody": "De web-app downloadt deze bestanden van de server waar hij vandaan komt, en deze heeft ze niet. Importeer bestanden die je elders hebt gedownload, of vraag de beheerder van de server om er een kopie van aan te bieden.",
+  "offlineMirrorNotHostedHelp": "Zo host je ze",
+  "dictionaryDefinitionsIn": "Definities in: {language}",
+  "phrasebookStarterPair": "{base} ↔ {language}",
+  "settingsFallbackDuckDuckGoOnSubtitle": "Standaard aan. Als Google op alle vrijwilligersservers faalt, wordt je tekst via dezelfde servers naar de vertaler van DuckDuckGo gestuurd (de vertalingen daarvan komen van Microsoft Translator). Zet dit uit om alleen Google te gebruiken.",
+  "onboardingServiceViaDuckDuckGo": "Via DuckDuckGo",
+  "onboardingServiceViaDuckDuckGoTooltip": "Google vertaalt op deze server nu niet. DuckDuckGo wel, en de app gebruikt het als Google faalt.",
+  "commonSetUpOnDeviceAi": "AI op het apparaat instellen",
+  "proofreadEmptyBodyOnDevice": "Download een AI-model dat op deze telefoon draait, of voeg een OpenAI-compatibele, Anthropic-, Gemini- of Ollama-provider toe om grammatica, spelling en stijl te controleren. Gespecialiseerde vertaalmodellen, zoals Hy-MT of TranslateGemma, kunnen geen tekst nakijken.",
+  "dictionaryNoEngineBodyOnDevice": "Download een AI-model dat op deze telefoon draait, of voeg een OpenAI-compatibele, Anthropic-, Gemini- of Ollama-provider toe om woorden op te zoeken. Gespecialiseerde vertaalmodellen, zoals Hy-MT of TranslateGemma, kunnen niet worden gebruikt.",
+  "dictionaryNoSourceBodyOnDevice": "Download een woordenboek om woorden zonder verbinding op te zoeken, of stel AI op het apparaat of een AI-provider in."
 }

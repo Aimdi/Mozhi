@@ -139,7 +139,8 @@ class AppSettings extends Equatable {
     this.tapToLookUp = true,
     this.highlightSpokenWord = true,
     this.offlineAppShell = true,
-    this.fallbackToDuckDuckGo = false,
+    this.fallbackToDuckDuckGo = true,
+    this.fallbackToDuckDuckGoChosen = false,
     this.style = AppStyle.terminal,
     this.terminalAccent = kTerminalAmber,
   });
@@ -235,8 +236,15 @@ class AppSettings extends Equatable {
           _bool(json['highlightSpokenWord']) ?? defaults.highlightSpokenWord,
       offlineAppShell:
           _bool(json['offlineAppShell']) ?? defaults.offlineAppShell,
-      fallbackToDuckDuckGo:
-          _bool(json['fallbackToDuckDuckGo']) ?? defaults.fallbackToDuckDuckGo,
+      // Every field is stored, so a stored value alone is no choice:
+      // versions before rc.14 wrote the old default (off) for everyone.
+      // It counts only once the user set the switch themselves.
+      fallbackToDuckDuckGo: _bool(json['fallbackToDuckDuckGoChosen']) == true
+          ? _bool(json['fallbackToDuckDuckGo']) ?? defaults.fallbackToDuckDuckGo
+          : defaults.fallbackToDuckDuckGo,
+      fallbackToDuckDuckGoChosen:
+          _bool(json['fallbackToDuckDuckGoChosen']) ??
+          defaults.fallbackToDuckDuckGoChosen,
       style: AppStyle.fromId(json['style']) ?? defaults.style,
       terminalAccent: switch (_int(json['terminalAccent'])) {
         final int accent when kTerminalAccents.contains(accent) => accent,
@@ -443,12 +451,21 @@ class AppSettings extends Equatable {
   /// Mozhi's Google engine failed on every volunteer server
   /// (`AllInstancesFailedException`), the Translate screen tries once more
   /// with Mozhi's DuckDuckGo engine through the same servers (whose
-  /// translations come from Microsoft Translator). Off by default: the app
-  /// never moves text to another engine by itself, and this is the user's
-  /// permission for that one case. The DuckDuckGo request still goes
-  /// through the privacy settings like any other (never in Offline only;
-  /// in Offline first a "Once" given for Google does not cover it).
+  /// translations come from Microsoft Translator). On by default (since
+  /// 0.1.0-rc.14: Google rate-limits most volunteer servers); the user can
+  /// turn it off. The DuckDuckGo request still goes through the privacy
+  /// settings like any other (never in Offline only; in Offline first a
+  /// "Once" given for Google does not cover it), and the result and the
+  /// network log name DuckDuckGo. A stored value only counts when
+  /// [fallbackToDuckDuckGoChosen] (see [AppSettings.fromJson]).
   final bool fallbackToDuckDuckGo;
+
+  /// Whether the user set [fallbackToDuckDuckGo] themselves (the switch in
+  /// Settings, or "Use DuckDuckGo when Google fails" on an error). Until
+  /// then [AppSettings.fromJson] ignores the stored
+  /// [fallbackToDuckDuckGo], which every version wrote (as `false`, the old
+  /// default, before 0.1.0-rc.14), and uses the default.
+  final bool fallbackToDuckDuckGoChosen;
 
   /// The app's look; [AppStyle.terminal] by default.
   final AppStyle style;
@@ -528,6 +545,7 @@ class AppSettings extends Equatable {
     bool? highlightSpokenWord,
     bool? offlineAppShell,
     bool? fallbackToDuckDuckGo,
+    bool? fallbackToDuckDuckGoChosen,
     AppStyle? style,
     int? terminalAccent,
   }) {
@@ -578,6 +596,8 @@ class AppSettings extends Equatable {
       highlightSpokenWord: highlightSpokenWord ?? this.highlightSpokenWord,
       offlineAppShell: offlineAppShell ?? this.offlineAppShell,
       fallbackToDuckDuckGo: fallbackToDuckDuckGo ?? this.fallbackToDuckDuckGo,
+      fallbackToDuckDuckGoChosen:
+          fallbackToDuckDuckGoChosen ?? this.fallbackToDuckDuckGoChosen,
       style: style ?? this.style,
       terminalAccent: terminalAccent ?? this.terminalAccent,
     );
@@ -648,6 +668,7 @@ class AppSettings extends Equatable {
       'highlightSpokenWord': highlightSpokenWord,
       'offlineAppShell': offlineAppShell,
       'fallbackToDuckDuckGo': fallbackToDuckDuckGo,
+      'fallbackToDuckDuckGoChosen': fallbackToDuckDuckGoChosen,
       'style': style.name,
       'terminalAccent': terminalAccent,
     };
@@ -700,6 +721,7 @@ class AppSettings extends Equatable {
     highlightSpokenWord,
     offlineAppShell,
     fallbackToDuckDuckGo,
+    fallbackToDuckDuckGoChosen,
     style,
     terminalAccent,
   ];

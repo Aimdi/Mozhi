@@ -49,6 +49,20 @@ const MODEL_URLS = /\/bergamot\/[a-z_]+-[a-z_]+\/|storage\.googleapis\.com\//;
 /** Serves the model files from MODELS_DIR; returns the requested URLs. */
 async function serveModels(context) {
   const requested = [];
+  // The web app first asks its server's mirror whether it hosts the
+  // offline languages (models/bergamot/index.json, written by
+  // tool/mirror_models.py); without one it offers no downloads.
+  await context.route('**/models/bergamot/index.json', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        schemaVersion: 1,
+        kind: 'bergamot',
+        items: ['de-en', 'en-de'],
+      }),
+    }),
+  );
   await context.route(MODEL_URLS, async (route) => {
     const url = route.request().url();
     if (url.endsWith('.js') || url.endsWith('.wasm')) return route.continue();

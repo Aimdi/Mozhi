@@ -16,6 +16,66 @@ in `-rc.N`).
   the `phrasebooks-2026-11-01` release), each phrase with its
   translation and pronunciation, 9-27 KB each and checked against the
   SHA-256 the app ships with. Until now the list was empty.
+- **The web zip carries the starter phrasebooks** (`models/phrasebooks/`,
+  about 0.5 MB, with an `index.json`): a browser can't download them from
+  GitHub, so until now every download failed in the web app.
+- **Web app: says when its server doesn't host the downloads.** The
+  Offline languages, Dictionaries and Text recognition screens ask the
+  server once (`models/<kind>/index.json`, written by
+  `tool/mirror_models.py`); where it hosts nothing, they show one banner
+  with **Import from files** and how to mirror the files, and disable
+  Download, instead of failing with "The mirror may not have this
+  language yet" or a checksum error for each language. Android is
+  unchanged.
+- **Dictionaries say "Definitions in English"** under each pack and in an
+  entry's credit line (the language named in the app's language).
+- **Starter phrasebooks are listed as "English ↔ <language>"**, and the
+  phrasebook of the app's own language is left out (unless installed).
+- `tool/mirror_models.py` writes an `index.json` into every folder of a
+  mirror (what is in place); docs: real dictionary pack sizes, the 29
+  starter phrasebooks, what the web app downloads from its server, and
+  Obtainium's filter for app releases (`^v`) in Getting started.
+- **Proofread and the Dictionary offer on-device AI** on an Android phone
+  that can run it: their "needs an AI" screens have **Set up on-device
+  AI** (first) next to **Add AI provider**.
+- `tool/check_public_instances.py` checks CORS: the requests carry an
+  `Origin` header, and the table's **Web (CORS)** column and the summary
+  say which servers the web app can use (a warning, never a failure).
+
+### Changed
+
+- **Language names in your language:** "Englisch", "Französisch" in
+  German, "英語" in Japanese, and so on in all 19 app languages (from
+  Unicode CLDR 49), in the language bar, the pickers (whose search finds
+  a language by its name in the app's language, in English or in its
+  own), offline languages, dictionaries, history, conversation and
+  everywhere else a language is named; the language's own name stays as
+  the second line. What goes to the engines doesn't change.
+- **"If Google fails, use DuckDuckGo" is on by default.** Google
+  rate-limits most volunteer servers (HTTP 500 "status code: 429"), so a
+  new install often couldn't translate online. Settings from earlier
+  versions (which always stored the old default, off) get it on too,
+  unless the user set the switch (now remembered); turn it off under
+  Settings > Translation engines to only use Google. The privacy rules
+  are unchanged: never in Offline only, the same consent checks, and the
+  result and Network activity name DuckDuckGo.
+- **"Find the fastest server" tests a server whose Google fails with
+  DuckDuckGo** (while the fallback is on) and marks it **Via DuckDuckGo**
+  instead of "Doesn't translate"; servers where Google works still come
+  first. "Use my own instance" accepts such a server too.
+
+### Fixed
+
+- **Web app: no download buttons that can only fail** on the translate
+  screen either: where the server doesn't host the offline languages,
+  the error and the prompt keep **Manage languages** (with **Import from
+  files**) but drop "Download French".
+- **Proofread no longer offers translation-only AI models** (Hy-MT,
+  TranslateGemma), which failed with "Something went wrong".
+- Polish, Russian and Ukrainian: the error for exactly one volunteer
+  server read "none of the 1 servers" (an ICU `=1` case overridden by
+  `one`); the other `=1`/`one` duplicates of these languages are cleaned
+  up (gen-l10n no longer warns).
 
 ## 0.1.0-rc.13
 

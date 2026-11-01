@@ -96,7 +96,9 @@ class TranscribeOptions extends StatelessWidget {
                 avatar: const Icon(Icons.record_voice_over_outlined),
                 tooltip: l10n.transcribeSpokenLanguage,
                 label: Text(
-                  l10n.transcribeSpokenLanguageValue(state.source.name),
+                  l10n.transcribeSpokenLanguageValue(
+                    context.languageName(state.source),
+                  ),
                 ),
                 onPressed: state.isRecording
                     ? null
@@ -108,7 +110,9 @@ class TranscribeOptions extends StatelessWidget {
                 selected: state.translate,
                 label: Text(
                   state.translate
-                      ? l10n.transcribeTranslateInto(state.target.name)
+                      ? l10n.transcribeTranslateInto(
+                          context.languageName(state.target),
+                        )
                       : l10n.transcribeTranslate,
                 ),
                 onSelected: (enabled) => cubit.setTranslate(enabled: enabled),
@@ -118,7 +122,7 @@ class TranscribeOptions extends StatelessWidget {
                   key: const Key('transcribe_target'),
                   avatar: const Icon(Icons.language),
                   tooltip: l10n.transcribeTargetLanguage,
-                  label: Text(state.target.name),
+                  label: Text(context.languageName(state.target)),
                   onPressed: () => unawaited(pick(source: false)),
                 ),
             ],

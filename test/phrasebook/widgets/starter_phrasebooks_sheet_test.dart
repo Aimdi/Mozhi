@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/core/key_value_store.dart';
+import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/phrasebook/data/phrasebook_repository.dart';
 import 'package:mozhi/phrasebook/widgets/starter_phrasebooks_sheet.dart';
 import 'package:mozhi/platform/free_space.dart';
@@ -56,7 +57,7 @@ void main() {
     );
     await open(tester, packs);
     expect(find.text('Starter phrasebooks'), findsOneWidget);
-    expect(find.text('Portuguese'), findsOneWidget);
+    expect(find.text('English ↔ Portuguese'), findsOneWidget);
     expect(find.textContaining('3 phrases ·'), findsOneWidget);
     await _tapAndDownload(tester, _button('download'));
     expect(find.textContaining('Downloaded'), findsOneWidget);
@@ -180,6 +181,60 @@ void main() {
     await tester.tap(find.byKey(const Key('phrasebook_starter_source')));
     await tester.tap(find.byKey(const Key('phrasebook_starter_license')));
     expect(opened, [wikivoyageUrl, ccBySa4Url]);
+  });
+
+  testWidgets("in German: names packs in German, without German's", (
+    tester,
+  ) async {
+    final german = starterPackBytes(
+      starterPackJson(id: 'de', language: 'de', name: 'German'),
+    );
+    final packs = StarterPhrasebooks(
+      catalog: StarterPhrasebookCatalog([
+        starterInfo(german, id: 'de', language: 'de', name: 'German'),
+        info,
+      ]),
+      store: MemoryStore(),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('de'),
+        localizationsDelegates: appLocalizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => showStarterPhrasebooks(context, packs),
+              child: const Text('open'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    expect(find.text('Englisch ↔ Portugiesisch'), findsOneWidget);
+    expect(find.byKey(const ValueKey('phrasebook_starter_de')), findsNothing);
+    expect(find.byKey(const ValueKey('phrasebook_starter_pt')), findsOneWidget);
+  });
+
+  testWidgets('a language the app does not know keeps its name', (
+    tester,
+  ) async {
+    final klingon = starterPackBytes(
+      starterPackJson(id: 'zz', language: 'zz', name: 'Zedish'),
+    );
+    await open(
+      tester,
+      StarterPhrasebooks(
+        catalog: StarterPhrasebookCatalog([
+          starterInfo(klingon, id: 'zz', language: 'zz', name: 'Zedish'),
+        ]),
+        store: MemoryStore(),
+      ),
+    );
+    expect(find.text('English ↔ Zedish'), findsOneWidget);
   });
 }
 

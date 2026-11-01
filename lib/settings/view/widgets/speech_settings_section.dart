@@ -296,7 +296,7 @@ class _VoiceTile extends StatelessWidget {
     final l10n = context.l10n;
     return ListTile(
       leading: const SettingsIcon(Icons.graphic_eq),
-      title: Text(l10n.speechVoiceForLanguage(language.name)),
+      title: Text(l10n.speechVoiceForLanguage(context.languageName(language))),
       subtitle: Text(switch (voice) {
         final voice? => voiceLabel(l10n, voice, listed),
         null => l10n.speechVoiceSystemDefault,
@@ -344,10 +344,10 @@ class _VoiceTile extends StatelessWidget {
       builder: (context) => BlocProvider.value(
         value: cubit,
         child: ChoiceDialog<String>(
-          title: l10n.speechVoiceForLanguage(language.name),
+          title: l10n.speechVoiceForLanguage(context.languageName(language)),
           body: listed.isEmpty
-              ? l10n.speechVoiceNone(language.name)
-              : l10n.speechVoiceDialogBody(language.name),
+              ? l10n.speechVoiceNone(context.languageName(language))
+              : l10n.speechVoiceDialogBody(context.languageName(language)),
           initialValue: current?.id ?? _defaultVoice,
           footer: _VoicePreviewStatus(languageTag: tag),
           options: [

@@ -331,7 +331,7 @@ class _ConversationAnnouncerState extends State<_ConversationAnnouncer> {
     final completed = _newlyCompleted(state);
     if (completed == null || state.autoSpeak) return;
     final message = context.l10n.conversationTranslationAnnouncement(
-      completed.target.name,
+      context.languageName(completed.target),
       completed.translation.trim(),
     );
     _say(('turn', completed.id), message);

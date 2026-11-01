@@ -63,10 +63,11 @@ extension PresetLabels on AppLocalizations {
     ReadingLevel.c2 => 'C2 · $translateReadingC2Description',
   };
 
-  /// "Any language" or the language's English name (the code when unknown).
+  /// "Any language" or the language's name in the UI language (the code
+  /// when unknown).
   String languageScopeName(String scope) => LanguageScope.isAny(scope)
       ? glossariesAnyLanguage
-      : LanguageCatalog.nameOf(scope.trim());
+      : languageDisplayNameOf(scope.trim(), localeName);
 
   /// "English → German".
   String glossaryScope(Glossary glossary) => glossariesScope(

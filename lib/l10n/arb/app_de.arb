@@ -2799,5 +2799,17 @@
   "settingsStyleKeywords": "Terminal, klassisch, Aussehen, Optik, Schrift, Schriftart, Festbreitenschrift, nichtproportional, classic, monospace, monospaced, JetBrains Mono",
   "settingsThemeTerminalSubtitle": "Im Stil Terminal bedeutet System dunkel; Hell ergibt die Papieroptik",
   "settingsColorAmber": "Bernstein",
-  "settingsColorCyan": "Cyan"
+  "settingsColorCyan": "Cyan",
+  "offlineMirrorNotHostedTitle": "Dieser Webserver stellt die Downloads nicht bereit",
+  "offlineMirrorNotHostedBody": "Die Web-App lädt diese Dateien von dem Server herunter, von dem sie stammt, und dieser hat sie nicht. Importiere Dateien, die du anderswo heruntergeladen hast, oder bitte den Betreiber des Servers, sie zu spiegeln.",
+  "offlineMirrorNotHostedHelp": "So stellst du sie bereit",
+  "dictionaryDefinitionsIn": "Definitionen in: {language}",
+  "phrasebookStarterPair": "{base} ↔ {language}",
+  "settingsFallbackDuckDuckGoOnSubtitle": "Standardmäßig an. Wenn Google auf allen Freiwilligen-Servern ausfällt, wird dein Text stattdessen über dieselben Server an den Übersetzer von DuckDuckGo gesendet (dessen Übersetzungen stammen von Microsoft Translator). Schalte dies aus, um nur Google zu verwenden.",
+  "onboardingServiceViaDuckDuckGo": "Über DuckDuckGo",
+  "onboardingServiceViaDuckDuckGoTooltip": "Google übersetzt auf diesem Server gerade nicht. DuckDuckGo schon, und die App verwendet es, wenn Google ausfällt.",
+  "commonSetUpOnDeviceAi": "KI auf dem Gerät einrichten",
+  "proofreadEmptyBodyOnDevice": "Lade ein KI-Modell herunter, das auf diesem Smartphone läuft, oder füge einen OpenAI-kompatiblen, Anthropic-, Gemini- oder Ollama-Anbieter hinzu, um Grammatik, Rechtschreibung und Stil zu prüfen. Spezielle Übersetzungsmodelle wie Hy-MT oder TranslateGemma können keine Texte korrigieren.",
+  "dictionaryNoEngineBodyOnDevice": "Lade ein KI-Modell herunter, das auf diesem Smartphone läuft, oder füge einen OpenAI-kompatiblen, Anthropic-, Gemini- oder Ollama-Anbieter hinzu, um Wörter nachzuschlagen. Spezielle Übersetzungsmodelle wie Hy-MT oder TranslateGemma können nicht verwendet werden.",
+  "dictionaryNoSourceBodyOnDevice": "Lade ein Wörterbuch herunter, um Wörter ohne Netzwerk nachzuschlagen, oder richte KI auf dem Gerät oder einen KI-Anbieter ein."
 }

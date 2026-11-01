@@ -35,16 +35,20 @@ String practiceCollectionName(
   PhraseCollection collection,
 ) => collection.isFavorites ? l10n.historyFilterFavorites : collection.name;
 
-/// The English name of the language [code] (the code when unknown).
-String practiceLanguageName(String code) =>
-    LanguageCatalog.byCode(code)?.name ?? code;
+/// The name of the language [code] in the UI language [uiLocale]
+/// ([languageDisplayNameOf]; English by default, the code when unknown).
+String practiceLanguageName(String code, {String uiLocale = 'en'}) =>
+    languageDisplayNameOf(code, uiLocale);
 
-/// "Portuguese → English" for a collection with a language pair; null
-/// without one.
-String? practicePairText(PhraseCollection collection) {
+/// "Portuguese → English" for a collection with a language pair, the names
+/// in the UI language [uiLocale]; null without one.
+String? practicePairText(
+  PhraseCollection collection, {
+  String uiLocale = 'en',
+}) {
   final source = collection.sourceCode;
   final target = collection.targetCode;
   if (source == null || target == null) return null;
-  return '${bidiIsolate(practiceLanguageName(source))} → '
-      '${bidiIsolate(practiceLanguageName(target))}';
+  return '${bidiIsolate(practiceLanguageName(source, uiLocale: uiLocale))} → '
+      '${bidiIsolate(practiceLanguageName(target, uiLocale: uiLocale))}';
 }

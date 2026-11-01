@@ -2799,5 +2799,17 @@
   "settingsStyleKeywords": "terminal, klasik, tampilan, font, huruf, lebar tetap, classic, monospace, monospaced, JetBrains Mono",
   "settingsThemeTerminalSubtitle": "Dalam gaya Terminal, Sistem berarti gelap; Terang memberi tampilan kertas",
   "settingsColorAmber": "Ambar",
-  "settingsColorCyan": "Sian"
+  "settingsColorCyan": "Sian",
+  "offlineMirrorNotHostedTitle": "Server web ini tidak menghosting file untuk didownload",
+  "offlineMirrorNotHostedBody": "Aplikasi web mendownload file ini dari server asalnya, dan server ini tidak memilikinya. Impor file yang Anda download di tempat lain, atau minta pemilik server untuk menyediakan mirror-nya.",
+  "offlineMirrorNotHostedHelp": "Cara menghostingnya",
+  "dictionaryDefinitionsIn": "Bahasa definisi: {language}",
+  "phrasebookStarterPair": "{base} ↔ {language}",
+  "settingsFallbackDuckDuckGoOnSubtitle": "Aktif secara default. Saat Google gagal di semua server relawan, teks Anda dikirim ke penerjemah DuckDuckGo melalui server yang sama (terjemahannya berasal dari Microsoft Translator). Nonaktifkan untuk hanya menggunakan Google.",
+  "onboardingServiceViaDuckDuckGo": "Melalui DuckDuckGo",
+  "onboardingServiceViaDuckDuckGoTooltip": "Google sedang tidak menerjemahkan di server ini. DuckDuckGo bisa, dan aplikasi menggunakannya saat Google gagal.",
+  "commonSetUpOnDeviceAi": "Siapkan AI di perangkat",
+  "proofreadEmptyBodyOnDevice": "Download model AI yang berjalan di ponsel ini, atau tambahkan penyedia yang kompatibel dengan OpenAI, Anthropic, Gemini, atau Ollama, untuk memeriksa tata bahasa, ejaan, dan gaya. Model terjemahan khusus, seperti Hy-MT atau TranslateGemma, tidak dapat mengoreksi teks.",
+  "dictionaryNoEngineBodyOnDevice": "Download model AI yang berjalan di ponsel ini, atau tambahkan penyedia yang kompatibel dengan OpenAI, Anthropic, Gemini, atau Ollama, untuk mencari kata. Model terjemahan khusus, seperti Hy-MT atau TranslateGemma, tidak dapat digunakan.",
+  "dictionaryNoSourceBodyOnDevice": "Download kamus untuk mencari kata tanpa jaringan, atau siapkan AI di perangkat atau penyedia AI."
 }

@@ -2799,5 +2799,17 @@
   "settingsStyleKeywords": "terminale, classico, aspetto, carattere, font, monospaziato, terminal, classic, monospace, monospaced, JetBrains Mono",
   "settingsThemeTerminalSubtitle": "Nello stile Terminale, Sistema significa scuro; Chiaro dà l’aspetto carta",
   "settingsColorAmber": "Ambra",
-  "settingsColorCyan": "Ciano"
+  "settingsColorCyan": "Ciano",
+  "offlineMirrorNotHostedTitle": "Questo server web non ospita i download",
+  "offlineMirrorNotHostedBody": "L’app web scarica questi file dal server da cui proviene, e questo non li ha. Importa file scaricati altrove, oppure chiedi a chi gestisce il server di tenerne una copia.",
+  "offlineMirrorNotHostedHelp": "Come ospitarli",
+  "dictionaryDefinitionsIn": "Definizioni in: {language}",
+  "phrasebookStarterPair": "{base} ↔ {language}",
+  "settingsFallbackDuckDuckGoOnSubtitle": "Attivo per impostazione predefinita. Quando Google non funziona su nessun server dei volontari, il tuo testo viene inviato al traduttore di DuckDuckGo tramite gli stessi server (le sue traduzioni provengono da Microsoft Translator). Disattiva questa opzione per usare solo Google.",
+  "onboardingServiceViaDuckDuckGo": "Tramite DuckDuckGo",
+  "onboardingServiceViaDuckDuckGoTooltip": "Al momento Google non traduce su questo server. DuckDuckGo sì, e l’app lo usa quando Google non funziona.",
+  "commonSetUpOnDeviceAi": "Configura IA sul dispositivo",
+  "proofreadEmptyBodyOnDevice": "Scarica un modello di IA che funziona su questo telefono, oppure aggiungi un provider compatibile con OpenAI, Anthropic, Gemini o Ollama, per controllare grammatica, ortografia e stile. I modelli di traduzione dedicati, come Hy-MT o TranslateGemma, non possono correggere testi.",
+  "dictionaryNoEngineBodyOnDevice": "Scarica un modello di IA che funziona su questo telefono, oppure aggiungi un provider compatibile con OpenAI, Anthropic, Gemini o Ollama, per cercare parole. Non è possibile usare modelli di traduzione dedicati, come Hy-MT o TranslateGemma.",
+  "dictionaryNoSourceBodyOnDevice": "Scarica un dizionario per cercare parole senza connessione, oppure configura l’IA sul dispositivo o un provider IA."
 }

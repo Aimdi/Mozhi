@@ -78,6 +78,24 @@ class StarterPhrasebooksState extends Equatable {
   /// The catalogue's phrasebooks, by name.
   final List<StarterPhrasebookItem> items;
 
+  /// The [items] to offer in an app whose language is [appLanguage] (a
+  /// tag such as `de` or `pt_BR`): without the phrasebooks of that
+  /// language (a German speaker needs no German phrasebook for English
+  /// speakers) unless they are installed (so they can still be deleted).
+  List<StarterPhrasebookItem> itemsFor(String appLanguage) {
+    final own = _primary(appLanguage);
+    return [
+      for (final item in items)
+        if (item.isInstalled ||
+            _primary(item.info.language) != own ||
+            _primary(item.info.baseLanguage) == own)
+          item,
+    ];
+  }
+
+  static String _primary(String tag) =>
+      tag.trim().split(RegExp('[-_]')).first.toLowerCase();
+
   @override
   List<Object?> get props => [loading, items];
 }

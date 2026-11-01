@@ -110,7 +110,7 @@ class OcrLanguageOfferView extends StatelessWidget {
     final state = context.watch<OcrOfferCubit>().state;
     final cubit = context.read<OcrOfferCubit>();
     final language = missing.language;
-    final name = LanguageCatalog.nameOf(language.appCode);
+    final name = context.languageNameOf(language.appCode);
     final size = formatStoredSize(l10n, language.downloadSize);
     final offlineOnly = _offlineOnly(context);
     final url = language.url;

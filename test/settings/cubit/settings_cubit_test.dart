@@ -809,9 +809,18 @@ void main() {
       );
 
       mutation(
-        'setFallbackToDuckDuckGo stores the flag',
+        "setFallbackToDuckDuckGo stores the flag as the user's choice",
+        act: (cubit) => cubit.setFallbackToDuckDuckGo(enabled: false),
+        expected: const AppSettings(
+          fallbackToDuckDuckGo: false,
+          fallbackToDuckDuckGoChosen: true,
+        ),
+      );
+
+      mutation(
+        'setFallbackToDuckDuckGo keeps turning it on as a choice',
         act: (cubit) => cubit.setFallbackToDuckDuckGo(enabled: true),
-        expected: const AppSettings(fallbackToDuckDuckGo: true),
+        expected: const AppSettings(fallbackToDuckDuckGoChosen: true),
       );
 
       mutation(

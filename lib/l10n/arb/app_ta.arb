@@ -2799,5 +2799,17 @@
   "settingsStyleKeywords": "டெர்மினல், கிளாசிக், தோற்றம், பாணி, எழுத்துரு, ஃபாண்ட், நிலையான அகலம், terminal, classic, monospace, monospaced, JetBrains Mono",
   "settingsThemeTerminalSubtitle": "டெர்மினல் பாணியில் சிஸ்டம் என்றால் அடர்; வெளிர் காகிதத் தோற்றத்தைத் தரும்",
   "settingsColorAmber": "அம்பர்",
-  "settingsColorCyan": "சியான்"
+  "settingsColorCyan": "சியான்",
+  "offlineMirrorNotHostedTitle": "இந்த இணைய சர்வர் பதிவிறக்கங்களை ஹோஸ்ட் செய்வதில்லை",
+  "offlineMirrorNotHostedBody": "இணைய ஆப்ஸ் இந்தக் கோப்புகளைத் தான் வரும் சர்வரிலிருந்தே பதிவிறக்குகிறது, ஆனால் இந்த சர்வரில் அவை இல்லை. வேறு இடத்தில் பதிவிறக்கிய கோப்புகளை இறக்குமதிசெய்யவும் அல்லது அவற்றின் நகல்களை வைக்குமாறு சர்வரின் உரிமையாளரிடம் கேட்கவும்.",
+  "offlineMirrorNotHostedHelp": "அவற்றை ஹோஸ்ட் செய்வது எப்படி",
+  "dictionaryDefinitionsIn": "வரையறைகளின் மொழி: {language}",
+  "phrasebookStarterPair": "{base} ↔ {language}",
+  "settingsFallbackDuckDuckGoOnSubtitle": "இயல்பாக இயக்கத்தில் உள்ளது. எல்லா தன்னார்வலர் சர்வர்களிலும் Google தோல்வியுற்றால், உங்கள் உரை அதே சர்வர்கள் வழியாக DuckDuckGo மொழிபெயர்ப்பாளருக்கு அனுப்பப்படும் (அதன் மொழிபெயர்ப்புகள் Microsoft Translator-இலிருந்து வருகின்றன). Google-ஐ மட்டும் பயன்படுத்த இதை முடக்கவும்.",
+  "onboardingServiceViaDuckDuckGo": "DuckDuckGo வழியாக",
+  "onboardingServiceViaDuckDuckGoTooltip": "இப்போது இந்த சர்வரில் Google மொழிபெயர்க்கவில்லை. DuckDuckGo மொழிபெயர்க்கிறது; Google தோல்வியுற்றால் ஆப்ஸ் அதைப் பயன்படுத்தும்.",
+  "commonSetUpOnDeviceAi": "சாதனத்தில் AI-ஐ அமை",
+  "proofreadEmptyBodyOnDevice": "இலக்கணம், எழுத்துப்பிழை, நடையைச் சரிபார்க்க இந்த ஃபோனிலேயே இயங்கும் AI மாடலைப் பதிவிறக்கவும் அல்லது OpenAI-இணக்கமான, Anthropic, Gemini அல்லது Ollama வழங்குநரைச் சேர்க்கவும். Hy-MT, TranslateGemma போன்ற பிரத்யேக மொழிபெயர்ப்பு மாடல்களால் பிழைதிருத்த முடியாது.",
+  "dictionaryNoEngineBodyOnDevice": "சொற்களைத் தேட இந்த ஃபோனிலேயே இயங்கும் AI மாடலைப் பதிவிறக்கவும் அல்லது OpenAI-இணக்கமான, Anthropic, Gemini அல்லது Ollama வழங்குநரைச் சேர்க்கவும். Hy-MT, TranslateGemma போன்ற பிரத்யேக மொழிபெயர்ப்பு மாடல்களைப் பயன்படுத்த முடியாது.",
+  "dictionaryNoSourceBodyOnDevice": "நெட்வொர்க் இல்லாமலே சொற்களைத் தேட ஒரு அகராதியைப் பதிவிறக்கவும் அல்லது சாதனத்தில் AI-ஐயோ AI வழங்குநரையோ அமைக்கவும்."
 }

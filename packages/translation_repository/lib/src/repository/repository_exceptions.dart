@@ -120,8 +120,8 @@ final class InstanceDoesNotTranslateException extends MozhiApiException {
 /// [MozhiApiException], sanitised like every Mozhi error). The app should
 /// offer a way on that needs no Mozhi server: the device's own engine,
 /// another engine (never switched to on its own: another engine sends the
-/// text somewhere else; the app's opt-in "If Google fails, use DuckDuckGo"
-/// is the user's permission for that one case), or another server.
+/// text somewhere else; the app's "If Google fails, use DuckDuckGo", on by
+/// default and up to the user, covers that one case), or another server.
 /// [rateLimited] tells when the engine is limiting the servers' requests.
 final class AllInstancesFailedException extends MozhiApiException {
   const new(

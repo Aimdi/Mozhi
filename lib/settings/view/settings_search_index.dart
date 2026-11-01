@@ -314,7 +314,7 @@ List<SettingsSearchEntry> settingsSearchIndex(
       engines,
       EngineAnchors.duckDuckGoFallback,
       l10n.settingsFallbackDuckDuckGo,
-      subtitle: l10n.settingsFallbackDuckDuckGoSubtitle,
+      subtitle: l10n.settingsFallbackDuckDuckGoOnSubtitle,
     ),
     entry(engines, EngineAnchors.services, l10n.settingsMtServicesTitle),
     entry(

@@ -1054,7 +1054,7 @@ class _OutputCardState extends State<OutputCard>
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
           Text(
-            state.target.name,
+            context.languageName(state.target),
             key: const Key('translate_output_language'),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,

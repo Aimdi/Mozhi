@@ -69,12 +69,21 @@ class DictionaryOfflineNotice extends StatelessWidget {
 }
 
 /// The end of an entry from an offline dictionary: where it comes from
-/// ([DictionaryAttributionLink]) and, with an AI engine, "More detail"
+/// and the language of its definitions ([glossLanguage]) in a
+/// [DictionaryAttributionLink] and, with an AI engine, "More detail"
 /// ([onMoreDetail]: the AI's fuller entry).
 class DictionaryOfflineFooter extends StatelessWidget {
-  const new({required this.attribution, this.onMoreDetail, super.key});
+  const new({
+    required this.attribution,
+    this.onMoreDetail,
+    this.glossLanguage,
+    super.key,
+  });
 
   final DictionaryAttribution attribution;
+
+  /// The language code the definitions are written in, when known.
+  final String? glossLanguage;
   final VoidCallback? onMoreDetail;
 
   @override
@@ -94,11 +103,22 @@ class DictionaryOfflineFooter extends StatelessWidget {
             icon: const Icon(Icons.auto_awesome_outlined),
             label: Text(context.l10n.translateShortMoreDetail),
           ),
-        DictionaryAttributionLink(attribution: attribution),
+        DictionaryAttributionLink(
+          attribution: attribution,
+          glossLanguage: glossLanguage,
+        ),
       ],
     );
   }
 }
+
+/// The language the definitions of [answer]'s dictionary are written in
+/// (its pack's `glossLanguage` in the catalogue of [packs]), or null when
+/// the catalogue does not list it.
+String? dictionaryGlossLanguage(
+  DictionaryPacks? packs,
+  OfflineDictionaryAnswer answer,
+) => packs?.catalog.forLanguage(answer.language).firstOrNull?.glossLanguage;
 
 /// "Similar words": [words] of the offline dictionaries as chips that look
 /// that word up ([onWordTap]).

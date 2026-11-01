@@ -50,9 +50,10 @@ String imagePhaseMessage(AppLocalizations l10n, ImageTranslateState state) =>
         l10n.imageTranslatePhaseTranslatingText,
     };
 
-/// Display name of [language] (localized "Detect language" for auto).
+/// Display name of [language] in the UI language ([languageNameIn];
+/// localized "Detect language" for auto).
 String imageLanguageLabel(AppLocalizations l10n, Language language) =>
-    language.isAuto ? l10n.translateDetectLanguage : language.name;
+    languageNameIn(l10n, language);
 
 /// Name of the language with [code] from [languages] or the catalogue.
 String imageLanguageNameFor(String code, List<Language> languages) {

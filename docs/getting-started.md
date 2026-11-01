@@ -17,9 +17,14 @@ Android.
 
 Download an APK from one of two places:
 
-- **Releases** (recommended): open the repository's
-  [Releases page](https://github.com/Aimdi/Mozhi/releases) and download a file
-  named like `mozhi-v1.2.3-arm64-v8a.apk` from the latest release.
+- **Releases** (recommended): the app is released on GitHub only. Open the
+  repository's [Releases page](https://github.com/Aimdi/Mozhi/releases) and
+  download a file named like `mozhi-v1.2.3-arm64-v8a.apk` from the release
+  marked **Latest**. From the stable `v0.1.0` on, Latest is always a stable
+  version; release candidates (`v0.1.0-rc.14`, ...) are **pre-releases**
+  for testers. The page also lists data releases (`dictionary-packs-…`,
+  `phrasebooks-…`): they hold the offline dictionaries and starter
+  phrasebooks the app downloads by itself, not the app.
 - **Build artifacts** (newest code, for testers): open a recent successful run
   of the [`ci` workflow](https://github.com/Aimdi/Mozhi/actions/workflows/main.yaml)
   and download the `mozhi-android` artifact. It is a zip file with the same
@@ -56,6 +61,16 @@ manager to "install unknown apps" the first time; allow it, then tap
 
 To get notified about new releases you can add the repository URL to an
 update tracker such as [Obtainium](https://github.com/ImranR98/Obtainium).
+In Obtainium, limit it to the app's releases so that it skips the data
+releases (`dictionary-packs-…`, `phrasebooks-…`, which have no APK): app
+tags start with `v`, so set a tag filter to `^v`; where your Obtainium
+version only filters release titles (**Filter release titles by regular
+expression**), use `^Mozhi v` (app releases are titled *Mozhi v0.1.0*,
+data releases *Dictionary packs …* and *Starter phrasebooks …*). Data
+releases are marked as pre-releases, so leaving **Include prereleases** off
+skips them as well as the release candidates; turn it on (with the
+filter) only if you want the candidates. Pick the APK of your phone
+(`arm64-v8a` for most) when it asks.
 
 ### Web
 
@@ -63,7 +78,13 @@ There is no hosted copy of the web app; serve it yourself from any static web
 server:
 
 - Each release has a `mozhi-v1.2.3-web.zip` built for the root of a web
-  server.
+  server. It carries the starter phrasebooks (`models/phrasebooks/`), but
+  not the offline languages, dictionaries or text recognition data: a
+  browser can't download those from their publishers (no CORS), so the
+  web app gets them from its own server's `models/` folder. Until you
+  [mirror them](self-hosting-mozhi.md#mirror-the-on-device-models) there,
+  those screens say *This web server doesn't host the downloads* and
+  offer **Import from files** instead.
 - Every CI run also produces the same static build (the `mozhi-web`
   artifact), also built for the root (base href `/`).
 
@@ -116,7 +137,12 @@ again** starts it over):
    listed server (with the engine Mozhi will use, Google unless you picked
    another; none of your text is sent), and puts the fastest first; a
    server that answers but doesn't translate is marked **Doesn't
-   translate** and never picked. It only runs when you tap it.
+   translate** and never picked. A server whose Google fails (Google
+   rate-limits many of them) is tried once more with DuckDuckGo, as
+   translations are with **If Google fails, use DuckDuckGo** (on by
+   default): when that works it is marked **Via DuckDuckGo** and counts
+   as working, after the servers where Google itself translates. It only
+   runs when you tap it.
    **Use my own instance** lets you enter your server's address and **Test &
    add** it. AI translators are optional: **Open AI provider settings**
    finishes the setup and opens **Settings > AI > AI providers**.

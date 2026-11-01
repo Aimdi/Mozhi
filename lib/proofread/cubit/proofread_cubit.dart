@@ -51,7 +51,9 @@ class ProofreadCubit extends Cubit<ProofreadState> {
     TranslationEngine? preferred, {
     bool keepCurrent = false,
   }) {
-    final ai = engines.where((e) => e.isAi).toList(growable: false);
+    // Proofreading needs the general prompt profile: dedicated translation
+    // models (Hy-MT, TranslateGemma) can't do it.
+    final ai = engines.where((e) => e.supportsExtras).toList(growable: false);
     TranslationEngine? find(TranslationEngine? engine) {
       if (engine == null) return null;
       for (final candidate in ai) {
@@ -69,7 +71,9 @@ class ProofreadCubit extends Cubit<ProofreadState> {
     );
   }
 
-  /// Updates the AI engines (non-AI engines are ignored), refreshing their
+  /// Updates the AI engines (non-AI engines, and AI engines without
+  /// [TranslationEngine.supportsExtras] such as dedicated translation
+  /// models, are ignored), refreshing their
   /// details (e.g. an edited model). An engine the user picked is kept while
   /// it is still available; otherwise [preferred] is used, else the current
   /// engine, else the first one.
@@ -78,7 +82,8 @@ class ProofreadCubit extends Cubit<ProofreadState> {
     TranslationEngine? preferred,
   }) {
     final keepCurrent =
-        _engineChosen && engines.any((e) => e.isAi && e.id == state.engine?.id);
+        _engineChosen &&
+        engines.any((e) => e.supportsExtras && e.id == state.engine?.id);
     _engineChosen = keepCurrent;
     final next = _withEngines(
       state,
@@ -90,7 +95,7 @@ class ProofreadCubit extends Cubit<ProofreadState> {
   }
 
   void setEngine(TranslationEngine engine) {
-    if (!engine.isAi) return;
+    if (!engine.supportsExtras) return;
     _engineChosen = true;
     emit(state.copyWith(engine: () => engine));
   }

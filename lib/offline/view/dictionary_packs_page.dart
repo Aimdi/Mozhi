@@ -10,10 +10,12 @@ import 'package:mozhi/dictionary/widgets/dictionary_attribution.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/offline/cubit/dictionary_packs_cubit.dart';
 import 'package:mozhi/offline/cubit/offline_models_state.dart';
+import 'package:mozhi/offline/data/mirror_hosting.dart';
 import 'package:mozhi/offline/data/offline_model_file_picker.dart';
 import 'package:mozhi/offline/view/offline_models_page.dart'
     show MeteredDownloadDialog, offlineOutcomeMessage;
 import 'package:mozhi/offline/widgets/dictionary_import_summary.dart';
+import 'package:mozhi/offline/widgets/mirror_hosting_banner.dart';
 import 'package:mozhi/offline/widgets/offline_language_tile.dart';
 import 'package:mozhi/settings/view/widgets/delete_local_data.dart'
     show formatStoredSize;
@@ -129,7 +131,9 @@ class DictionaryPacksView extends StatelessWidget {
             context: context,
             builder: (_) => DictionaryImportSummaryDialog(
               outcome: state.importOutcome!,
-              nameOf: (pack) => state.item(pack.id)?.display.name ?? pack.name,
+              nameOf: (pack) =>
+                  state.item(pack.id)?.display.displayNameIn(l10n.localeName) ??
+                  pack.name,
             ),
           ),
         ),
@@ -175,14 +179,21 @@ class _PacksList extends StatelessWidget {
 
   Future<void> _delete(BuildContext context, DictionaryPackItem item) async {
     final cubit = context.read<DictionaryPacksCubit>();
-    final body = context.l10n.offlineDictionariesDeleteBody(item.display.name);
+    final l10n = context.l10n;
+    final body = l10n.offlineDictionariesDeleteBody(
+      item.display.displayNameIn(l10n.localeName),
+    );
     if (await confirmDeleteOfflineLanguage(context, item.display, body: body)) {
       await cubit.delete(item.id);
     }
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      MirrorHostingBuilder(kind: MirrorDataKind.dictionary, builder: _list);
+
+  /// The list; [blocked]: the web app's server does not host the packs.
+  Widget _list(BuildContext context, {required bool blocked}) {
     final l10n = context.l10n;
     final cubit = context.read<DictionaryPacksCubit>();
     final state = context.watch<DictionaryPacksCubit>().state;
@@ -199,6 +210,10 @@ class _PacksList extends StatelessWidget {
         installedSize: state.installed[id]?.size,
         outdated: state.isOutdated(id),
         enabled: state.isAvailable,
+        canDownload: !blocked,
+        note: l10n.dictionaryDefinitionsIn(
+          context.languageNameOf(item.pack.glossLanguage),
+        ),
         onDownload: () => unawaited(cubit.download(id)),
         onDelete: () => unawaited(_delete(context, item)),
         onCancel: () => unawaited(cubit.cancelDownload(id)),
@@ -224,6 +239,13 @@ class _PacksList extends StatelessWidget {
             .resolve(TextDirection.ltr),
         children: [
           if (!state.isAvailable) const _UnavailableBanner(),
+          if (blocked && state.isAvailable)
+            MirrorNotHostedBanner(
+              importing: state.importing,
+              onImport: state.canImport
+                  ? () => unawaited(cubit.importFromFiles())
+                  : null,
+            ),
           _Overview(state: state),
           if (state.packs.isEmpty)
             EmptyStateView(

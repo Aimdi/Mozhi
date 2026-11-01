@@ -141,7 +141,10 @@ class _QuickLanguagePanelState extends State<QuickLanguagePanel> {
   List<Widget> _results(BuildContext context, String query) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
-    final matches = widget.languages.search(query);
+    final matches = widget.languages.search(
+      query,
+      displayName: context.languageName,
+    );
     final exact = matches.any(
       (language) => language.name.toLowerCase() == query.toLowerCase(),
     );
@@ -154,10 +157,10 @@ class _QuickLanguagePanelState extends State<QuickLanguagePanel> {
           leading: language.isCustom
               ? null
               : LanguageAvatar(code: language.code),
-          title: Text(language.name),
+          title: Text(context.languageName(language)),
           subtitle:
               language.nativeName == null ||
-                  language.nativeName == language.name
+                  language.nativeName == context.languageName(language)
               ? null
               : Text(
                   language.nativeName!,
@@ -228,8 +231,8 @@ class _ChipSection extends StatelessWidget {
             children: [
               for (final language in languages)
                 ChoiceChip(
-                  label: Text(language.name),
-                  tooltip: language.nativeName == language.name
+                  label: Text(context.languageName(language)),
+                  tooltip: language.nativeName == context.languageName(language)
                       ? null
                       : language.nativeName,
                   selected: language == selected,

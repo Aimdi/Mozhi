@@ -2,7 +2,6 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/quick_translate/models/quick_languages.dart';
-import 'package:translation_repository/translation_repository.dart';
 
 /// The incoming text, collapsed to [collapsedLines] lines with a
 /// "Show more" toggle when it is longer, plus the detected source language.
@@ -75,7 +74,7 @@ class _QuickSourceCardState extends State<QuickSourceCard> {
                       if (detected != null)
                         Text(
                           l10n.translateDetectedLanguage(
-                            LanguageCatalog.nameOf(detected),
+                            context.languageNameOf(detected),
                           ),
                           key: const Key('quick_translate_detected'),
                           maxLines: 1,

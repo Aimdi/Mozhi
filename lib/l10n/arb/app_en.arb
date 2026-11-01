@@ -14094,5 +14094,69 @@
   "settingsColorCyan": "Cyan",
   "@settingsColorCyan": {
     "description": "settingsColorCyan"
+  },
+  "offlineMirrorNotHostedTitle": "This web server doesn't host the downloads",
+  "@offlineMirrorNotHostedTitle": {
+    "description": "offlineMirrorNotHostedTitle"
+  },
+  "offlineMirrorNotHostedBody": "The web app downloads these files from the server it comes from, and this one doesn't have them. Import files you downloaded elsewhere, or ask the server's owner to mirror them.",
+  "@offlineMirrorNotHostedBody": {
+    "description": "offlineMirrorNotHostedBody"
+  },
+  "offlineMirrorNotHostedHelp": "How to host them",
+  "@offlineMirrorNotHostedHelp": {
+    "description": "offlineMirrorNotHostedHelp"
+  },
+  "dictionaryDefinitionsIn": "Definitions in {language}",
+  "@dictionaryDefinitionsIn": {
+    "description": "Under an offline dictionary: the language its definitions are written in, e.g. Definitions in English.",
+    "placeholders": {
+      "language": {
+        "type": "String",
+        "example": "English"
+      }
+    }
+  },
+  "phrasebookStarterPair": "{base} ↔ {language}",
+  "@phrasebookStarterPair": {
+    "description": "A starter phrasebook: the language its phrases are explained in and the language it teaches, e.g. English ↔ Arabic.",
+    "placeholders": {
+      "base": {
+        "type": "String",
+        "example": "English"
+      },
+      "language": {
+        "type": "String",
+        "example": "Arabic"
+      }
+    }
+  },
+  "settingsFallbackDuckDuckGoOnSubtitle": "On by default. When Google fails on every volunteer server, your text is sent to DuckDuckGo's translator through the same servers instead (its translations come from Microsoft Translator). Turn this off to only use Google.",
+  "@settingsFallbackDuckDuckGoOnSubtitle": {
+    "description": "settingsFallbackDuckDuckGoOnSubtitle"
+  },
+  "onboardingServiceViaDuckDuckGo": "Via DuckDuckGo",
+  "@onboardingServiceViaDuckDuckGo": {
+    "description": "onboardingServiceViaDuckDuckGo"
+  },
+  "onboardingServiceViaDuckDuckGoTooltip": "Google doesn't translate on this server right now. DuckDuckGo does, and the app uses it when Google fails.",
+  "@onboardingServiceViaDuckDuckGoTooltip": {
+    "description": "onboardingServiceViaDuckDuckGoTooltip"
+  },
+  "commonSetUpOnDeviceAi": "Set up on-device AI",
+  "@commonSetUpOnDeviceAi": {
+    "description": "commonSetUpOnDeviceAi"
+  },
+  "proofreadEmptyBodyOnDevice": "Download an AI model that runs on this phone, or add an OpenAI-compatible, Anthropic, Gemini or Ollama provider, to check grammar, spelling and style. Dedicated translation models, such as Hy-MT or TranslateGemma, can't proofread.",
+  "@proofreadEmptyBodyOnDevice": {
+    "description": "proofreadEmptyBodyOnDevice"
+  },
+  "dictionaryNoEngineBodyOnDevice": "Download an AI model that runs on this phone, or add an OpenAI-compatible, Anthropic, Gemini or Ollama provider, to look up words. Dedicated translation models, such as Hy-MT or TranslateGemma, can't be used.",
+  "@dictionaryNoEngineBodyOnDevice": {
+    "description": "dictionaryNoEngineBodyOnDevice"
+  },
+  "dictionaryNoSourceBodyOnDevice": "Download a dictionary to look up words without a network, or set up on-device AI or an AI provider.",
+  "@dictionaryNoSourceBodyOnDevice": {
+    "description": "dictionaryNoSourceBodyOnDevice"
   }
 }
