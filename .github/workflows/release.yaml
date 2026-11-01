@@ -386,6 +386,20 @@ jobs:
       - name: Self-host the fallback fonts
         run: python3 tool/web_fallback_fonts.py build/web
 
+      # The starter phrasebooks (29 packs, about 0.5 MB) next to the app:
+      # GitHub release downloads send no CORS headers, so the web app gets
+      # them from its own server (models/phrasebooks/<id>.json.gz, each
+      # checked against the bundled catalogue's size and SHA-256), with
+      # models/phrasebooks/index.json, which tells the app the server
+      # hosts them. The offline languages, dictionaries and text
+      # recognition data are too large for the zip: the app says the
+      # server does not host them (no index) until a self-hoster mirrors
+      # them (docs/self-hosting-mozhi.md). Left out of the app shell.
+      - name: Add the starter phrasebooks
+        run: |
+          python3 tool/mirror_models.py build/web/models --only phrasebook
+          test -s build/web/models/phrasebooks/index.json
+
       # The build's files (sizes and SHA-256) for the app shell service
       # worker, which keeps the web app for offline use (docs/
       # self-hosting-mozhi.md); after every step that adds files.

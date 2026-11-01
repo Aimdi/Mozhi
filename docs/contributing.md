@@ -475,6 +475,18 @@ Rules:
   identical key does nothing.
 - Without the script, edit `app_en.arb` and run `flutter gen-l10n`.
 
+**Language names.** Show a language with `context.languageName(language)`
+(or `context.languageNameOf(code)`, `languageNameIn(l10n, language)`), not
+`language.name`: it is the name in the UI language ("Französisch" for
+French in German) from Unicode CLDR, and "Detect language" translated.
+`Language.name` stays English and is what prompts, engines, storage and
+exports use. Searches match the name in the UI language, the English and
+the native name. The names are generated into
+`packages/translation_repository/lib/src/language_names_data.dart` by
+`tool/language_names.py` from the npm package `cldr-localenames-full`
+(see the script for the steps; test: `python3 tool/language_names_test.py`);
+regenerate them after adding catalogue languages.
+
 ## Adding a UI language
 
 1. Create `lib/l10n/arb/app_<locale>.arb`, for example `app_de.arb`,
@@ -513,12 +525,15 @@ Rules:
    </resources>
    ```
 
-4. Translate the store listing in `fastlane/metadata/android/<locale>/`
+4. Add the language to `APP_LOCALES` in `tool/language_names.py` and run
+   it, so that the language names are shown in it (see
+   [Localisation](#localisation)).
+5. Translate the store listing in `fastlane/metadata/android/<locale>/`
    (same files as `en-US`, in the Google Play locale of the language) and
    add the language to `APP_LOCALES` in `fastlane/validate_metadata.py`:
    CI fails when an app language has no complete listing (see
    [Store listings](store/README.md#listing-files)).
-5. Check the app in that language, including a right-to-left check for
+6. Check the app in that language, including a right-to-left check for
    Arabic, Hebrew, Persian or Urdu: use `EdgeInsetsDirectional` and
    `AlignmentDirectional` in layouts.
 

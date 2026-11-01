@@ -295,9 +295,9 @@ class ConversationTurnBubble extends StatelessWidget {
     );
 
     final message = l10n.conversationMessageSemantics(
-      turn.source.name,
+      languageNameIn(l10n, turn.source),
       turn.original,
-      turn.target.name,
+      languageNameIn(l10n, turn.target),
       status,
     );
     return LayoutBuilder(

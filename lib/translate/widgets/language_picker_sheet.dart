@@ -289,10 +289,13 @@ enum _PickerTab { languages, styles }
 /// in the input, and other likely ones), Recent, Pinned, Downloaded
 /// (offline) and All languages; the target list of an AI engine keeps its
 /// Styles (custom "languages" such as Pirate speak) behind a "Styles"
-/// segment, so the languages come first. Searching filters by English
-/// name, native name and code, ignoring case and diacritics
-/// ([matchLanguages]: "francais" finds Français), and lists matching
-/// styles after the languages.
+/// segment, so the languages come first. Languages are shown with their
+/// names in the UI language (`context.languageName`: "Französisch" in
+/// German), All languages sorted by them ([sortLanguagesByName]), and with
+/// the native name below when it differs. Searching filters by the name
+/// in the UI language, English name, native name and code, ignoring case
+/// and diacritics ([matchLanguages]: "francais" finds Français), and lists
+/// matching styles after the languages.
 ///
 /// A list ([grid] false: phones, the dialog) or a grid of columns ([grid]:
 /// the dropdown of large screens).
@@ -701,7 +704,11 @@ class _LanguagePickerSheetState extends State<LanguagePickerSheet> {
   void _submitSearch(List<Language> languages, bool allowCustom) {
     final query = _query.trim();
     if (query.isEmpty) return;
-    final matches = matchLanguages(languages, query);
+    final matches = matchLanguages(
+      languages,
+      query,
+      displayName: context.languageName,
+    );
     if (matches.isNotEmpty) {
       _pick(matches.first);
     } else if (allowCustom) {
@@ -791,7 +798,7 @@ class _LanguagePickerSheetState extends State<LanguagePickerSheet> {
                   label: offlineDownloadLabel(context.l10n, [
                     (
                       code: download,
-                      name: language.name,
+                      name: context.languageName(language),
                       bytes: offlineModelDetailsOf(_translator!)
                           ?.downloadSize(download),
                     ),
@@ -800,7 +807,7 @@ class _LanguagePickerSheetState extends State<LanguagePickerSheet> {
                   progress: models?.progress[download],
                   onPressed: () => unawaited(_download(download)),
                   cancelLabel: context.l10n.offlineCancelDownloadTooltip(
-                    language.name,
+                    context.languageName(language),
                   ),
                   onCancel: (models?.canCancelDownload(download) ?? false)
                       ? () => unawaited(_models?.cancelDownload(download))
@@ -839,7 +846,11 @@ class _LanguagePickerSheetState extends State<LanguagePickerSheet> {
         _WidgetItem(_Header(title, key: key));
 
     if (query.isNotEmpty) {
-      final matches = matchLanguages(regular, query);
+      final matches = matchLanguages(
+        regular,
+        query,
+        displayName: context.languageName,
+      );
       // Style suggestions are target languages ("Translate into Pirate
       // speak"); a custom source is typed.
       final folded = foldForSearch(query);
@@ -957,7 +968,7 @@ class _LanguagePickerSheetState extends State<LanguagePickerSheet> {
                       padding: const EdgeInsets.only(top: 4),
                       child: _DetectedChip(
                         label: l10n.translateDetectedLanguage(
-                          languageNameFor(detected, regular),
+                          localizedLanguageNameFor(context, detected, regular),
                         ),
                       ),
                     ),
@@ -1004,7 +1015,7 @@ class _LanguagePickerSheetState extends State<LanguagePickerSheet> {
         ...downloaded.map(items('downloaded')),
       ],
       header(l10n.translatePickerAll),
-      ...regular.map(items('all')),
+      ...sortLanguagesByName(regular, context.languageName).map(items('all')),
     ];
   }
 
@@ -1222,20 +1233,21 @@ class _LanguageTileState extends State<_LanguageTile> {
     final theme = Theme.of(context);
     final language = widget.language;
     final native = language.nativeName;
+    final name = context.languageName(language);
     final shortcut = widget.shortcut;
     final download = widget.download;
     final dense = widget.dense;
     final showPin = widget.alwaysShowPin || _hovered || _focused;
     final pinLabel = widget.pinned
-        ? l10n.translateUnpin(language.name)
-        : l10n.translatePin(language.name);
+        ? l10n.translateUnpin(name)
+        : l10n.translatePin(name);
     final lines = dense ? 1 : null;
     final overflow = dense ? TextOverflow.ellipsis : null;
     final title = widget.offline
         ? Text.rich(
             TextSpan(
               children: [
-                TextSpan(text: language.name),
+                TextSpan(text: name),
                 const TextSpan(text: ' '),
                 WidgetSpan(
                   alignment: PlaceholderAlignment.middle,
@@ -1257,7 +1269,7 @@ class _LanguageTileState extends State<_LanguageTile> {
             maxLines: lines,
             overflow: overflow,
           )
-        : Text(language.name, maxLines: lines, overflow: overflow);
+        : Text(name, maxLines: lines, overflow: overflow);
     final buttons = [
       if (download != null && download.pending && download.cancellable)
         _CancelDownloadButton(
@@ -1324,7 +1336,7 @@ class _LanguageTileState extends State<_LanguageTile> {
         title: title,
         subtitle: language.isCustom
             ? Text(l10n.translatePickerCustomBadge, maxLines: lines)
-            : (native != null && native.isNotEmpty && native != language.name)
+            : (native != null && native.isNotEmpty && native != name)
             // The locale makes screen readers use a matching voice and
             // picks the right glyphs (e.g. Japanese vs Chinese Han
             // characters).

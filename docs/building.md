@@ -154,13 +154,24 @@ flutter build apk --release --flavor production -t lib/main_production.dart \
 flutter build appbundle --release --flavor production -t lib/main_production.dart \
   --obfuscate --split-debug-info=build/symbols/aab
 
-# Web zip (no CDN; for the root of a web server), then its fallback fonts
+# Web zip (no CDN; for the root of a web server), then its fallback fonts,
+# the starter phrasebooks at models/phrasebooks/ (with their index.json)
 # and the list of files the app shell keeps for offline use (last)
 flutter build web --release -t lib/main_production.dart \
   --base-href / --no-web-resources-cdn
 python3 tool/web_fallback_fonts.py build/web
+python3 tool/mirror_models.py build/web/models --only phrasebook
 python3 tool/web_shell_manifest.py build/web
 ```
+
+The web zip carries the starter phrasebooks (29 packs, about 0.5 MB,
+downloaded from their GitHub release and checked against the bundled
+catalogue) because a browser can't fetch them from GitHub (no CORS
+headers); the app shell leaves `models/` out. The offline languages,
+dictionaries and text recognition data are too large for it: self-hosters
+mirror them next to the app ([Mirror the on-device
+models](self-hosting-mozhi.md#mirror-the-on-device-models)), and the web
+app says so where a server doesn't host them.
 
 CI on branches (`main.yaml`) builds the APKs **without** `--obfuscate`, so
 its `mozhi-android` artifact differs from a release by design.

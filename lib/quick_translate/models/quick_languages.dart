@@ -96,9 +96,15 @@ class QuickLanguages {
   final List<Language> common;
   final List<Language> all;
 
-  /// Languages of [all] matching [query] by English name, native name or
-  /// code: prefix matches first, then substring matches; at most [limit].
-  List<Language> search(String query, {int limit = 50}) {
+  /// Languages of [all] matching [query] by English name, native name,
+  /// name in the UI language ([displayName], e.g. `context.languageName`)
+  /// or code: prefix matches first, then substring matches; at most
+  /// [limit].
+  List<Language> search(
+    String query, {
+    int limit = 50,
+    String Function(Language language)? displayName,
+  }) {
     final q = query.trim().toLowerCase();
     if (q.isEmpty) return const [];
     final starts = <Language>[];
@@ -106,10 +112,16 @@ class QuickLanguages {
     for (final language in all) {
       final name = language.name.toLowerCase();
       final native = language.nativeName?.toLowerCase() ?? '';
+      final shown = displayName?.call(language).toLowerCase() ?? '';
       final code = language.code.toLowerCase();
-      if (name.startsWith(q) || native.startsWith(q) || code == q) {
+      if (name.startsWith(q) ||
+          native.startsWith(q) ||
+          (shown.isNotEmpty && shown.startsWith(q)) ||
+          code == q) {
         starts.add(language);
-      } else if (name.contains(q) || native.contains(q)) {
+      } else if (name.contains(q) ||
+          native.contains(q) ||
+          (shown.isNotEmpty && shown.contains(q))) {
         contains.add(language);
       }
     }

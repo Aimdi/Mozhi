@@ -61,7 +61,13 @@ class ImageLanguageBar extends StatelessWidget {
     final detected = state.source.isAuto ? state.result?.detectedSource : null;
     final detectedName = detected == null
         ? null
-        : imageLanguageNameFor(detected, languages);
+        : languageNameIn(
+            l10n,
+            Language(
+              code: detected,
+              name: imageLanguageNameFor(detected, languages),
+            ),
+          );
     // Read out (and shown on hover) in full: "Detected: Japanese".
     final sourceDescription = detectedName == null
         ? imageLanguageLabel(l10n, state.source)

@@ -121,7 +121,11 @@ class LiveCaptionsOptions extends StatelessWidget {
                 key: const Key('live_captions_source'),
                 avatar: const Icon(Icons.graphic_eq),
                 tooltip: l10n.liveCaptionsSource,
-                label: Text(l10n.liveCaptionsSourceValue(state.source.name)),
+                label: Text(
+                  l10n.liveCaptionsSourceValue(
+                    context.languageName(state.source),
+                  ),
+                ),
                 onPressed: state.isActive
                     ? null
                     : () => unawaited(pick(source: true)),
@@ -130,7 +134,11 @@ class LiveCaptionsOptions extends StatelessWidget {
                 key: const Key('live_captions_target'),
                 avatar: const Icon(Icons.closed_caption_outlined),
                 tooltip: l10n.liveCaptionsTarget,
-                label: Text(l10n.liveCaptionsTargetValue(state.target.name)),
+                label: Text(
+                  l10n.liveCaptionsTargetValue(
+                    context.languageName(state.target),
+                  ),
+                ),
                 onPressed: () => unawaited(pick(source: false)),
               ),
               ActionChip(
@@ -159,7 +167,7 @@ class LiveCaptionsOptions extends StatelessWidget {
           if (detected != null) ...[
             const SizedBox(height: 4),
             Text(
-              l10n.liveCaptionsDetected(LanguageCatalog.nameOf(detected)),
+              l10n.liveCaptionsDetected(context.languageNameOf(detected)),
               key: const Key('live_captions_detected'),
               style: quiet,
             ),

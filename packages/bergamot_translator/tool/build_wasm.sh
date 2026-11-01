@@ -118,8 +118,11 @@ if command -v ninja >/dev/null 2>&1; then
   generator=(-G Ninja)
 fi
 log "Configuring (${build_dir})"
+# CMake 4 refuses vendored projects (eigen, via marian) that still declare
+# cmake_minimum_required < 3.5; older CMake ignores this variable.
 emcmake cmake -S "${package_dir}/native/wasm" -B "$build_dir" \
-  "${generator[@]}" -DCMAKE_BUILD_TYPE=Release >/dev/null
+  "${generator[@]}" -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_POLICY_VERSION_MINIMUM=3.5 >/dev/null
 log "Building with ${jobs} jobs"
 cmake --build "$build_dir" --target mozhi_bergamot_wasm --parallel "$jobs"
 

@@ -8,12 +8,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:mozhi/app/router.dart' show AppRoutes;
 import 'package:mozhi/app/view/top_level_actions.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/dictionary/dictionary.dart';
 import 'package:mozhi/history/history.dart'
     show HistoryCubit, HistoryEntry, HistoryState, HistoryStatus;
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/on_device_ai/data/on_device_models.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/speech/speech_service.dart';
@@ -24,6 +26,7 @@ import 'package:mozhi/voice/voice.dart' show SpeechInputService;
 import 'package:translation_repository/translation_repository.dart';
 
 import '../../helpers/helpers.dart';
+import '../../translate/helpers/fake_on_device_models.dart';
 import '../../translate/helpers/helpers.dart'
     show FakeSpeechInput, MockSpeechService;
 import '../helpers/dictionary_helpers.dart';
@@ -115,6 +118,7 @@ void main() {
     TextDirection? direction,
     HistoryCubit? history,
     OfflineTranslator? offline,
+    OnDeviceModels? onDeviceModels,
   }) async {
     tester.view
       ..physicalSize = size
@@ -160,6 +164,12 @@ void main() {
     if (offline != null) {
       tree = RepositoryProvider<OfflineTranslator>.value(
         value: offline,
+        child: tree,
+      );
+    }
+    if (onDeviceModels != null) {
+      tree = RepositoryProvider<OnDeviceModels>.value(
+        value: onDeviceModels,
         child: tree,
       );
     }
@@ -1042,6 +1052,65 @@ void main() {
 
         await openOptions(tester);
         expect(find.byKey(const Key('dictionary_engine')), findsNothing);
+      });
+
+      testWidgets('offers on-device AI first where it runs', (tester) async {
+        final router = _MockGoRouter();
+        when(router.canPop).thenReturn(true);
+        when(() => router.push<void>(any())).thenAnswer((_) async {});
+        await pumpPage(
+          tester,
+          state: _readyWithoutAi,
+          router: router,
+          onDeviceModels: FakeOnDeviceModels(testCatalog),
+        );
+
+        expect(find.byKey(const Key('dictionary_no_engine')), findsOneWidget);
+        expect(
+          find.text(
+            'Download an AI model that runs on this phone, or add an '
+            'OpenAI-compatible, Anthropic, Gemini or Ollama provider, to look '
+            'up words. Dedicated translation models, such as Hy-MT or '
+            "TranslateGemma, can't be used.",
+          ),
+          findsOneWidget,
+        );
+        final onDevice = find.byKey(
+          const Key('dictionary_set_up_on_device_ai'),
+        );
+        expect(onDevice, findsOneWidget);
+        expect(
+          find.descendant(of: onDevice, matching: find.byType(FilledButton)),
+          findsOneWidget,
+        );
+        await tester.tap(find.text('Set up on-device AI'));
+        verify(() => router.push<void>(AppRoutes.onDeviceAi)).called(1);
+        await tester.tap(find.text('Add AI provider'));
+        verify(() => router.push<void>('/settings/providers')).called(1);
+      });
+
+      testWidgets('leaves on-device AI out when no model fits the phone', (
+        tester,
+      ) async {
+        await pumpPage(
+          tester,
+          state: _readyWithoutAi,
+          onDeviceModels: FakeOnDeviceModels(
+            testCatalog,
+            fits: {
+              for (final model in testCatalog) model.id: OnDeviceFit.tooBig,
+            },
+          ),
+        );
+        expect(find.byKey(const Key('dictionary_no_engine')), findsOneWidget);
+        expect(
+          find.byKey(const Key('dictionary_set_up_on_device_ai')),
+          findsNothing,
+        );
+        expect(
+          find.text('The dictionary needs an AI provider'),
+          findsOneWidget,
+        );
       });
 
       testWidgets('offers a retry when the engines failed to load', (

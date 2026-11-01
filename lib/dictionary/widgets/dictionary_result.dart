@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/widgets/composer_card.dart';
+import 'package:mozhi/core/widgets/on_device_ai_setup_button.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/dictionary/cubit/dictionary_cubit.dart';
 import 'package:mozhi/dictionary/data/default_dictionary_packs.dart'
@@ -33,7 +34,9 @@ const dictionaryProvidersRoute = '/settings/providers';
 /// engine: a spinner while the engines load, a retry when they failed to
 /// load, else "The dictionary needs an AI provider" with a link to the
 /// provider settings (with the app's offline dictionaries: "Look up words
-/// offline or with AI", with "Get dictionaries" too). Nothing
+/// offline or with AI", with "Get dictionaries" too), and "Set up
+/// on-device AI" where on-device AI runs and a model fits the phone
+/// ([offersOnDeviceAiSetup]). Nothing
 /// ([SizedBox.shrink]) with an engine or an installed offline dictionary.
 class DictionaryEngineMessage extends StatelessWidget {
   const new({super.key});
@@ -50,6 +53,7 @@ class DictionaryEngineMessage extends StatelessWidget {
     );
     if (hasEngine) return const SizedBox.shrink();
     final packs = maybeDictionaryPacks(context);
+    final onDevice = offersOnDeviceAiSetup(context);
     void addProvider() => unawaited(
       // Above the tabs: back returns to the dictionary.
       GoRouter.maybeOf(context)?.push<void>(dictionaryProvidersRoute),
@@ -82,13 +86,20 @@ class DictionaryEngineMessage extends StatelessWidget {
         key: const Key('dictionary_no_source'),
         icon: Icons.menu_book_outlined,
         title: l10n.dictionaryNoSourceTitle,
-        body: l10n.dictionaryNoSourceBody,
+        body: onDevice
+            ? l10n.dictionaryNoSourceBodyOnDevice
+            : l10n.dictionaryNoSourceBody,
         action: Wrap(
           alignment: WrapAlignment.center,
           spacing: 8,
           runSpacing: 8,
           children: [
             DictionaryGetPacksButton(packs: packs),
+            if (onDevice)
+              OnDeviceAiSetupButton(
+                key: const Key('dictionary_set_up_on_device_ai'),
+                style: OutlinedButton.styleFrom(shape: look.control),
+              ),
             OutlinedButton.icon(
               key: const Key('dictionary_set_up_providers'),
               style: OutlinedButton.styleFrom(shape: look.control),
@@ -103,14 +114,36 @@ class DictionaryEngineMessage extends StatelessWidget {
         key: const Key('dictionary_no_engine'),
         icon: Icons.menu_book_outlined,
         title: l10n.dictionaryNoEngineTitle,
-        body: l10n.dictionaryNoEngineBody,
-        action: FilledButton.icon(
-          key: const Key('dictionary_set_up_providers'),
-          style: FilledButton.styleFrom(shape: look.control),
-          onPressed: addProvider,
-          icon: const Icon(Icons.add),
-          label: Text(l10n.dictionaryNoEngineAction),
-        ),
+        body: onDevice
+            ? l10n.dictionaryNoEngineBodyOnDevice
+            : l10n.dictionaryNoEngineBody,
+        action: onDevice
+            ? Wrap(
+                alignment: WrapAlignment.center,
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  OnDeviceAiSetupButton(
+                    key: const Key('dictionary_set_up_on_device_ai'),
+                    filled: true,
+                    style: FilledButton.styleFrom(shape: look.control),
+                  ),
+                  OutlinedButton.icon(
+                    key: const Key('dictionary_set_up_providers'),
+                    style: OutlinedButton.styleFrom(shape: look.control),
+                    onPressed: addProvider,
+                    icon: const Icon(Icons.add),
+                    label: Text(l10n.dictionaryNoEngineAction),
+                  ),
+                ],
+              )
+            : FilledButton.icon(
+                key: const Key('dictionary_set_up_providers'),
+                style: FilledButton.styleFrom(shape: look.control),
+                onPressed: addProvider,
+                icon: const Icon(Icons.add),
+                label: Text(l10n.dictionaryNoEngineAction),
+              ),
       ),
     };
   }
@@ -199,6 +232,10 @@ class DictionaryResultView extends StatelessWidget {
             footer: switch (state.offlineAnswer) {
               final answer? => DictionaryOfflineFooter(
                 attribution: answer.attribution,
+                glossLanguage: dictionaryGlossLanguage(
+                  maybeDictionaryPacks(context),
+                  answer,
+                ),
                 onMoreDetail: state.hasEngine
                     ? () => unawaited(cubit.moreDetail())
                     : null,
@@ -335,7 +372,7 @@ class _NotFound extends StatelessWidget {
       if (state.hasOfflineDictionaryFor(state.source)) {
         body = l10n.dictionaryOfflineNotFoundBody;
       } else {
-        body = l10n.dictionaryOfflineNoPack(state.source.name);
+        body = l10n.dictionaryOfflineNoPack(context.languageName(state.source));
         action = DictionaryGetPacksButton(packs: packs);
       }
     }

@@ -66,10 +66,7 @@ void main() {
   setUpAll(registerTranslateFallbacks);
 
   group('duckDuckGoFallbackApplies', () {
-    const on = AppSettings(
-      fallbackToDuckDuckGo: true,
-      privacyMode: PrivacyMode.online,
-    );
+    const on = AppSettings(privacyMode: PrivacyMode.online);
 
     bool applies(
       Object error, {
@@ -95,9 +92,22 @@ void main() {
       );
     });
 
-    test('never while it is off (the default)', () {
-      expect(applies(_googleFailed(), settings: const AppSettings()), isFalse);
-      expect(const AppSettings().fallbackToDuckDuckGo, isFalse);
+    test('by default (on, unless the user turns it off)', () {
+      expect(const AppSettings().fallbackToDuckDuckGo, isTrue);
+      expect(applies(_googleFailed()), isTrue);
+    });
+
+    test('never while the user turned it off', () {
+      expect(
+        applies(
+          _googleFailed(),
+          settings: on.copyWith(
+            fallbackToDuckDuckGo: false,
+            fallbackToDuckDuckGoChosen: true,
+          ),
+        ),
+        isFalse,
+      );
     });
 
     test('never in Offline only', () {
@@ -256,7 +266,6 @@ void main() {
       instances: [_one, _two],
       engineId: 'mozhi:google',
       privacyMode: PrivacyMode.online,
-      fallbackToDuckDuckGo: true,
     );
 
     group('when it applies', () {
@@ -436,7 +445,6 @@ void main() {
       const offlineFirst = AppSettings(
         instances: [_one, _two],
         engineId: 'mozhi:google',
-        fallbackToDuckDuckGo: true,
       );
 
       test(
@@ -548,7 +556,11 @@ void main() {
 
       test('still asks for consent where it is needed', () async {
         use(
-          const AppSettings(instances: [_one, _two], engineId: 'mozhi:google'),
+          const AppSettings(
+            instances: [_one, _two],
+            engineId: 'mozhi:google',
+            fallbackToDuckDuckGo: false,
+          ),
         );
         final cubit = await start();
         await cubit.translate();

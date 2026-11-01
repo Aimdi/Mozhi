@@ -15,8 +15,6 @@ import 'package:mozhi/platform/engine_build_text.dart';
 import 'package:mozhi/platform/free_space.dart';
 import 'package:mozhi/settings/view/widgets/link_launcher.dart';
 import 'package:mozhi/settings/view/widgets/settings_section.dart';
-import 'package:translation_repository/translation_repository.dart'
-    show LanguageCatalog;
 
 /// The "On-device AI" settings (`/settings/on-device-ai`): what on-device
 /// AI is, then the translation model and the assistant models with their
@@ -521,7 +519,7 @@ class _AboutDialog extends StatelessWidget {
     const mebibyte = 1024 * 1024;
     final fit = _fitLabel(context, model.fit);
     final languages = [
-      for (final code in catalog.languages) LanguageCatalog.nameOf(code),
+      for (final code in catalog.languages) context.languageNameOf(code),
     ]..sort();
     return AlertDialog(
       title: Text(catalog.displayName),

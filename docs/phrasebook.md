@@ -114,7 +114,9 @@ guides.
   ships with before it is kept, whichever server sent it; a file that
   doesn't match is discarded. GitHub's release downloads send no CORS
   headers, so **the web app needs a same-origin mirror**
-  (`models/phrasebooks/` next to the app). Downloads appear in **Network
+  (`models/phrasebooks/` next to the app): the release's web zip carries
+  all of them there (about 0.5 MB, with the folder's `index.json`), so a
+  server that serves the zip as it is offers them. Downloads appear in **Network
   activity** as model downloads, and nothing else is sent. Like every
   download of the app, it first checks the free space (a margin of at
   least 50 MB) and says how much is needed when the phone is full.
@@ -125,8 +127,13 @@ guides.
   article, its revision, its authors and the licence. **Update** appears
   when the app's catalogue has a newer version; **Delete starter
   phrasebook** removes it.
-- **Until the first release** of the data, the app's catalogue is empty
-  and the sheet says that none are available in this version yet.
+- **29 languages** (release `phrasebooks-2026-11-01`, 0.48 MB in all):
+  every pack is Wikivoyage's English phrasebook of a language, so each is
+  listed as **English ↔ <language>** (named in the app's language). The
+  pack of the app's own language (*German phrases for English speakers*
+  in a German app) is left out of the list unless it is installed (so it
+  can still be deleted). An app version whose catalogue is empty says that
+  none are available in this version yet.
 
 ## Storage, backup and privacy
 

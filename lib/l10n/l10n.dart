@@ -13,6 +13,7 @@ import 'package:mozhi/l10n/gen/app_localizations_en.dart';
 
 export 'package:mozhi/l10n/gen/app_localizations.dart'
     hide lookupAppLocalizations;
+export 'package:mozhi/l10n/language_names.dart';
 
 /// Localization delegates for the app.
 ///

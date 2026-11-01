@@ -2799,5 +2799,17 @@
   "settingsStyleKeywords": "终端、经典、外观、样式、字体、等宽、等宽字体、terminal、classic、monospace、monospaced、JetBrains Mono",
   "settingsThemeTerminalSubtitle": "在终端风格下，跟随系统即为深色；浅色呈现纸张质感",
   "settingsColorAmber": "琥珀色",
-  "settingsColorCyan": "湖蓝色"
+  "settingsColorCyan": "湖蓝色",
+  "offlineMirrorNotHostedTitle": "本站服务器未托管下载文件",
+  "offlineMirrorNotHostedBody": "网页版会从其所在的服务器下载这些文件，但该服务器上没有。请导入在其他地方下载的文件，或请服务器所有者镜像这些文件。",
+  "offlineMirrorNotHostedHelp": "如何托管",
+  "dictionaryDefinitionsIn": "释义语言：{language}",
+  "phrasebookStarterPair": "{base} ↔ {language}",
+  "settingsFallbackDuckDuckGoOnSubtitle": "默认开启。当 Google 在所有志愿者服务器上都失败时，你的文本会通过同样的服务器发送到 DuckDuckGo 的翻译服务（其翻译来自 Microsoft Translator）。关闭此项则只使用 Google。",
+  "onboardingServiceViaDuckDuckGo": "通过 DuckDuckGo",
+  "onboardingServiceViaDuckDuckGoTooltip": "Google 目前无法在此服务器上翻译。DuckDuckGo 可以，Google 失败时应用会使用它。",
+  "commonSetUpOnDeviceAi": "设置设备端 AI",
+  "proofreadEmptyBodyOnDevice": "下载可在此手机上运行的 AI 模型，或添加 OpenAI 兼容、Anthropic、Gemini 或 Ollama 服务商，即可检查语法、拼写和文风。Hy-MT、TranslateGemma 等专用翻译模型无法校对。",
+  "dictionaryNoEngineBodyOnDevice": "下载可在此手机上运行的 AI 模型，或添加 OpenAI 兼容、Anthropic、Gemini 或 Ollama 服务商，即可查询单词。无法使用 Hy-MT、TranslateGemma 等专用翻译模型。",
+  "dictionaryNoSourceBodyOnDevice": "下载词典即可无需联网查询单词，也可以设置设备端 AI 或 AI 服务商。"
 }

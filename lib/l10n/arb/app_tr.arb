@@ -2799,5 +2799,17 @@
   "settingsStyleKeywords": "terminal, klasik, görünüm, yazı tipi, font, sabit genişlikli, eş aralıklı, classic, monospace, monospaced, JetBrains Mono",
   "settingsThemeTerminalSubtitle": "Terminal stilinde Sistem koyu demektir; Açık kâğıt görünümü verir",
   "settingsColorAmber": "Kehribar",
-  "settingsColorCyan": "Siyan"
+  "settingsColorCyan": "Siyan",
+  "offlineMirrorNotHostedTitle": "Bu web sunucusu indirmeleri barındırmıyor",
+  "offlineMirrorNotHostedBody": "Web uygulaması bu dosyaları geldiği sunucudan indirir ve bu sunucuda dosyalar yok. Başka bir yerde indirdiğiniz dosyaları içe aktarın veya sunucunun sahibinden dosyaların bir kopyasını sunmasını isteyin.",
+  "offlineMirrorNotHostedHelp": "Nasıl barındırılır",
+  "dictionaryDefinitionsIn": "Tanım dili: {language}",
+  "phrasebookStarterPair": "{base} ↔ {language}",
+  "settingsFallbackDuckDuckGoOnSubtitle": "Varsayılan olarak açık. Google tüm gönüllü sunucularında başarısız olursa metniniz aynı sunucular üzerinden DuckDuckGo'nun çevirmenine gönderilir (çevirileri Microsoft Translator'dan gelir). Yalnızca Google'ı kullanmak için bunu kapatın.",
+  "onboardingServiceViaDuckDuckGo": "DuckDuckGo üzerinden",
+  "onboardingServiceViaDuckDuckGoTooltip": "Google şu anda bu sunucuda çeviri yapmıyor. DuckDuckGo yapıyor ve uygulama Google başarısız olduğunda onu kullanıyor.",
+  "commonSetUpOnDeviceAi": "Cihaz üzerinde yapay zekâyı ayarla",
+  "proofreadEmptyBodyOnDevice": "Dilbilgisi, yazım ve üslubu denetlemek için bu telefonda çalışan bir yapay zekâ modeli indirin veya OpenAI uyumlu, Anthropic, Gemini veya Ollama sağlayıcısı ekleyin. Hy-MT veya TranslateGemma gibi özel çeviri modelleri düzeltme yapamaz.",
+  "dictionaryNoEngineBodyOnDevice": "Sözcük aramak için bu telefonda çalışan bir yapay zekâ modeli indirin veya OpenAI uyumlu, Anthropic, Gemini veya Ollama sağlayıcısı ekleyin. Hy-MT veya TranslateGemma gibi özel çeviri modelleri kullanılamaz.",
+  "dictionaryNoSourceBodyOnDevice": "Sözcükleri ağ bağlantısı olmadan aramak için bir sözlük indirin ya da cihaz üzerinde yapay zekâyı veya bir yapay zekâ sağlayıcısını ayarlayın."
 }

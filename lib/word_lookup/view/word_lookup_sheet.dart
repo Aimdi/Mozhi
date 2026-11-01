@@ -438,7 +438,7 @@ class _Body extends StatelessWidget {
         spacing: 8,
         children: [
           Text(
-            l10n.dictionaryOfflineNoPack(state.language.name),
+            l10n.dictionaryOfflineNoPack(context.languageName(state.language)),
             style: message,
           ),
           if (packs != null && packs.isSupported)
@@ -538,7 +538,7 @@ class _Senses extends StatelessWidget {
                         into == null
                             ? sense.translations.join(', ')
                             : l10n.wordLookupTranslations(
-                                into.name,
+                                context.languageName(into),
                                 sense.translations.join(', '),
                               ),
                         style: theme.textTheme.bodyMedium?.copyWith(

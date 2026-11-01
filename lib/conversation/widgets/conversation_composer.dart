@@ -91,7 +91,9 @@ class _ConversationComposerState extends State<ConversationComposer> {
                 // The theme's outlined, rounded field (no fill), like the
                 // other text fields.
                 decoration: InputDecoration(
-                  hintText: l10n.conversationInputHint(language.name),
+                  hintText: l10n.conversationInputHint(
+                    context.languageName(language),
+                  ),
                   hintStyle: TextStyle(color: palette.secondaryText),
                   prefixIcon: Padding(
                     padding: const EdgeInsetsDirectional.only(start: 8, end: 8),

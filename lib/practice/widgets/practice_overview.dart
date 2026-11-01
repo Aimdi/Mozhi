@@ -347,7 +347,7 @@ class _CollectionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final pair = practicePairText(collection);
+    final pair = practicePairText(collection, uiLocale: l10n.localeName);
     return CheckboxListTile(
       key: ValueKey('practice_collection_${collection.id}'),
       value: selected,

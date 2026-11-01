@@ -259,7 +259,26 @@ such an address fails the **Test**, the tunnel isn't routing the app.
 
 The release's `mozhi-<version>-web.zip` (or a build of your own, see
 [Building](building.md#web-build-self-hosted-fonts-and-deferred-languages))
-is a folder of static files for any web server. Serve it over `https` (or
+is a folder of static files for any web server.
+
+**What the web app can download.** A browser only downloads a file from
+another site that allows it (CORS), and the publishers of the app's
+on-device data don't: Mozilla's bucket allows only `localhost`, and
+GitHub release downloads send no CORS headers. So the web app downloads
+offline languages, dictionaries, starter phrasebooks and text recognition
+data from **its own server**, at `models/` next to `index.html` (Settings
+> Translation engines > Model source > **This web server**, its default).
+The release zip already carries the **starter phrasebooks**
+(`models/phrasebooks/`, 29 packs, about 0.5 MB). For the rest,
+[mirror the files](#mirror-the-on-device-models) into that `models/`
+folder; until then, the **Offline languages**, **Dictionaries** and
+**Text recognition** screens say *This web server doesn't host the
+downloads* once, with **Import from files** (files your users downloaded
+elsewhere) and a link here, instead of offering downloads that would
+fail. The app knows what the server hosts from each folder's
+`index.json`, which `tool/mirror_models.py` writes (one request per
+folder, the first time a screen opens; a server that answers unknown
+paths with `index.html` counts as hosting nothing). Serve it over `https` (or
 `localhost`): browsers only give a secure page the private storage of the
 offline languages and the service worker that keeps the app for offline
 use. To serve it from a sub-path, change `<base href>` in its `index.html`
@@ -340,6 +359,13 @@ models/
 └── llm/<name>.gguf                                  e.g. llm/Hy-MT2-1.8B-Q4_K_M.gguf (on-device AI models, 1-3 GB each; `--only llm`, `--llm hy-mt2-1.8b-q4`)
 ```
 
+Each folder also gets an `index.json` from the mirror tool, e.g.
+`phrasebooks/index.json` = `{"schemaVersion": 1, "kind": "phrasebook",
+"items": ["ar", "cs", …]}`: the directions, model ids, Tesseract codes or
+pack ids whose files are all there. The web app reads it from its own
+server (**This web server**) to know whether to offer that kind of
+download; other mirrors and the Android app don't need it.
+
 The app asks for `<mirror>/bergamot/…`, `<mirror>/whisper/…`,
 `<mirror>/tesseract/…`, `<mirror>/dictionary/…`, `<mirror>/phrasebooks/…`
 and `<mirror>/llm/…` (plain `GET`, with `Range` to resume; no cookies,
@@ -377,9 +403,14 @@ cd deploy
 docker compose --profile mirror run --rm mirror --languages de,fr
 ```
 
-writes to `deploy/models` (`MOZHI_MODELS_DIR` in `.env`). Run it again
-after updating the app: a new model version is a new directory (or, for
-Whisper and Tesseract, replaces the file of the same name). Delete old
+writes to `deploy/models` (`MOZHI_MODELS_DIR` in `.env`). Every run (but
+`--list` and `--verify`) rewrites the folders' `index.json` from what is
+in place, whatever the filters, so run it once more (any filter, e.g.
+`--only phrasebook`) after copying files in by hand. Unpacking a newer web
+zip over your web root replaces only `models/phrasebooks/` and its index.
+Run it again after updating the app: a new model version is a new
+directory (or, for Whisper and Tesseract, replaces the file of the same
+name). Delete old
 `bergamot/<pair>/<version>` directories yourself when no user runs an app
 version that still asks for them.
 

@@ -184,6 +184,7 @@ jobs:
           python3 tool/android_smoke_test.py
           python3 tool/dictionary_packs_test.py
           python3 tool/phrasebooks_test.py
+          python3 tool/language_names_test.py
           python3 tool/check_coverage_markers_test.py
           # The web app shell's manifest, and that mozhi_sw.js reads it
           # (with Node.js).
@@ -817,7 +818,9 @@ jobs:
   e2e-web:
     name: ${{ matrix.browser == 'chromium' && 'Web end-to-end tests' || format('Web end-to-end tests ({0})', matrix.title) }}
     needs: [analyze-test, build-bergamot-wasm]
-    runs-on: ubuntu-latest
+    # Pinned: Playwright 1.56 has no WebKit build (and no system deps) for
+    # the ubuntu-latest image, Ubuntu 26.04.
+    runs-on: ubuntu-24.04
     timeout-minutes: ${{ matrix.browser == 'chromium' && 30 || 45 }}
     strategy:
       fail-fast: false

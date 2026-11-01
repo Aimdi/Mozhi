@@ -17,12 +17,13 @@ PhrasebookRepository? maybePhrasebookRepository(BuildContext context) {
   }
 }
 
-/// The name of the phrase language [code] ("Unknown language" for
+/// The name of the phrase language [code] in the UI language
+/// ([languageDisplayNameOf]; "Unknown language" for
 /// [Phrase.unknownLanguage]).
 String phrasebookLanguageName(AppLocalizations l10n, String code) =>
     code == Phrase.unknownLanguage
     ? l10n.phrasebookUnknownLanguage
-    : LanguageCatalog.nameOf(code);
+    : languageDisplayNameOf(code, l10n.localeName);
 
 /// "English → Portuguese", both names bidi-isolated.
 String phrasebookPairLabel(

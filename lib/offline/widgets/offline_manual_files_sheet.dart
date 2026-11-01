@@ -55,7 +55,7 @@ class _OfflineManualFilesSheetState extends State<OfflineManualFilesSheet> {
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final secondary = AppPalette.of(context).secondaryText;
-    final name = widget.language.name;
+    final name = widget.language.displayNameIn(l10n.localeName);
     final files = [
       for (final direction in widget.directions) ...direction.files,
     ];

@@ -106,11 +106,15 @@ class DictionaryAttributionDialog extends StatelessWidget {
 
 /// "From Wiktionary · CC BY-SA 4.0", small and muted, opening the
 /// [DictionaryAttributionDialog]: the label of entries from an offline
-/// dictionary (instead of "AI-generated").
+/// dictionary (instead of "AI-generated"). With [glossLanguage], it adds
+/// the language of the definitions ("· Definitions in English").
 class DictionaryAttributionLink extends StatelessWidget {
-  const new({required this.attribution, super.key});
+  const new({required this.attribution, super.key, this.glossLanguage});
 
   final DictionaryAttribution attribution;
+
+  /// The language code the definitions are written in, e.g. `en`.
+  final String? glossLanguage;
 
   @override
   Widget build(BuildContext context) {
@@ -131,7 +135,14 @@ class DictionaryAttributionLink extends StatelessWidget {
             unawaited(showDictionaryAttribution(context, attribution)),
         icon: const Icon(Icons.menu_book_outlined, size: 14),
         label: Text(
-          l10n.dictionaryOfflineSource(attribution.source, attribution.license),
+          [
+            l10n.dictionaryOfflineSource(
+              attribution.source,
+              attribution.license,
+            ),
+            if (glossLanguage case final code?)
+              l10n.dictionaryDefinitionsIn(context.languageNameOf(code)),
+          ].join(' · '),
         ),
       ),
     );

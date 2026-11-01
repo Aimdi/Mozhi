@@ -80,7 +80,7 @@ class _OcrManualFileSheetState extends State<OcrManualFileSheet> {
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final secondary = AppPalette.of(context).secondaryText;
-    final name = widget.language.name;
+    final name = widget.language.displayNameIn(l10n.localeName);
     final fileName = widget.data.fileName;
     final publisher = widget.data.url?.toString();
     final mirror = widget.mirrorUrl;

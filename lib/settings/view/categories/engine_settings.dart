@@ -111,15 +111,16 @@ class EngineSettings extends StatelessWidget {
                 onTap: () => context.push(AppRoutes.instances),
               ),
             ),
-            // The user's permission to send text to another engine, for
-            // this one case (off by default).
+            // Sending text to another engine for this one case: on by
+            // default (Google rate-limits most volunteer servers); turning
+            // it off or on is the user's choice, kept from then on.
             SettingsAnchor(
               id: EngineAnchors.duckDuckGoFallback,
               child: SwitchListTile(
                 key: const Key('settings_duckduckgo_fallback'),
                 secondary: const SettingsIcon(Icons.alt_route),
                 title: Text(l10n.settingsFallbackDuckDuckGo),
-                subtitle: Text(l10n.settingsFallbackDuckDuckGoSubtitle),
+                subtitle: Text(l10n.settingsFallbackDuckDuckGoOnSubtitle),
                 isThreeLine: true,
                 value: settings.fallbackToDuckDuckGo,
                 onChanged: (value) =>

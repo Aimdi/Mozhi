@@ -77,11 +77,11 @@ String? historyTargetCode(HistoryEntry entry) =>
 String historyEntryPair(AppLocalizations l10n, HistoryEntry entry) {
   final detected = entry.detectedSource;
   final source = entry.source.isAuto && detected != null && detected.isNotEmpty
-      ? l10n.historyDetected(LanguageCatalog.nameOf(detected))
-      : entry.source.name;
+      ? l10n.historyDetected(languageDisplayNameOf(detected, l10n.localeName))
+      : languageNameIn(l10n, entry.source);
   return l10n.historyLanguagePair(
     bidiIsolate(source),
-    bidiIsolate(entry.target.name),
+    bidiIsolate(languageNameIn(l10n, entry.target)),
   );
 }
 

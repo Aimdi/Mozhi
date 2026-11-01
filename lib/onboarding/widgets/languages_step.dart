@@ -327,8 +327,12 @@ class _SourceSuggestion extends StatelessWidget {
               Expanded(
                 child: Text(
                   fromPhone
-                      ? l10n.onboardingLanguagesSuggestion(language.name)
-                      : l10n.onboardingLanguagesSuggestionPicked(language.name),
+                      ? l10n.onboardingLanguagesSuggestion(
+                          context.languageName(language),
+                        )
+                      : l10n.onboardingLanguagesSuggestionPicked(
+                          context.languageName(language),
+                        ),
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: palette.secondaryText,
                   ),
@@ -343,7 +347,11 @@ class _SourceSuggestion extends StatelessWidget {
               style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
               onPressed: () =>
                   context.read<OnboardingCubit>().setSourceLanguage(language),
-              child: Text(l10n.onboardingLanguagesSuggestionUse(language.name)),
+              child: Text(
+                l10n.onboardingLanguagesSuggestionUse(
+                  context.languageName(language),
+                ),
+              ),
             ),
           ),
         ],
@@ -417,7 +425,7 @@ class _LanguageField extends StatelessWidget {
           ),
         ),
         subtitle: Text(
-          language.name,
+          context.languageName(language),
           style: theme.textTheme.titleMedium?.copyWith(
             color: theme.colorScheme.onSurface,
             fontWeight: FontWeight.w700,
@@ -520,7 +528,9 @@ class _OfflineDownloads extends StatelessWidget {
             OnboardingInfoRow(
               icon: Icons.cloud_outlined,
               color: palette.secondaryText,
-              text: l10n.onboardingLanguagesOfflineUnsupported(language.name),
+              text: l10n.onboardingLanguagesOfflineUnsupported(
+                context.languageName(language),
+              ),
             ),
           if (source.isAuto)
             OnboardingInfoRow(
@@ -640,7 +650,12 @@ class OnboardingOfflineLanguageRow extends StatelessWidget {
         _ => null,
       },
     };
-    return [?language.nativeName, ?status].join(' · ');
+    // The native name, unless it is the name shown ("Deutsch" in German).
+    final native =
+        language.nativeName == language.displayNameIn(l10n.localeName)
+        ? null
+        : language.nativeName;
+    return [?native, ?status].join(' · ');
   }
 
   Future<void> _confirmDelete(BuildContext context) async {
@@ -672,7 +687,7 @@ class OnboardingOfflineLanguageRow extends StatelessWidget {
         children: [
           ring,
           OfflineCancelDownloadButton(
-            language: language.name,
+            language: language.displayNameIn(l10n.localeName),
             onPressed: cancelling ? null : onCancel,
           ),
         ],
@@ -680,7 +695,9 @@ class OnboardingOfflineLanguageRow extends StatelessWidget {
     }
     if (builtIn) return null;
     if (selected case final checked? when !downloaded && !outdated) {
-      final label = l10n.onboardingLanguagesDownloadCheckbox(language.name);
+      final label = l10n.onboardingLanguagesDownloadCheckbox(
+        language.displayNameIn(l10n.localeName),
+      );
       return Tooltip(
         message: label,
         child: Checkbox(
@@ -695,8 +712,10 @@ class OnboardingOfflineLanguageRow extends StatelessWidget {
     if (!downloaded || outdated) {
       return Tooltip(
         message: outdated
-            ? l10n.offlineUpdateTooltip(language.name)
-            : l10n.offlineDownloadTooltip(language.name),
+            ? l10n.offlineUpdateTooltip(language.displayNameIn(l10n.localeName))
+            : l10n.offlineDownloadTooltip(
+                language.displayNameIn(l10n.localeName),
+              ),
         child: FilledButton.tonalIcon(
           style: FilledButton.styleFrom(minimumSize: minimumSize),
           onPressed: onDownload,
@@ -708,7 +727,9 @@ class OnboardingOfflineLanguageRow extends StatelessWidget {
       );
     }
     return IconButton(
-      tooltip: l10n.offlineDeleteTooltip(language.name),
+      tooltip: l10n.offlineDeleteTooltip(
+        language.displayNameIn(l10n.localeName),
+      ),
       icon: Icon(Icons.delete_outline, color: theme.colorScheme.error),
       onPressed: () => unawaited(_confirmDelete(context)),
     );
@@ -732,7 +753,7 @@ class OnboardingOfflineLanguageRow extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                language.name,
+                language.displayNameIn(l10n.localeName),
                 style: theme.textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.w700,
                 ),

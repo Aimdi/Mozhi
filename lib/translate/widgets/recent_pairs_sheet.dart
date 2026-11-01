@@ -29,10 +29,10 @@ Future<void> showRecentPairsSheet(BuildContext context) {
   );
 }
 
-/// Display name of [language] in a language pair ("Detect language" for
-/// auto).
+/// Display name of [language] in a language pair, in the UI language
+/// ([languageDisplayName]; "Detect language" for auto).
 String translatePairLanguageName(AppLocalizations l10n, Language language) =>
-    language.isAuto ? l10n.translateDetectLanguage : language.name;
+    languageNameIn(l10n, language);
 
 /// "{source} → {target}" for [pair], laid out in the UI direction.
 ///
@@ -259,7 +259,10 @@ class _PairTile extends StatelessWidget {
     // Not "From Detect language to …" while the source is detected.
     final spoken = pair.source.isAuto
         ? l10n.translateLanguagePairAutoSemantics(target)
-        : l10n.translateLanguagePairSemantics(pair.source.name, target);
+        : l10n.translateLanguagePairSemantics(
+            translatePairLanguageName(l10n, pair.source),
+            target,
+          );
     return ListTile(
       contentPadding: const EdgeInsetsDirectional.only(start: 24, end: 16),
       minTileHeight: 48,

@@ -275,8 +275,15 @@ void main() {
   });
 
   group('bundledStarterCatalog', () {
-    test('is empty until the first release', () {
-      expect(bundledStarterCatalog().isEmpty, isTrue);
+    test('lists the packs of the latest phrasebooks release', () {
+      final catalog = bundledStarterCatalog();
+      expect(catalog.isEmpty, isFalse);
+      expect(catalog.release, startsWith('phrasebooks-'));
+      final german = catalog.packs.firstWhere((pack) => pack.id == 'de');
+      expect(german.url.scheme, 'https');
+      expect(german.url.path, endsWith('/de.json.gz'));
+      expect(german.sha256, hasLength(64));
+      expect(german.size, greaterThan(0));
     });
 
     test('reads a catalogue, and an invalid one as empty', () {
@@ -295,7 +302,7 @@ void main() {
 
   test('createStarterPhrasebooks uses the bundled catalogue', () {
     final packs = createStarterPhrasebooks(store);
-    expect(packs.catalog.isEmpty, isTrue);
+    expect(packs.catalog, bundledStarterCatalog());
     expect(packs.store, store);
   });
 }

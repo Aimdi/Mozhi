@@ -124,7 +124,9 @@ class ProofreadOptionsSheet extends StatelessWidget {
   if (variety != null) return (l10n.proofreadVariety(variety), false);
   final detected = state.result?.detectedLanguage?.trim() ?? '';
   final language = detected.isEmpty ? null : LanguageCatalog.byCode(detected);
-  if (language != null) return (language.name, true);
+  if (language != null) {
+    return (languageDisplayName(language, l10n.localeName), true);
+  }
   return (l10n.proofreadLanguageAuto, false);
 }
 

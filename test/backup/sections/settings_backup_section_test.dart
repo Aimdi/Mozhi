@@ -387,6 +387,12 @@ void main() {
 
       test("merge keeps this device's choice, like the other privacy "
           'choices', () async {
+        await repository.save(
+          mine.copyWith(
+            fallbackToDuckDuckGo: false,
+            fallbackToDuckDuckGoChosen: true,
+          ),
+        );
         await section.restore(
           throughJson({
             'settings': theirs.copyWith(fallbackToDuckDuckGo: true).toJson(),
@@ -395,6 +401,36 @@ void main() {
           mode: BackupRestoreMode.merge,
         );
         expect((await repository.load()).fallbackToDuckDuckGo, isFalse);
+      });
+
+      test("replace takes the backup's choice to turn it off", () async {
+        await section.restore(
+          throughJson({
+            'settings': theirs
+                .copyWith(
+                  fallbackToDuckDuckGo: false,
+                  fallbackToDuckDuckGoChosen: true,
+                )
+                .toJson(),
+          }),
+          version: 1,
+          mode: BackupRestoreMode.replace,
+        );
+        expect((await repository.load()).fallbackToDuckDuckGo, isFalse);
+      });
+
+      test('a backup from before rc.14 (the old default stored) turns it '
+          'on', () async {
+        await section.restore(
+          throughJson({
+            'settings': theirs.toJson()
+              ..['fallbackToDuckDuckGo'] = false
+              ..remove('fallbackToDuckDuckGoChosen'),
+          }),
+          version: 1,
+          mode: BackupRestoreMode.replace,
+        );
+        expect((await repository.load()).fallbackToDuckDuckGo, isTrue);
       });
     });
 

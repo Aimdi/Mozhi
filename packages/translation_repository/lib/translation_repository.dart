@@ -22,6 +22,7 @@ export 'src/cache/translation_cache.dart';
 export 'src/dictionary_packs/dictionary_packs.dart';
 export 'src/language_catalog.dart';
 export 'src/language_matcher.dart';
+export 'src/language_names.dart';
 export 'src/models/models.dart';
 export 'src/offline/offline_translator.dart';
 export 'src/prompts/mt_prompts.dart';

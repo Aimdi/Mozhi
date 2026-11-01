@@ -21,6 +21,7 @@ const { expect } = require('@playwright/test');
 const {
   collectPageErrors,
   copiedTranslation,
+  fillField,
   openApp,
   seedSettings,
   skipWithoutOnDeviceEngine,
@@ -77,7 +78,11 @@ async function importGerman(page) {
   await openApp(page, '/settings/offline');
   await skipWithoutOnDeviceEngine(page);
   const chooser = page.waitForEvent('filechooser');
-  await page.getByRole('button', { name: /^Import from files/ }).click();
+  // The row, not the banner's button of the same name (shown when this web
+  // server does not host the models, as here).
+  await page
+    .getByRole('button', { name: /^Import from files\s+Install/ })
+    .click();
   await (await chooser).setFiles(modelFiles());
   const dialog = page.getByRole('alertdialog');
   await expect(dialog.getByText('Models imported')).toBeVisible({
@@ -87,8 +92,15 @@ async function importGerman(page) {
   await expect(dialog.getByText(/^Installed \W?German\W? → /)).toBeVisible();
   await expect(dialog.getByText(/^Installed \W?English\W? → /)).toBeVisible();
   await dialog.getByRole('button', { name: 'Close' }).click();
+  // The list is lazy (and the banner takes room): find the row first. It is
+  // a group, or a button when it also opens the files to download by hand.
+  await fillField(
+    page.getByRole('searchbox', { name: 'Search languages' }),
+    'German',
+  );
+  const name = /^Delete German .*on this device/;
   await expect(
-    page.getByRole('button', { name: /^Delete German .*on this device/ }),
+    page.getByRole('button', { name }).or(page.getByRole('group', { name })),
   ).toBeVisible();
 }
 

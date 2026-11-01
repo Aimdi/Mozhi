@@ -5,9 +5,12 @@ import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/translate/widgets/language_text.dart';
 import 'package:translation_repository/translation_repository.dart';
 
-/// Display name of [language] ("Detect language" for [Language.auto]).
+/// Display name of [language] in the UI language ([languageDisplayName];
+/// "Detect language" for [Language.auto]).
 String dictionaryLanguageName(AppLocalizations l10n, Language language) =>
-    language.isAuto ? l10n.dictionaryDetectLanguage : language.name;
+    language.isAuto
+    ? l10n.dictionaryDetectLanguage
+    : languageDisplayName(language, l10n.localeName);
 
 /// Opens a searchable list of [languages] with [selected] checked; resolves
 /// to the chosen language (null when dismissed).
@@ -68,6 +71,7 @@ class _DictionaryLanguagePickerState extends State<DictionaryLanguagePicker> {
     for (final language in widget.languages) {
       final names = [
         dictionaryLanguageName(l10n, language).toLowerCase(),
+        language.name.toLowerCase(),
         language.nativeName?.toLowerCase() ?? '',
       ];
       if (language.code.toLowerCase() == query) {
@@ -179,7 +183,8 @@ class _DictionaryLanguagePickerState extends State<DictionaryLanguagePicker> {
                           subtitle:
                               native != null &&
                                   native.isNotEmpty &&
-                                  native != language.name
+                                  native !=
+                                      dictionaryLanguageName(l10n, language)
                               // The locale picks a matching voice and glyphs.
                               ? Text.rich(
                                   TextSpan(

@@ -947,8 +947,8 @@ String historyDestinationLabel(
 /// "English → French" for [pair], with both names bidi-isolated.
 String historyPairLabel(AppLocalizations l10n, HistoryPair pair) =>
     l10n.historyLanguagePair(
-      bidiIsolate(pair.source.name),
-      bidiIsolate(pair.target.name),
+      bidiIsolate(languageNameIn(l10n, pair.source)),
+      bidiIsolate(languageNameIn(l10n, pair.target)),
     );
 
 /// The filters below the search: the language pair (a chip that opens a

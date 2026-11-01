@@ -69,7 +69,8 @@ class ExtraTargetsSection extends StatelessWidget {
         final active = state.activeExtraTargets;
         final hasInput = state.input.trim().isNotEmpty;
         final names = [
-          for (final language in active) bidiIsolate(language.name),
+          for (final language in active)
+            bidiIsolate(context.languageName(language)),
         ];
         final column = Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -161,10 +162,10 @@ class _ExtraTargetsAnnouncerState extends State<_ExtraTargetsAnnouncer> {
         continue;
       }
       if (translation.status == TranslateStatus.failure) {
-        failed.add(target.name);
+        failed.add(context.languageName(target));
       } else if (translation.status == TranslateStatus.success &&
           (translation.result?.isComplete ?? false)) {
-        ready.add(target.name);
+        ready.add(context.languageName(target));
       }
     }
     if (ready.isEmpty && failed.isEmpty) return;
@@ -220,7 +221,8 @@ class ExtraTargetCard extends StatelessWidget {
     final translating = status == TranslateStatus.translating;
     final output = translation?.output ?? '';
     final complete = translation?.result?.isComplete ?? false;
-    final name = bidiIsolate(target.name);
+    final shownName = context.languageName(target);
+    final name = bidiIsolate(shownName);
     return TranslateFlatCard(
       // The labelled container below groups the card's nodes.
       semanticContainer: false,
@@ -228,7 +230,7 @@ class ExtraTargetCard extends StatelessWidget {
       child: Semantics(
         container: true,
         explicitChildNodes: true,
-        label: l10n.translateExtraTargetLabel(target.name),
+        label: l10n.translateExtraTargetLabel(shownName),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -255,7 +257,7 @@ class ExtraTargetCard extends StatelessWidget {
                       const SizedBox(width: TranslateLayout.avatarGap),
                       Expanded(
                         child: Text(
-                          target.name,
+                          shownName,
                           style: theme.textTheme.bodyLarge?.copyWith(
                             fontWeight: FontWeight.w800,
                           ),
@@ -343,7 +345,7 @@ class ExtraTargetCard extends StatelessWidget {
     cubit.insertExtraTranslation(target);
     final after = cubit.state;
     if (after.input == before.input && after.source == before.source) return;
-    final language = bidiIsolate(target.name);
+    final language = bidiIsolate(context.languageName(target));
     final source = after.source;
     messenger
       ?..hideCurrentSnackBar()
@@ -354,7 +356,7 @@ class ExtraTargetCard extends StatelessWidget {
             source != before.source && !source.isAuto
                 ? l10n.translateExtraTargetUsedAsInputSource(
                     language,
-                    bidiIsolate(source.name),
+                    bidiIsolate(context.languageName(source)),
                   )
                 : l10n.translateExtraTargetUsedAsInput(language),
           ),
@@ -382,7 +384,7 @@ class ExtraTargetCard extends StatelessWidget {
           error: translation!.error,
           dense: true,
           retrySemanticsLabel: l10n.translateExtraTargetRetry(
-            bidiIsolate(target.name),
+            bidiIsolate(context.languageName(target)),
           ),
           onRetry: () => unawaited(
             context.read<TranslateCubit>().retryExtraTarget(target),
@@ -474,6 +476,7 @@ class _ExtraTargetsSheetState extends State<ExtraTargetsSheet> {
     bool matches(Language language) =>
         query.isEmpty ||
         language.name.toLowerCase().contains(query) ||
+        context.languageName(language).toLowerCase().contains(query) ||
         (language.nativeName?.toLowerCase().contains(query) ?? false) ||
         language.code.toLowerCase() == query;
     final main = LanguageMatcher.normalize(state.target.code);
@@ -586,6 +589,7 @@ class _ExtraTargetsSheetState extends State<ExtraTargetsSheet> {
       final checked = kept || state.isExtraTarget(language);
       final enabled = checked || !full;
       final native = language.nativeName;
+      final name = context.languageName(language);
       return CheckboxListTile(
         key: ValueKey('translate_extra_targets_${language.code}'),
         contentPadding: const EdgeInsets.symmetric(horizontal: 24),
@@ -593,11 +597,11 @@ class _ExtraTargetsSheetState extends State<ExtraTargetsSheet> {
         title: Semantics(
           // Why the row is disabled (merged into the row).
           hint: enabled ? null : l10n.translateExtraTargetsLimitReached,
-          child: Text(language.name),
+          child: Text(name),
         ),
         subtitle: kept
             ? Text(l10n.translateExtraTargetsKept)
-            : native == null || native == language.name
+            : native == null || native == name
             ? null
             : Text(
                 native,

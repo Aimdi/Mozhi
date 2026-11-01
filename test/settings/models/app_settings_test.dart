@@ -78,7 +78,8 @@ const _custom = AppSettings(
   tapToLookUp: false,
   highlightSpokenWord: false,
   offlineAppShell: false,
-  fallbackToDuckDuckGo: true,
+  fallbackToDuckDuckGo: false,
+  fallbackToDuckDuckGoChosen: true,
 );
 
 void main() {
@@ -137,8 +138,10 @@ void main() {
       expect(settings.tapToLookUp, isTrue);
       expect(settings.highlightSpokenWord, isTrue);
       expect(settings.offlineAppShell, isTrue);
-      // The app never moves text to another engine unless the user says so.
-      expect(settings.fallbackToDuckDuckGo, isFalse);
+      // Google rate-limits most volunteer servers: DuckDuckGo takes over
+      // unless the user turns it off.
+      expect(settings.fallbackToDuckDuckGo, isTrue);
+      expect(settings.fallbackToDuckDuckGoChosen, isFalse);
     });
 
     test('supports value equality', () {
@@ -362,6 +365,7 @@ void main() {
           highlightSpokenWord: _custom.highlightSpokenWord,
           offlineAppShell: _custom.offlineAppShell,
           fallbackToDuckDuckGo: _custom.fallbackToDuckDuckGo,
+          fallbackToDuckDuckGoChosen: _custom.fallbackToDuckDuckGoChosen,
         );
 
         expect(copy, equals(_custom));
@@ -581,6 +585,7 @@ void main() {
           'highlightSpokenWord': 1,
           'offlineAppShell': 'on',
           'fallbackToDuckDuckGo': 'yes',
+          'fallbackToDuckDuckGoChosen': 'yes',
         });
 
         expect(settings, equals(const AppSettings()));
@@ -627,22 +632,53 @@ void main() {
         expect(stored.offlineAppShell, isFalse);
       });
 
-      test('round-trips the DuckDuckGo fallback', () {
+      test('round-trips the DuckDuckGo fallback the user chose', () {
         final json = _custom.toJson();
-        expect(json['fallbackToDuckDuckGo'], isTrue);
-        expect(AppSettings.fromJson(json).fallbackToDuckDuckGo, isTrue);
-        final off = const AppSettings().toJson();
-        expect(off['fallbackToDuckDuckGo'], isFalse);
-        expect(AppSettings.fromJson(off).fallbackToDuckDuckGo, isFalse);
+        expect(json['fallbackToDuckDuckGo'], isFalse);
+        expect(json['fallbackToDuckDuckGoChosen'], isTrue);
+        final loaded = AppSettings.fromJson(json);
+        expect(loaded.fallbackToDuckDuckGo, isFalse);
+        expect(loaded.fallbackToDuckDuckGoChosen, isTrue);
+        const on = AppSettings(fallbackToDuckDuckGoChosen: true);
+        expect(AppSettings.fromJson(on.toJson()), on);
         expect(
-          _custom.copyWith(fallbackToDuckDuckGo: false),
+          _custom.copyWith(fallbackToDuckDuckGo: true),
+          isNot(equals(_custom)),
+        );
+        expect(
+          _custom.copyWith(fallbackToDuckDuckGoChosen: false),
           isNot(equals(_custom)),
         );
       });
 
+      test('turns the DuckDuckGo fallback on for settings where the user '
+          'never chose it', () {
+        // Every version stored the field; before rc.14 its default was off.
+        final stored = _custom.toJson()..remove('fallbackToDuckDuckGoChosen');
+        expect(stored['fallbackToDuckDuckGo'], isFalse);
+        final loaded = AppSettings.fromJson(stored);
+        expect(loaded.fallbackToDuckDuckGo, isTrue);
+        expect(loaded.fallbackToDuckDuckGoChosen, isFalse);
+
+        final notChosen = {...stored, 'fallbackToDuckDuckGoChosen': false};
+        expect(AppSettings.fromJson(notChosen).fallbackToDuckDuckGo, isTrue);
+        // A value the user did not choose stays the default after a save.
+        expect(
+          AppSettings.fromJson(
+            const AppSettings(fallbackToDuckDuckGo: false).toJson(),
+          ).fallbackToDuckDuckGo,
+          isTrue,
+        );
+      });
+
       test('loads settings stored before the DuckDuckGo fallback existed', () {
-        final json = _custom.toJson()..remove('fallbackToDuckDuckGo');
-        expect(AppSettings.fromJson(json).fallbackToDuckDuckGo, isFalse);
+        final json = _custom.toJson()
+          ..remove('fallbackToDuckDuckGo')
+          ..remove('fallbackToDuckDuckGoChosen');
+        expect(AppSettings.fromJson(json).fallbackToDuckDuckGo, isTrue);
+        // A choice without the value falls back to the default too.
+        final chosen = _custom.toJson()..remove('fallbackToDuckDuckGo');
+        expect(AppSettings.fromJson(chosen).fallbackToDuckDuckGo, isTrue);
       });
 
       test('loads settings stored before the model source existed', () {

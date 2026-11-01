@@ -71,6 +71,7 @@ class _OnboardingLanguagePickerState extends State<OnboardingLanguagePicker> {
     return [
       for (final language in languages)
         if (language.name.toLowerCase().contains(needle) ||
+            context.languageName(language).toLowerCase().contains(needle) ||
             (language.nativeName?.toLowerCase().contains(needle) ?? false) ||
             language.code.toLowerCase() == needle)
           language,
@@ -177,8 +178,9 @@ class _LanguageRow extends StatelessWidget {
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final native = language.nativeName;
+    final name = context.languageName(language);
     final details = [
-      if (native != null && native != language.name) native,
+      if (native != null && native != name) native,
       if (offline) l10n.onboardingLanguagesAvailableOffline,
     ];
     return ListTile(
@@ -186,7 +188,7 @@ class _LanguageRow extends StatelessWidget {
       leading: language.isAuto
           ? const Icon(Icons.auto_awesome_outlined)
           : LanguageAvatar(code: language.code),
-      title: Text(language.name),
+      title: Text(name),
       subtitle: details.isEmpty ? null : Text(details.join(' · ')),
       trailing: selected
           ? Icon(Icons.check, color: theme.colorScheme.primary)

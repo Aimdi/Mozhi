@@ -250,11 +250,83 @@ class MirrorModelsTest(unittest.TestCase):
         return code, output.getvalue()
 
     def mirrored(self) -> set[str]:
+        """The files in the mirror but the folders' indexes."""
         return {
             path.relative_to(self.out).as_posix()
             for path in self.out.rglob("*")
-            if path.is_file()
+            if path.is_file() and path.name != mirror.INDEX
         }
+
+    def index(self, folder: str) -> dict | None:
+        path = self.out / folder / mirror.INDEX
+        return json.loads(path.read_text()) if path.exists() else None
+
+    def test_writes_an_index_into_every_folder_with_files(self) -> None:
+        code, output = self.run_tool("--only", "phrasebook")
+        self.assertEqual(code, 0, output)
+        self.assertEqual(
+            self.index("phrasebooks"),
+            {"schemaVersion": 1, "kind": "phrasebook", "items": ["ja", "pt"]},
+        )
+        self.assertIn("phrasebooks/index.json: 2 item(s)", output)
+        for folder in ("bergamot", "whisper", "tesseract", "dictionary", "llm"):
+            self.assertIsNone(self.index(folder), folder)
+        # A later run of another kind keeps listing what is in place.
+        code, _ = self.run_tool("--only", "bergamot", "--pairs", "en-de")
+        self.assertEqual(code, 0)
+        self.assertEqual(self.index("bergamot")["items"], ["en-de"])
+        self.assertEqual(self.index("phrasebooks")["items"], ["ja", "pt"])
+        # A file that is gone (or not whole) leaves the index; an index
+        # without items stays, empty.
+        (self.out / "phrasebooks/ja.json.gz").write_bytes(b"x")
+        (self.out / "phrasebooks/pt.json.gz").unlink()
+        self.run_tool("--only", "whisper", "--whisper", "nothing")
+        self.assertEqual(self.index("phrasebooks")["items"], [])
+        self.assertEqual(self.index("bergamot")["items"], ["en-de"])
+        self.assertFalse(list(self.out.rglob("*.part")))
+
+    def test_lists_a_direction_only_with_all_its_files(self) -> None:
+        self.run_tool("--only", "bergamot", "--pairs", "en-de")
+        model = next(
+            path
+            for path in (self.out / "bergamot/en-de").rglob("*")
+            if path.is_file()
+        )
+        model.unlink()
+        mirror.write_indexes(self.out, mirror.load_catalogs(self.parsed()))
+        self.assertEqual(self.index("bergamot")["items"], [])
+
+    def test_list_and_verify_write_no_index(self) -> None:
+        self.run_tool("--only", "phrasebook", "--list")
+        self.run_tool("--only", "phrasebook", "--verify")
+        self.assertIsNone(self.index("phrasebooks"))
+
+    def test_an_invalid_catalogue_of_another_kind_gets_no_index(self) -> None:
+        self.llm["models"][0]["sha256"] = "nope"
+        self.write_catalogs()
+        code, output = self.run_tool("--only", "phrasebook")
+        self.assertEqual(code, 0, output)
+        self.assertIsNone(self.index("llm"))
+        self.assertEqual(self.index("phrasebooks")["items"], ["ja", "pt"])
+
+    def parsed(self):
+        return mirror.parser().parse_args(
+            [
+                str(self.out),
+                "--bergamot-catalog",
+                str(self.tmp / "bergamot.json"),
+                "--whisper-catalog",
+                str(self.tmp / "whisper.json"),
+                "--tesseract-catalog",
+                str(self.tmp / "tesseract.json"),
+                "--dictionary-catalog",
+                str(self.tmp / "dictionary.json"),
+                "--phrasebook-catalog",
+                str(self.tmp / "phrasebook.json"),
+                "--llm-catalog",
+                str(self.tmp / "llm.json"),
+            ]
+        )
 
     def test_mirrors_every_file_in_the_app_layout(self) -> None:
         code, output = self.run_tool()

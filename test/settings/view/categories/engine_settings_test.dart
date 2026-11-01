@@ -34,20 +34,20 @@ void main() {
   );
 
   group('If Google fails, use DuckDuckGo', () {
-    testWidgets('is off by default and says where the text goes', (
-      tester,
-    ) async {
+    testWidgets('is on by default and says where the text goes and how to '
+        'turn it off', (tester) async {
       await pump(tester, const AppSettings());
       expect(find.text('If Google fails, use DuckDuckGo'), findsOneWidget);
       expect(
         find.text(
-          'When Google fails on every volunteer server, your text is sent to '
-          "DuckDuckGo's translator through the same servers instead. "
-          "DuckDuckGo's translations come from Microsoft Translator.",
+          'On by default. When Google fails on every volunteer server, your '
+          "text is sent to DuckDuckGo's translator through the same servers "
+          'instead (its translations come from Microsoft Translator). Turn '
+          'this off to only use Google.',
         ),
         findsOneWidget,
       );
-      expect(tile(tester).value, isFalse);
+      expect(tile(tester).value, isTrue);
     });
 
     testWidgets('sits with the Mozhi instances', (tester) async {
@@ -65,17 +65,17 @@ void main() {
       expect(fallback.dy, lessThan(services.dy));
     });
 
-    testWidgets('turns the fallback on', (tester) async {
+    testWidgets('turns the fallback off', (tester) async {
       await pump(tester, const AppSettings());
       await tester.tap(find.byKey(const Key('settings_duckduckgo_fallback')));
-      verify(() => settings.setFallbackToDuckDuckGo(enabled: true)).called(1);
+      verify(() => settings.setFallbackToDuckDuckGo(enabled: false)).called(1);
     });
 
-    testWidgets('turns it off again', (tester) async {
-      await pump(tester, const AppSettings(fallbackToDuckDuckGo: true));
-      expect(tile(tester).value, isTrue);
+    testWidgets('turns it on again', (tester) async {
+      await pump(tester, const AppSettings(fallbackToDuckDuckGo: false));
+      expect(tile(tester).value, isFalse);
       await tester.tap(find.byKey(const Key('settings_duckduckgo_fallback')));
-      verify(() => settings.setFallbackToDuckDuckGo(enabled: false)).called(1);
+      verify(() => settings.setFallbackToDuckDuckGo(enabled: true)).called(1);
     });
   });
 }

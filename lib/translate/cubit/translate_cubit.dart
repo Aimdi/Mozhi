@@ -112,7 +112,7 @@ typedef _Languages = ({List<Language> sources, List<Language> targets});
 ///   original text. Translated on this device."); when none is, the
 ///   suspect result is shown with its warnings. The suspect result is
 ///   shown (unfinished) while the fallback runs.
-/// * DuckDuckGo when Google fails (opt-in, `AppSettings
+/// * DuckDuckGo when Google fails (on by default, `AppSettings
 ///   .fallbackToDuckDuckGo`; see [duckDuckGoFallbackApplies]): a
 ///   translation with Mozhi's Google engine that failed on every volunteer
 ///   server ([AllInstancesFailedException]) is tried once more with Mozhi's
@@ -2469,7 +2469,7 @@ class TranslateCubit extends Cubit<TranslateState> {
   /// takes over after [error] of a text translation by [engine], with
   /// [settings] and the repository's [privacyMode]: all of these hold.
   ///
-  /// * The user turned the fallback on (it is off by default).
+  /// * The fallback is on (the default, unless the user turned it off).
   /// * [engine] is Mozhi's Google engine (not DuckDuckGo already, nor any
   ///   other engine), and [error] is an [AllInstancesFailedException] for
   ///   it: every volunteer server the request was allowed to go to failed.

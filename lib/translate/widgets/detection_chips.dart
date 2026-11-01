@@ -43,7 +43,11 @@ class DetectedLanguageChips extends StatelessWidget {
         ? state.detectedAlternativeLanguages
         : const <Language>[];
     final chip = _DetectedChip(
-      language: languageNameFor(detected, state.sourceLanguages),
+      language: localizedLanguageNameFor(
+        context,
+        detected,
+        state.sourceLanguages,
+      ),
       uncertain: uncertain,
     );
     if (alternatives.isEmpty) return chip;
@@ -70,8 +74,10 @@ class DetectedLanguageChips extends StatelessWidget {
                   ),
                   // The name is in the UI language (no language locale, so
                   // screen readers keep the UI voice).
-                  label: Text(language.name),
-                  tooltip: l10n.translateDetectedAlternativeHint(language.name),
+                  label: Text(context.languageName(language)),
+                  tooltip: l10n.translateDetectedAlternativeHint(
+                    context.languageName(language),
+                  ),
                   visualDensity: VisualDensity.compact,
                   onPressed: () => cubit.useDetectedAlternative(language.code),
                 ),

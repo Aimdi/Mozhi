@@ -6,13 +6,13 @@ import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/quick_translate/cubit/quick_translate_state.dart';
 import 'package:mozhi/quick_translate/models/quick_languages.dart';
 import 'package:mozhi/translate/widgets/offline_offer.dart'
-    show offlineDownloadLabel;
+    show offlineDownloadLabel, offlineDownloadName;
 import 'package:mozhi/translate/widgets/translate_error.dart'
     show describeTranslateError;
 import 'package:mozhi/translate/widgets/translate_layout.dart'
     show TranslateLayout;
 import 'package:translation_repository/translation_repository.dart'
-    show ConsentRequiredException, LanguageCatalog;
+    show ConsentRequiredException;
 
 /// The translation area: progress while loading / translating, the
 /// (streaming) translation, or an error with a retry button.
@@ -49,7 +49,9 @@ class QuickResultView extends StatelessWidget {
       ),
       QuickTranslateStatus.translating when state.result == null => _Progress(
         key: const ValueKey('translating'),
-        label: l10n.quickTranslateTranslatingTo(state.target.name),
+        label: l10n.quickTranslateTranslatingTo(
+          context.languageName(state.target),
+        ),
       ),
       QuickTranslateStatus.failure
           when state.error is ConsentRequiredException =>
@@ -97,8 +99,10 @@ class QuickResultView extends StatelessWidget {
         color: palette.secondaryText,
         title: l10n.quickTranslateOfflineMissingTitle,
         message: l10n.quickTranslateOfflineMissingBody(
-          [for (final download in state.offlineDownloads) download.name]
-              .join(', '),
+          [
+            for (final download in state.offlineDownloads)
+              offlineDownloadName(l10n, download),
+          ].join(', '),
         ),
         action: onOpenOfflineModels == null
             ? null
@@ -116,8 +120,8 @@ class QuickResultView extends StatelessWidget {
         title: l10n.quickTranslateOfflineUnsupportedTitle,
         message: switch (state.detectedSource) {
           final source? => l10n.quickTranslateOfflineUnsupported(
-            LanguageCatalog.nameOf(source),
-            state.target.name,
+            context.languageNameOf(source),
+            context.languageName(state.target),
           ),
           null => l10n.quickTranslateOfflineUndetected,
         },

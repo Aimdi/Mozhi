@@ -131,7 +131,7 @@ IconData destinationIcon(DataDestination destination, {String? engineId}) =>
 String consentPairLabel(AppLocalizations l10n, String source, String target) {
   String name(String code) => code == Language.auto.code
       ? l10n.translateDetectLanguage
-      : LanguageCatalog.nameOf(code);
+      : languageDisplayNameOf(code, l10n.localeName);
   return l10n.commonConsentPair(name(source), name(target));
 }
 
@@ -148,12 +148,16 @@ String consentAlwaysLabel(
     return l10n.commonConsentAlways;
   }
   if (source == target) {
-    return l10n.commonConsentAlwaysFor(LanguageCatalog.nameOf(source));
+    return l10n.commonConsentAlwaysFor(
+      languageDisplayNameOf(source, l10n.localeName),
+    );
   }
   // An auto-detected source approves every source language into [target]
   // (the pair key is `auto>target`): "Always into French".
   if (source == Language.auto.code) {
-    return l10n.commonConsentAlwaysInto(LanguageCatalog.nameOf(target));
+    return l10n.commonConsentAlwaysInto(
+      languageDisplayNameOf(target, l10n.localeName),
+    );
   }
   return l10n.commonConsentAlwaysFor(consentPairLabel(l10n, source, target));
 }
@@ -278,7 +282,7 @@ OfflineOffer? offlineOfferFor(
   if (languages.length == 1 && primary(download) == 'en') return null;
   final router = GoRouter.maybeOf(context);
   return (
-    language: LanguageCatalog.nameOf(download),
+    language: context.languageNameOf(download),
     // Settings pages sit above the tabs: back returns here.
     onDownload: () => unawaited(router?.push<void>(AppRoutes.offline)),
   );

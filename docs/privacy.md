@@ -94,8 +94,13 @@ which is your permission for one case.
 
 ### If Google fails, use DuckDuckGo
 
-**Settings > Translation engines > If Google fails, use DuckDuckGo** is off
-by default. When it is on and a translation with Mozhi's Google engine
+**Settings > Translation engines > If Google fails, use DuckDuckGo** is on
+by default (since 0.1.0-rc.14: Google rate-limits most of the volunteer
+servers, so without it a new install often couldn't translate online).
+Turn it off to only use Google. Settings saved by earlier versions, which
+had it off by default, get it on too, unless you set the switch yourself
+(Mozhi remembers that you did, in Settings or with the button on the
+error below). When it is on and a translation with Mozhi's Google engine
 fails on every volunteer server of your list, the Translate screen (and
 its extra target languages) tries once more with Mozhi's **DuckDuckGo**
 engine, through the same servers, in your order, with the same failover.
@@ -115,8 +120,8 @@ It never applies:
 - with any engine but Google, including when DuckDuckGo is your engine
   already.
 
-Turning the setting on is your permission to switch engines in this
-case, not a consent for the DuckDuckGo request: it goes through the same
+The setting (on by default, or turned on by you) is the permission to
+switch engines in this case, not a consent for the DuckDuckGo request: it goes through the same
 privacy checks as if you had picked DuckDuckGo. Consent for Mozhi
 engines works like this:
 
@@ -133,9 +138,15 @@ engines works like this:
 The result says so (**Google failed on every server, so DuckDuckGo
 translated this.**), and the engine name, the destination chip, the
 history entry and [Network activity](#network-activity) name DuckDuckGo.
-When the setting is off and Google failed on every server, the error
-offers **Use DuckDuckGo when Google fails**: tapping it turns the setting
-on and translates the text with DuckDuckGo (with the same checks).
+When you turned the setting off and Google failed on every server, the
+error offers **Use DuckDuckGo when Google fails**: tapping it turns the
+setting on again and translates the text with DuckDuckGo (with the same
+checks).
+
+**Find the fastest server** during setup follows the setting too: a server
+whose Google fails (rate-limited) is tested once more with DuckDuckGo,
+with the same fixed word, and is marked **Via DuckDuckGo** when that
+translates; servers where Google works still come first.
 
 ## Where your text goes
 

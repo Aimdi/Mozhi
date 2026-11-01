@@ -19,6 +19,30 @@ void main() {
     });
   });
 
+  group('InstancePing via the fallback', () {
+    test('is a success through another engine', () {
+      const via = InstancePing.success(
+        Duration(milliseconds: 5),
+        fallbackEngine: 'duckduckgo',
+      );
+      expect(via.isSuccess, isTrue);
+      expect(via.viaFallback, isTrue);
+      expect(via.fallbackEngine, 'duckduckgo');
+      expect(via, isNot(const InstancePing.success(Duration(milliseconds: 5))));
+      expect(
+        const InstancePing.success(Duration(milliseconds: 5)).viaFallback,
+        isFalse,
+      );
+      expect(
+        const InstancePing(
+          status: PingStatus.failure,
+          fallbackEngine: 'duckduckgo',
+        ).viaFallback,
+        isFalse,
+      );
+    });
+  });
+
   group('OnboardingState', () {
     test('isLastStep is true on the service step only', () {
       expect(const OnboardingState().isLastStep, isFalse);
@@ -61,6 +85,33 @@ void main() {
       );
       expect(state.fastestUrl, 'c');
       expect(const OnboardingState().fastestUrl, isNull);
+    });
+
+    test('fastestUrl prefers servers whose tested engine translates', () {
+      const state = OnboardingState(
+        pings: {
+          'near': InstancePing.success(
+            Duration(milliseconds: 10),
+            fallbackEngine: 'duckduckgo',
+          ),
+          'far': InstancePing.success(Duration(milliseconds: 900)),
+        },
+      );
+      expect(state.fastestUrl, 'far');
+      const onlyFallback = OnboardingState(
+        pings: {
+          'a': InstancePing.success(
+            Duration(milliseconds: 40),
+            fallbackEngine: 'duckduckgo',
+          ),
+          'b': InstancePing.success(
+            Duration(milliseconds: 20),
+            fallbackEngine: 'duckduckgo',
+          ),
+          'c': InstancePing.noTranslation('500'),
+        },
+      );
+      expect(onlyFallback.fastestUrl, 'b');
     });
 
     test('noneReachable needs finished, failed pings', () {

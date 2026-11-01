@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/conversation/widgets/conversation_orientation.dart';
 import 'package:mozhi/core/privacy/ime_learning.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/translate/widgets/language_search.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 /// Opens a searchable language dialog (turned upside down when opened from
@@ -59,6 +60,7 @@ class _ConversationLanguagePickerState
     final query = _query.trim().toLowerCase();
     if (query.isEmpty) return true;
     return language.name.toLowerCase().contains(query) ||
+        context.languageName(language).toLowerCase().contains(query) ||
         (language.nativeName?.toLowerCase().contains(query) ?? false) ||
         language.code.toLowerCase() == query;
   }
@@ -67,7 +69,10 @@ class _ConversationLanguagePickerState
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
-    final all = widget.languages.where(_selectable).toList();
+    final all = sortLanguagesByName(
+      widget.languages.where(_selectable),
+      context.languageName,
+    );
     final recent = _query.trim().isEmpty
         ? [
             for (final language in widget.recent)
@@ -157,10 +162,11 @@ class _ConversationLanguagePickerState
   Widget _tile(Language language) {
     final selected = language == widget.selected;
     final native = language.nativeName;
+    final name = context.languageName(language);
     return ListTile(
       selected: selected,
-      title: Text(language.name),
-      subtitle: native == null || native == language.name ? null : Text(native),
+      title: Text(name),
+      subtitle: native == null || native == name ? null : Text(native),
       trailing: selected ? const Icon(Icons.check) : null,
       contentPadding: const EdgeInsets.symmetric(horizontal: 24),
       onTap: () => Navigator.of(context).pop(language),

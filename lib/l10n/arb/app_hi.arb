@@ -2799,5 +2799,17 @@
   "settingsStyleKeywords": "टर्मिनल, क्लासिक, शैली, दिखावट, लुक, फ़ॉन्ट, मोनोस्पेस, terminal, classic, monospace, monospaced, JetBrains Mono",
   "settingsThemeTerminalSubtitle": "टर्मिनल शैली में सिस्टम का मतलब डार्क है; लाइट से काग़ज़ जैसा रूप मिलता है",
   "settingsColorAmber": "एम्बर",
-  "settingsColorCyan": "आसमानी"
+  "settingsColorCyan": "आसमानी",
+  "offlineMirrorNotHostedTitle": "यह वेब सर्वर डाउनलोड होस्ट नहीं करता",
+  "offlineMirrorNotHostedBody": "वेब ऐप ये फ़ाइलें उसी सर्वर से डाउनलोड करता है जहां से वह आता है, और इस सर्वर पर ये नहीं हैं। कहीं और डाउनलोड की गई फ़ाइलें इंपोर्ट करें, या सर्वर के मालिक से इनकी कॉपी रखने को कहें।",
+  "offlineMirrorNotHostedHelp": "इन्हें होस्ट कैसे करें",
+  "dictionaryDefinitionsIn": "परिभाषाओं की भाषा: {language}",
+  "phrasebookStarterPair": "{base} ↔ {language}",
+  "settingsFallbackDuckDuckGoOnSubtitle": "डिफ़ॉल्ट रूप से चालू। जब Google स्वयंसेवकों के हर सर्वर पर विफल हो जाता है, तो आपका टेक्स्ट उन्हीं सर्वरों से DuckDuckGo के अनुवादक को भेजा जाता है (इसके अनुवाद Microsoft Translator से आते हैं)। सिर्फ़ Google इस्तेमाल करने के लिए इसे बंद करें।",
+  "onboardingServiceViaDuckDuckGo": "DuckDuckGo के ज़रिए",
+  "onboardingServiceViaDuckDuckGoTooltip": "Google अभी इस सर्वर पर अनुवाद नहीं करता। DuckDuckGo करता है, और Google विफल होने पर ऐप उसे इस्तेमाल करता है।",
+  "commonSetUpOnDeviceAi": "डिवाइस पर AI सेट अप करें",
+  "proofreadEmptyBodyOnDevice": "व्याकरण, वर्तनी और शैली जांचने के लिए इसी फ़ोन पर चलने वाला AI मॉडल डाउनलोड करें, या OpenAI-संगत, Anthropic, Gemini या Ollama प्रोवाइडर जोड़ें। Hy-MT या TranslateGemma जैसे खास अनुवाद मॉडल प्रूफ़रीड नहीं कर सकते।",
+  "dictionaryNoEngineBodyOnDevice": "शब्द खोजने के लिए इसी फ़ोन पर चलने वाला AI मॉडल डाउनलोड करें, या OpenAI-संगत, Anthropic, Gemini या Ollama प्रोवाइडर जोड़ें। Hy-MT या TranslateGemma जैसे खास अनुवाद मॉडल इस्तेमाल नहीं किए जा सकते।",
+  "dictionaryNoSourceBodyOnDevice": "बिना नेटवर्क के शब्द खोजने के लिए कोई शब्दकोश डाउनलोड करें, या डिवाइस पर AI या कोई AI प्रोवाइडर सेट अप करें।"
 }

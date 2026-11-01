@@ -58,6 +58,10 @@ self-hostable **Mozhi** translation instances plus an **AI translator**
   locales).
 - All user-facing app strings go through `context.l10n.<key>`
   (`package:mozhi/l10n/l10n.dart`).
+- Show language names with `context.languageName(language)` /
+  `context.languageNameOf(code)` (CLDR names in the UI language), never
+  `language.name` in the UI; `language.name` (English) is for prompts,
+  engines and storage.
 - Add keys with the lock-safe helper (it also regenerates the code):
   `python3 tool/l10n_add.py '{"translateSwap": "Swap languages"}'`
   Prefix keys by feature (`translate*`, `history*`, `settings*`,

@@ -32,7 +32,13 @@ nothing is sent anywhere. The AI entry becomes an optional **More detail**.
   against the size and SHA-256 the app ships with before it is installed,
   whichever server sends it, so a mirror is not trusted with anything.
   GitHub's release downloads send no CORS headers, so **the web app needs
-  a same-origin mirror** for packs. Before a download (or a pack received
+  a same-origin mirror** for packs: the release's web zip does not carry
+  them (they are too large), and on a server whose `models/dictionary/`
+  has no `index.json` (written by `tool/mirror_models.py`) the
+  Dictionaries screen says *This web server doesn't host the downloads*
+  once, with **Import from files** and a link to
+  [mirroring](self-hosting-mozhi.md#mirror-the-on-device-models), instead
+  of offering downloads that would fail. Before a download (or a pack received
   from another phone) the app checks the free space: the pack's size plus
   a margin of 5 %, at least 50 MB (in a browser, what its storage quota
   leaves); without enough room nothing is downloaded and the screen says
@@ -56,8 +62,13 @@ nothing is sent anywhere. The AI entry becomes an optional **More detail**.
   inflected form finds its lemma (`went` shows `go`, saying so). When the
   packs don't have the word, the dictionary asks the AI provider as before;
   without one, it suggests words of the packs that start alike.
+- **Definitions in English**: every pack of the current release explains
+  its words in English (its catalogue entry's `glossLanguage`, `en`, from
+  the English Wiktionary), and says so: under each pack on the
+  Dictionaries screen and in an entry's credit line, with the language's
+  name in the app's language.
 - **Credit**: entries from a pack are labelled **From Wiktionary · CC BY-SA
-  4.0** instead of **AI-generated**; the label opens the attribution (who
+  4.0 · Definitions in English** instead of **AI-generated**; the label opens the attribution (who
   wrote the data, where it comes from, what was changed, the date) with
   links to the licence and the source.
 - **Translate**: the panel under a translation of one to three words shows
@@ -137,11 +148,19 @@ Other commands:
 - `dump PACK [WORD...]` prints a pack's metadata and looks words up, as
   the app would.
 
-**Sizes** (estimates until the first release measures them; the job's
-summary lists the real ones): a few MB for a language with tens of
-thousands of entries, about 15-40 MB for the largest (English, with its
-translation tables, and the big European languages). The key index is a
-small part of it; most of a pack is entries.
+**Sizes** of the release `dictionary-packs-2026-10-31` (the download, in
+MB; the job's summary lists them for every release):
+
+| Pack | MB | Pack | MB | Pack | MB | Pack | MB |
+| --- | ---: | --- | ---: | --- | ---: | --- | ---: |
+| Hindi `hi` | 3.1 | Arabic `ar` | 6.1 | Portuguese `pt` | 8.3 | German `de` | 15.5 |
+| Korean `ko` | 4.5 | Swedish `sv` | 6.3 | Spanish `es` | 11.4 | Chinese `zh` | 16.1 |
+| Greek `el` | 4.6 | Dutch `nl` | 6.4 | Japanese `ja` | 11.4 | Polish `pl` | 16.2 |
+| Czech `cs` | 5.4 | Ukrainian `uk` | 6.7 | Italian `it` | 11.5 | Finnish `fi` | 42.6 |
+| Turkish `tr` | 5.4 | French `fr` | 8.1 | Russian `ru` | 12.6 | English `en` | 114.6 |
+
+About 317 MB for all 20. The key index is a small part of a pack; most of
+it is entries (English also carries its translation tables).
 
 **Tests**: `python3 tool/dictionary_packs_test.py` builds packs from the
 hand-written extracts in `tool/dictionary_packs_fixtures/` (the same JSONL

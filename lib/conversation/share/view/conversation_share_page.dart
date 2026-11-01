@@ -475,7 +475,7 @@ class _GuestChip extends StatelessWidget {
     final l10n = context.l10n;
     final label =
         '${l10n.conversationShareGuestLabel(guest.number)} · '
-        '${guest.language.name}';
+        '${context.languageName(guest.language)}';
     return Semantics(
       container: true,
       label: guest.connected ? label : l10n.conversationShareGuestAway(label),
@@ -509,7 +509,7 @@ class _LanguageRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
-    final name = language.language.name;
+    final name = context.languageName(language.language);
     final consent = language.consent;
     final text = switch (language.mode) {
       ShareLanguageMode.engine => l10n.conversationShareLanguageEngine(

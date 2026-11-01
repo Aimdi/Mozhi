@@ -378,9 +378,14 @@ class SettingsCubit extends Cubit<AppSettings> {
       _apply(state.copyWith(maskPersonalData: enabled));
 
   /// "If Google fails, use DuckDuckGo"
-  /// (`AppSettings.fallbackToDuckDuckGo`).
-  void setFallbackToDuckDuckGo({required bool enabled}) =>
-      _apply(state.copyWith(fallbackToDuckDuckGo: enabled));
+  /// (`AppSettings.fallbackToDuckDuckGo`), as the user's own choice
+  /// (`AppSettings.fallbackToDuckDuckGoChosen`), which a later start keeps.
+  void setFallbackToDuckDuckGo({required bool enabled}) => _apply(
+    state.copyWith(
+      fallbackToDuckDuckGo: enabled,
+      fallbackToDuckDuckGoChosen: true,
+    ),
+  );
 
   /// Where on-device models are downloaded from
   /// (`AppSettings.modelSource`).

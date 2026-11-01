@@ -20,11 +20,11 @@ It reads the catalogues the app ships (exactly the files it can ask for):
   whisper    packages/whisper_speech/assets/models.json (Hugging Face)
   tesseract  packages/tesseract_ocr/assets/catalog.json (GitHub)
   dictionary lib/dictionary/data/dictionary_catalog_data.dart (the
-             dictionary packs of a GitHub release; empty until the first
-             one, see docs/dictionary-packs.md)
+             dictionary packs of a GitHub release, see
+             docs/dictionary-packs.md)
   phrasebook lib/phrasebook/data/starter_catalog_data.dart (the starter
-             phrasebooks of a GitHub release; empty until the first one,
-             see docs/phrasebook.md)
+             phrasebooks of a GitHub release, see docs/phrasebook.md;
+             the release's web zip carries them: --only phrasebook)
   llm        packages/llama_engine/assets/models.json (the on-device AI
              models, GGUF files on Hugging Face pinned to a commit; see
              docs/on-device-ai.md)
@@ -40,6 +40,20 @@ each file as published under its original name:
   OUT/dictionary/<id>.mzd
   OUT/phrasebooks/<id>.json.gz
   OUT/llm/<name>.gguf
+
+and, in every folder that has files of the catalogues, an index of what
+is in place (all catalogue files, not only the ones of this run):
+
+  OUT/<folder>/index.json   {"schemaVersion": 1, "kind": "phrasebook",
+                             "items": ["ja", "pt"]}
+
+`items` are the Bergamot directions (en-de), Whisper and on-device AI
+model ids, Tesseract codes and pack ids whose files are all there (with
+their catalogue size; each was verified when it was downloaded). The web
+app reads the index of its own server's `models/` to tell its users when
+the server does not host a kind of download; it is rewritten on every run
+(not with --list or --verify), so run the tool again after copying files
+in by hand.
 
 Point the app at the directory's URL (Settings > Translation engines >
 Model source > Custom mirror, e.g. https://example.org/models/; the web
@@ -107,6 +121,17 @@ DICTIONARY = REPO_ROOT / "lib/dictionary/data/dictionary_catalog_data.dart"
 PHRASEBOOK = REPO_ROOT / "lib/phrasebook/data/starter_catalog_data.dart"
 LLM = REPO_ROOT / "packages/llama_engine/assets/models.json"
 KINDS = ("bergamot", "whisper", "tesseract", "dictionary", "phrasebook", "llm")
+# Each kind's folder in the mirror (the app's `MirrorDataKind.folder`).
+FOLDERS = {
+    "bergamot": "bergamot",
+    "whisper": "whisper",
+    "tesseract": "tesseract",
+    "dictionary": "dictionary",
+    "phrasebook": "phrasebooks",
+    "llm": "llm",
+}
+INDEX = "index.json"
+INDEX_SCHEMA = 1
 USER_AGENT = "Mozhi model mirror (+https://github.com/Aimdi/Mozhi)"
 ATTEMPTS = 3
 RETRY_DELAY = 1.0
@@ -508,6 +533,60 @@ def _fetch(file: MirrorFile, part: Path) -> None:
         raise ConnectionError(f"connection closed after {received} bytes")
 
 
+_FILES_OF = {
+    "bergamot": bergamot_files,
+    "whisper": whisper_files,
+    "tesseract": tesseract_files,
+    "dictionary": dictionary_files,
+    "phrasebook": phrasebook_files,
+    "llm": llm_files,
+}
+
+
+def _in_place(root: Path, file: MirrorFile) -> bool:
+    try:
+        return _target(root, file).stat().st_size == file.size
+    except OSError:
+        return False
+
+
+def write_indexes(root: Path, catalogs: dict[str, dict]) -> dict[str, list[str]]:
+    """Writes `<folder>/index.json` for every kind with files in place under
+    [root] (and for a kind whose earlier index is there, now maybe empty):
+    the labels whose files are all there with their catalogue size. Returns
+    the items by kind of the indexes written."""
+    written: dict[str, list[str]] = {}
+    for kind in KINDS:
+        try:
+            files = _FILES_OF[kind](catalogs[kind])
+        except CatalogError:
+            # A catalogue the run did not select may be invalid: no index.
+            continue
+        present: dict[str, bool] = {}
+        for file in files:
+            present[file.label] = present.get(file.label, True) and _in_place(
+                root, file
+            )
+        items = sorted(label for label, here in present.items() if here)
+        folder = root / FOLDERS[kind]
+        index = folder / INDEX
+        if not items and not index.exists():
+            continue
+        folder.mkdir(parents=True, exist_ok=True)
+        part = index.with_name(INDEX + ".part")
+        part.write_text(
+            json.dumps(
+                {"schemaVersion": INDEX_SCHEMA, "kind": kind, "items": items},
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        os.replace(part, index)
+        written[kind] = items
+    return written
+
+
 def human(size: float) -> str:
     for unit in ("B", "KB", "MB", "GB"):
         if size < 1000 or unit == "GB":
@@ -585,7 +664,8 @@ def parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     try:
-        files = select(args, load_catalogs(args))
+        catalogs = load_catalogs(args)
+        files = select(args, catalogs)
     except CatalogError as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
@@ -624,6 +704,8 @@ def main(argv: list[str] | None = None) -> int:
 
     with ThreadPoolExecutor(max_workers=max(1, args.jobs)) as pool:
         list(pool.map(run, files))
+    for kind, items in write_indexes(root, catalogs).items():
+        print(f"  {FOLDERS[kind]}/{INDEX}: {len(items)} item(s)")
     print(
         f"{len(report.downloaded)} downloaded, {len(report.skipped)} already "
         f"in place, {len(report.failed)} failed"

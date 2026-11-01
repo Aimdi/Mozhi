@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/presets/models/glossary.dart';
+import 'package:mozhi/translate/widgets/language_search.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 /// Searchable sheet of [LanguageCatalog.all] plus "Any language". Completes
@@ -48,14 +49,15 @@ class _LanguageScopePickerState extends State<LanguageScopePicker> {
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final needle = _query.trim().toLowerCase();
-    final languages = [
+    final languages = sortLanguagesByName([
       for (final language in LanguageCatalog.all)
         if (needle.isEmpty ||
             language.name.toLowerCase().contains(needle) ||
+            context.languageName(language).toLowerCase().contains(needle) ||
             (language.nativeName?.toLowerCase().contains(needle) ?? false) ||
             language.code.toLowerCase() == needle)
           language,
-    ];
+    ], context.languageName);
     final showAny =
         needle.isEmpty ||
         l10n.glossariesAnyLanguage.toLowerCase().contains(needle);
@@ -105,8 +107,9 @@ class _LanguageScopePickerState extends State<LanguageScopePicker> {
                 for (final language in languages)
                   _LanguageTile(
                     key: Key('language_scope_${language.code}'),
-                    title: language.name,
-                    subtitle: language.nativeName == language.name
+                    title: context.languageName(language),
+                    subtitle:
+                        language.nativeName == context.languageName(language)
                         ? null
                         : language.nativeName,
                     selected: _isSelected(language.code),

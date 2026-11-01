@@ -287,10 +287,13 @@ void main() {
         await _open(tester, pairs: [_pairs.first]);
         await tester.binding.setLocale('ar', '');
         await tester.pumpAndSettle();
-        final label = find.textContaining('\u2068English\u2069');
+        // The names are Arabic too ("English", "French").
+        const english = 'الإنجليزية';
+        const french = 'الفرنسية';
+        final label = find.textContaining('\u2068$english\u2069');
         expect(label, findsOneWidget);
         final text = tester.widget<Text>(label).data!;
-        expect(text, '\u2068English\u2069 ← \u2068French\u2069');
+        expect(text, '\u2068$english\u2069 ← \u2068$french\u2069');
         final paragraph = tester.renderObject<RenderParagraph>(
           find.descendant(of: label, matching: find.byType(RichText)),
         );
@@ -310,8 +313,8 @@ void main() {
 
         // Read right to left: English, then the arrow pointing (left) at
         // French.
-        expect(left('English'), greaterThan(left('←')));
-        expect(left('←'), greaterThan(left('French')));
+        expect(left(english), greaterThan(left('←')));
+        expect(left('←'), greaterThan(left(french)));
       },
     );
 

@@ -306,11 +306,18 @@ class _LanguagePairState extends State<_LanguagePair> {
         final List<LanguageLabelForm> sourceForms;
         var sourceTooltip = '';
         if (!state.source.isAuto) {
-          sourceDescription = state.source.name;
-          sourceForms = languageLabelForms(state.source);
+          sourceDescription = context.languageName(state.source);
+          sourceForms = languageLabelForms(
+            state.source,
+            name: sourceDescription,
+          );
         } else if (detected != null) {
           // The sparkle icon marks it as detected; keep the label short.
-          final name = languageNameFor(detected, state.sourceLanguages);
+          final name = localizedLanguageNameFor(
+            context,
+            detected,
+            state.sourceLanguages,
+          );
           sourceDescription = uncertain
               ? l10n.translateDetectedLanguageUncertain(name)
               : l10n.translateDetectedLanguage(name);
@@ -353,13 +360,14 @@ class _LanguagePairState extends State<_LanguagePair> {
               onPressed: () => pickTranslateLanguage(context, source: true),
             );
             final swap = _SwapButton(enabled: state.canSwap);
+            final targetName = context.languageName(state.target);
             final targetButton = _LanguageButton(
               key: const Key('translate_target_button'),
-              forms: languageLabelForms(state.target),
+              forms: languageLabelForms(state.target, name: targetName),
               slideFrom: AxisDirection.left,
               travel: travel,
-              semanticLabel: l10n.translateTargetLanguage(state.target.name),
-              tooltip: state.target.name,
+              semanticLabel: l10n.translateTargetLanguage(targetName),
+              tooltip: targetName,
               target: true,
               onPressed: () => pickTranslateLanguage(context, source: false),
             );
@@ -427,22 +435,25 @@ List<String> languageShortNames(String code) {
 }
 
 /// What the [LanguageBar] shows for [language], in order of preference:
-/// the name, then its short forms ([languageShortNames]; none for custom
-/// languages), then only [icon] (custom languages: the sparkle) or nothing
-/// but the chevron. With an [icon] (a detection), the short forms are also
-/// tried without it before the icon alone: the language tells more than
-/// the marker. Each form also goes without the chevron before the next one
-/// is tried (see [_LanguageButton]).
+/// the name ([name], by default [Language.name]; the bar passes the one in
+/// the UI language, `context.languageName`), then its short forms
+/// ([languageShortNames]; none for custom languages), then only [icon]
+/// (custom languages: the sparkle) or nothing but the chevron. With an
+/// [icon] (a detection), the short forms are also tried without it before
+/// the icon alone: the language tells more than the marker. Each form also
+/// goes without the chevron before the next one is tried (see
+/// [_LanguageButton]).
 List<LanguageLabelForm> languageLabelForms(
   Language language, {
   IconData? icon,
+  String? name,
 }) {
   final marker = icon ?? (language.isCustom ? Icons.auto_awesome : null);
   final shorts = language.isCustom
       ? const <String>[]
       : languageShortNames(language.code);
   return [
-    (icon: marker, text: language.name),
+    (icon: marker, text: name ?? language.name),
     for (final short in shorts) (icon: marker, text: short),
     if (marker != null)
       for (final short in shorts) (icon: null, text: short),

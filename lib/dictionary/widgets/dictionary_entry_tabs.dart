@@ -419,7 +419,7 @@ class _MeaningPage extends StatelessWidget {
               if (sense.translations.isNotEmpty && target != null) ...[
                 const SizedBox(height: 12),
                 Text(
-                  l10n.dictionaryTranslationsIn(target.name),
+                  l10n.dictionaryTranslationsIn(context.languageName(target)),
                   textAlign: TextAlign.center,
                   style: theme.textTheme.labelMedium?.copyWith(color: muted),
                 ),

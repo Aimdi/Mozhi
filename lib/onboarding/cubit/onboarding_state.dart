@@ -15,17 +15,30 @@ enum OnboardingStep { welcome, privacy, languages, service }
 /// Outcome of pinging one Mozhi instance: translating a test word
 /// (`TranslationRepository.pingInstance`). [noTranslation]: the server
 /// answered but its engine did not translate (an HTTP 5xx error, or no
-/// translation); [failure]: it could not be reached or refused.
+/// translation); [failure]: it could not be reached or refused. A
+/// [success] may have come from the DuckDuckGo fallback
+/// ([InstancePing.fallbackEngine]).
 enum PingStatus { pending, success, failure, timedOut, noTranslation }
 
 /// Speed test of a single instance (see `OnboardingCubit`).
 class InstancePing extends Equatable {
-  const new({required this.status, this.latency, this.error});
+  const new({
+    required this.status,
+    this.latency,
+    this.error,
+    this.fallbackEngine,
+  });
 
   const new pending() : this(status: PingStatus.pending);
 
-  const new success(Duration latency)
-    : this(status: PingStatus.success, latency: latency);
+  /// The server translated the test word in [latency]; with [fallbackEngine]
+  /// when only that engine did (the tested one failed there).
+  const new success(Duration latency, {String? fallbackEngine})
+    : this(
+        status: PingStatus.success,
+        latency: latency,
+        fallbackEngine: fallbackEngine,
+      );
 
   const new failure(String error)
     : this(status: PingStatus.failure, error: error);
@@ -44,10 +57,19 @@ class InstancePing extends Equatable {
   /// [PingStatus.noTranslation].
   final String? error;
 
+  /// The Mozhi engine that translated the test word instead of the tested
+  /// one (`duckduckgo`, the app's "If Google fails, use DuckDuckGo"): the
+  /// server works, through that engine. Null when the tested engine
+  /// translated (or the ping did not succeed).
+  final String? fallbackEngine;
+
   bool get isSuccess => status == PingStatus.success;
 
+  /// Whether the server translated only with [fallbackEngine].
+  bool get viaFallback => isSuccess && fallbackEngine != null;
+
   @override
-  List<Object?> get props => [status, latency, error];
+  List<Object?> get props => [status, latency, error, fallbackEngine];
 }
 
 /// Progress of "find the fastest instance".
@@ -155,19 +177,31 @@ class OnboardingState extends Equatable {
   /// Whether [step] is the last page of the flow.
   bool get isLastStep => step == steps.last;
 
-  /// Fastest successfully pinged instance (null when none answered).
+  /// Fastest successfully pinged instance (null when none answered):
+  /// the fastest one whose tested engine translates, else the fastest one
+  /// that translates through the DuckDuckGo fallback
+  /// ([InstancePing.viaFallback]; see [comparePings]).
   String? get fastestUrl {
     String? fastest;
-    Duration? best;
+    InstancePing? best;
     for (final MapEntry(key: url, value: ping) in pings.entries) {
-      final latency = ping.latency;
-      if (!ping.isSuccess || latency == null) continue;
-      if (best == null || latency < best) {
-        best = latency;
+      if (!ping.isSuccess || ping.latency == null) continue;
+      if (best == null || comparePings(ping, best) < 0) {
+        best = ping;
         fastest = url;
       }
     }
     return fastest;
+  }
+
+  /// Orders two successful pings ([InstancePing.latency] set): one whose
+  /// tested engine translated comes before one that only translated
+  /// through the fallback (every translation asks the tested engine on
+  /// each server first, so a server where it fails only adds a failed
+  /// request in front), then the faster one.
+  static int comparePings(InstancePing a, InstancePing b) {
+    if (a.viaFallback != b.viaFallback) return a.viaFallback ? 1 : -1;
+    return a.latency!.compareTo(b.latency!);
   }
 
   /// True when every ping finished and none succeeded.

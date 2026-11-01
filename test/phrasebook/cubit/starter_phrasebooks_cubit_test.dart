@@ -134,6 +134,67 @@ void main() {
     expect(item.copyWith(space: () => null).space, isNull);
     await cubit.close();
   });
+  group('StarterPhrasebooksState.itemsFor', () {
+    StarterPhrasebookItem item(
+      String language, {
+      String base = 'en',
+      bool installed = false,
+    }) {
+      final info = StarterPhrasebookInfo(
+        id: language,
+        language: language,
+        baseLanguage: base,
+        name: language,
+        url: Uri.parse('https://example.org/$language.json.gz'),
+        size: 1,
+        sha256: '0' * 64,
+        phrases: 1,
+        revision: 1,
+      );
+      return StarterPhrasebookItem(
+        info: info,
+        installed: installed
+            ? InstalledStarterPhrasebook(
+                id: language,
+                language: language,
+                baseLanguage: base,
+                name: language,
+                sha256: '0' * 64,
+                size: 1,
+                phrases: 1,
+                installedAt: DateTime(2026),
+              )
+            : null,
+      );
+    }
+
+    test("leaves out the phrasebooks of the app's language", () {
+      final state = StarterPhrasebooksState(
+        loading: false,
+        items: [item('de'), item('fr'), item('pt')],
+      );
+      List<String> ids(String appLanguage) => [
+        for (final item in state.itemsFor(appLanguage)) item.info.id,
+      ];
+      expect(ids('de'), ['fr', 'pt']);
+      expect(ids('de-AT'), ['fr', 'pt']);
+      expect(ids('pt_BR'), ['de', 'fr']);
+      expect(ids('en'), ['de', 'fr', 'pt']);
+      expect(ids('ja'), ['de', 'fr', 'pt']);
+    });
+
+    test('keeps an installed one and one for speakers of it', () {
+      final state = StarterPhrasebooksState(
+        loading: false,
+        items: [
+          item('de', installed: true),
+          item('pt'),
+          item('de', base: 'de'),
+        ],
+      );
+      expect(state.itemsFor('de'), hasLength(3));
+    });
+  });
 }
 
 /// A store that is full.

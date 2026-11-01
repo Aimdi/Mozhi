@@ -97,7 +97,7 @@ class _ConversationHeroState extends State<ConversationHero> {
             ),
             const SizedBox(height: 12),
             Text(
-              l10n.conversationHeroMicLanguage(language.name),
+              l10n.conversationHeroMicLanguage(context.languageName(language)),
               textAlign: TextAlign.center,
               style: theme.textTheme.labelLarge?.copyWith(
                 color: AppPalette.of(context).secondaryText,

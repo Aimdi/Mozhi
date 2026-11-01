@@ -15,7 +15,7 @@ String pairingItemTitle(
 }) {
   String name() {
     final code = language ?? item.key;
-    return LanguageCatalog.byCode(code)?.name ?? code;
+    return languageDisplayNameOf(code, l10n.localeName);
   }
 
   return switch (item.kind) {

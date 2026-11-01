@@ -20,16 +20,21 @@ String conversationSessionStatus(
     heard.trim(),
   ConversationSessionListening(:final side, detectsLanguage: true) =>
     l10n.conversationSessionListeningEither(
-      state.languageOf(side).name,
+      languageNameIn(l10n, state.languageOf(side)),
       state.languageOf(side.other).name,
     ),
   ConversationSessionListening(:final side) =>
-    l10n.conversationSessionListening(state.languageOf(side).name),
+    l10n.conversationSessionListening(
+      languageNameIn(l10n, state.languageOf(side)),
+    ),
   ConversationSessionTranslating() => l10n.conversationTranslating,
   ConversationSessionSpeaking(:final turnId, :final next) =>
     l10n.conversationSessionSpeaking(
-      (turnId == null ? null : state.turnById(turnId))?.target.name ??
-          state.languageOf(next.other).name,
+      languageNameIn(
+        l10n,
+        (turnId == null ? null : state.turnById(turnId))?.target ??
+            state.languageOf(next.other),
+      ),
     ),
   ConversationSessionPaused(:final reason) => switch (reason) {
     ConversationPauseReason.silence => l10n.conversationSessionPausedSilence,

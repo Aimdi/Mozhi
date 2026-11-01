@@ -2,10 +2,15 @@ import 'dart:async';
 
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/core/widgets/on_device_ai_setup_button.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/view/widgets/empty_state_view.dart';
 
-/// Shown when no AI provider is configured: proofreading needs an LLM.
+/// Shown when no AI engine that can proofread is configured: proofreading
+/// needs an LLM with the general prompt profile (dedicated translation
+/// models can't do it). Offers "Add AI provider" and, where on-device AI
+/// runs and a model fits the phone ([offersOnDeviceAiSetup]), "Set up
+/// on-device AI" first.
 class ProofreadEmptyState extends StatelessWidget {
   const new({super.key});
 
@@ -15,18 +20,41 @@ class ProofreadEmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final onDevice = offersOnDeviceAiSetup(context);
+    void addProvider() => unawaited(context.push<void>(providersRoute));
     return Center(
       child: SingleChildScrollView(
         child: EmptyStateView(
           icon: Icons.spellcheck,
           title: l10n.proofreadEmptyTitle,
-          body: l10n.proofreadEmptyBody,
-          action: FilledButton.icon(
-            // Above the tabs: back returns to proofreading.
-            onPressed: () => unawaited(context.push<void>(providersRoute)),
-            icon: const Icon(Icons.add),
-            label: Text(l10n.proofreadEmptyAction),
-          ),
+          body: onDevice
+              ? l10n.proofreadEmptyBodyOnDevice
+              : l10n.proofreadEmptyBody,
+          // Above the tabs: back returns to proofreading.
+          action: onDevice
+              ? Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    const OnDeviceAiSetupButton(
+                      key: Key('proofread_set_up_on_device_ai'),
+                      filled: true,
+                    ),
+                    OutlinedButton.icon(
+                      key: const Key('proofread_add_provider'),
+                      onPressed: addProvider,
+                      icon: const Icon(Icons.add),
+                      label: Text(l10n.proofreadEmptyAction),
+                    ),
+                  ],
+                )
+              : FilledButton.icon(
+                  key: const Key('proofread_add_provider'),
+                  onPressed: addProvider,
+                  icon: const Icon(Icons.add),
+                  label: Text(l10n.proofreadEmptyAction),
+                ),
         ),
       ),
     );
