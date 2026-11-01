@@ -61,9 +61,7 @@ in `-rc.N`).
   leaving a running document translation asks first; a shared file that
   is too large or unreadable says so; the share sheet offers Mozhi for
   .po, .xliff, .arb and .strings files and for several items.
-- Web: the address bar follows Settings, History and their pages (reload
-  and Back work), shared text is no longer translated again on every
-  reload, onboarding no longer offers downloads the server doesn't host,
+- Web: shared text is no longer translated again on every reload, onboarding no longer offers downloads the server doesn't host,
   the first visit downloads about 20 MB less, and browsers without speech
   recognition show the microphone as unavailable up front.
 - German (and other languages): full labels in the Terminal bottom bar and

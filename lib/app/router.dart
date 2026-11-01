@@ -365,15 +365,6 @@ abstract final class DeferredFeatures {
 /// translation engine on its own.
 enum WebPageLaunch { load }
 
-/// In the web app ([isWeb]), makes pages opened with `push` (History,
-/// Settings and its pages, the image and document translators...) change
-/// the address too ([GoRouter.optionURLReflectsImperativeAPIs]): a reload
-/// then shows the page the user was on, and the browser's Back goes to the
-/// one before it. Elsewhere there is no address bar.
-void reflectPushedPagesInUrl({bool isWeb = kIsWeb}) {
-  if (isWeb) GoRouter.optionURLReflectsImperativeAPIs = true;
-}
-
 /// Called when a location carries a [TranslateLink].
 typedef TranslateLinkCallback = void Function(TranslateLink link);
 
@@ -442,9 +433,6 @@ typedef LaunchRedirect = String? Function(String location);
 /// [AppRoutes.screenTranslate]; other app locations (a fix such as the
 /// offline languages) open in the main window instead
 /// ([screenTranslateWindowRedirect]). The other windows never show it.
-///
-/// In the web app pushed pages show in the address bar too
-/// ([reflectPushedPagesInUrl]).
 GoRouter createAppRouter({
   TranslateLinkCallback? onTranslateLink,
   LaunchRedirect? launchRedirect,
@@ -453,7 +441,6 @@ GoRouter createAppRouter({
   bool? quickTranslateWindow,
   ScreenTranslateHost? screenTranslateHost,
 }) {
-  reflectPushedPagesInUrl();
   final rootKey = navigatorKey ?? GlobalKey<NavigatorState>();
   final inQuickWindow =
       quickTranslateWindow ?? QuickTranslateHost.instance.isActive;

@@ -867,15 +867,6 @@ void main() {
       });
     });
 
-    test('pushed pages show in the address of the web app', () {
-      addTearDown(() => GoRouter.optionURLReflectsImperativeAPIs = false);
-      GoRouter.optionURLReflectsImperativeAPIs = false;
-      reflectPushedPagesInUrl(isWeb: false);
-      expect(GoRouter.optionURLReflectsImperativeAPIs, isFalse);
-      reflectPushedPagesInUrl(isWeb: true);
-      expect(GoRouter.optionURLReflectsImperativeAPIs, isTrue);
-    });
-
     WebTranslateState webState(WidgetTester tester) => tester
         .element(find.byType(WebTranslateView))
         .read<WebTranslateCubit>()
