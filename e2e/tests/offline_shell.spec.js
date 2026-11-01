@@ -77,7 +77,11 @@ async function importGerman(page) {
   await openApp(page, '/settings/offline');
   await skipWithoutOnDeviceEngine(page);
   const chooser = page.waitForEvent('filechooser');
-  await page.getByRole('button', { name: /^Import from files/ }).click();
+  // The row, not the banner's button of the same name (shown when this web
+  // server does not host the models, as here).
+  await page
+    .getByRole('button', { name: /^Import from files\s+Install/ })
+    .click();
   await (await chooser).setFiles(modelFiles());
   const dialog = page.getByRole('alertdialog');
   await expect(dialog.getByText('Models imported')).toBeVisible({
