@@ -21,6 +21,7 @@ const { expect } = require('@playwright/test');
 const {
   collectPageErrors,
   copiedTranslation,
+  fillField,
   openApp,
   seedSettings,
   skipWithoutOnDeviceEngine,
@@ -91,8 +92,15 @@ async function importGerman(page) {
   await expect(dialog.getByText(/^Installed \W?German\W? → /)).toBeVisible();
   await expect(dialog.getByText(/^Installed \W?English\W? → /)).toBeVisible();
   await dialog.getByRole('button', { name: 'Close' }).click();
+  // The list is lazy (and the banner takes room): find the row first. It is
+  // a group, or a button when it also opens the files to download by hand.
+  await fillField(
+    page.getByRole('searchbox', { name: 'Search languages' }),
+    'German',
+  );
+  const name = /^Delete German .*on this device/;
   await expect(
-    page.getByRole('button', { name: /^Delete German .*on this device/ }),
+    page.getByRole('button', { name }).or(page.getByRole('group', { name })),
   ).toBeVisible();
 }
 
