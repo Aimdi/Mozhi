@@ -1,0 +1,5 @@
+• Nakijken zoals DeepL Write: toon (enthousiast, vriendelijk, zelfverzekerd, diplomatiek) en tik op een zin voor andere formuleringen
+• ‘Verbeteren met Mozhi’ in het tekstselectiemenu van elke app
+• Gesprek: de microfoon werkt op telefoons zonder Google-diensten (spraakmodel op het apparaat)
+• DuckDuckGo-terugval gerepareerd voor 100+ talen; downloads annuleren en hervatten
+• Veel verbeteringen

@@ -1,0 +1,5 @@
+• Correzione come DeepL Write: toni (entusiasta, amichevole, sicuro, diplomatico) e tocca una frase per altre formulazioni
+• «Migliora con Mozhi» nel menu di selezione del testo di qualsiasi app
+• Conversazione: il microfono funziona senza servizi Google (modello vocale sul dispositivo)
+• Ripiego su DuckDuckGo corretto per oltre 100 lingue; download annullabili e riprendibili
+• Molte correzioni
