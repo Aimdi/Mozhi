@@ -153,6 +153,95 @@ abstract final class ResponseParsers {
     );
   }
 
+  /// The alternative phrasings of [span] (see [TranslationPrompts.rephrase]):
+  /// a JSON object with an `alternatives` list (or a similar name, or its
+  /// only list), or a plain JSON array, also in code fences. Items may be
+  /// strings or objects with a `text` field.
+  ///
+  /// The items are trimmed and freed of quotes wrapped around them (unless
+  /// [span] is quoted too); empty ones, ones equal to [span] (ignoring
+  /// whitespace) and duplicates (ignoring case and whitespace) are dropped,
+  /// and at most [count] are kept. Throws a [FormatException] when there is
+  /// no JSON.
+  static List<String> parseRephrasings(
+    String output, {
+    required String span,
+    int count = 3,
+  }) {
+    final value = _rephrasingJson(output);
+    final items = switch (value) {
+      final List<dynamic> list => list,
+      final Map<dynamic, dynamic> map => _findList(map, const [
+        'alternatives',
+        'rephrasings',
+        'phrasings',
+        'options',
+        'suggestions',
+        'items',
+      ]),
+      _ => const <dynamic>[],
+    };
+    final limit = count < 1 ? 1 : count;
+    final original = _comparable(span);
+    final seen = <String>{original};
+    final results = <String>[];
+    for (final item in items) {
+      if (results.length >= limit) break;
+      final raw = switch (item) {
+        final String s => s,
+        final Map<dynamic, dynamic> m => _string(m, const [
+          'text',
+          'alternative',
+          'rephrasing',
+          'phrasing',
+          'value',
+        ]),
+        _ => '',
+      };
+      final text = _unwrapQuotes(
+        PromptSanitizer.restoreTags(raw.trim(), original: span),
+        span.trim(),
+      ).trim();
+      if (text.isEmpty) continue;
+      if (!seen.add(_comparable(text))) continue;
+      results.add(text);
+    }
+    return results;
+  }
+
+  /// The JSON value of a rephrasing reply (see [_extractJson]), also a
+  /// plain array of strings ([_stringArray]).
+  static Object _rephrasingJson(String output) {
+    try {
+      return _extractJson(output);
+    } on FormatException {
+      if (_stringArray(output) case final list?) return list;
+      rethrow;
+    }
+  }
+
+  /// The first JSON array in [text] (whole, in a code fence, or from its
+  /// first `[` to its last `]`), or null.
+  static List<dynamic>? _stringArray(String text) {
+    final stripped = _stripThink(text).trim();
+    final candidates = [
+      stripped,
+      for (final fence in _jsonFence.allMatches(stripped)) fence.group(1)!,
+      if (stripped.indexOf('[') case final start when start >= 0)
+        if (stripped.lastIndexOf(']') case final end when end > start)
+          stripped.substring(start, end + 1),
+    ];
+    for (final candidate in candidates) {
+      if (_decode(candidate.trim()) case final List<dynamic> list) return list;
+    }
+    return null;
+  }
+
+  /// [text] for comparing phrasings: whitespace runs as one space, lower
+  /// case, trimmed.
+  static String _comparable(String text) =>
+      text.trim().replaceAll(RegExp(r'\s+'), ' ').toLowerCase();
+
   /// Drops insights whose `target` is not a substring of [translation].
   ///
   /// A `target` that only matches after trimming quotes/punctuation or

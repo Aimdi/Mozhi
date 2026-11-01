@@ -212,6 +212,35 @@ void main() {
       verify(() => cubit.setShowOriginal(showOriginal: false)).called(1);
     });
 
+    testWidgets('decodes the photo no larger than it is shown', (tester) async {
+      final cubit = mockImageCubit(
+        const ImageTranslateState(status: ImageTranslateStatus.ready)
+            .copyWith(image: () => jpegImage),
+      );
+      await harness.pumpWithCubit(
+        tester,
+        cubit,
+        child: const ImageTranslatePreview(),
+      );
+      final image = tester.widget<Image>(find.byType(Image));
+      expect(
+        image.image,
+        isA<ResizeImage>()
+            .having(
+              (i) => i.width,
+              'width',
+              ImageTranslatePreview.maxDecodedSide,
+            )
+            .having(
+              (i) => i.height,
+              'height',
+              ImageTranslatePreview.maxDecodedSide,
+            )
+            .having((i) => i.policy, 'policy', ResizeImagePolicy.fit)
+            .having((i) => i.imageProvider, 'image', isA<MemoryImage>()),
+      );
+    });
+
     testWidgets('shows a placeholder for undecodable images', (tester) async {
       final cubit = mockImageCubit(
         const ImageTranslateState(status: ImageTranslateStatus.ready)

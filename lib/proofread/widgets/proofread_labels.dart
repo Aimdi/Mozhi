@@ -17,6 +17,22 @@ extension ProofreadLabels on AppLocalizations {
     WritingStyle.email => proofreadStyleEmail,
   };
 
+  String proofreadWritingTone(WritingTone tone) => switch (tone) {
+    WritingTone.automatic => proofreadToneAutomatic,
+    WritingTone.enthusiastic => proofreadToneEnthusiastic,
+    WritingTone.friendly => proofreadToneFriendly,
+    WritingTone.confident => proofreadToneConfident,
+    WritingTone.diplomatic => proofreadToneDiplomatic,
+  };
+
+  String proofreadToneDescription(WritingTone tone) => switch (tone) {
+    WritingTone.automatic => proofreadToneAutomaticDescription,
+    WritingTone.enthusiastic => proofreadToneEnthusiasticDescription,
+    WritingTone.friendly => proofreadToneFriendlyDescription,
+    WritingTone.confident => proofreadToneConfidentDescription,
+    WritingTone.diplomatic => proofreadToneDiplomaticDescription,
+  };
+
   String proofreadCorrectionLevel(CorrectionLevel level) => switch (level) {
     CorrectionLevel.light => proofreadLevelLight,
     CorrectionLevel.standard => proofreadLevelStandard,

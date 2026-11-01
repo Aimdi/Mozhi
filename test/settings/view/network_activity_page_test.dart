@@ -456,6 +456,14 @@ void main() {
         egressDurationLabel(l10n, const Duration(milliseconds: 4200)),
         '4.2 s',
       );
+      // The decimal separator of the UI language.
+      expect(
+        egressDurationLabel(
+          lookupAppLocalizations(const Locale('de')),
+          const Duration(milliseconds: 4200),
+        ),
+        '4,2 s',
+      );
     });
 
     test('destination titles fall back to the host and port', () {

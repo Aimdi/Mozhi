@@ -12,6 +12,7 @@ import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
+import 'package:mozhi/translate/widgets/language_bar.dart' show FirstThatFits;
 import 'package:mozhi/translate/widgets/terminal_chrome.dart'
     show TerminalGlyphDot;
 
@@ -480,15 +481,21 @@ class _RailHeader extends StatelessWidget {
 }
 
 /// The label of a destination of the terminal look's navigation
-/// ([AppShell]): `<number>:<label>` in lower case on one line (cut with an
-/// ellipsis when long), on an accent block when [selected] (bold, in the
-/// accent's text colour), else in the secondary colour. Decoration: the
-/// destination's own label names it for screen readers.
+/// ([AppShell]): `<number>:<label>` in lower case on one line, on an accent
+/// block when [selected] (bold, in the accent's text colour), else in the
+/// secondary colour. Decoration: the destination's own label names it for
+/// screen readers.
+///
+/// Never cut with an ellipsis: it shows the first of [forms] that fits
+/// (`1:übersetzen`, then `übersetzen`, each also a size smaller, then
+/// shorter and shorter abbreviations `1:überset.`, …, and at last only the
+/// number).
 class TerminalNavLabel extends StatelessWidget {
   const new({
     required this.number,
     required this.label,
     required this.selected,
+    this.minHeight = 0,
     super.key,
   });
 
@@ -497,34 +504,77 @@ class TerminalNavLabel extends StatelessWidget {
   final String label;
   final bool selected;
 
+  /// The least height of the label (its text centred in it).
+  final double minHeight;
+
+  /// Horizontal padding of the label, inside its block.
+  static const double padding = 4;
+
+  /// Shortest abbreviation tried before only the number (in characters).
+  static const int _shortestAbbreviation = 2;
+
+  /// What the label may show, in order of preference: `<number>:<label>`,
+  /// the label alone, `<number>:<prefix>.` for shorter and shorter
+  /// prefixes of the label (by characters, down to two), and at last the
+  /// number alone. [label] in lower case.
+  static List<String> forms(int number, String label) {
+    final lower = label.toLowerCase();
+    final characters = lower.characters;
+    return [
+      '$number:$lower',
+      lower,
+      for (
+        var length = characters.length - 1;
+        length >= _shortestAbbreviation;
+        length--
+      )
+        '$number:${characters.take(length)}.',
+      '$number',
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    return ExcludeSemantics(
-      child: DecoratedBox(
-        key: selected ? const Key('terminal_nav_selected') : null,
-        decoration: BoxDecoration(
-          color: selected ? scheme.primary : Colors.transparent,
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-          child: Text(
-            '$number:${label.toLowerCase()}',
-            maxLines: 1,
-            softWrap: false,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.labelMedium?.copyWith(
-              fontSize: 12,
-              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-              color: selected
-                  ? scheme.onPrimary
-                  : AppPalette.of(context).secondaryText,
-            ),
-          ),
-        ),
+    final style = theme.textTheme.labelMedium?.copyWith(
+      fontSize: 12,
+      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+      color: selected ? scheme.onPrimary : AppPalette.of(context).secondaryText,
+    );
+    Widget block = DecoratedBox(
+      key: selected ? const Key('terminal_nav_selected') : null,
+      decoration: BoxDecoration(
+        color: selected ? scheme.primary : Colors.transparent,
+      ),
+      child: FirstThatFits(
+        children: [
+          for (final (index, form) in forms(number, label).indexed)
+            // The whole label also goes a size smaller before it is
+            // shortened.
+            for (final size in index < 2 ? const [12.0, 11.0] : const [12.0])
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: padding,
+                  vertical: 4,
+                ),
+                child: Text(
+                  form,
+                  maxLines: 1,
+                  softWrap: false,
+                  style: style?.copyWith(fontSize: size),
+                ),
+              ),
+        ],
       ),
     );
+    if (minHeight > 0) {
+      block = ConstrainedBox(
+        constraints: BoxConstraints(minHeight: minHeight),
+        child: Align(widthFactor: 1, child: block),
+      );
+    }
+    return ExcludeSemantics(child: block);
   }
 }
 
@@ -602,6 +652,10 @@ class _TerminalRail extends StatelessWidget {
   /// Width of the rail.
   static const double width = 128;
 
+  /// Least height of a label: with the rail's spacing above and below it
+  /// (12 dp in all), each destination is a 48 dp target.
+  static const double labelHeight = 36;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -650,11 +704,13 @@ class _TerminalRail extends StatelessWidget {
               number: index + 1,
               label: label,
               selected: false,
+              minHeight: labelHeight,
             ),
             selectedIcon: TerminalNavLabel(
               number: index + 1,
               label: label,
               selected: true,
+              minHeight: labelHeight,
             ),
             label: Text(label),
           ),

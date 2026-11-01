@@ -540,6 +540,32 @@ void main() {
     });
   });
 
+  group('rephrase', () {
+    test('masks the text and span and restores the alternatives', () async {
+      stubChat({
+        'alternatives': ['Please write to ⟨1⟩.', 'Write to ⟨1⟩.'],
+      });
+      final result = await repository.rephrase(
+        claude,
+        'Hi. Write to $email or call $phone.',
+        'Write to $email or call $phone.',
+      );
+      final sent = chats().single;
+      expectShielded(sent);
+      expect(userText(sent), contains('<span>\nWrite to ⟨1⟩ or call ⟨2⟩.'));
+      expect(result, ['Please write to $email.', 'Write to $email.']);
+    });
+
+    test('sends the text as written with the shield off', () async {
+      shieldOff();
+      stubChat({
+        'alternatives': ['Please write to $email.'],
+      });
+      await repository.rephrase(claude, 'Write to $email.', 'Write to $email.');
+      expectRaw(chats().single);
+    });
+  });
+
   group('translateImage', () {
     test('masks the options; the image goes as it is', () async {
       stubChat('Schreib an ⟨1⟩');

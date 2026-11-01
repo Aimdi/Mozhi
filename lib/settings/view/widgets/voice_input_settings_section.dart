@@ -15,6 +15,7 @@ import 'package:mozhi/voice/cubit/voice_settings_cubit.dart';
 import 'package:mozhi/voice/offline/offline_speech.dart';
 import 'package:mozhi/voice/speech_input_service.dart';
 import 'package:mozhi/voice/widgets/prefer_on_device_speech_tile.dart';
+import 'package:mozhi/voice/widgets/voice_model_cancel_button.dart';
 import 'package:translation_repository/translation_repository.dart'
     show PrivacyMode;
 import 'package:whisper_speech/whisper_speech.dart' show WhisperImportStatus;
@@ -382,7 +383,8 @@ class _ModelsHeader extends StatelessWidget {
   }
 }
 
-/// One speech model: download (with progress), delete, or tap to use it.
+/// One speech model: download (with progress and Cancel), delete, or tap
+/// to use it.
 class _ModelTile extends StatelessWidget {
   const new({
     required this.model,
@@ -425,7 +427,7 @@ class _ModelTile extends StatelessWidget {
           ].join(' · ');
     final Widget trailing;
     if (busy) {
-      trailing = SizedBox.square(
+      final ring = SizedBox.square(
         dimension: 48,
         child: Center(
           child: SizedBox.square(
@@ -438,6 +440,19 @@ class _ModelTile extends StatelessWidget {
           ),
         ),
       );
+      // A download can be stopped (and resumed later); a deletion cannot.
+      trailing = downloading
+          ? Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ring,
+                VoiceModelCancelButton(
+                  model: name,
+                  onPressed: () => cubit.cancel(model.id),
+                ),
+              ],
+            )
+          : ring;
     } else if (installed) {
       trailing = IconButton(
         key: Key('voice_model_delete_${model.id}'),

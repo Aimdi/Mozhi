@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:mozhi/core/key_value_store.dart';
+import 'package:mozhi/voice/browser_speech_recognition.dart';
 import 'package:mozhi/voice/speech_input_state.dart';
 import 'package:mozhi/voice/speech_locale_matcher.dart';
 import 'package:mozhi/voice/speech_recognizer_adapter.dart';
@@ -101,6 +102,15 @@ enum VoiceInputEngine {
 ///   [SpeechInputFailure.recognizerUnavailable]; [isOfflineSupported] says
 ///   whether downloading one would help).
 ///
+/// A platform recogniser that initialises but cannot be reached when it
+/// should listen (Android 12+ "has" one whenever the system names an
+/// on-device recogniser, even when no app provides it, e.g. on de-Googled
+/// phones; listening then ends at once with `error_client`) fails that
+/// session with [SpeechInputFailure.recognizerUnavailable] instead of
+/// ending it quietly: `error_client` before the recogniser ever heard
+/// anything (no sound level, no words since the app started). From then on
+/// sessions use the offline one when its model is installed.
+///
 /// The "Prefer on-device speech recognition" flag and [engine] are stored
 /// in the given `store` under [preferOnDeviceKey] and [engineKey].
 ///
@@ -115,7 +125,11 @@ enum VoiceInputEngine {
 /// browser's, which most browsers run on their maker's servers (Chrome:
 /// Google's): [needsBrowserNotice] says whether the user still has to be
 /// told so before the first session ([acceptBrowserNotice], stored under
-/// [browserNoticeKey]).
+/// [browserNoticeKey]). A browser without speech recognition (Firefox
+/// and its forks, [browserRecognizerMissing]) is reported as
+/// [SpeechInputUnavailable] with [SpeechInputFailure.recognizerUnavailable]
+/// from the start, so voice input shows as off before the first tap, and
+/// [listen] says so at once, without the notice.
 ///
 /// `timer` creates the timer of [listen]'s `pause` (default [Timer.new]);
 /// tests pass fake ones.
@@ -128,6 +142,7 @@ class SpeechInputService {
     bool? platformSupported,
     bool? onDeviceSupported,
     bool isWeb = kIsWeb,
+    bool? browserRecognizerAvailable,
     this.queryTimeout = defaultQueryTimeout,
     this.initializeTimeout = defaultInitializeTimeout,
     Timer Function(Duration duration, void Function() callback)? timer,
@@ -142,12 +157,22 @@ class SpeechInputService {
            (platformSupported ?? isSpeechInputPlatformSupported()) &&
            (onDeviceSupported ?? isOnDeviceSpeechSupported()),
        usesBrowserRecognizer =
-           isWeb && (platformSupported ?? isSpeechInputPlatformSupported()) {
+           isWeb && (platformSupported ?? isSpeechInputPlatformSupported()),
+       browserRecognizerMissing =
+           isWeb &&
+           (platformSupported ?? isSpeechInputPlatformSupported()) &&
+           !(browserRecognizerAvailable ?? browserHasSpeechRecognition()) {
     _current = _system;
-    _state = isPlatformSupported
-        ? const SpeechInputIdle()
-        : const SpeechInputUnavailable();
+    _state = !isPlatformSupported
+        ? const SpeechInputUnavailable()
+        : browserRecognizerMissing
+        ? _noBrowserRecognizer
+        : const SpeechInputIdle();
   }
+
+  static const _noBrowserRecognizer = SpeechInputUnavailable(
+    failure: SpeechInputFailure.recognizerUnavailable,
+  );
 
   /// [KeyValueStore] key of the on-device preference (`'true'`/`'false'`).
   static const preferOnDeviceKey = 'voice.preferOnDevice';
@@ -185,6 +210,11 @@ class SpeechInputService {
 
   /// Whether the platform recogniser is the browser's (the web app).
   final bool usesBrowserRecognizer;
+
+  /// Whether the browser has no speech recognition at all (the web app in
+  /// Firefox and its forks): voice input cannot work here, whatever the
+  /// settings (see the class docs).
+  final bool browserRecognizerMissing;
 
   /// The browser notice was accepted in this run (also when the store
   /// could not keep it).
@@ -285,7 +315,10 @@ class SpeechInputService {
   /// web app, until [acceptBrowserNotice]). False in Offline only, where
   /// the browser's recogniser is never used.
   Future<bool> needsBrowserNotice() async {
-    if (!usesBrowserRecognizer || _disposed || _browserNoticeAccepted) {
+    if (!usesBrowserRecognizer ||
+        browserRecognizerMissing ||
+        _disposed ||
+        _browserNoticeAccepted) {
       return false;
     }
     if (_privacyMode?.call() == PrivacyMode.offlineOnly) return false;
@@ -338,6 +371,10 @@ class SpeechInputService {
   /// tries again.
   Future<bool> initialize() async {
     if (!isPlatformSupported || _disposed) return false;
+    if (browserRecognizerMissing) {
+      _emit(_noBrowserRecognizer);
+      return false;
+    }
     final route = await _route();
     if (_disposed) return false;
     if (route.blocked != null) return false;
@@ -362,8 +399,13 @@ class SpeechInputService {
   /// since that is what the user can fix.
   Future<(_Recognizer, SpeechInputFailure?)> _prepare(_Route route) async {
     final recognizer = route.recognizer!;
-    final failure = await _initializeRecognizer(recognizer);
     final fallback = route.fallback;
+    if (recognizer.unreachable &&
+        fallback != null &&
+        await _isReady(fallback)) {
+      return (fallback, await _initializeRecognizer(fallback));
+    }
+    final failure = await _initializeRecognizer(recognizer);
     if (failure == SpeechInputFailure.recognizerUnavailable &&
         fallback != null &&
         await _isReady(fallback)) {
@@ -477,7 +519,7 @@ class SpeechInputService {
 
   /// Voice input is offered again (after a setting or the models changed).
   void _makeAvailableAgain() {
-    if (_disposed) return;
+    if (_disposed || browserRecognizerMissing) return;
     if (_state is SpeechInputUnavailable && isPlatformSupported) {
       _system.reset();
       _emit(const SpeechInputIdle());
@@ -603,6 +645,10 @@ class SpeechInputService {
     if (_activeSession != null || _finishingSession != null) await cancel();
     final session = ++_session;
     if (!isPlatformSupported) return false;
+    if (browserRecognizerMissing) {
+      _emit(_noBrowserRecognizer);
+      return false;
+    }
     final route = await _route();
     if (session != _session || _disposed) return false;
     if (route.blocked case final failure?) {
@@ -710,6 +756,7 @@ class SpeechInputService {
 
   void _onResult(int session, String text, {required bool isFinal}) {
     if (session != _session || _disposed) return;
+    _current.heard = true;
     final language = isFinal
         ? switch (_current.adapter) {
             final LanguageDetectingSpeechRecognizer detector =>
@@ -765,6 +812,7 @@ class SpeechInputService {
 
   void _onSoundLevel(int session, double raw) {
     if (session != _session || _activeSession != session) return;
+    _current.heard = true;
     final current = _state;
     if (current is! SpeechInputListening || !raw.isFinite) return;
     final min = _minLevel = math.min(_minLevel ?? raw, raw);
@@ -826,6 +874,19 @@ class SpeechInputService {
     _activeSession = null;
     _finishingSession = null;
     if (failure == null) {
+      if (wasActive && _isUnreachable(recognizer, error.message)) {
+        // Nothing answered the session: not an echo of stop or cancel.
+        recognizer.unreachable = true;
+        _emit(
+          SpeechInputError(
+            error.message,
+            permanent: true,
+            failure: SpeechInputFailure.recognizerUnavailable,
+            owner: _owner,
+          ),
+        );
+        return;
+      }
       // Cancellation echoes (`error_client`, `aborted`): not a failure.
       if (wasActive) _emit(const SpeechInputIdle());
       return;
@@ -839,6 +900,20 @@ class SpeechInputService {
       ),
     );
   }
+
+  /// Whether the cancellation code [message] ending a session of
+  /// [recognizer] that was not stopped or cancelled means that no
+  /// recognition service answers: Android's `error_client` from a platform
+  /// recogniser that never heard anything (see the class docs).
+  static bool _isUnreachable(_Recognizer recognizer, String message) =>
+      recognizer.offline == null &&
+      !recognizer.heard &&
+      message.trim().toLowerCase() == unreachableCode;
+
+  /// The code of a platform recogniser that cannot be reached (Android's
+  /// `SpeechRecognizer.ERROR_CLIENT`, e.g. no recognition service).
+  @visibleForTesting
+  static const unreachableCode = 'error_client';
 
   void _emit(SpeechInputState state) {
     if (_disposed || state == _state) return;
@@ -862,6 +937,15 @@ final class _Recognizer {
 
   /// Result of the last initialisation (null: not tried since [reset]).
   bool? available;
+
+  /// A session of this recogniser reported a sound level or words: it can
+  /// be reached.
+  bool heard = false;
+
+  /// A session ended with `error_client` before this recogniser ever
+  /// heard anything: no recognition service answers it (see
+  /// [SpeechInputService]).
+  bool unreachable = false;
   List<SpeechRecognizerLocale>? locales;
   String? systemLocaleId;
 

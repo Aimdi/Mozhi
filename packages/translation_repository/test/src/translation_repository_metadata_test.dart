@@ -206,17 +206,62 @@ void main() {
       },
     );
 
-    test('lists older than the maximum age are not served', () async {
+    test('lists older than the maximum age are served only when no '
+        'instance answers, and loaded again next time', () async {
       storeEngines(instanceA, {
         'google': 'Google',
       }, savedAt: now.subtract(TranslationRepository.defaultMetadataMaxAge));
       stubOffline(a());
       stubOffline(b());
 
-      await expectLater(
-        repository.getEngines(),
-        throwsA(isA<MozhiApiException>()),
+      expect(ids(await repository.getEngines()), ['mozhi:google']);
+      verify(a().getEngines).called(1);
+      verify(b().getEngines).called(1);
+      expect(repository.mozhiEnginesNeedReload, isTrue);
+
+      // Not kept in memory: the next call tries the network again.
+      stubEngines(a(), {'deepl': 'DeepL'});
+      expect(ids(await repository.getEngines()), ['mozhi:deepl']);
+      expect(repository.mozhiEnginesNeedReload, isFalse);
+    });
+
+    test('old language lists are served when no instance answers', () async {
+      storeRaw(
+        languagesKey(instanceA, 'google', 'target'),
+        data: [
+          {'code': 'de', 'name': 'German'},
+        ],
+        savedAt: now.subtract(const Duration(days: 30)),
       );
+      stubOffline(a());
+      stubOffline(b());
+
+      final languages = await repository.getTargetLanguages(
+        const TranslationEngine(
+          id: 'mozhi:google',
+          kind: EngineKind.mozhi,
+          name: 'Google',
+          mozhiEngine: 'google',
+        ),
+      );
+      expect([for (final l in languages) l.code], ['de']);
+    });
+
+    test('without any list, the other engines are listed and the Mozhi '
+        'engines need a reload', () async {
+      configure(repository, providers: [claudeConfig]);
+      stubOffline(a());
+      stubOffline(b());
+
+      expect(ids(await repository.getEngines()), ['ai:${claudeConfig.id}']);
+      expect(repository.mozhiEnginesNeedReload, isTrue);
+
+      stubEngines(a(), {'google': 'Google'});
+      expect(ids(await repository.getEngines()), [
+        'mozhi:google',
+        'ai:${claudeConfig.id}',
+      ]);
+      expect(repository.mozhiEnginesNeedReload, isFalse);
     });
 
     test('expired lists are replaced from the network', () async {

@@ -62,6 +62,7 @@ FILES = {
     "assets/fonts/MaterialIcons-Regular.otf": "OTTO",
     "canvaskit/canvaskit.js": "ck();",
     "canvaskit/canvaskit.wasm": "\0asm full",
+    "canvaskit/chromium/canvaskit.js": "ckc();",
     "canvaskit/chromium/canvaskit.wasm": "\0asm chromium",
     "canvaskit/skwasm.wasm": "\0asm skwasm",
     "canvaskit/skwasm_heavy.js": "heavy();",
@@ -88,6 +89,7 @@ LISTED = [
     "bergamot/worker.js",
     "canvaskit/canvaskit.js",
     "canvaskit/canvaskit.wasm",
+    "canvaskit/chromium/canvaskit.js",
     "canvaskit/chromium/canvaskit.wasm",
     "canvaskit/skwasm.wasm",
     "canvaskit/skwasm_heavy.js",
@@ -103,7 +105,15 @@ LISTED = [
     "version.json",
 ]
 
-LAZY = {
+# Both CanvasKit variants: a browser loads one of them.
+CANVASKIT = {
+    "canvaskit/canvaskit.js",
+    "canvaskit/canvaskit.wasm",
+    "canvaskit/chromium/canvaskit.js",
+    "canvaskit/chromium/canvaskit.wasm",
+}
+
+LAZY = CANVASKIT | {
     "fallback_fonts/notosanssc/v37/a.woff2",
     "canvaskit/webparagraph/canvaskit.wasm",
     "canvaskit/skwasm.wasm",
@@ -160,12 +170,32 @@ class ManifestTest(Case):
         self.assertEqual(result.lazy_bytes, sum(sizes[path] for path in LAZY))
         self.assertEqual(result.precached_bytes, sum(sizes.values()) - result.lazy_bytes)
 
+    def test_leaves_both_canvaskit_variants_to_the_page(self):
+        result = shell.write(self.build)
+
+        entries = self.entries()
+        for path in CANVASKIT:
+            self.assertTrue(entries[path].get("lazy"), path)
+        # Only renderer files the page may load: never the engine's loader.
+        self.assertNotIn("lazy", entries["flutter.js"])
+        self.assertFalse(shell.lazy("canvaskit/canvaskit.js.map", skwasm=False))
+        self.assertFalse(shell.lazy("canvaskit/other/canvaskit.wasm", skwasm=False))
+        precached = {path for path, entry in entries.items() if not entry.get("lazy")}
+        self.assertEqual(
+            result.precached_bytes,
+            sum(entries[path]["size"] for path in precached),
+        )
+        self.assertTrue(precached.isdisjoint(CANVASKIT))
+
     def test_keeps_the_skwasm_renderer_of_a_webassembly_build(self):
         (self.build / "flutter_bootstrap.js").write_text(BOOTSTRAP.format(config=DART2WASM))
         shell.write(self.build)
 
         lazy = {path for path, entry in self.entries().items() if entry.get("lazy")}
-        self.assertEqual(lazy, {"fallback_fonts/notosanssc/v37/a.woff2", "canvaskit/webparagraph/canvaskit.wasm"})
+        self.assertEqual(
+            lazy,
+            CANVASKIT | {"fallback_fonts/notosanssc/v37/a.woff2", "canvaskit/webparagraph/canvaskit.wasm"},
+        )
 
     def test_keeps_every_renderer_when_the_build_config_is_unreadable(self):
         for config in ["", "_flutter.buildConfig = {not json};", '_flutter.buildConfig = ["x"];']:
@@ -270,7 +300,7 @@ class MainTest(Case):
         out = io.StringIO()
         with redirect_stdout(out):
             self.assertEqual(shell.main([str(self.build)]), 0)
-        self.assertRegex(out.getvalue(), r"App shell [0-9a-f]{12}: 20 files, .* MB kept at the install")
+        self.assertRegex(out.getvalue(), r"App shell [0-9a-f]{12}: 21 files, .* MB kept at the install")
 
     def test_reports_setup_errors(self):
         (self.build / "index.html").unlink()

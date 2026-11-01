@@ -342,6 +342,18 @@ void main() {
         ).name,
         'Offline dictionary',
       );
+      // The cubit passes the name in the UI language.
+      expect(
+        DictionaryCubit.offlineEngine(
+          const DictionaryAttribution(source: '', license: 'L'),
+          name: 'Offline-Wörterbuch',
+        ).name,
+        'Offline-Wörterbuch',
+      );
+      expect(
+        DictionaryCubit.offlineEngine(wiktionary, name: 'x').name,
+        'Wiktionary',
+      );
       expect(DictionaryCubit.offlineEngine(wiktionary).isOffline, isTrue);
     });
 

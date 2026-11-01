@@ -91,6 +91,8 @@ class DictionaryPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final uiLanguage = dictionaryUiLanguage(Localizations.localeOf(context));
+    // Read here, not in `create` (no inherited lookups there).
+    final offlineName = context.l10n.dictionaryOfflineEngineName;
     return BlocProvider(
       create: (context) {
         final translate = context.read<TranslateCubit>().state;
@@ -109,6 +111,7 @@ class DictionaryPage extends StatelessWidget {
               const Language(code: 'en', name: 'English'),
           verbosity: request?.verbosity ?? translate.dictionaryVerbosity,
           uiLanguage: uiLanguage,
+          offlineName: offlineName,
           usageTracker: _usageTracker(context),
           history: context.read<HistoryCubit?>(),
           settings: context.read<SettingsCubit?>(),

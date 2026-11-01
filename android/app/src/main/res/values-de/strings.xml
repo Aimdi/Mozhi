@@ -4,6 +4,7 @@
 <resources>
     <string name="translate_with_mozhi">Mit Mozhi übersetzen</string>
     <string name="translate_offline">Offline übersetzen</string>
+    <string name="improve_with_mozhi">Mit Mozhi verbessern</string>
     <string name="tile_translate_label">Übersetzen</string>
     <string name="tile_translate_description">Zwischenablage mit Mozhi übersetzen</string>
     <string name="shortcut_clipboard_short">Einfügen</string>

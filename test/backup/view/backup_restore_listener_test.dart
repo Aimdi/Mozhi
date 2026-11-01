@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -106,6 +108,60 @@ void main() {
 
     verify(settings.load).called(1);
     verify(glossaries.load).called(1);
+  });
+
+  testWidgets('a restore of settings and history applies the restored '
+      'retention before the history is read again', (tester) async {
+    final settingsRead = Completer<void>();
+    final calls = <String>[];
+    var restored = const AppSettings(historyRetention: HistoryRetention.week);
+    when(() => settings.state).thenAnswer((_) => restored);
+    when(settings.load).thenAnswer((_) async {
+      await settingsRead.future;
+      restored = const AppSettings();
+      calls.add('settings');
+    });
+    when(() => history.applyRetention(any())).thenAnswer((invocation) async {
+      calls.add('retention ${invocation.positionalArguments.single}');
+    });
+    when(history.load).thenAnswer((_) async => calls.add('history'));
+    await pump(tester);
+
+    await tester.runAsync(
+      () => registry.restore(
+        snapshotOf(['settings', 'history']),
+        mode: BackupRestoreMode.replace,
+      ),
+    );
+    await tester.pump();
+    // The history waits for the settings ("Never" replaces "A week").
+    expect(calls, isEmpty);
+
+    settingsRead.complete();
+    await tester.pump();
+    await tester.pump();
+    expect(calls, ['settings', 'retention null', 'history']);
+  });
+
+  testWidgets('a failed settings read still reloads the history', (
+    tester,
+  ) async {
+    when(() => settings.state).thenReturn(const AppSettings());
+    when(settings.load).thenAnswer((_) async => throw StateError('corrupt'));
+    when(() => history.applyRetention(any())).thenAnswer((_) async {});
+    await pump(tester);
+
+    await tester.runAsync(
+      () => registry.restore(
+        snapshotOf(['settings', 'history']),
+        mode: BackupRestoreMode.replace,
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    verify(() => history.applyRetention(null)).called(1);
+    verify(history.load).called(1);
   });
 
   testWidgets('stops listening when removed', (tester) async {

@@ -8,5 +8,7 @@ export 'proofread_empty_state.dart';
 export 'proofread_engine_chip.dart';
 export 'proofread_input_card.dart';
 export 'proofread_labels.dart';
+export 'proofread_output_text.dart';
+export 'proofread_rephrase_sheet.dart';
 export 'proofread_result_section.dart';
 export 'proofread_stats_panel.dart';

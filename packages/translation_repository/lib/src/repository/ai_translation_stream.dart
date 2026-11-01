@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:llm_api/llm_api.dart' show LlmApiException;
+
 import 'package:translation_repository/src/models/models.dart';
 import 'package:translation_repository/src/prompts/response_parsers.dart';
 import 'package:translation_repository/src/repository/mappers.dart';
@@ -21,8 +23,11 @@ import 'package:translation_repository/src/repository/mappers.dart';
 /// * When the deltas complete, a final `isComplete: true` result with
 ///   `ResponseParsers.cleanTranslation` applied is emitted.
 /// * Errors from [open] or the delta stream are forwarded and close the
-///   stream. Cancelling, pausing and resuming the returned stream are
-///   forwarded to the delta subscription (cancelling aborts the request).
+///   stream; before a truncated or interrupted response's error
+///   (`LlmApiException.isTruncated` / `isInterrupted`) the snapshot held
+///   back by the throttle is delivered, so the text that arrived is kept.
+///   Cancelling, pausing and resuming the returned stream are forwarded to
+///   the delta subscription (cancelling aborts the request).
 Stream<TranslationResult> aiTranslationStream({
   required Stream<String> Function() open,
   required TranslationEngine engine,
@@ -73,6 +78,13 @@ Stream<TranslationResult> aiTranslationStream({
   }
 
   void fail(Object error, StackTrace stackTrace) {
+    // A response cut off at the output limit or by a dropped connection:
+    // the text that arrived stays (the latest snapshot is not held back).
+    if (error
+        case LlmApiException(isTruncated: true) ||
+            LlmApiException(isInterrupted: true)) {
+      flush();
+    }
     throttle?.cancel();
     pending = null;
     if (controller.isClosed) return;

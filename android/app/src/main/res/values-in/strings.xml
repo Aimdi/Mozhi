@@ -4,6 +4,7 @@
 <resources>
     <string name="translate_with_mozhi">Terjemahkan di Mozhi</string>
     <string name="translate_offline">Terjemahkan offline</string>
+    <string name="improve_with_mozhi">Perbaiki dengan Mozhi</string>
     <string name="tile_translate_label">Terjemahkan</string>
     <string name="tile_translate_description">Terjemahkan papan klip dengan Mozhi</string>
     <string name="shortcut_clipboard_short">Papan klip</string>

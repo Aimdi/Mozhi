@@ -4,6 +4,7 @@
 <resources>
     <string name="translate_with_mozhi">Mozhi로 번역</string>
     <string name="translate_offline">오프라인 번역</string>
+    <string name="improve_with_mozhi">Mozhi로 다듬기</string>
     <string name="tile_translate_label">번역</string>
     <string name="tile_translate_description">Mozhi로 클립보드 번역</string>
     <string name="shortcut_clipboard_short">클립보드</string>

@@ -4,6 +4,7 @@ import 'package:mozhi/pairing/data/pairing_session.dart';
 import 'package:mozhi/pairing/models/pairing_failure.dart';
 import 'package:mozhi/pairing/models/pairing_item.dart';
 import 'package:mozhi/pairing/protocol/pairing_code.dart';
+import 'package:mozhi/platform/free_space.dart' show requiredFreeSpace;
 
 /// Where **Receive on this phone** is.
 enum PairingReceiveStep {
@@ -57,6 +58,7 @@ class PairingReceiveState extends Equatable {
     this.progress,
     this.results = const [],
     this.failure,
+    this.freeBytes,
   });
 
   final PairingReceiveStep step;
@@ -89,6 +91,9 @@ class PairingReceiveState extends Equatable {
   final List<PairingItemResult> results;
   final PairingFailure? failure;
 
+  /// The free storage of this phone when the offer came (null: unknown).
+  final int? freeBytes;
+
   /// The offered items this phone can take.
   List<PairingOfferedItem> get available => [
     for (final offered in offered)
@@ -100,6 +105,21 @@ class PairingReceiveState extends Equatable {
     for (final offered in available)
       if (selected.contains(offered.item.id)) offered.plan.size,
   ].fold(0, (sum, size) => sum + size);
+
+  /// Storage the selected items take while they are received and
+  /// installed ([PairingOfferedItem.spaceNeeded]).
+  int get selectedSpace => [
+    for (final offered in available)
+      if (selected.contains(offered.item.id)) offered.spaceNeeded,
+  ].fold(0, (sum, size) => sum + size);
+
+  /// Whether the selected items fit together in [freeBytes] (with the
+  /// margin of [requiredFreeSpace]); true when the free space is unknown.
+  bool get selectionFits {
+    final free = freeBytes;
+    final space = selectedSpace;
+    return free == null || space <= 0 || requiredFreeSpace(space) <= free;
+  }
 
   /// The offered data item, when there is one.
   PairingOfferedItem? get dataItem {
@@ -123,6 +143,7 @@ class PairingReceiveState extends Equatable {
     PairingProgress? progress,
     List<PairingItemResult>? results,
     PairingFailure? failure,
+    int? freeBytes,
   }) => PairingReceiveState(
     step: step ?? this.step,
     addresses: addresses ?? this.addresses,
@@ -137,6 +158,7 @@ class PairingReceiveState extends Equatable {
     progress: progress ?? this.progress,
     results: results ?? this.results,
     failure: failure ?? this.failure,
+    freeBytes: freeBytes ?? this.freeBytes,
   );
 
   @override
@@ -154,5 +176,6 @@ class PairingReceiveState extends Equatable {
     progress,
     results,
     failure,
+    freeBytes,
   ];
 }

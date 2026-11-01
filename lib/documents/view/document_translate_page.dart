@@ -28,10 +28,15 @@ import 'package:translation_repository/translation_repository.dart';
 /// above it; engine, languages and options start from the translate
 /// screen. [initialFile]/[initialText] open a document right away;
 /// [fileService] and [translator] can be replaced in tests.
+///
+/// Leaving while a document is being translated asks first
+/// ([DocumentLeaveGuard]).
 class DocumentTranslatePage extends StatelessWidget {
   const new({
     this.initialFile,
     this.initialText,
+    this.shareId,
+    this.unavailableFile,
     this.fileService,
     this.translator,
     this.pdfTranslator,
@@ -40,6 +45,17 @@ class DocumentTranslatePage extends StatelessWidget {
 
   /// A file to open right away (e.g. one shared from another app).
   final PickedFile? initialFile;
+
+  /// The share (its token) [initialFile] or [unavailableFile] comes from,
+  /// for a file shared from another app: a new share replaces the open
+  /// document (asking first while it is being translated,
+  /// [DocumentShareHandoff]). A share without either could not be read.
+  final String? shareId;
+
+  /// A shared file that could not be opened: its name (when known) and
+  /// whether it was too large (otherwise it could not be read). Shown as
+  /// the document's error.
+  final ({String? name, bool tooLarge})? unavailableFile;
 
   /// Text to open right away in text mode (e.g. long input handed over
   /// from the translate screen). Ignored when [initialFile] is given.
@@ -81,14 +97,23 @@ class DocumentTranslatePage extends StatelessWidget {
               ? const []
               : ocrPreferredLanguages(settings, locale),
         );
-        if (initialFile case final file?) {
-          cubit.loadFile(file.name, file.bytes);
+        if (initialFile != null || unavailableFile != null || shareId != null) {
+          openSharedDocument(
+            cubit,
+            file: initialFile,
+            unavailable: unavailableFile,
+          );
         } else if (initialText case final text? when text.isNotEmpty) {
           cubit.setText(text);
         }
         return cubit;
       },
-      child: const DocumentTranslateView(),
+      child: DocumentShareHandoff(
+        shareId: shareId,
+        file: initialFile,
+        unavailable: unavailableFile,
+        child: const DocumentTranslateView(),
+      ),
     );
   }
 }
@@ -171,28 +196,30 @@ class DocumentTranslateView extends StatelessWidget {
             onGranted: (context) => unawaited(
               context.read<DocumentTranslateCubit>().consentGranted(),
             ),
-            child: Scaffold(
-              appBar: AppBar(
-                title: Text(l10n.documentsTitle),
-                actions: [
-                  if (hasDocument)
-                    IconButton(
-                      key: const Key('documents_clear'),
-                      tooltip: l10n.documentsRemove,
-                      onPressed: translating
-                          ? null
-                          : context.read<DocumentTranslateCubit>().clear,
-                      icon: const Icon(Icons.close),
-                    ),
-                ],
-              ),
-              body: SafeArea(
-                top: false,
-                child: LayoutBuilder(
-                  builder: (context, constraints) =>
-                      constraints.maxWidth >= wideBreakpoint
-                      ? const _WideLayout()
-                      : const _NarrowLayout(),
+            child: DocumentLeaveGuard(
+              child: Scaffold(
+                appBar: AppBar(
+                  title: Text(l10n.documentsTitle),
+                  actions: [
+                    if (hasDocument)
+                      IconButton(
+                        key: const Key('documents_clear'),
+                        tooltip: l10n.documentsRemove,
+                        onPressed: translating
+                            ? null
+                            : context.read<DocumentTranslateCubit>().clear,
+                        icon: const Icon(Icons.close),
+                      ),
+                  ],
+                ),
+                body: SafeArea(
+                  top: false,
+                  child: LayoutBuilder(
+                    builder: (context, constraints) =>
+                        constraints.maxWidth >= wideBreakpoint
+                        ? const _WideLayout()
+                        : const _NarrowLayout(),
+                  ),
                 ),
               ),
             ),

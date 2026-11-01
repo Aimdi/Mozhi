@@ -28,6 +28,16 @@ import 'package:mozhi/voice/widgets/browser_speech_notice.dart';
 /// Its semantics say what a tap does ("Start conversation", "Stop
 /// conversation", "Continue conversation") and, while active, the status
 /// (`conversationSessionStatus`, e.g. "Listening in Spanish…").
+///
+/// In a browser without speech recognition (Firefox and its forks,
+/// [SpeechInputService.browserRecognizerMissing]) it shows the quieter
+/// circle with a crossed-out microphone from the start ("Voice input
+/// unavailable"); a tap still explains why.
+///
+/// Without a recogniser (not [ConversationState.handsFree]) there is no
+/// hands-free conversation to start: it shows a disabled, crossed-out
+/// microphone ("Voice input unavailable") instead of one that does
+/// nothing.
 class ConversationSessionMic extends StatelessWidget {
   const new({this.size = defaultSize, super.key});
 
@@ -54,7 +64,13 @@ class ConversationSessionMic extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final state = context.watch<ConversationCubit>().state;
     final session = state.session;
+    final enabled = state.handsFree;
+    // Known before the first tap: this browser cannot recognise speech.
+    final unsupported =
+        !session.isActive &&
+        (_speechInputOf(context)?.browserRecognizerMissing ?? false);
     final label = switch (session) {
+      _ when !enabled || unsupported => l10n.voiceInputUnavailable,
       ConversationSessionIdle() => l10n.conversationSessionStart,
       ConversationSessionPaused() ||
       ConversationSessionFailed() => l10n.conversationSessionContinue,
@@ -63,7 +79,7 @@ class ConversationSessionMic extends StatelessWidget {
     final status = session.isActive
         ? conversationSessionStatus(l10n, state)
         : null;
-    final quiet = session.isActive && !session.isRunning;
+    final quiet = (session.isActive && !session.isRunning) || unsupported;
     final listening = switch (session) {
       ConversationSessionListening(stage: ConversationListenStage.listening) =>
         true,
@@ -79,6 +95,7 @@ class ConversationSessionMic extends StatelessWidget {
     final side = session.side ?? ConversationSide.a;
     final ring = ConversationSideColors.of(context, side).accent;
     final icon = switch (session) {
+      _ when !enabled || unsupported => Icons.mic_off_outlined,
       ConversationSessionSpeaking() => Icons.volume_up_rounded,
       ConversationSessionFailed() => Icons.mic_off_outlined,
       _ => Icons.mic,
@@ -92,7 +109,8 @@ class ConversationSessionMic extends StatelessWidget {
         label: label,
         value: status,
         excludeSemantics: true,
-        onTap: () => unawaited(_toggle(context)),
+        enabled: enabled,
+        onTap: enabled ? () => unawaited(_toggle(context)) : null,
         child: SizedBox.square(
           dimension: size + 16,
           child: Stack(
@@ -125,7 +143,7 @@ class ConversationSessionMic extends StatelessWidget {
                       : scheme.onPrimary,
                 ),
                 icon: Icon(icon),
-                onPressed: () => unawaited(_toggle(context)),
+                onPressed: enabled ? () => unawaited(_toggle(context)) : null,
               ),
             ],
           ),

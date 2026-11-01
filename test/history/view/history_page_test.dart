@@ -1134,11 +1134,16 @@ void main() {
     testWidgets('tap opens the entry in the translator', (tester) async {
       await pump(tester);
       await tester.tap(find.text('Bonjour'));
-      verifyInOrder([
-        () => translate.setSource(Language.auto),
-        () => translate.setTarget(_english),
-        () => translate.setInputAndTranslate('Bonjour'),
-      ]);
+      // One call: the languages and the text at once, translated once.
+      final opened =
+          verify(() => translate.openHistoryEntry(captureAny())).captured.single
+              as HistoryEntry;
+      expect(opened.text, 'Bonjour');
+      expect(opened.source, Language.auto);
+      expect(opened.target, _english);
+      verifyNever(() => translate.setSource(any()));
+      verifyNever(() => translate.setTarget(any()));
+      verifyNever(() => translate.setInputAndTranslate(any()));
       verify(() => router.go('/translate', extra: any(named: 'extra')))
           .called(1);
     });
@@ -1787,7 +1792,7 @@ void main() {
                 ).captured.single
                 as DictionaryLookUpRequest;
         expect(extra.verbosity, DictionaryVerbosity.comprehensive);
-        verifyNever(() => translate.setInputAndTranslate(any()));
+        verifyNever(() => translate.openHistoryEntry(any()));
       });
 
       testWidgets('detected words open with the language detected', (
@@ -1985,7 +1990,7 @@ void main() {
         await pump(tester, size: size);
         await tester.tap(find.text('Thank you'));
         await tester.pumpAndSettle();
-        verifyNever(() => translate.setInputAndTranslate(any()));
+        verifyNever(() => translate.openHistoryEntry(any()));
         final details = find.byType(HistoryEntryDetails);
         expect(
           find.descendant(of: details, matching: find.text('Danke')),
@@ -2004,7 +2009,17 @@ void main() {
 
         // The details open it in the translator.
         await tester.tap(find.byKey(HistoryEntryDetails.openKey));
-        verify(() => translate.setInputAndTranslate('Bonjour')).called(1);
+        verify(
+          () => translate.openHistoryEntry(
+            any(
+              that: isA<HistoryEntry>().having(
+                (e) => e.text,
+                'text',
+                'Bonjour',
+              ),
+            ),
+          ),
+        ).called(1);
       });
 
       testWidgets('the details copy and share', (tester) async {
@@ -2118,7 +2133,17 @@ void main() {
         await tester.tap(find.byKey(HistoryEntryDetails.openKey));
         await tester.pumpAndSettle();
         expect(details, findsNothing);
-        verify(() => translate.setInputAndTranslate('Good morning')).called(1);
+        verify(
+          () => translate.openHistoryEntry(
+            any(
+              that: isA<HistoryEntry>().having(
+                (e) => e.text,
+                'text',
+                'Good morning',
+              ),
+            ),
+          ),
+        ).called(1);
       });
 
       for (final (action, verifyIt) in [

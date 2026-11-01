@@ -298,6 +298,85 @@ void main() {
     });
   });
 
+  group('describeTranslateError for AI answers without a status', () {
+    TranslateErrorInfo describe(Object error) =>
+        describeTranslateError(l10n, error);
+
+    test('a response cut off at the output limit is not the connection', () {
+      for (final error in const [
+        LlmTruncatedException(partialText: 'Hallo', reason: 'length'),
+        LlmTruncatedException(reason: 'model_context_window_exceeded'),
+      ]) {
+        final info = describe(error);
+        expect(info.message, l10n.translateErrorTruncated);
+        expect(info.fix, TranslateErrorFix.none);
+        expect(info.title, l10n.translateErrorTitleProvider);
+        expect(isNetworkFailure(error), isFalse);
+      }
+    });
+
+    test('a connection dropped while streaming says so', () {
+      const error = LlmInterruptedException(partialText: 'Hal');
+      final info = describe(error);
+      expect(info.message, l10n.translateErrorInterrupted);
+      expect(info.fix, TranslateErrorFix.none);
+      expect(isNetworkFailure(error), isFalse);
+    });
+
+    test("a model that stopped early, with the provider's reason", () {
+      const language = LlmStoppedException(
+        'Gemini does not support this language.',
+        reason: 'LANGUAGE',
+      );
+      expect(describe(language).message, l10n.translateErrorModelLanguage);
+      expect(isNetworkFailure(language), isFalse);
+
+      const other = LlmStoppedException(
+        'Gemini stopped without completing the response (OTHER).',
+        reason: 'OTHER',
+      );
+      final info = describe(other);
+      expect(info.message, l10n.translateErrorProviderStopped);
+      expect(info.details, contains('(OTHER)'));
+      expect(info.fix, TranslateErrorFix.none);
+      expect(isNetworkFailure(other), isFalse);
+    });
+
+    test('other answers are the provider failing, with its detail', () {
+      const error = LlmApiException('The model returned an empty response.');
+      final info = describe(error);
+      expect(info.message, l10n.translateErrorProviderFailed);
+      expect(info.details, 'The model returned an empty response.');
+      expect(info.fix, TranslateErrorFix.none);
+      expect(info.title, l10n.translateErrorTitleProvider);
+      expect(isNetworkFailure(error), isFalse);
+    });
+
+    test('no answer at all is the connection', () {
+      for (final error in const [
+        LlmApiException('Could not reach x: refused', unreachable: true),
+        LlmApiException('reset', connectionDropped: true),
+      ]) {
+        final info = describe(error);
+        expect(info.message, l10n.translateErrorUnreachableProvider);
+        expect(info.fix, TranslateErrorFix.providers);
+        expect(info.title, l10n.translateErrorTitleConnection);
+        expect(isNetworkFailure(error), isTrue);
+      }
+    });
+
+    test("Mozhi's validation errors are not the connection", () {
+      const error = MozhiApiException(
+        'Target language code invalid',
+        statusCode: 500,
+      );
+      expect(isNetworkFailure(error), isFalse);
+      final info = describe(error);
+      expect(info.message, l10n.translateErrorTargetUnsupported);
+      expect(info.title, isNot(l10n.translateErrorTitleConnection));
+    });
+  });
+
   group('sanitizeErrorDetails', () {
     test('reduces URLs to scheme and host and drops credentials', () {
       expect(
@@ -519,7 +598,7 @@ void main() {
     });
 
     group('a way forward on the Translate screen', () {
-      const providerFailure = LlmApiException('unreachable');
+      const providerFailure = LlmApiException('unreachable', unreachable: true);
 
       /// A harness whose translation with [engine] failed with [error].
       TranslateHarness failedWith(

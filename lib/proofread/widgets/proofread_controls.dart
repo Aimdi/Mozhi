@@ -7,9 +7,9 @@ import 'package:mozhi/proofread/cubit/proofread_cubit.dart';
 import 'package:mozhi/proofread/widgets/proofread_labels.dart';
 import 'package:translation_repository/translation_repository.dart';
 
-/// Correction level, writing style, formality, reading level, regional
-/// variety, engine and context controls: the content of the proofreading
-/// options sheet (`showProofreadOptions`).
+/// Correction level, writing style, tone, formality, reading level,
+/// regional variety, engine and context controls: the content of the
+/// proofreading options sheet (`showProofreadOptions`).
 ///
 /// The correction level is a segmented button while its labels fit (else
 /// a menu); the other menus are laid out as a grid of equal outlined
@@ -74,6 +74,7 @@ class _ProofreadControlsState extends State<ProofreadControls> {
       buildWhen: (previous, current) =>
           previous.correctionLevel != current.correctionLevel ||
           previous.writingStyle != current.writingStyle ||
+          previous.tone != current.tone ||
           previous.formality != current.formality ||
           previous.readingLevel != current.readingLevel ||
           previous.variety != current.variety ||
@@ -159,6 +160,16 @@ class _ProofreadControlsState extends State<ProofreadControls> {
         values: WritingStyle.values,
         labelOf: l10n.proofreadWritingStyle,
         onSelected: cubit.setStyle,
+      ),
+      ProofreadMenuButton<WritingTone>(
+        key: const Key('proofread_tone_menu'),
+        icon: Icons.sentiment_satisfied_outlined,
+        label: l10n.proofreadToneLabel,
+        value: state.tone,
+        values: WritingTone.values,
+        labelOf: l10n.proofreadWritingTone,
+        subtitleOf: l10n.proofreadToneDescription,
+        onSelected: cubit.setTone,
       ),
       ProofreadMenuButton<Formality>(
         key: const Key('proofread_formality_menu'),

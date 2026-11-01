@@ -10,9 +10,11 @@ import io.flutter.plugin.common.MethodChannel
 /**
  * The translucent window of text selected in another app: "Translate with
  * Mozhi" (`ACTION_PROCESS_TEXT`) and, through the exported alias
- * [MainActivity.TRANSLATE_OFFLINE_ALIAS], "Translate offline". It shows only
- * the quick translate sheet above the calling app, which stays visible
- * around it, and closes when the sheet closes.
+ * [MainActivity.TRANSLATE_OFFLINE_ALIAS], "Translate offline", and through
+ * [MainActivity.IMPROVE_TEXT_ALIAS], "Improve with Mozhi" (the quick
+ * improve sheet, `lib/quick_improve/`). It shows only the quick translate
+ * (or improve) sheet above the calling app, which stays visible around it,
+ * and closes when the sheet closes.
  *
  * Everything else is [MainActivity]'s: the selection reaches Dart on the
  * same channels (`lib/platform/shared_text_service.dart`), Replace answers

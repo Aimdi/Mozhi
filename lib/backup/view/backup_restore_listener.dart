@@ -53,11 +53,17 @@ class _BackupRestoreListenerState extends State<BackupRestoreListener> {
 
   void _reload(Set<String> sections) {
     if (!mounted) return;
-    if (sections.contains(SettingsBackupSection.sectionId)) {
-      unawaited(_maybe<SettingsCubit>()?.load());
-    }
-    if (sections.contains(HistoryBackupSection.sectionId)) {
-      unawaited(_maybe<HistoryCubit>()?.load());
+    final settings = sections.contains(SettingsBackupSection.sectionId)
+        ? _maybe<SettingsCubit>()
+        : null;
+    final history = sections.contains(HistoryBackupSection.sectionId)
+        ? _maybe<HistoryCubit>()
+        : null;
+    final settingsLoaded = settings?.load();
+    if (history != null) {
+      unawaited(_reloadHistory(history, settings, settingsLoaded));
+    } else if (settingsLoaded != null) {
+      unawaited(settingsLoaded);
     }
     if (sections.contains(PresetsBackupSection.sectionId)) {
       unawaited(_maybe<PresetsCubit>()?.load());
@@ -65,6 +71,27 @@ class _BackupRestoreListenerState extends State<BackupRestoreListener> {
     if (sections.contains(GlossariesBackupSection.sectionId)) {
       unawaited(_maybe<GlossaryCubit>()?.load());
     }
+  }
+
+  /// Reloads [history]; when the settings were restored too, only after
+  /// [settings] read them ([settingsLoaded]) and their retention applies:
+  /// the history is pruned by the restored "Delete history automatically"
+  /// (e.g. "Never" restored with entries older than the old setting
+  /// kept), never by the one it replaces.
+  Future<void> _reloadHistory(
+    HistoryCubit history,
+    SettingsCubit? settings,
+    Future<void>? settingsLoaded,
+  ) async {
+    if (settings != null && settingsLoaded != null) {
+      try {
+        await settingsLoaded;
+      } on Object {
+        // The settings stay as they were: so does the retention.
+      }
+      await history.applyRetention(settings.state.historyRetention.maxAge);
+    }
+    await history.load();
   }
 
   @override

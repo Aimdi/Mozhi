@@ -28,6 +28,13 @@ class _Server {
   List<int> extra = const [];
   Completer<void>? gate;
 
+  /// Sends that many bytes, then nothing more (a slow download): the
+  /// response stays open until cancelled.
+  int? stallAfter;
+
+  /// Whether the stalled response was closed by the client.
+  bool closed = false;
+
   late final MockClient client = MockClient.streaming((request, _) async {
     requests.add(request);
     if (gate case final gate?) await gate.future;
@@ -48,6 +55,12 @@ class _Server {
       code = 206;
     }
     final cut = failAfter;
+    if (stallAfter case final stall?) {
+      final controller = StreamController<List<int>>(
+        onCancel: () => closed = true,
+      )..add(bytes.sublist(0, stall.clamp(0, bytes.length)));
+      return http.StreamedResponse(controller.stream, code);
+    }
     Stream<List<int>> stream() async* {
       if (cut == null) {
         yield bytes;
@@ -808,6 +821,119 @@ void main() {
       inline.install(base),
       throwsA(isA<WhisperChecksumException>()),
     );
+  });
+
+  group('cancelling a download', () {
+    /// Waits (in real time: the manager reads files) until [condition].
+    Future<void> until(bool Function() condition) async {
+      for (var i = 0; i < 500 && !condition(); i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+      expect(condition(), isTrue);
+    }
+
+    /// The stalled download has written its first bytes.
+    Future<void> streaming() =>
+        until(() => part(tiny).existsSync() && part(tiny).lengthSync() > 0);
+
+    Future<void> flush() =>
+        Future<void>.delayed(const Duration(milliseconds: 20));
+
+    test('stops it at once, keeps the bytes and resumes next time', () async {
+      server.stallAfter = 1200;
+      final abort = Completer<void>();
+      final install = manager.install(tiny, abort: abort.future);
+      await streaming();
+
+      abort.complete();
+      await expectLater(
+        install,
+        throwsA(
+          isA<WhisperDownloadCancelledException>().having(
+            (e) => e.model,
+            'model',
+            'tiny',
+          ),
+        ),
+      );
+      expect(server.closed, isTrue);
+      expect(await manager.isInstalled(tiny), isFalse);
+      expect(await manager.partialBytes(tiny), 1200);
+
+      server.stallAfter = null;
+      final installed = await manager.install(tiny);
+      expect(installed.matches(tiny), isTrue);
+      expect(server.requests.last.headers['Range'], 'bytes=1200-');
+    });
+
+    test('stops it before the server answered', () async {
+      server.gate = Completer();
+      final abort = Completer<void>();
+      final install = manager.install(tiny, abort: abort.future);
+      await until(() => server.requests.isNotEmpty);
+      abort.complete();
+
+      await expectLater(
+        install,
+        throwsA(isA<WhisperDownloadCancelledException>()),
+      );
+      expect(server.requests.single, isA<http.Abortable>());
+      server.gate!.complete();
+      await flush();
+      expect(await manager.isInstalled(tiny), isFalse);
+    });
+
+    test('an abort that came first sends nothing', () async {
+      await expectLater(
+        manager.install(tiny, abort: Future.value()),
+        throwsA(isA<WhisperDownloadCancelledException>()),
+      );
+      expect(server.requests, isEmpty);
+    });
+
+    test('a new install waits for the cancelled one, then installs', () async {
+      server.stallAfter = 1000;
+      final abort = Completer<void>();
+      final cancelled = manager.install(tiny, abort: abort.future);
+      await streaming();
+      abort.complete();
+      await flush();
+      server.stallAfter = null;
+      final again = manager.install(tiny);
+
+      await expectLater(
+        cancelled,
+        throwsA(isA<WhisperDownloadCancelledException>()),
+      );
+      expect((await again).matches(tiny), isTrue);
+      expect(server.requests.last.headers['Range'], 'bytes=1000-');
+    });
+
+    test('cancels every caller sharing the download', () async {
+      server.stallAfter = 800;
+      final abort = Completer<void>();
+      final first = manager.install(tiny, abort: abort.future);
+      final second = manager.install(tiny);
+      await streaming();
+      abort.complete();
+
+      await expectLater(
+        first,
+        throwsA(isA<WhisperDownloadCancelledException>()),
+      );
+      await expectLater(
+        second,
+        throwsA(isA<WhisperDownloadCancelledException>()),
+      );
+      expect(server.requests, hasLength(1));
+    });
+
+    test('says what it is', () {
+      expect(
+        const WhisperDownloadCancelledException('tiny').toString(),
+        'WhisperDownloadCancelledException(tiny: download cancelled)',
+      );
+    });
   });
 }
 

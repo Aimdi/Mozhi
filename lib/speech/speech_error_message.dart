@@ -21,6 +21,8 @@ import 'package:translation_repository/translation_repository.dart';
 ///   unless the Mozhi servers failed (then Retry may help);
 /// * no device voice in offline-only mode:
 ///   [AppLocalizations.speechUnavailableOfflineOnly];
+/// * the device's text-to-speech app did not answer
+///   ([DeviceTtsNoAnswerException]): [AppLocalizations.speechEngineNoAnswer];
 /// * Mozhi refused by the network policy (plain http, `.onion` without a
 ///   proxy): that policy's message ([describeNetworkPolicyError]);
 /// * the Mozhi servers failed or did not answer ([speechServersFailed]):
@@ -42,6 +44,8 @@ String speechErrorMessage(AppLocalizations l10n, Object error) =>
         cause: ConsentRequiredException(kind: ConsentKind.offlineOnly),
       ) =>
         l10n.speechUnavailableOfflineOnly,
+      SpeechUnavailableException(cause: DeviceTtsNoAnswerException()) =>
+        l10n.speechEngineNoAnswer,
       SpeechUnavailableException(:final cause) =>
         describeNetworkPolicyError(l10n, cause) ??
             (speechServersFailed(error)

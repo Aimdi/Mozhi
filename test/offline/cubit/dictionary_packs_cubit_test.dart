@@ -75,6 +75,37 @@ void main() {
       await cubit.close();
     });
 
+    test('shows a download started on another screen', () async {
+      final body = StreamController<List<int>>();
+      final dictionaries = DictionaryPacks(
+        catalog: DictionaryPackCatalog([es, en]),
+        storage: storage,
+        httpClient: MockClient.streaming(
+          (request, _) async => http.StreamedResponse(body.stream, 200),
+        ),
+      );
+      // Started on another screen, which has closed.
+      final elsewhere = dictionaries.install(es);
+      await pumpEventQueue();
+      body.add(spanish.sublist(0, 100));
+      await pumpEventQueue();
+
+      final cubit = build(dictionaries: dictionaries);
+      await cubit.load();
+      expect(cubit.state.pending, {'es': OfflineModelOperation.download});
+      expect(cubit.state.progress['es'], closeTo(100 / es.size, 0.01));
+
+      body.add(spanish.sublist(100));
+      await body.close();
+      await elsewhere;
+      await pumpEventQueue();
+
+      expect(cubit.state.pending, isEmpty);
+      expect(cubit.state.isInstalled('es'), isTrue);
+      expect(cubit.state.outcome?.succeeded, isTrue);
+      await cubit.close();
+    });
+
     test('names unknown languages after the catalogue', () async {
       final cubit = DictionaryPacksCubit(
         packs: DictionaryPacks(

@@ -236,11 +236,14 @@ class WhisperSpeech {
 
   /// Downloads and installs [model] (resuming an interrupted download).
   /// Whether downloading is allowed now (Wi-Fi only, privacy settings) is
-  /// for the caller to decide.
+  /// for the caller to decide. Once [abort] completes the download stops
+  /// with a [WhisperDownloadCancelledException] (see
+  /// [WhisperModelManager.install]).
   Future<InstalledWhisperModel> download(
     WhisperCatalogModel model, {
     void Function(WhisperDownloadProgress progress)? onProgress,
-  }) => models.install(model, onProgress: onProgress);
+    Future<void>? abort,
+  }) => models.install(model, onProgress: onProgress, abort: abort);
 
   /// Unloads and deletes the model [id] (a speech model or the
   /// [vadModel]) and a partial download of it.

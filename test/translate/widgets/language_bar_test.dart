@@ -333,6 +333,33 @@ void main() {
       );
     });
 
+    testWidgets('swap is disabled with "Detect language" before anything '
+        'was detected, its tooltip kept, no tick nor turn', (tester) async {
+      final clipboard = FakeClipboard(tester);
+      final harness = TranslateHarness(state: readyState(input: 'Hallo'));
+      await harness.pump(tester, child: const LanguageBar());
+      final swap = tester.widget<IconButton>(
+        find.byKey(const Key('translate_swap_button')),
+      );
+      expect(swap.onPressed, isNull);
+      expect(find.byTooltip('Swap languages'), findsOneWidget);
+
+      await tester.tap(
+        find.byKey(const Key('translate_swap_button')),
+        warnIfMissed: false,
+      );
+      await tester.pump();
+      expect(clipboard.haptics, isEmpty);
+      verifyNever(harness.translate.swap);
+      final rotation = tester.widget<AnimatedRotation>(
+        find.descendant(
+          of: find.byKey(const Key('translate_swap_button')),
+          matching: find.byType(AnimatedRotation),
+        ),
+      );
+      expect(rotation.turns, 0);
+    });
+
     testWidgets('swap is disabled for a custom target', (tester) async {
       final harness = TranslateHarness(
         state: readyState(

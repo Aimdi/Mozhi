@@ -61,6 +61,7 @@ void main() {
     registerFallbackValue(Formality.automatic);
     registerFallbackValue(ReadingLevel.standard);
     registerFallbackValue(ProofreadVariety.enGb);
+    registerFallbackValue(WritingTone.automatic);
   });
 
   setUp(() {
@@ -79,6 +80,7 @@ void main() {
         variety: any(named: 'variety'),
         context: any(named: 'context'),
         uiLanguage: any(named: 'uiLanguage'),
+        tone: any(named: 'tone'),
       ),
     ).thenAnswer((_) => answer());
   }

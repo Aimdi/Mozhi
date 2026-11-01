@@ -7,10 +7,12 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/network/network.dart';
 import 'package:mozhi/core/undo_snack_bar.dart';
+import 'package:mozhi/core/widgets/app_bar_title.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/view/widgets/add_instance_dialog.dart';
 import 'package:mozhi/settings/view/widgets/link_launcher.dart';
+import 'package:mozhi/settings/view/widgets/region_names.dart';
 import 'package:mozhi/settings/view/widgets/settings_section.dart';
 import 'package:mozhi_api/mozhi_api.dart' show MozhiPublicInstance;
 // The page shows this session's checks (core/network), not the
@@ -185,16 +187,10 @@ class _InstancesViewState extends State<InstancesView> {
   }
 
   void _addFromCatalog(_CatalogAddress address) {
-    final host = Uri.parse(address.url).host;
-    final country = address.entry.country;
+    // No label: the list names it by its host. Where it is stays in the
+    // catalog, in the UI language, rather than in English in the label.
     context.read<SettingsCubit>().addInstance(
-      MozhiInstance(
-        url: address.url,
-        label: address.network == _Network.clearnet && country != null
-            ? '$host ($country)'
-            : null,
-        isCustom: false,
-      ),
+      MozhiInstance(url: address.url, isCustom: false),
     );
     ScaffoldMessenger.of(
       context,
@@ -316,7 +312,7 @@ class _InstancesViewState extends State<InstancesView> {
     );
     return Scaffold(
       appBar: AppBar(
-        title: Text(l10n.settingsInstancesTitle),
+        title: AppBarTitle(l10n.settingsInstancesTitle),
         actions: [
           // Pull to refresh needs a drag; this is the pointer, keyboard
           // and switch-access alternative (WCAG 2.5.7, 2.1.1).
@@ -854,7 +850,9 @@ class _Catalog extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            l10n.settingsInstancesCatalogBody(MozhiPublicInstance.snapshotDate),
+            l10n.settingsInstancesCatalogBody(
+              DateTime.parse(MozhiPublicInstance.snapshotDate),
+            ),
             style: secondary,
           ),
           if (hiddenNote) ...[
@@ -898,7 +896,11 @@ class _CatalogTile extends StatelessWidget {
       ).host,
       _ => null,
     };
-    final details = [?operator, ?entry.country, ?entry.isp].join(' · ');
+    final details = [
+      ?operator,
+      ?catalogRegionNames(entry, l10n.localeName),
+      ?entry.isp,
+    ].join(' · ');
     return ListTile(
       contentPadding: EdgeInsets.zero,
       title: Text(host, maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -1032,4 +1034,13 @@ class _InstanceTestDialogState extends State<InstanceTestDialog> {
       ],
     );
   }
+}
+
+/// Where a catalog instance is, in the UI language [locale]: the names of
+/// its regions ("Deutschland, USA"), else the upstream country text (in
+/// English) when the app has no name for one of them; null when unknown.
+String? catalogRegionNames(MozhiPublicInstance entry, String locale) {
+  final names = [for (final code in entry.regions) regionName(code, locale)];
+  if (names.isEmpty || names.contains(null)) return entry.country;
+  return names.whereType<String>().join(', ');
 }

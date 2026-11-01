@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/view/app_shell.dart' show AppDestination;
 import 'package:mozhi/core/undo_snack_bar.dart';
+import 'package:mozhi/core/widgets/app_bar_title.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
@@ -40,7 +41,7 @@ class TabOrderView extends StatelessWidget {
     final isDefault = listEquals(order, AppTab.values);
     return Scaffold(
       appBar: AppBar(
-        title: Text(l10n.settingsTabOrder),
+        title: AppBarTitle(l10n.settingsTabOrder),
         actions: [
           IconButton(
             key: resetKey,

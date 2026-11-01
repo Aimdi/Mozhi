@@ -35,6 +35,7 @@ class PairingEnvironment {
     this.timeouts = const PairingTimeouts(),
     this.codeValidity = const Duration(minutes: 5),
     Random? random,
+    this.freeSpace,
   }) : addresses = addresses ?? localNetworkAddresses,
        listen = listen ?? _listen,
        connect = connect ?? connectPairing,
@@ -57,6 +58,11 @@ class PairingEnvironment {
 
   /// How long a receiving phone's code works.
   final Duration codeValidity;
+
+  /// The free bytes where [workDirectory] is, for the receiving side's
+  /// free-space check (default: `FreeSpace.instance`, see
+  /// [PairingReceiver]).
+  final Future<int?> Function(String path)? freeSpace;
 
   final Future<Directory> Function() _temporaryDirectory;
   final Random _random;

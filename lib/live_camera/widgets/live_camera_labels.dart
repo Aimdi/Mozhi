@@ -1,3 +1,4 @@
+import 'package:mozhi/core/widgets/decimal_format.dart';
 import 'package:mozhi/image_translate/widgets/image_translate_labels.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/live_camera/cubit/live_camera_cubit.dart';
@@ -49,13 +50,10 @@ String liveCameraTranslationErrorText(AppLocalizations l10n, Object error) =>
       describeImageTranslateError(l10n, error).message,
     );
 
-/// A zoom ratio for people: `1`, `2`, `2.5`.
-String liveCameraZoomLabel(double ratio) {
-  final rounded = (ratio * 10).round() / 10;
-  return rounded == rounded.roundToDouble()
-      ? rounded.toInt().toString()
-      : rounded.toStringAsFixed(1);
-}
+/// A zoom ratio for people: `1`, `2`, `2.5` (`2,5` in German: the number
+/// format of [locale], `AppLocalizations.localeName`).
+String liveCameraZoomLabel(double ratio, {String locale = 'en'}) =>
+    formatDecimal((ratio * 10).round() / 10, locale, trimZero: true);
 
 /// The zoom after [current] in the zoom button's cycle (1×, 2×, 4×, …
 /// within [min] to [max], then back to [min]).

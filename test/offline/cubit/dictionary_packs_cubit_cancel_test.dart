@@ -89,6 +89,7 @@ void main() {
       when(() => dictionaries.changes).thenAnswer((_) => const Stream.empty());
       when(() => dictionaries.catalog).thenReturn(DictionaryPackCatalog([es]));
       when(() => dictionaries.isSupported).thenReturn(true);
+      when(() => dictionaries.installing).thenReturn(const {});
       when(dictionaries.installed).thenAnswer((_) async => const []);
       when(
         () => dictionaries.install(

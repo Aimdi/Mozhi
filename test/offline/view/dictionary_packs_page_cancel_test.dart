@@ -30,6 +30,7 @@ void main() {
     when(() => packs.changes).thenAnswer((_) => const Stream.empty());
     when(() => packs.catalog).thenReturn(DictionaryPackCatalog([es]));
     when(() => packs.isSupported).thenReturn(true);
+    when(() => packs.installing).thenReturn(const {});
     when(packs.installed).thenAnswer((_) async => const []);
     when(
       () => packs.install(

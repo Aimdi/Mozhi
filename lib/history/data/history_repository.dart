@@ -208,6 +208,12 @@ class HistoryRepository {
   /// The associated data the record of the clears is encrypted with.
   static const clearedAssociatedData = 'mozhi.history.cleared';
 
+  /// Key of the encrypted Translate input draft ([saveDraft]) in [store].
+  static const draftStorageKey = 'history.v1.draft';
+
+  /// The associated data the draft is encrypted with.
+  static const draftAssociatedData = 'mozhi.translate.draft';
+
   /// Where the history key is kept by default: secure storage (Android
   /// Keystore), or on the web [preferences] (the browser storage the
   /// history is in; see the class docs).
@@ -247,6 +253,14 @@ class HistoryRepository {
   final DateTime Function() _clock;
 
   List<HistoryEntry>? _entries;
+
+  /// The stored value (under [storageKey]) [_entries] was read from or
+  /// last written as (null: none stored). Another window of the app (the
+  /// Android quick translate window runs its own engine, the web app may
+  /// be open in several tabs) shares the store: when the stored value is
+  /// no longer this one, it changed there, and is read again before a
+  /// change is made to it (see [_current]).
+  String? _storedRaw;
 
   /// The tombstones (entry id → deleted at), once read.
   Map<String, DateTime>? _tombstones;
@@ -318,6 +332,7 @@ class HistoryRepository {
       _cleared = HistoryCleared.none;
       _clearedDirty = false;
       _joined = null;
+      _storedRaw = null;
       return _entries = const [];
     }
   });
@@ -339,6 +354,7 @@ class HistoryRepository {
   /// [discardUnreadable] and the encryption key.
   Future<void> deleteAll() => _synchronized(() async {
     _entries = const [];
+    _storedRaw = null;
     _key = null;
     _tombstones = {};
     _tombstonesDirty = false;
@@ -349,8 +365,45 @@ class HistoryRepository {
     await store.delete(tombstonesStorageKey);
     await store.delete(clearedStorageKey);
     await store.delete(unreadableStorageKey);
+    await store.delete(draftStorageKey);
     await keyStore.delete(keyStorageKey);
   });
+
+  /// Keeps [text], the Translate input the app had when it went to the
+  /// background, so that it survives the app being ended (Android ends
+  /// apps in the background; a web page may be reloaded): encrypted like
+  /// the history, with its key (under [draftStorageKey]). Not written when
+  /// there is stored history that can't be decrypted (its key is never
+  /// replaced). Blank [text] deletes the draft.
+  Future<void> saveDraft(String text) => _synchronized(() async {
+    if (text.trim().isEmpty) return await store.delete(draftStorageKey);
+    final key = _key ?? await _readKey();
+    if (key == null && await store.read(storageKey) != null) return;
+    final encrypted = await cipher.encrypt(
+      text,
+      key ?? await _writeKey(),
+      aad: draftAssociatedData,
+    );
+    await store.write(draftStorageKey, encrypted);
+  });
+
+  /// The draft [saveDraft] kept, or null when there is none (or it can't
+  /// be decrypted).
+  Future<String?> readDraft() => _synchronized(() async {
+    final raw = await store.read(draftStorageKey);
+    if (raw == null) return null;
+    final key = _key ?? await _readKey();
+    if (key == null) return null;
+    try {
+      return await cipher.decrypt(raw, key, aad: draftAssociatedData);
+    } on HistoryCipherException {
+      return null;
+    }
+  });
+
+  /// Deletes the draft [saveDraft] kept.
+  Future<void> deleteDraft() =>
+      _synchronized(() => store.delete(draftStorageKey));
 
   /// How much the history takes in [store]: the length (UTF-16 code
   /// units) of the stored values, including its tombstones, its record of
@@ -1055,16 +1108,38 @@ class HistoryRepository {
   String _encode(List<HistoryEntry> entries) =>
       '[${entries.map(_json).join(',')}]';
 
+  /// The history to change: the copy in memory while the stored value is
+  /// the one it was read from or written as, else (another window of the
+  /// app wrote meanwhile, or nothing was read yet) the stored history read
+  /// again, so that a change is made to what is stored (read, modify,
+  /// write) and never drops what another window saved.
   Future<List<HistoryEntry>> _current() async {
-    if (_entries case final entries?) return entries;
-    final (entries, legacy: _) = await _readStored();
+    final raw = await store.read(storageKey);
+    if (_entries case final entries?) {
+      if (raw == _storedRaw) return entries;
+      // Its deletions and clears were written with it: read them again
+      // too (unless changes here still wait to be written).
+      if (!_tombstonesDirty) _tombstones = null;
+      if (!_clearedDirty) _cleared = null;
+    }
+    final (entries, legacy: _) = await _decodeStored(raw);
     return _entries = _capped(entries);
   }
 
   /// The stored entries, and whether they were stored unencrypted
   /// (`legacy`).
-  Future<(List<HistoryEntry>, {bool legacy})> _readStored() async {
-    final raw = await store.read(storageKey);
+  Future<(List<HistoryEntry>, {bool legacy})> _readStored() =>
+      store.read(storageKey).then(_decodeStored);
+
+  /// The entries of the stored value [raw], and whether they were stored
+  /// unencrypted (`legacy`); remembered as [_storedRaw] once read.
+  Future<(List<HistoryEntry>, {bool legacy})> _decodeStored(String? raw) async {
+    final decoded = await _decodeRaw(raw);
+    _storedRaw = raw;
+    return decoded;
+  }
+
+  Future<(List<HistoryEntry>, {bool legacy})> _decodeRaw(String? raw) async {
     if (raw == null) return (<HistoryEntry>[], legacy: false);
     if (!cipher.isEncrypted(raw)) return (_decodeLenient(raw), legacy: true);
     final key = _key ?? await _readKey();
@@ -1189,6 +1264,7 @@ class HistoryRepository {
       final encoded = await cipher.encrypt(_encode(next), key);
       try {
         await store.write(storageKey, encoded);
+        _storedRaw = encoded;
         return next;
       } on Object catch (error) {
         if (attempt >= _quotaRetries || !_isQuotaError(error)) rethrow;

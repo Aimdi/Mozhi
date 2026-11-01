@@ -3,6 +3,7 @@ library;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/presets/models/preset.dart';
 import 'package:mozhi/presets/widgets/preset_picker.dart';
 import 'package:translation_repository/translation_repository.dart';
@@ -80,6 +81,46 @@ void main() {
           isFalse,
         );
         expect(find.byIcon(Icons.star_rounded), findsNothing);
+      });
+
+      testWidgets("applies an example's context in the UI language", (
+        tester,
+      ) async {
+        harness = PresetsHarness();
+        addTearDown(harness.close);
+        await harness.presets.load();
+        await harness.pump(
+          tester,
+          Scaffold(
+            body: PresetPicker(
+              value: const TranslationOptions(),
+              onChanged: changes.add,
+            ),
+          ),
+          locale: const Locale('de'),
+        );
+        await settle(tester);
+
+        await tester.tap(
+          find.byKey(const Key('preset_picker_builtin-emailFormal')),
+        );
+        await settle(tester);
+        final german = lookupAppLocalizations(const Locale('de'));
+        expect(changes.single.context, german.presetsContextEmailFormal);
+
+        // ... and finds the example again by it.
+        await harness.pump(
+          tester,
+          Scaffold(
+            body: PresetPicker(value: changes.single, onChanged: changes.add),
+          ),
+          locale: const Locale('de'),
+        );
+        await settle(tester);
+        expect(
+          chip(tester, const Key('preset_picker_builtin-emailFormal')).selected,
+          isTrue,
+        );
       });
 
       testWidgets('choosing a preset keeps glossary and instructions', (

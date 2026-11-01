@@ -696,12 +696,12 @@ void main() {
         final style = tester.getRect(
           find.byKey(const Key('proofread_style_menu')),
         );
-        final formality = tester.getRect(
-          find.byKey(const Key('proofread_formality_menu')),
+        final tone = tester.getRect(
+          find.byKey(const Key('proofread_tone_menu')),
         );
-        expect(style.top, formality.top);
-        expect(style.width, closeTo(formality.width, 0.5));
-        expect(style.height, formality.height);
+        expect(style.top, tone.top);
+        expect(style.width, closeTo(tone.width, 0.5));
+        expect(style.height, tone.height);
       });
 
       testWidgets('changes the writing style', (tester) async {
@@ -1143,7 +1143,11 @@ void main() {
         );
         final spans = _diffSpans(tester);
         expect(spans.map((s) => s.text), ['I has', 'We have', ' an apple.']);
-        expect(spans.every((s) => s.recognizer == null), isTrue);
+        // No edit to open: every part opens its sentence's alternatives.
+        expect(
+          spans.every((s) => s.recognizer is TapGestureRecognizer),
+          isTrue,
+        );
       });
 
       testWidgets('says how much personal data stayed on the device', (
@@ -1653,7 +1657,7 @@ void main() {
         final input = tester.widget<TextField>(
           find.byKey(const Key('proofread_input')),
         );
-        final diff = tester.widget<ProofreadDiffText>(
+        final diff = tester.widget<ProofreadOutputText>(
           find.byKey(const Key('proofread_diff')),
         );
         expect(diff.style?.fontSize, input.style?.fontSize);

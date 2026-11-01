@@ -162,7 +162,11 @@
              text, Markdown, JSON, office files, e-books and PDFs; text/*
              includes text/vtt), or hands shared
              text on as before. Only content:// files of other apps are
-             read. Nothing is translated or sent because of a share. -->
+             read. Nothing is translated or sent because of a share.
+             Several files at once (SEND_MULTIPLE): the first is opened.
+             Translation files (.po, .xliff, .arb, .strings, .xcstrings)
+             often come as XML, gettext or plain binary types; a file of
+             no known format opens with "unsupported file". -->
         <activity
             android:name=".ShareReceiverActivity"
             android:exported="true"
@@ -172,11 +176,18 @@
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode">
             <intent-filter>
                 <action android:name="android.intent.action.SEND"/>
+                <action android:name="android.intent.action.SEND_MULTIPLE"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <data android:mimeType="text/*"/>
                 <data android:mimeType="image/*"/>
                 <data android:mimeType="application/x-subrip"/>
                 <data android:mimeType="application/json"/>
+                <!-- Translation files (Documents). -->
+                <data android:mimeType="application/xml"/>
+                <data android:mimeType="application/x-xliff+xml"/>
+                <data android:mimeType="application/xliff+xml"/>
+                <data android:mimeType="application/x-gettext"/>
+                <data android:mimeType="application/octet-stream"/>
                 <!-- Office documents and e-books (Documents, W6-A). -->
                 <data android:mimeType="application/vnd.openxmlformats-officedocument.wordprocessingml.document"/>
                 <data android:mimeType="application/vnd.openxmlformats-officedocument.presentationml.presentation"/>
@@ -236,6 +247,36 @@
                 android:name="flutter_deeplinking_enabled"
                 android:value="false" />
             <intent-filter android:label="@string/translate_offline">
+                <action android:name="android.intent.action.PROCESS_TEXT"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:mimeType="text/plain"/>
+            </intent-filter>
+        </activity-alias>
+        <!-- Text selection toolbar: "Improve with Mozhi", a third
+             PROCESS_TEXT entry that proofreads the selection with the AI
+             engine of Proofread (lib/quick_improve) instead of translating
+             it, in the same translucent window as "Translate with Mozhi"
+             (whose theme an alias takes); Replace hands the improved text
+             back to the caller. MainActivity adds action "improve" to
+             selections arriving through this alias (isImproveText).
+             Exported, because other apps start it from their selection
+             toolbar; the proofread follows the privacy rules of the app.
+             Aliases don't inherit the target's meta-data (see
+             .TranslateClipboardActivity), so the Flutter ones are repeated
+             here. -->
+        <activity-alias
+            android:name=".ImproveTextActivity"
+            android:targetActivity=".QuickTranslateActivity"
+            android:exported="true"
+            android:label="@string/improve_with_mozhi">
+            <meta-data
+                android:name="io.flutter.embedding.android.NormalTheme"
+                android:resource="@style/TransparentTheme"
+                />
+            <meta-data
+                android:name="flutter_deeplinking_enabled"
+                android:value="false" />
+            <intent-filter android:label="@string/improve_with_mozhi">
                 <action android:name="android.intent.action.PROCESS_TEXT"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <data android:mimeType="text/plain"/>

@@ -21,7 +21,9 @@ import 'package:mozhi/translate/widgets/engine_selector.dart';
 import 'package:mozhi/translate/widgets/no_engines_view.dart';
 import 'package:mozhi/translate/widgets/status_announcer.dart';
 import 'package:mozhi/usage/data/usage_tracker.dart';
+import 'package:mozhi/voice/speech_input_service.dart';
 import 'package:mozhi/voice/widgets/voice_error_message.dart';
+import 'package:mozhi/voice/widgets/voice_model_offer.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 /// Conversation mode. Creates a [ConversationCubit] for the page's
@@ -117,7 +119,9 @@ class ConversationPage extends StatelessWidget {
 /// ([ConversationSessionDock]); on phones the composers then hide behind
 /// its keyboard button. A conversation that is running stops when the
 /// app goes to the background or the page is covered (another tab, a
-/// pushed page); voice input failures are explained in a snack bar, and
+/// pushed page); voice input failures are explained like on the translate
+/// screen (the offline speech model is offered where it helps, else a
+/// snack bar says why and what to do), and
 /// new translations (unless they are read aloud anyway) and why a
 /// hands-free conversation paused are announced to screen readers.
 ///
@@ -221,32 +225,134 @@ class ConversationView extends StatelessWidget {
             );
           },
         ),
-        BlocListener<ConversationCubit, ConversationState>(
-          // Voice input of the hands-free conversation failed.
-          listenWhen: (previous, current) =>
-              current.session is ConversationSessionFailed &&
-              previous.session != current.session,
-          listener: (context, state) {
-            final failed = state.session as ConversationSessionFailed;
-            showVoiceInputErrorSnackBar(
-              context,
-              failed.failure,
-              onDevice: failed.onDevice,
-              offlineSupported: failed.offlineSupported,
-            );
-          },
-        ),
       ],
-      child: _SessionGuard(
-        child: _ConversationAnnouncer(
-          child: _FaceToFacePresenter(
-            micBuilder: micBuilder,
-            share: share,
-            child: ConversationShareGuard(child: scaffold),
+      child: _VoiceFailureHandler(
+        child: _SessionGuard(
+          child: _ConversationAnnouncer(
+            child: _FaceToFacePresenter(
+              micBuilder: micBuilder,
+              share: share,
+              child: ConversationShareGuard(child: scaffold),
+            ),
           ),
         ),
       ),
     );
+  }
+}
+
+/// Explains why the voice input of the hands-free conversation failed
+/// ([ConversationSessionFailed]) the way the translate screen's microphone
+/// (`VoiceInputButton`) does: where the offline speech model fixes it (a
+/// phone without a speech recognition service, Whisper or Offline only
+/// without a model) and Whisper runs here, it offers the download right
+/// away ([offerVoiceModel]) and the conversation goes on listening once
+/// the model is installed (not when the app is in the background
+/// meanwhile); everything else, and a model that still does not work
+/// after the offer, is explained in a snack bar with a way forward
+/// ([showVoiceInputErrorSnackBar]: "Open settings" for a denied
+/// microphone, "Download model").
+class _VoiceFailureHandler extends StatefulWidget {
+  const new({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_VoiceFailureHandler> createState() => _VoiceFailureHandlerState();
+}
+
+class _VoiceFailureHandlerState extends State<_VoiceFailureHandler> {
+  /// The model offer is open (one at a time).
+  bool _offering = false;
+
+  /// The conversation goes on after the offer installed a model: should
+  /// it fail again before it listens, that is explained, not offered
+  /// again.
+  bool _afterOffer = false;
+
+  void _onSession(BuildContext context, ConversationState state) {
+    final session = state.session;
+    if (session is ConversationSessionFailed) {
+      unawaited(_explain(session));
+    } else if (session is! ConversationSessionListening ||
+        session.stage != ConversationListenStage.starting) {
+      // It listened (or ended): a later failure is offered again.
+      _afterOffer = false;
+    }
+  }
+
+  Future<void> _explain(ConversationSessionFailed failed) async {
+    final afterOffer = _afterOffer;
+    _afterOffer = false;
+    final service = _speechInputOf(context);
+    final offline = offlineSpeechOf(context);
+    if (_offering ||
+        afterOffer ||
+        service == null ||
+        offline == null ||
+        !canOfferVoiceModel(
+          failed.failure,
+          service: service,
+          offline: offline,
+        )) {
+      showVoiceInputErrorSnackBar(
+        context,
+        failed.failure,
+        onDevice: failed.onDevice,
+        offlineSupported: failed.offlineSupported,
+      );
+      return;
+    }
+    final cubit = context.read<ConversationCubit>();
+    _offering = true;
+    final bool installed;
+    try {
+      installed = await offerVoiceModel(
+        context,
+        service: service,
+        offline: offline,
+        failure: failed.failure,
+      );
+    } finally {
+      _offering = false;
+    }
+    if (!installed || !mounted || cubit.isClosed) return;
+    // A download that finished while the app was in the background must
+    // not open the microphone behind the user's back.
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    if (lifecycle != null && lifecycle != AppLifecycleState.resumed) return;
+    // The user tapped the microphone to talk: now they can.
+    switch (cubit.state.session) {
+      case ConversationSessionFailed():
+        _afterOffer = true;
+        await cubit.toggleSession();
+      case ConversationSessionIdle():
+        _afterOffer = true;
+        cubit.startSession(side: failed.next);
+      case ConversationSessionListening() ||
+          ConversationSessionTranslating() ||
+          ConversationSessionSpeaking() ||
+          ConversationSessionPaused():
+        // Something else goes on already.
+        break;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      BlocListener<ConversationCubit, ConversationState>(
+        listenWhen: (previous, current) => previous.session != current.session,
+        listener: _onSession,
+        child: widget.child,
+      );
+}
+
+/// The app-wide [SpeechInputService], or null without one (tests).
+SpeechInputService? _speechInputOf(BuildContext context) {
+  try {
+    return context.read<SpeechInputService>();
+  } on ProviderNotFoundException {
+    return null;
   }
 }
 

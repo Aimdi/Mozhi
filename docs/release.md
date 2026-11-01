@@ -49,10 +49,11 @@ Status as of 18 October 2026.
       (`v0.1.0-rc.1`) ran on a phone, where voice input, image translation
       and "Detect language" failed (fixed in #16). Install each release
       candidate on at least one arm64 and, ideally, one armeabi-v7a device.
-      Check offline translation (download a language), both text-selection
-      actions ("Translate with Mozhi" and "Translate offline"), text
-      recognition in a photo (download one language's data) and offline
-      voice input (download the Fast model, dictate a sentence). Then the
+      Check offline translation (download a language), the three
+      text-selection actions ("Translate with Mozhi", "Translate offline"
+      and "Improve with Mozhi"), text recognition in a photo (download one
+      language's data) and offline voice input (download the Fast model,
+      dictate a sentence). Then the
       Android integration:
       - long-press the app icon: the shortcuts Clipboard, Dictionary,
         Proofread and Conversation open the right screen, also while the

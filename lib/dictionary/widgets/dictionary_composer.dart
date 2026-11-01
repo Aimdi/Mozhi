@@ -5,6 +5,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/widgets/composer_card.dart';
+import 'package:mozhi/core/widgets/language_pair_bar.dart'
+    show languagePairForms;
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/dictionary/cubit/dictionary_cubit.dart';
 import 'package:mozhi/dictionary/widgets/dictionary_language_bar.dart';
@@ -12,6 +14,8 @@ import 'package:mozhi/dictionary/widgets/dictionary_language_picker.dart';
 import 'package:mozhi/dictionary/widgets/dictionary_options_sheet.dart';
 import 'package:mozhi/dictionary/widgets/dictionary_search_field.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/translate/widgets/language_bar.dart'
+    show FirstThatFits, LanguageLabelForm;
 import 'package:mozhi/voice/voice.dart'
     show SpeechInputService, VoiceInputButton;
 import 'package:translation_repository/translation_repository.dart';
@@ -208,7 +212,8 @@ class DictionaryLanguagePair extends StatelessWidget {
       )..layout();
       final width = painter.width;
       painter.dispose();
-      return width + buttonChrome;
+      // Rounded up: a name that just fits is not shortened.
+      return width.ceilToDouble() + 1 + buttonChrome;
     }
 
     return LayoutBuilder(
@@ -226,6 +231,11 @@ class DictionaryLanguagePair extends StatelessWidget {
               child: _PairButton(
                 key: const Key('dictionary_bar_source'),
                 label: sourceName,
+                forms: languagePairForms(
+                  source,
+                  label: sourceName,
+                  autoShort: l10n.translateDetectLanguageShort,
+                ),
                 style: style,
                 semanticsLabel: source.isAuto
                     ? l10n.dictionarySourceLanguageAuto
@@ -249,6 +259,11 @@ class DictionaryLanguagePair extends StatelessWidget {
               child: _PairButton(
                 key: const Key('dictionary_bar_target'),
                 label: targetName,
+                forms: languagePairForms(
+                  target,
+                  label: targetName,
+                  autoShort: l10n.translateDetectLanguageShort,
+                ),
                 style: targetStyle,
                 semanticsLabel: l10n.dictionaryTargetLanguage(targetName),
                 onPressed: () =>
@@ -265,9 +280,15 @@ class DictionaryLanguagePair extends StatelessWidget {
 /// A language name with a small chevron, on the bar without an outline of
 /// its own. The button keeps its own semantics (tap action, focus); only
 /// its visible content is replaced by [semanticsLabel].
+///
+/// It shows the first of [forms] that fits whole (the name, then the code;
+/// "Detect language", then the sparkle and "Auto"), each first with the
+/// chevron, then without; never a cut name. The full [label] stays in the
+/// tooltip.
 class _PairButton extends StatelessWidget {
   const new({
     required this.label,
+    required this.forms,
     required this.style,
     required this.semanticsLabel,
     required this.onPressed,
@@ -275,6 +296,7 @@ class _PairButton extends StatelessWidget {
   });
 
   final String label;
+  final List<LanguageLabelForm> forms;
   final TextStyle? style;
   final String semanticsLabel;
   final VoidCallback onPressed;
@@ -282,6 +304,24 @@ class _PairButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final secondary = AppPalette.of(context).secondaryText;
+    Widget content(LanguageLabelForm form, {required bool chevron}) {
+      final (:icon, :text) = form;
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) Icon(icon, size: 18, color: scheme.primary),
+          if (icon != null && text != null) const SizedBox(width: 6),
+          if (text != null)
+            Text(text, maxLines: 1, softWrap: false, style: style),
+          if (chevron) ...[
+            if (icon != null || text != null) const SizedBox(width: 2),
+            Icon(Icons.expand_more, size: 16, color: secondary),
+          ],
+        ],
+      );
+    }
+
     return Tooltip(
       message: label,
       excludeFromSemantics: true,
@@ -296,23 +336,13 @@ class _PairButton extends StatelessWidget {
         child: Semantics(
           label: semanticsLabel,
           excludeSemantics: true,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+          child: FirstThatFits(
             children: [
-              Flexible(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: style,
-                ),
-              ),
-              const SizedBox(width: 2),
-              Icon(
-                Icons.expand_more,
-                size: 16,
-                color: AppPalette.of(context).secondaryText,
-              ),
+              for (final form in forms) ...[
+                content(form, chevron: true),
+                if (form.icon != null || form.text != null)
+                  content(form, chevron: false),
+              ],
             ],
           ),
         ),

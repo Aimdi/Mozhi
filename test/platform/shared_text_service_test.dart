@@ -60,6 +60,28 @@ void main() {
       );
     });
 
+    test('recognises the improve action', () {
+      const text = SharedText(
+        'I has a cat',
+        readOnly: false,
+        isProcessText: true,
+        action: 'improve',
+      );
+
+      expect(SharedText.improveAction, 'improve');
+      expect(text.isImprove, isTrue);
+      expect(text.isTranslateOffline, isFalse);
+      expect(text.isTranslateClipboard, isFalse);
+      expect(const SharedText('hola').isImprove, isFalse);
+      expect(
+        const SharedText(
+          'hola',
+          action: SharedText.translateOfflineAction,
+        ).isImprove,
+        isFalse,
+      );
+    });
+
     test('supports value equality', () {
       expect(const SharedText('a'), equals(const SharedText('a')));
       expect(const SharedText('a').hashCode, const SharedText('a').hashCode);
@@ -168,6 +190,26 @@ void main() {
           ),
         );
         expect(text!.isTranslateOffline, isTrue);
+      });
+
+      test('reads an improve selection', () {
+        final text = SharedTextService.parse({
+          'text': 'I has a cat',
+          'readOnly': false,
+          'processText': true,
+          'action': 'improve',
+        });
+
+        expect(
+          text,
+          const SharedText(
+            'I has a cat',
+            readOnly: false,
+            isProcessText: true,
+            action: SharedText.improveAction,
+          ),
+        );
+        expect(text!.isImprove, isTrue);
       });
 
       test('drops blank text next to an action', () {

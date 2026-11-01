@@ -146,17 +146,23 @@ class PresetsCubit extends Cubit<PresetsState> {
   }
 
   /// Inserts a copy of [id] right after it, named [name] (defaults to the
-  /// original name). The copy is never the default.
+  /// original name), with [options] (defaults to the original's; e.g. a
+  /// built-in example's as shown in the UI language). The copy is never
+  /// the default.
   // Returns the created item so the caller can open or select it.
   // ignore: prefer_void_public_cubit_methods
-  Future<Preset?> duplicate(String id, {String? name}) async {
+  Future<Preset?> duplicate(
+    String id, {
+    String? name,
+    TranslationOptions? options,
+  }) async {
     final index = _indexOf(id);
     if (index < 0) return null;
     final original = state.presets[index];
     final copy = Preset(
       id: _repository.newId(),
       name: (name ?? original.name).trim(),
-      options: original.options,
+      options: Preset.settingsOf(options ?? original.options),
       updatedAt: _clock(),
     );
     await _commit([...state.presets]..insert(index + 1, copy));

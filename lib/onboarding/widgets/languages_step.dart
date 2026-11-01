@@ -6,8 +6,11 @@ import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/offline/cubit/offline_models_cubit.dart';
+import 'package:mozhi/offline/data/mirror_hosting.dart';
 import 'package:mozhi/offline/view/offline_models_page.dart'
     show MeteredDownloadDialog, offlineOutcomeMessage;
+import 'package:mozhi/offline/widgets/mirror_hosting_banner.dart';
+import 'package:mozhi/offline/widgets/offline_import_summary.dart';
 import 'package:mozhi/offline/widgets/offline_language_tile.dart'
     show OfflineCancelDownloadButton, confirmDeleteOfflineLanguage;
 import 'package:mozhi/onboarding/cubit/onboarding_cubit.dart';
@@ -160,6 +163,11 @@ Set<String> onboardingCheckedDownloads(
 /// phone has room ([onboardingCheckedDownloads]); they start when the user
 /// taps Next (the flow moves on to the service step), never by themselves.
 ///
+/// Where the web app's server does not host the language downloads
+/// ([MirrorHostingBuilder]), nothing is offered for download: the step
+/// says so ([MirrorNotHostedBanner], with "Import from files") and Next
+/// downloads nothing.
+///
 /// Expects an [OnboardingCubit] and an [OfflineModelsCubit] above it.
 class LanguagesStep extends StatelessWidget {
   const new({super.key});
@@ -178,8 +186,14 @@ class LanguagesStep extends StatelessWidget {
         )
       : null;
 
-  /// Starts the checked downloads: the user tapped Next.
-  static void _downloadChecked(BuildContext context, OnboardingState state) {
+  /// Starts the checked downloads: the user tapped Next (none when the
+  /// downloads are [blocked] here).
+  static void _downloadChecked(
+    BuildContext context,
+    OnboardingState state, {
+    required bool blocked,
+  }) {
+    if (blocked) return;
     final settings = context.read<SettingsCubit>().state;
     final cubit = context.read<OfflineModelsCubit>();
     final offline = cubit.state;
@@ -229,7 +243,6 @@ class LanguagesStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = context.l10n;
     final source = context.select<SettingsCubit, Language>(
       (c) => c.state.source,
     );
@@ -243,6 +256,28 @@ class LanguagesStep extends StatelessWidget {
         suggested != null &&
         suggestedSourceLanguage(onboarding.deviceLanguages, target: target) ==
             suggested;
+    return MirrorHostingBuilder(
+      kind: MirrorDataKind.translation,
+      builder: (context, {required blocked}) => _build(
+        context,
+        source: source,
+        target: target,
+        suggested: suggested,
+        fromPhone: fromPhone,
+        blocked: blocked,
+      ),
+    );
+  }
+
+  Widget _build(
+    BuildContext context, {
+    required Language source,
+    required Language target,
+    required Language? suggested,
+    required bool fromPhone,
+    required bool blocked,
+  }) {
+    final l10n = context.l10n;
     return MultiBlocListener(
       listeners: [
         BlocListener<OfflineModelsCubit, OfflineModelsState>(
@@ -251,12 +286,23 @@ class LanguagesStep extends StatelessWidget {
           listener: (context, state) =>
               unawaited(_onOutcome(context, state.outcome!)),
         ),
+        BlocListener<OfflineModelsCubit, OfflineModelsState>(
+          listenWhen: (previous, current) =>
+              current.importOutcome != null &&
+              previous.importOutcome != current.importOutcome,
+          listener: (context, state) => showDialog<void>(
+            context: context,
+            builder: (_) =>
+                OfflineImportSummaryDialog(outcome: state.importOutcome!),
+          ),
+        ),
         // Next: from this step on to the service step.
         BlocListener<OnboardingCubit, OnboardingState>(
           listenWhen: (previous, current) =>
               previous.step == OnboardingStep.languages &&
               current.step == OnboardingStep.service,
-          listener: _downloadChecked,
+          listener: (context, state) =>
+              _downloadChecked(context, state, blocked: blocked),
         ),
       ],
       child: OnboardingStepLayout(
@@ -284,6 +330,7 @@ class LanguagesStep extends StatelessWidget {
             source: source,
             target: target,
             suggested: suggested,
+            blocked: blocked,
           ),
         ],
       ),
@@ -441,10 +488,18 @@ class _LanguageField extends StatelessWidget {
 /// "Use them offline": the picked languages' downloads (checkboxes,
 /// downloaded on Next), or why there are none on this device.
 class _OfflineDownloads extends StatelessWidget {
-  const new({required this.source, required this.target, this.suggested});
+  const new({
+    required this.source,
+    required this.target,
+    this.suggested,
+    this.blocked = false,
+  });
 
   final Language source;
   final Language target;
+
+  /// This web server does not host the downloads: none is offered.
+  final bool blocked;
 
   /// The suggested source while detecting.
   final Language? suggested;
@@ -482,9 +537,9 @@ class _OfflineDownloads extends StatelessWidget {
     );
     final onboarding = context.watch<OnboardingCubit>();
     final checked = onboardingCheckedDownloads(onboarding.state, state, codes);
-    final checkable = codes.any(
-      (code) => onboardingCanCheckDownload(state, code),
-    );
+    final checkable =
+        !blocked &&
+        codes.any((code) => onboardingCanCheckDownload(state, code));
     final cubit = context.read<OfflineModelsCubit>();
     final byCode = {
       for (final language in state.languages) language.code: language,
@@ -512,7 +567,8 @@ class _OfflineDownloads extends StatelessWidget {
               installedSize: state.installedSizeOf(code),
               outdated: state.isOutdated(code),
               builtIn: state.isBuiltIn(code),
-              selected: onboardingCanCheckDownload(state, code)
+              downloadable: !blocked,
+              selected: !blocked && onboardingCanCheckDownload(state, code)
                   ? checked.contains(code)
                   : null,
               onSelected: (download) =>
@@ -545,17 +601,26 @@ class _OfflineDownloads extends StatelessWidget {
               color: palette.secondaryText,
               text: l10n.onboardingLanguagesDownloadOnNext,
             ),
-          const SizedBox(height: 8),
-          SwitchListTile(
-            key: const Key('onboarding_offline_wifi_only'),
-            contentPadding: EdgeInsets.zero,
-            secondary: const Icon(Icons.wifi),
-            title: Text(l10n.offlineWifiOnly),
-            subtitle: Text(l10n.offlineWifiOnlyAsk),
-            value: state.wifiOnly,
-            onChanged: (enabled) =>
-                unawaited(cubit.setWifiOnly(enabled: enabled)),
-          ),
+          if (blocked)
+            MirrorNotHostedBanner(
+              onImport: state.canImport
+                  ? () => unawaited(cubit.importFromFiles())
+                  : null,
+              importing: state.importing,
+            )
+          else ...[
+            const SizedBox(height: 8),
+            SwitchListTile(
+              key: const Key('onboarding_offline_wifi_only'),
+              contentPadding: EdgeInsets.zero,
+              secondary: const Icon(Icons.wifi),
+              title: Text(l10n.offlineWifiOnly),
+              subtitle: Text(l10n.offlineWifiOnlyAsk),
+              value: state.wifiOnly,
+              onChanged: (enabled) =>
+                  unawaited(cubit.setWifiOnly(enabled: enabled)),
+            ),
+          ],
         ],
       ),
     );
@@ -586,8 +651,14 @@ class OnboardingOfflineLanguageRow extends StatelessWidget {
     this.onSelected,
     this.onCancel,
     this.cancelling = false,
+    this.downloadable = true,
     super.key,
   });
+
+  /// Whether it can be downloaded (or updated) here; false where the web
+  /// app's server does not host the downloads: no Download, Update or
+  /// checkbox then.
+  final bool downloadable;
 
   /// Cancels the running download or update; null: no Cancel.
   final VoidCallback? onCancel;
@@ -658,6 +729,13 @@ class OnboardingOfflineLanguageRow extends StatelessWidget {
     return [?native, ?status].join(' · ');
   }
 
+  /// Whether the download is checked, when the row is a checkbox.
+  bool? get _checked => switch (selected) {
+    final checked? when downloadable && !downloaded && !outdated && !builtIn =>
+      pending == null ? checked : null,
+    _ => null,
+  };
+
   Future<void> _confirmDelete(BuildContext context) async {
     if (await confirmDeleteOfflineLanguage(context, language)) onDelete();
   }
@@ -694,21 +772,22 @@ class OnboardingOfflineLanguageRow extends StatelessWidget {
       );
     }
     if (builtIn) return null;
-    if (selected case final checked? when !downloaded && !outdated) {
-      final label = l10n.onboardingLanguagesDownloadCheckbox(
-        language.displayNameIn(l10n.localeName),
-      );
+    if (_checked case final checked?) {
+      // The whole row is the checkbox (see build): its name is the row's.
       return Tooltip(
-        message: label,
+        message: l10n.onboardingLanguagesDownloadCheckbox(
+          language.displayNameIn(l10n.localeName),
+        ),
+        excludeFromSemantics: true,
         child: Checkbox(
           key: ValueKey('onboarding_offline_check_${language.code}'),
           value: checked,
-          semanticLabel: label,
           onChanged: (value) => onSelected?.call(value ?? false),
         ),
       );
     }
     const minimumSize = Size(64, 48);
+    if (!downloadable && (!downloaded || outdated)) return null;
     if (!downloaded || outdated) {
       return Tooltip(
         message: outdated
@@ -800,7 +879,7 @@ class OnboardingOfflineLanguageRow extends StatelessWidget {
               ),
           ],
         );
-        return Padding(
+        final row = Padding(
           padding: const EdgeInsets.symmetric(vertical: 8),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -825,6 +904,19 @@ class OnboardingOfflineLanguageRow extends StatelessWidget {
                   ),
                 ),
             ],
+          ),
+        );
+        final checked = _checked;
+        if (checked == null) return row;
+        // One node: the name and size, checked or not; a tap anywhere on
+        // the row toggles it.
+        return MergeSemantics(
+          child: InkWell(
+            key: ValueKey('onboarding_offline_toggle_${language.code}'),
+            excludeFromSemantics: true,
+            borderRadius: BorderRadius.circular(12),
+            onTap: () => onSelected?.call(!checked),
+            child: row,
           ),
         );
       },

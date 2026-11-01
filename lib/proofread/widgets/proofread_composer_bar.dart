@@ -41,6 +41,7 @@ bool proofreadOptionsModified(ProofreadState state) =>
     state.correctionLevel != CorrectionLevel.standard ||
     state.writingStyle != WritingStyle.general ||
     state.formality != Formality.automatic ||
+    state.tone != WritingTone.automatic ||
     state.readingLevel != ReadingLevel.standard ||
     state.context.trim().isNotEmpty;
 

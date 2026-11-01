@@ -90,6 +90,8 @@ class _PresetsViewState extends State<PresetsView> {
           cubit.duplicate(
             preset.id,
             name: l10n.presetsCopyName(l10n.presetName(preset)),
+            // A copy of an example is the user's own: its context as shown.
+            options: l10n.localizedPreset(preset).options,
           ),
         );
       case _PresetAction.share:
@@ -384,7 +386,7 @@ class _PresetTile extends StatelessWidget {
                 ],
               ),
               subtitle: Text(
-                l10n.presetSummary(preset.options),
+                l10n.presetSummary(l10n.localizedPreset(preset).options),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),

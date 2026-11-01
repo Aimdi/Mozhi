@@ -4,6 +4,7 @@
 <resources>
     <string name="translate_with_mozhi">Перевести в Mozhi</string>
     <string name="translate_offline">Перевести офлайн</string>
+    <string name="improve_with_mozhi">Улучшить в Mozhi</string>
     <string name="tile_translate_label">Перевод</string>
     <string name="tile_translate_description">Перевести буфер обмена с помощью Mozhi</string>
     <string name="shortcut_clipboard_short">Буфер обмена</string>

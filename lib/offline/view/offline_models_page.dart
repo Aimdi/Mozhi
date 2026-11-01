@@ -391,8 +391,8 @@ class _ModelsList extends StatelessWidget {
       ],
     ];
 
-    final downloaded = state.visibleDownloaded;
-    final available = state.visibleAvailable;
+    final downloaded = state.visibleDownloadedIn(context.l10n.localeName);
+    final available = state.visibleAvailableIn(context.l10n.localeName);
     return LayoutBuilder(
       builder: (context, constraints) => ListView(
         // Rows run edge to edge on phones (their content keeps a 16 dp

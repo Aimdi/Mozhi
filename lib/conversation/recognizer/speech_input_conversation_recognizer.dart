@@ -38,14 +38,15 @@ ConversationRecognizer? speechInputConversationRecognizer(
 /// ([SpeechInputListening.detectsLanguage]).
 ///
 /// Failures to start are read from [SpeechInputService.state] like
-/// `VoiceInputButton` does (the service does not repeat an unchanged
-/// state). When the microphone closes without a result the utterance
-/// waits [finalResultGrace] for it (Android reports the end of listening
-/// before the final result); a session that ends without a result is
-/// reported as [ConversationHeardEnd], `interrupted` when another owner
-/// took the microphone over. [ConversationHeardSpeech] follows
-/// [SpeechInputListening.heardSpeech] (words, or the voice activity
-/// detection of an on-device recogniser), not the loudness.
+/// `VoiceInputButton` does (the service does not repeat an unchanged state); a
+/// session that does not start without a failure (another one took over) ends
+/// as `interrupted`. When the microphone closes without a result the utterance
+/// waits [finalResultGrace] for it (Android reports the end of listening before
+/// the final result); a session that ends without a result is reported as
+/// [ConversationHeardEnd], `interrupted` when another owner took the microphone
+/// over. [ConversationHeardSpeech] follows [SpeechInputListening.heardSpeech]
+/// (words, or the voice activity detection of an on-device recogniser), not the
+/// loudness.
 ///
 /// `timer` creates the grace timers (default [Timer.new]); tests pass fake
 /// ones.
@@ -115,9 +116,14 @@ class SpeechInputConversationRecognizer implements ConversationRecognizer {
         error.failure,
       _ => null,
     };
+    // Not started without a failure of its own: another session took the
+    // microphone over (or is taking it), which pauses the conversation
+    // instead of passing for silence.
     _finish(
       utterance,
-      failure == null ? const ConversationHeardEnd() : _failure(failure),
+      failure == null
+          ? const ConversationHeardEnd(interrupted: true)
+          : _failure(failure),
     );
   }
 

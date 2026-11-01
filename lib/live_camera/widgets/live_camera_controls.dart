@@ -65,6 +65,11 @@ class LiveCameraTopBar extends StatelessWidget {
                     key: const Key('live_camera_source_button'),
                     label: sourceLabel,
                     semanticLabel: l10n.translateSourceLanguage(sourceLabel),
+                    forms: languagePairForms(
+                      source,
+                      label: sourceLabel,
+                      autoShort: l10n.translateDetectLanguageShort,
+                    ),
                     onPressed: () => unawaited(
                       pickLiveCameraLanguage(context, source: true),
                     ),
@@ -73,6 +78,11 @@ class LiveCameraTopBar extends StatelessWidget {
                     key: const Key('live_camera_target_button'),
                     label: targetLabel,
                     semanticLabel: l10n.translateTargetLanguage(targetLabel),
+                    forms: languagePairForms(
+                      target,
+                      label: targetLabel,
+                      autoShort: l10n.translateDetectLanguageShort,
+                    ),
                     onPressed: () => unawaited(
                       pickLiveCameraLanguage(context, source: false),
                     ),
@@ -297,7 +307,8 @@ class _ZoomButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final label = l10n.liveCameraZoom(liveCameraZoomLabel(zoom));
+    final zoomLabel = liveCameraZoomLabel(zoom, locale: l10n.localeName);
+    final label = l10n.liveCameraZoom(zoomLabel);
     return Semantics(
       button: true,
       enabled: onPressed != null,
@@ -316,7 +327,7 @@ class _ZoomButton extends StatelessWidget {
           backgroundColor: Colors.black54,
           foregroundColor: Colors.white,
         ),
-        child: Text('${liveCameraZoomLabel(zoom)}×'),
+        child: Text('$zoomLabel×'),
       ),
     );
   }

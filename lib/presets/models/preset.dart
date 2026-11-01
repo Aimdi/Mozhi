@@ -5,8 +5,9 @@ import 'package:translation_repository/translation_repository.dart';
 /// The built-in example presets that are seeded on first launch.
 ///
 /// Their stored [Preset.name] stays empty until the user renames them, so the
-/// UI can show a localised name. The [options] contain an English context
-/// sentence: it is prompt data for the AI model, like the other prompts.
+/// UI can show a localised name. Likewise the [options] keep the English
+/// context sentence while the user leaves it as it is: the UI shows and
+/// applies it in the UI language instead (`PresetLabels.localizedPreset`).
 enum BuiltInPreset {
   /// "Email to colleague (formal)".
   emailFormal,

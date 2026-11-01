@@ -99,6 +99,12 @@ class DocumentSettingsCard extends StatelessWidget {
             label: sourceLabel,
             semanticLabel: l10n.documentsSourceLanguage(sourceLabel),
             icon: state.source.isCustom ? Icons.auto_awesome_outlined : null,
+            forms: languagePairForms(
+              state.source,
+              label: sourceLabel,
+              autoShort: l10n.translateDetectLanguageShort,
+              icon: state.source.isCustom ? Icons.auto_awesome_outlined : null,
+            ),
             onPressed: pickable
                 ? () => unawaited(_pickLanguage(context, source: true))
                 : null,
@@ -108,6 +114,12 @@ class DocumentSettingsCard extends StatelessWidget {
             label: targetLabel,
             semanticLabel: l10n.documentsTargetLanguage(targetLabel),
             icon: state.target.isCustom ? Icons.auto_awesome_outlined : null,
+            forms: languagePairForms(
+              state.target,
+              label: targetLabel,
+              autoShort: l10n.translateDetectLanguageShort,
+              icon: state.target.isCustom ? Icons.auto_awesome_outlined : null,
+            ),
             onPressed: pickable
                 ? () => unawaited(_pickLanguage(context, source: false))
                 : null,

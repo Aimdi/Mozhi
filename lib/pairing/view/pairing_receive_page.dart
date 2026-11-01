@@ -16,6 +16,7 @@ import 'package:mozhi/pairing/view/pairing_unavailable.dart';
 import 'package:mozhi/pairing/widgets/pairing_labels.dart';
 import 'package:mozhi/pairing/widgets/pairing_widgets.dart';
 import 'package:mozhi/platform/clipboard_service.dart';
+import 'package:mozhi/platform/free_space.dart' show requiredFreeSpace;
 import 'package:mozhi/settings/view/widgets/delete_local_data.dart'
     show formatStoredSize;
 import 'package:mozhi/settings/view/widgets/empty_state_view.dart';
@@ -411,6 +412,20 @@ class _Offer extends StatelessWidget {
           const SizedBox(height: AppSpacing.sm),
           Text(l10n.pairingModesBody, style: secondary),
         ],
+        if (!state.selectionFits) ...[
+          const SizedBox(height: AppSpacing.md),
+          Semantics(
+            liveRegion: true,
+            child: Text(
+              l10n.pairingSelectionNoSpace(
+                formatStoredSize(l10n, requiredFreeSpace(state.selectedSpace)),
+                formatStoredSize(l10n, state.freeBytes ?? 0),
+              ),
+              key: const Key('pairing_selection_no_space'),
+              style: secondary?.copyWith(color: theme.colorScheme.error),
+            ),
+          ),
+        ],
         if (!state.numbersConfirmed) ...[
           const SizedBox(height: AppSpacing.md),
           Text(
@@ -428,8 +443,9 @@ class _Offer extends StatelessWidget {
             ),
             FilledButton(
               key: const Key('pairing_accept'),
-              // Only once the user said both phones show the same number.
-              onPressed: state.numbersConfirmed
+              // Only once the user said both phones show the same number,
+              // and what is selected fits.
+              onPressed: state.numbersConfirmed && state.selectionFits
                   ? () => unawaited(cubit.accept())
                   : null,
               child: Text(l10n.pairingAccept),
@@ -457,6 +473,9 @@ class _OfferedTile extends StatelessWidget {
       PairingItemStatus.available => formatStoredSize(l10n, offered.plan.size),
       PairingItemStatus.installed => l10n.pairingItemInstalled,
       PairingItemStatus.incompatible => l10n.pairingItemIncompatible,
+      PairingItemStatus.noSpace => l10n.pairingItemNoSpace(
+        formatStoredSize(l10n, requiredFreeSpace(offered.spaceNeeded)),
+      ),
     };
     final sections = [
       for (final id in item.sections) BackupSectionLabels.name(l10n, id),

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
@@ -26,6 +27,7 @@ import 'package:mozhi/documents/data/document_file_service.dart'
 import 'package:mozhi/documents/view/document_translate_page.dart'
     deferred as documents_page;
 import 'package:mozhi/history/view/history_page.dart';
+import 'package:mozhi/image_translate/models/image_translate_exception.dart';
 import 'package:mozhi/image_translate/models/picked_image.dart';
 import 'package:mozhi/image_translate/view/image_translate_page.dart'
     deferred as image_page;
@@ -47,6 +49,7 @@ import 'package:mozhi/pairing/pairing_routes.dart';
 import 'package:mozhi/pairing/view/pairing_pages.dart' deferred as pairing_page;
 import 'package:mozhi/phrasebook/view/phrasebook_page.dart'
     deferred as phrasebook_page;
+import 'package:mozhi/platform/web_address.dart';
 import 'package:mozhi/practice/practice_routes.dart';
 import 'package:mozhi/practice/view/practice_page.dart'
     deferred as practice_page;
@@ -362,6 +365,15 @@ abstract final class DeferredFeatures {
 /// translation engine on its own.
 enum WebPageLaunch { load }
 
+/// In the web app ([isWeb]), makes pages opened with `push` (History,
+/// Settings and its pages, the image and document translators...) change
+/// the address too ([GoRouter.optionURLReflectsImperativeAPIs]): a reload
+/// then shows the page the user was on, and the browser's Back goes to the
+/// one before it. Elsewhere there is no address bar.
+void reflectPushedPagesInUrl({bool isWeb = kIsWeb}) {
+  if (isWeb) GoRouter.optionURLReflectsImperativeAPIs = true;
+}
+
 /// Called when a location carries a [TranslateLink].
 typedef TranslateLinkCallback = void Function(TranslateLink link);
 
@@ -430,6 +442,9 @@ typedef LaunchRedirect = String? Function(String location);
 /// [AppRoutes.screenTranslate]; other app locations (a fix such as the
 /// offline languages) open in the main window instead
 /// ([screenTranslateWindowRedirect]). The other windows never show it.
+///
+/// In the web app pushed pages show in the address bar too
+/// ([reflectPushedPagesInUrl]).
 GoRouter createAppRouter({
   TranslateLinkCallback? onTranslateLink,
   LaunchRedirect? launchRedirect,
@@ -438,6 +453,7 @@ GoRouter createAppRouter({
   bool? quickTranslateWindow,
   ScreenTranslateHost? screenTranslateHost,
 }) {
+  reflectPushedPagesInUrl();
   final rootKey = navigatorKey ?? GlobalKey<NavigatorState>();
   final inQuickWindow =
       quickTranslateWindow ?? QuickTranslateHost.instance.isActive;
@@ -514,19 +530,34 @@ GoRouter createAppRouter({
         context,
         state,
       ) {
-        final token = state.uri.queryParameters[SharedFiles.parameter];
+        final query = state.uri.queryParameters;
+        final token = query[SharedFiles.parameter];
         if (SharedFiles.isToken(token)) {
-          return SharedFileLoader(
+          // A file that could not be shared says why (too large, not
+          // readable), as a photo that could not be picked does.
+          final failure = ImageTranslateException(
+            SharedFileError.tryParse(query[SharedFiles.errorParameter]) ==
+                    SharedFileError.tooLarge
+                ? ImageTranslateErrorKind.fileTooLarge
+                : ImageTranslateErrorKind.pickFailed,
+          );
+          return SharedItemsNotice(
             key: ValueKey(token),
-            token: token!,
-            // On-device text recognition reads the file.
-            keep: true,
-            builder: (context, file) => file == null
-                ? image_page.ImageTranslatePage()
-                : image_page.ImageTranslatePage(
-                    picker: shared_image.SharedImagePicker(file),
-                    autoTranslate: mayAutoTranslateShared(context),
-                  ),
+            id: token,
+            several: SharedFiles.sharedSeveral(query),
+            child: SharedFileLoader(
+              token: token,
+              // On-device text recognition reads the file.
+              keep: true,
+              builder: (context, file, _) => file == null
+                  ? image_page.ImageTranslatePage(
+                      picker: shared_image.SharedImagePicker.failed(failure),
+                    )
+                  : image_page.ImageTranslatePage(
+                      picker: shared_image.SharedImagePicker(file),
+                      autoTranslate: mayAutoTranslateShared(context),
+                    ),
+            ),
           );
         }
         return image_page.ImageTranslatePage(
@@ -551,17 +582,36 @@ GoRouter createAppRouter({
         context,
         state,
       ) {
-        final token = state.uri.queryParameters[SharedFiles.parameter];
-        if (!SharedFiles.isToken(token)) {
-          return documents_page.DocumentTranslatePage();
-        }
-        return SharedFileLoader(
-          key: ValueKey(token),
-          token: token!,
-          builder: (context, file) => documents_page.DocumentTranslatePage(
-            initialFile: file == null
-                ? null
-                : document_files.PickedFile(name: file.name, bytes: file.bytes),
+        final query = state.uri.queryParameters;
+        final shared = query[SharedFiles.parameter];
+        final token = SharedFiles.isToken(shared) ? shared : null;
+        final error = SharedFileError.tryParse(
+          query[SharedFiles.errorParameter],
+        );
+        // Not keyed by the share: the open screen takes a new shared file
+        // (asking first while it translates, `DocumentShareHandoff`).
+        return SharedItemsNotice(
+          id: token,
+          several: SharedFiles.sharedSeveral(query),
+          child: SharedFileLoader(
+            token: token,
+            builder: (context, file, loaded) =>
+                documents_page.DocumentTranslatePage(
+                  shareId: loaded,
+                  initialFile: file == null
+                      ? null
+                      : document_files.PickedFile(
+                          name: file.name,
+                          bytes: file.bytes,
+                        ),
+                  // Without a file: why (not readable when unknown).
+                  unavailableFile: file == null && loaded != null
+                      ? (
+                          name: query[SharedFiles.nameParameter],
+                          tooLarge: error == SharedFileError.tooLarge,
+                        )
+                      : null,
+                ),
           ),
         );
       }),
@@ -779,13 +829,20 @@ GoRouter createAppRouter({
           ),
           StatefulShellBranch(
             routes: [
-              deferredRoute(
-                AppRoutes.proofread,
-                DeferredFeatures.proofread,
-                (context, state) => proofread_page.ProofreadPage(
-                  initialText: state.uri.queryParameters['text'],
-                ),
-              ),
+              deferredRoute(AppRoutes.proofread, DeferredFeatures.proofread, (
+                context,
+                state,
+              ) {
+                final text = state.uri.queryParameters['text'];
+                return _AfterFirstFrame(
+                  // The web app's address keeps no linked text: a reload
+                  // would put it in again over what the user typed.
+                  action: kIsWeb && text != null
+                      ? clearWebRouteQuery // coverage:ignore-line
+                      : null,
+                  child: proofread_page.ProofreadPage(initialText: text),
+                );
+              }),
             ],
           ),
           StatefulShellBranch(
@@ -884,6 +941,47 @@ String? deepLinkLocation(Uri uri) {
     path: '/${path.path}',
     query: uri.hasQuery && uri.query.isNotEmpty ? uri.query : null,
   ).toString();
+}
+
+/// Runs [action] (if any) once [child] was first shown, and again when it
+/// changes.
+class _AfterFirstFrame extends StatefulWidget {
+  const new({required this.child, this.action});
+
+  final VoidCallback? action;
+  final Widget child;
+
+  @override
+  State<_AfterFirstFrame> createState() => _AfterFirstFrameState();
+}
+
+class _AfterFirstFrameState extends State<_AfterFirstFrame> {
+  @override
+  void initState() {
+    super.initState();
+    _schedule();
+  }
+
+  @override
+  void didUpdateWidget(_AfterFirstFrame oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Another link while the screen is open.
+    if (widget.action != oldWidget.action || widget.child != oldWidget.child) {
+      _schedule();
+    }
+  }
+
+  void _schedule() {
+    final action = widget.action;
+    if (action == null) return;
+    // Only in the web app.
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => action(), // coverage:ignore-line
+    ); // coverage:ignore-line
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
 /// Whether something shared from another app may be translated without the

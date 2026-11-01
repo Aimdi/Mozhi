@@ -1790,7 +1790,7 @@
   "@voiceInputListening": {
     "description": "Screen reader announcement while voice input is listening"
   },
-  "voiceErrorPermission": "Microphone access is off. To use voice input, open your device settings, find Mozhi and allow the microphone (and speech recognition on iPhone, iPad and Mac).",
+  "voiceErrorPermission": "Microphone access is off. To use voice input, open your device settings, find Mozhi and allow the microphone (in a browser, allow it for this site).",
   "@voiceErrorPermission": {
     "description": "Snackbar when microphone or speech recognition permission is denied"
   },
@@ -3113,7 +3113,7 @@
   "@webTranslateInvalidUrl": {
     "description": "webTranslateInvalidUrl"
   },
-  "webTranslateWebNotice": "In the browser version, Mozhi can only open pages from sites that allow cross-origin requests (CORS), and most sites do not. Use the Android, iOS or desktop app to translate any page.",
+  "webTranslateWebNotice": "In the browser version, Mozhi can only open pages from sites that allow cross-origin requests (CORS), and most sites do not. Use the Android app to translate any page.",
   "@webTranslateWebNotice": {
     "description": "webTranslateWebNotice"
   },
@@ -6168,7 +6168,8 @@
     "description": "Explains the bundled public instance list.",
     "placeholders": {
       "date": {
-        "type": "String"
+        "type": "DateTime",
+        "format": "yMMMd"
       }
     }
   },
@@ -14158,5 +14159,260 @@
   "dictionaryNoSourceBodyOnDevice": "Download a dictionary to look up words without a network, or set up on-device AI or an AI provider.",
   "@dictionaryNoSourceBodyOnDevice": {
     "description": "dictionaryNoSourceBodyOnDevice"
+  },
+  "quickImproveTitle": "Improve writing",
+  "@quickImproveTitle": {
+    "description": "Title of the quick improve sheet, opened by \"Improve with Mozhi\" in the text selection toolbar of other apps."
+  },
+  "quickImproveImproving": "Improving your text…",
+  "@quickImproveImproving": {
+    "description": "Progress label while the selected text is proofread."
+  },
+  "quickImproveErrorTitle": "Couldn't improve the text",
+  "@quickImproveErrorTitle": {
+    "description": "Title of the quick improve sheet error message."
+  },
+  "quickImproveResultLabel": "Improved text",
+  "@quickImproveResultLabel": {
+    "description": "Label of the improved text in the quick improve sheet."
+  },
+  "quickImproveUnchanged": "Nothing to improve: your text looks good.",
+  "@quickImproveUnchanged": {
+    "description": "Quick improve sheet: the AI found nothing to change."
+  },
+  "quickImproveReplaceTooltip": "Replace the selected text with the improved text",
+  "@quickImproveReplaceTooltip": {
+    "description": "Tooltip of Replace in the quick improve sheet."
+  },
+  "quickImproveOpenInProofread": "Open in Proofread",
+  "@quickImproveOpenInProofread": {
+    "description": "Quick improve sheet button: opens the text in the Proofread tab."
+  },
+  "quickImproveRetryTooltip": "Improve again",
+  "@quickImproveRetryTooltip": {
+    "description": "Tooltip of Retry in the quick improve sheet actions."
+  },
+  "quickImproveLevelTooltip": "Correction level: {level}",
+  "@quickImproveLevelTooltip": {
+    "description": "Tooltip of the correction level chip in the quick improve sheet.",
+    "placeholders": {
+      "level": {
+        "type": "String"
+      }
+    }
+  },
+  "quickImproveStyleTooltip": "Style: {style}",
+  "@quickImproveStyleTooltip": {
+    "description": "Tooltip of the writing style chip in the quick improve sheet.",
+    "placeholders": {
+      "style": {
+        "type": "String"
+      }
+    }
+  },
+  "proofreadToneLabel": "Tone",
+  "@proofreadToneLabel": {
+    "description": "proofreadToneLabel"
+  },
+  "proofreadToneAutomatic": "Automatic",
+  "@proofreadToneAutomatic": {
+    "description": "proofreadToneAutomatic"
+  },
+  "proofreadToneEnthusiastic": "Enthusiastic",
+  "@proofreadToneEnthusiastic": {
+    "description": "proofreadToneEnthusiastic"
+  },
+  "proofreadToneFriendly": "Friendly",
+  "@proofreadToneFriendly": {
+    "description": "proofreadToneFriendly"
+  },
+  "proofreadToneConfident": "Confident",
+  "@proofreadToneConfident": {
+    "description": "proofreadToneConfident"
+  },
+  "proofreadToneDiplomatic": "Diplomatic",
+  "@proofreadToneDiplomatic": {
+    "description": "proofreadToneDiplomatic"
+  },
+  "proofreadToneAutomaticDescription": "Keep your own tone",
+  "@proofreadToneAutomaticDescription": {
+    "description": "proofreadToneAutomaticDescription"
+  },
+  "proofreadToneEnthusiasticDescription": "Energetic and positive",
+  "@proofreadToneEnthusiasticDescription": {
+    "description": "proofreadToneEnthusiasticDescription"
+  },
+  "proofreadToneFriendlyDescription": "Warm and approachable",
+  "@proofreadToneFriendlyDescription": {
+    "description": "proofreadToneFriendlyDescription"
+  },
+  "proofreadToneConfidentDescription": "Assertive, without hedging",
+  "@proofreadToneConfidentDescription": {
+    "description": "proofreadToneConfidentDescription"
+  },
+  "proofreadToneDiplomaticDescription": "Tactful and constructive",
+  "@proofreadToneDiplomaticDescription": {
+    "description": "proofreadToneDiplomaticDescription"
+  },
+  "proofreadRephraseTitle": "Rephrase sentence",
+  "@proofreadRephraseTitle": {
+    "description": "proofreadRephraseTitle"
+  },
+  "proofreadRephraseHint": "Tap a sentence for other ways to say it.",
+  "@proofreadRephraseHint": {
+    "description": "proofreadRephraseHint"
+  },
+  "proofreadRephraseLoading": "Finding other ways to say this…",
+  "@proofreadRephraseLoading": {
+    "description": "proofreadRephraseLoading"
+  },
+  "proofreadRephraseErrorTitle": "Couldn't load alternatives",
+  "@proofreadRephraseErrorTitle": {
+    "description": "proofreadRephraseErrorTitle"
+  },
+  "proofreadRephraseEmpty": "No other phrasings found. Try again for new ones.",
+  "@proofreadRephraseEmpty": {
+    "description": "proofreadRephraseEmpty"
+  },
+  "proofreadRephraseAlternatives": "Alternatives",
+  "@proofreadRephraseAlternatives": {
+    "description": "proofreadRephraseAlternatives"
+  },
+  "proofreadRephraseRestore": "Restore original",
+  "@proofreadRephraseRestore": {
+    "description": "proofreadRephraseRestore"
+  },
+  "proofreadRephraseReplaced": "Sentence replaced",
+  "@proofreadRephraseReplaced": {
+    "description": "proofreadRephraseReplaced"
+  },
+  "proofreadRephraseRestored": "Original sentence restored",
+  "@proofreadRephraseRestored": {
+    "description": "proofreadRephraseRestored"
+  },
+  "proofreadRephraseUseHint": "Replaces the sentence",
+  "@proofreadRephraseUseHint": {
+    "description": "proofreadRephraseUseHint"
+  },
+  "proofreadRephraseAction": "Rephrase: {sentence}",
+  "@proofreadRephraseAction": {
+    "placeholders": {
+      "sentence": {
+        "type": "String"
+      }
+    }
+  },
+  "proofreadRephrasedSemantics": "rephrased: {text}",
+  "@proofreadRephrasedSemantics": {
+    "placeholders": {
+      "text": {
+        "type": "String"
+      }
+    }
+  },
+  "proofreadCleanTextTitle": "Your text",
+  "@proofreadCleanTextTitle": {
+    "description": "proofreadCleanTextTitle"
+  },
+  "proofreadCopyText": "Copy text",
+  "@proofreadCopyText": {
+    "description": "proofreadCopyText"
+  },
+  "speechEngineNoAnswer": "The phone’s text-to-speech app didn’t respond. Try again, or choose another one in the phone’s text-to-speech settings.",
+  "@speechEngineNoAnswer": {
+    "description": "speechEngineNoAnswer"
+  },
+  "translateErrorTruncated": "The translation was cut off at the model's output limit, so the text shown is incomplete. Try a shorter text.",
+  "@translateErrorTruncated": {
+    "description": "translateErrorTruncated"
+  },
+  "translateErrorInterrupted": "The connection dropped while the translation was arriving. Try again.",
+  "@translateErrorInterrupted": {
+    "description": "translateErrorInterrupted"
+  },
+  "translateErrorModelLanguage": "This AI model can't translate this language. Pick another language or engine.",
+  "@translateErrorModelLanguage": {
+    "description": "translateErrorModelLanguage"
+  },
+  "translateErrorProviderStopped": "The AI model stopped before finishing the translation.",
+  "@translateErrorProviderStopped": {
+    "description": "translateErrorProviderStopped"
+  },
+  "translateErrorProviderFailed": "The AI provider couldn't translate this text.",
+  "@translateErrorProviderFailed": {
+    "description": "translateErrorProviderFailed"
+  },
+  "voiceModelCancelDownloadTooltip": "Cancel downloading the {model} speech model",
+  "@voiceModelCancelDownloadTooltip": {
+    "placeholders": {
+      "model": {
+        "type": "String"
+      }
+    }
+  },
+  "dictionaryOfflineEngineName": "Offline dictionary",
+  "@dictionaryOfflineEngineName": {
+    "description": "Engine name kept in the history for an offline dictionary entry whose dictionary names no source"
+  },
+  "presetsContextEmailFormal": "An email to a colleague at work.",
+  "@presetsContextEmailFormal": {
+    "description": "Context sentence of the built-in preset Email to colleague (formal); sent to the AI model as translation context"
+  },
+  "presetsContextChatCasual": "A casual chat message to friends.",
+  "@presetsContextChatCasual": {
+    "description": "Context sentence of the built-in preset Chat with friends (casual); sent to the AI model as translation context"
+  },
+  "documentsLeaveTitle": "Stop translating and leave?",
+  "@documentsLeaveTitle": {
+    "description": "documentsLeaveTitle"
+  },
+  "documentsLeaveMessage": "The translation so far is lost.",
+  "@documentsLeaveMessage": {
+    "description": "documentsLeaveMessage"
+  },
+  "documentsLeaveConfirm": "Stop and leave",
+  "@documentsLeaveConfirm": {
+    "description": "documentsLeaveConfirm"
+  },
+  "documentsSharedReplaceTitle": "Stop translating and open the shared file?",
+  "@documentsSharedReplaceTitle": {
+    "description": "documentsSharedReplaceTitle"
+  },
+  "documentsSharedReplaceConfirm": "Stop and open",
+  "@documentsSharedReplaceConfirm": {
+    "description": "documentsSharedReplaceConfirm"
+  },
+  "imageTranslateErrorFileTooLarge": "This image is too large to open. The limit is {megabytes} MB.",
+  "@imageTranslateErrorFileTooLarge": {
+    "placeholders": {
+      "megabytes": {
+        "type": "int"
+      }
+    }
+  },
+  "commonSharedFirstItemOnly": "Only the first item is opened.",
+  "@commonSharedFirstItemOnly": {
+    "description": "commonSharedFirstItemOnly"
+  },
+  "pairingItemNoSpace": "Not enough free space on this phone ({size} needed)",
+  "@pairingItemNoSpace": {
+    "description": "An offered item does not fit on the receiving phone; size is the storage it needs, e.g. 98 MB",
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "pairingSelectionNoSpace": "The selected items need {needed} and this phone has {free} free. Deselect some to accept.",
+  "@pairingSelectionNoSpace": {
+    "description": "The items selected for receiving do not fit together",
+    "placeholders": {
+      "needed": {
+        "type": "String"
+      },
+      "free": {
+        "type": "String"
+      }
+    }
   }
 }

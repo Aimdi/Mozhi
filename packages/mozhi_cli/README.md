@@ -101,6 +101,7 @@ mozhi translate --compare --json -t de "Hello" | jq '.[] | select(.ok) | .text'
 ```sh
 mozhi proofread "Their going to the libary tomorow."
 mozhi proofread --style email --level comprehensive < draft.txt
+mozhi proofread --tone diplomatic "Your plan won't work."
 mozhi proofread -q < draft.txt > fixed.txt      # corrected text only
 ```
 

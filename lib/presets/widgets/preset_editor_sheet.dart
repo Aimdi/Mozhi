@@ -54,9 +54,11 @@ class _PresetEditorSheetState extends State<PresetEditorSheet> {
   late final TextEditingController _name = TextEditingController(
     text: widget.preset == null ? '' : context.l10n.presetName(widget.preset!),
   );
-  late TranslationOptions _options = Preset.settingsOf(
-    widget.preset?.options ?? widget.initialOptions,
-  );
+  late TranslationOptions _options = Preset.settingsOf(switch (widget.preset) {
+    // An example's context in the UI language, like its name.
+    final preset? => context.l10n.localizedPreset(preset).options,
+    null => widget.initialOptions,
+  });
   late bool _isDefault =
       widget.preset != null && _cubit.state.defaultId == widget.preset!.id;
   bool _saving = false;
@@ -84,7 +86,11 @@ class _PresetEditorSheetState extends State<PresetEditorSheet> {
       final name = _name.text.trim();
       final unchanged =
           existing.name.trim().isEmpty && name == l10n.presetName(existing);
-      saved = existing.copyWith(name: unchanged ? '' : name, options: _options);
+      saved = existing.copyWith(
+        name: unchanged ? '' : name,
+        // ... and their context while it is the localised one.
+        options: l10n.presetStoredOptions(existing, _options),
+      );
       await _cubit.update(saved);
       final wasDefault = _cubit.state.defaultId == existing.id;
       if (_isDefault != wasDefault) {

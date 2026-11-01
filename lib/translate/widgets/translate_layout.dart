@@ -1,5 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/theme.dart';
+import 'package:mozhi/core/widgets/decimal_format.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:translation_repository/translation_repository.dart';
@@ -359,9 +360,10 @@ bool optionsAreDefault(TranslationOptions options) =>
     options.preserveFormatting &&
     options.glossary.isEmpty;
 
-/// Formats a latency as seconds with one decimal ("0.8").
-String formatSeconds(Duration duration) =>
-    (duration.inMilliseconds / 1000).toStringAsFixed(1);
+/// Formats a latency as seconds with one decimal in the number format of
+/// [locale] (`AppLocalizations.localeName`): "0.8", "0,8" in German.
+String formatSeconds(Duration duration, {String locale = 'en'}) =>
+    formatDecimal(duration.inMilliseconds / 1000, locale);
 
 /// Whether [engineId] is an on-device engine (ids `offline:<backend>`).
 bool isOfflineEngineId(String? engineId) =>

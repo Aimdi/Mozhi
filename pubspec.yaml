@@ -1,6 +1,6 @@
 name: mozhi
 description: "A fast, private translator. Client for Mozhi instances plus AI/LLM translation."
-version: 0.1.0+1
+version: 0.2.0+2
 publish_to: none
 
 environment:
