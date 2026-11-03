@@ -236,10 +236,10 @@ packages:
     dependency: "direct dev"
     description:
       name: crypto
-      sha256: c8ea0233063ba03258fbcf2ca4d6dadfefe14f02fab57702265467a19f27fadf
+      sha256: e3626ae6270383c9e3a549f34c9e4cd26c09ae6a9adaab2bf4737a00340efdc4
       url: "https://pub.dev"
     source: hosted
-    version: "3.0.7"
+    version: "3.0.8"
   cryptography:
     dependency: "direct main"
     description:
@@ -520,10 +520,10 @@ packages:
     dependency: "direct main"
     description:
       name: go_router
-      sha256: "8b05bc90a4f8f8d579db351e2bd6bac566813e12953494dc2a9d7461e7c6dbe7"
+      sha256: f1c2d3c2b0b2096b435d7af033dd4e586fa31f51d988c5985e64495cd926d872
       url: "https://pub.dev"
     source: hosted
-    version: "18.1.0"
+    version: "18.1.2"
   hooks:
     dependency: transitive
     description:
@@ -766,10 +766,10 @@ packages:
     dependency: "direct main"
     description:
       name: material_ui
-      sha256: "27ea1af251a79728ee63068417f2ab469d294931a9bb8366ba8b85b0ef839060"
+      sha256: feb289df1e5f9ed9522f9fe3d909432a7f7bc76943f16abad09f80a16cd25196
       url: "https://pub.dev"
     source: hosted
-    version: "1.7.0"
+    version: "1.9.0"
   meta:
     dependency: transitive
     description:
