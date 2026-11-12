@@ -42,6 +42,9 @@ Future<String?> showInstanceSwitcher(BuildContext context) {
   final router = GoRouter.maybeOf(context);
   return showModalBottomSheet<String>(
     context: context,
+    // Above the bottom navigation bar (dimmed, covered), and not left
+    // open in a tab the user switched away from.
+    useRootNavigator: true,
     showDragHandle: true,
     useSafeArea: true,
     isScrollControlled: true,

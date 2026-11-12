@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/translate_link.dart'
     show TranslateLink, matchLanguage;
@@ -46,7 +47,10 @@ enum DictionaryLaunch { lookUp }
 /// from outside the app never starts a (paid) AI request on its own, not
 /// even with `instantTranslateAi`: the user presses Look up. The detail
 /// level starts as the translate screen's dictionary card has it
-/// ([TranslateState.dictionaryVerbosity]).
+/// ([TranslateState.dictionaryVerbosity]). Without languages in the link
+/// the dictionary starts with the ones the user last chose in it
+/// (`AppSettings.dictionarySource` and `dictionaryTarget`), else the
+/// translate screen's.
 ///
 /// A [DictionaryLookUpRequest] as the location's `extra`
 /// ([dictionaryRequestOf]) looks the word up right away too, with its
@@ -96,17 +100,28 @@ class DictionaryPage extends StatelessWidget {
     return BlocProvider(
       create: (context) {
         final translate = context.read<TranslateCubit>().state;
+        final settings = context.read<SettingsCubit?>()?.state;
         final request = dictionaryRequestOf(context);
         final cubit = DictionaryCubit(
           repository: context.read<TranslationRepository>(),
           engine: dictionaryEngine(translate),
           word: word?.trim() ?? '',
+          // The link's languages, else the ones the user last chose here,
+          // else the translate screen's.
           source:
               _fromLink(from, DictionaryLanguageBar.sourceLanguages) ??
+              _remembered(
+                settings?.dictionarySource,
+                DictionaryLanguageBar.sourceLanguages,
+              ) ??
               _known(translate.source, DictionaryLanguageBar.sourceLanguages) ??
               Language.auto,
           target:
               _fromLink(to, DictionaryLanguageBar.targetLanguages) ??
+              _remembered(
+                settings?.dictionaryTarget,
+                DictionaryLanguageBar.targetLanguages,
+              ) ??
               _known(translate.target, DictionaryLanguageBar.targetLanguages) ??
               const Language(code: 'en', name: 'English'),
           verbosity: request?.verbosity ?? translate.dictionaryVerbosity,
@@ -118,12 +133,17 @@ class DictionaryPage extends StatelessWidget {
           identifyLanguage: _identifier(context),
           offlineDictionary: maybeDictionaryPacks(context),
         );
-        if (autoLookUp || request != null) unawaited(cubit.lookUp());
+        if (request?.saved case final saved?) {
+          unawaited(cubit.openSaved(saved));
+        } else if (autoLookUp || request != null) {
+          unawaited(cubit.lookUp());
+        }
         return cubit;
       },
       child: _LookUpRequests(
         page: this,
-        child: DictionaryView(
+        builder: (context, request) => DictionaryView(
+          openedBy: request,
           autofocus:
               word?.trim().isNotEmpty != true &&
               dictionaryAutofocus(
@@ -170,6 +190,15 @@ class DictionaryPage extends StatelessWidget {
     return match == null || match.isCustom ? null : match;
   }
 
+  /// The remembered [language] as listed in [available] (null when none
+  /// was remembered or it is not listed).
+  static Language? _remembered(Language? language, List<Language> available) {
+    if (language == null) return null;
+    return language.isAuto && available.contains(Language.auto)
+        ? Language.auto
+        : _known(language, available);
+  }
+
   /// [language] as listed in [available] (null for custom styles and
   /// languages that are not listed).
   static Language? _known(Language language, List<Language> available) =>
@@ -180,11 +209,14 @@ class DictionaryPage extends StatelessWidget {
 /// it keeps (the tab already showed the same location): the page's word
 /// and languages are looked up again with the request's detail level. The
 /// request the page was created with is applied by [DictionaryPage].
+///
+/// Builds the view with the request applied last (for its way back).
 class _LookUpRequests extends StatefulWidget {
-  const new({required this.page, required this.child});
+  const new({required this.page, required this.builder});
 
   final DictionaryPage page;
-  final Widget child;
+  final Widget Function(BuildContext context, DictionaryLookUpRequest? request)
+  builder;
 
   @override
   State<_LookUpRequests> createState() => _LookUpRequestsState();
@@ -207,6 +239,10 @@ class _LookUpRequestsState extends State<_LookUpRequests> {
     if (request == null || identical(request, _applied)) return;
     _applied = request;
     final page = widget.page;
+    if (request.saved case final saved?) {
+      unawaited(context.read<DictionaryCubit>().openSaved(saved));
+      return;
+    }
     final word = page.word?.trim() ?? '';
     if (word.isEmpty) return;
     unawaited(
@@ -226,7 +262,7 @@ class _LookUpRequestsState extends State<_LookUpRequests> {
   }
 
   @override
-  Widget build(BuildContext context) => widget.child;
+  Widget build(BuildContext context) => widget.builder(context, _applied);
 }
 
 /// Whether the empty dictionary's search field takes the focus when the
@@ -287,12 +323,20 @@ UsageTracker? _usageTracker(BuildContext context) {
 /// the title on large screens, instead of it on phones), like the
 /// translate screen's engine.
 ///
+/// Opened from another screen with a way back
+/// ([DictionaryLookUpRequest.returnTo] of [openedBy]: History, a tapped
+/// word's "Open in Dictionary"), Back from the entry (the arrow and system
+/// back) returns there, once; then it returns to the search again.
+///
 /// On large screens the composer and the entry are centred columns.
 class DictionaryView extends StatefulWidget {
-  const new({this.autofocus = false, super.key});
+  const new({this.autofocus = false, this.openedBy, super.key});
 
   /// Focus the search field on arrival.
   final bool autofocus;
+
+  /// The request that opened the dictionary from elsewhere, if any.
+  final DictionaryLookUpRequest? openedBy;
 
   /// Width from which the composer uses the large-screen layout.
   static const double wideBreakpoint = ComposerLayout.wideBreakpoint;
@@ -308,6 +352,30 @@ class _DictionaryViewState extends State<DictionaryView> {
   /// arrival, not when back from an entry.
   late bool _autofocus = widget.autofocus;
 
+  /// Where Back from the entry goes (see [DictionaryView.openedBy]); null
+  /// once used, or when the dictionary was not opened from elsewhere.
+  late String? _returnTo = widget.openedBy?.returnTo;
+
+  @override
+  void didUpdateWidget(DictionaryView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.openedBy, widget.openedBy)) {
+      _returnTo = widget.openedBy?.returnTo;
+    }
+  }
+
+  /// Back from the entry: to where the user came from, else the search.
+  void _back() {
+    final returnTo = _returnTo;
+    final router = GoRouter.maybeOf(context);
+    if (returnTo == null || router == null) {
+      context.read<DictionaryCubit>().closeEntry();
+      return;
+    }
+    setState(() => _returnTo = null);
+    router.go(returnTo);
+  }
+
   @override
   void dispose() {
     _searchFocus.dispose();
@@ -317,7 +385,6 @@ class _DictionaryViewState extends State<DictionaryView> {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final cubit = context.read<DictionaryCubit>();
     final showEntry = context.select<DictionaryCubit, bool>(
       (cubit) => cubit.state.status != DictionaryStatus.idle,
     );
@@ -338,7 +405,7 @@ class _DictionaryViewState extends State<DictionaryView> {
         // Back from an entry returns to the search first.
         canPop: !showEntry,
         onPopInvokedWithResult: (didPop, _) {
-          if (!didPop && showEntry) cubit.closeEntry();
+          if (!didPop && showEntry) _back();
         },
         child: Scaffold(
           appBar: AppBar(
@@ -348,7 +415,7 @@ class _DictionaryViewState extends State<DictionaryView> {
                     tooltip: MaterialLocalizations.of(context)
                         .backButtonTooltip,
                     icon: const BackButtonIcon(),
-                    onPressed: cubit.closeEntry,
+                    onPressed: _back,
                   )
                 : null,
             titleSpacing: showEntry ? 0 : null,

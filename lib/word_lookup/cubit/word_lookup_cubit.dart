@@ -34,6 +34,7 @@ class WordLookupCubit extends Cubit<WordLookupState> {
     String sentence = '',
     TranslationEngine? engine,
     this._uiLanguage = 'English',
+    this._incognito = false,
   }) : super(
          WordLookupState(
            word: clean(word),
@@ -59,6 +60,10 @@ class WordLookupCubit extends Cubit<WordLookupState> {
 
   final WordLookupService _service;
   final String _uiLanguage;
+
+  /// Incognito: the online entry is not kept in memory for later
+  /// ([WordLookupService.lookUpOnline]).
+  final bool _incognito;
 
   /// Incremented per look-up so stale answers are ignored.
   int _request = 0;
@@ -159,6 +164,7 @@ class WordLookupCubit extends Cubit<WordLookupState> {
         into: state.into ?? _english,
         sentence: state.sentence,
         uiLanguage: _uiLanguage,
+        incognito: _incognito,
       );
       if (isClosed || request != _request) return;
       emit(

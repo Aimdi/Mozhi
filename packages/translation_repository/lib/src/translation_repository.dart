@@ -1138,6 +1138,13 @@ class TranslationRepository {
   /// the user opens the engine picker. The caller reloads the lists.
   void allowMetadataRequests() => _metadataUnlocked = true;
 
+  /// Undoes [allowMetadataRequests] (and the unlock by `getEngines(refresh:
+  /// true)` or by a request that left the device): offline-first mode
+  /// defers the engine and language lists again ([metadataDeferred]), e.g.
+  /// after the user deleted all local data, until they let the app contact
+  /// a server.
+  void lockMetadataRequests() => _metadataUnlocked = false;
+
   /// A request may leave the device: in offline-first mode, the lists may
   /// be refreshed from now on ([metadataChanged] fires once).
   void _unlockMetadata() {

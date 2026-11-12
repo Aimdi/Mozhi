@@ -464,6 +464,47 @@ void main() {
         verify: (cubit) {
           expect(cubit.state.rephrasings, isEmpty);
           expect(cubit.state.finalText, _input);
+          // The user is told, not left wondering.
+          expect(cubit.state.droppedRephrasings, 2);
+        },
+      );
+
+      blocTest<ProofreadCubit, ProofreadState>(
+        'undoDroppedRephrasings brings back the edits and rephrasings',
+        build: build,
+        seed: () => success.copyWith(
+          rephrasings: [
+            rephrasing(_first, 'I own an apple.'),
+            rephrasing(_third, 'We love it.'),
+          ],
+        ),
+        act: (cubit) => cubit
+          ..toggleEdit(0)
+          ..undoDroppedRephrasings()
+          // Nothing left to undo.
+          ..undoDroppedRephrasings(),
+        verify: (cubit) {
+          final state = cubit.state;
+          expect(state.acceptedEdits, success.acceptedEdits);
+          expect(state.droppedRephrasings, 0);
+          expect(state.finalText, 'I own an apple. It is red. We love it.');
+        },
+      );
+
+      blocTest<ProofreadCubit, ProofreadState>(
+        'a change that drops nothing, or a new rephrasing, ends the undo',
+        build: build,
+        seed: () => success.copyWith(
+          rephrasings: [rephrasing(_first, 'I own an apple.')],
+        ),
+        act: (cubit) => cubit
+          ..toggleEdit(0)
+          ..rephraseSentence(cubit.state.sentences.first, 'I hold one.')
+          ..undoDroppedRephrasings(),
+        verify: (cubit) {
+          expect(cubit.state.droppedRephrasings, 0);
+          expect(cubit.state.acceptedEdits, isNot(contains(0)));
+          expect(cubit.state.finalText, startsWith('I hold one.'));
         },
       );
 

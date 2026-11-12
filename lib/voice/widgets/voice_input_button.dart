@@ -41,7 +41,9 @@ typedef VoiceInputResultCallback = void Function(
 /// open the voice input settings ([settingsLocation], with a [GoRouter]
 /// above). In the web app the first tap says that the browser's speech
 /// recognition may send the audio to the browser's maker
-/// ([confirmBrowserSpeech]).
+/// ([confirmBrowserSpeech]). The browser cannot detect the spoken
+/// language: listening for "Detect language" there says once per run in
+/// which language it listens ([SpeechInputListening.assumedLocaleId]).
 ///
 /// With [prominent] it is a large filled accent circle
 /// ([prominentSize] dp) instead of a plain 48 dp icon button, e.g. the main
@@ -114,6 +116,9 @@ class VoiceInputButton extends StatefulWidget {
   @override
   State<VoiceInputButton> createState() => _VoiceInputButtonState();
 }
+
+/// Per service, the assumed language explained last (once per run).
+final Expando<String> _assumedExplained = Expando('assumedLanguage');
 
 class _VoiceInputButtonState extends State<VoiceInputButton> {
   late SpeechInputService _service;
@@ -200,6 +205,12 @@ class _VoiceInputButtonState extends State<VoiceInputButton> {
     });
     final active = _listening || _transcribing;
     if (wasActive != active) widget.onListeningChanged?.call(active);
+    if (state case SpeechInputListening(:final assumedLocaleId?)
+        when state.isOwnedBy(this) &&
+            _assumedExplained[_service] != assumedLocaleId) {
+      _assumedExplained[_service] = assumedLocaleId;
+      _explainAssumedLanguage(assumedLocaleId);
+    }
     // Failures to start are explained once `listen` returns (_toggle).
     if (state is SpeechInputError && state.isOwnedBy(this) && !_starting) {
       unawaited(_explain(state, state.failure));
@@ -262,6 +273,26 @@ class _VoiceInputButtonState extends State<VoiceInputButton> {
       _ => null,
     };
     if (failure != null) await _explain(_service.state, failure);
+  }
+
+  /// Says that the browser listens in [localeId] instead of detecting the
+  /// language.
+  void _explainAssumedLanguage(String localeId) {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (messenger == null) return;
+    final code = localeId.split(RegExp('[-_]')).first;
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            context.l10n.voiceInputAssumedLanguage(
+              context.languageNameOf(code),
+            ),
+          ),
+          duration: const Duration(seconds: 6),
+        ),
+      );
   }
 
   /// Explains [failure] of [state] ([_showError]) unless it was already.

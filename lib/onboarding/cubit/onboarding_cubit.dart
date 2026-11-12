@@ -286,8 +286,14 @@ class OnboardingCubit extends Cubit<OnboardingState> {
   /// translates). When all finished, the fastest instance (unless the
   /// user picked one) becomes preferred and, with
   /// [OnboardingState.sortBySpeed], the list is sorted by latency.
+  ///
+  /// Does nothing in [PrivacyMode.offlineOnly]: Mozhi contacts no server
+  /// then.
   Future<void> findFastestInstance() async {
-    if (state.serviceStatus == ServiceStatus.pinging) return;
+    if (state.serviceStatus == ServiceStatus.pinging ||
+        _settings.state.privacyMode == PrivacyMode.offlineOnly) {
+      return;
+    }
     final instances = _settings.state.instances;
     _originalOrder ??= [for (final instance in instances) instance.url];
     final run = ++_pingRun;

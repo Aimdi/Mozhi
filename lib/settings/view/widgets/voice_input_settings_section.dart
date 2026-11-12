@@ -175,7 +175,20 @@ class VoiceInputSettingsView extends StatelessWidget {
           speech.isOnDeviceSupported)
         PreferOnDeviceSpeechTile.standalone(service: speech),
     ];
-    if (children.isEmpty) return const SizedBox.shrink();
+    // Nothing to choose here (the web app, a platform without the offline
+    // engine): say what voice input uses.
+    if (children.isEmpty) {
+      children.add(
+        _Note(
+          key: const Key('voice_system_note'),
+          text: speech.browserRecognizerMissing
+              ? l10n.voiceErrorUnavailableBrowser
+              : speech.usesBrowserRecognizer
+              ? l10n.voiceBrowserNoticeBody
+              : l10n.voiceEngineSystemSubtitle,
+        ),
+      );
+    }
     return MultiBlocListener(
       listeners: [
         BlocListener<VoiceSettingsCubit, VoiceSettingsState>(

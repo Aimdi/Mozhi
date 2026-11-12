@@ -124,12 +124,15 @@ bool onboardingCanCheckDownload(OfflineModelsState offline, String code) =>
 /// they checked; those they did not answer for are checked for them when
 /// [OnboardingState.preselectDownloads] and the phone has room for all of
 /// them ([OnboardingState.freeBytes], with the margin of
-/// [requiredFreeSpace]).
+/// [requiredFreeSpace]), and in Offline only ([offlineOnly], which
+/// translates with nothing else) unless the free space is known to be too
+/// little.
 Set<String> onboardingCheckedDownloads(
   OnboardingState onboarding,
   OfflineModelsState offline,
-  Iterable<String> codes,
-) {
+  Iterable<String> codes, {
+  bool offlineOnly = false,
+}) {
   final open = [
     for (final code in codes)
       if (onboardingCanCheckDownload(offline, code)) code,
@@ -139,10 +142,10 @@ Set<String> onboardingCheckedDownloads(
     (sum, code) => sum + (offline.downloadSizeOf(code) ?? 0),
   );
   final free = onboarding.freeBytes;
+  final room = free != null && free >= requiredFreeSpace(bytes);
   final preselect =
-      onboarding.preselectDownloads &&
-      free != null &&
-      free >= requiredFreeSpace(bytes);
+      (onboarding.preselectDownloads && room) ||
+      (offlineOnly && (free == null || room));
   return {
     for (final code in open)
       if (onboarding.downloadChoices[code] ?? preselect) code,
@@ -160,13 +163,18 @@ Set<String> onboardingCheckedDownloads(
 /// user picked before ([OnboardingState.pickedSource]), and its download
 /// offered with the target's. The downloads
 /// of the pair are checkboxes, checked for the user on Android when the
-/// phone has room ([onboardingCheckedDownloads]); they start when the user
-/// taps Next (the flow moves on to the service step), never by themselves.
+/// phone has room and in Offline only ([onboardingCheckedDownloads]); they
+/// start when the user taps Next (the flow moves on to the service step),
+/// never by themselves.
 ///
-/// Where the web app's server does not host the language downloads
-/// ([MirrorHostingBuilder]), nothing is offered for download: the step
-/// says so ([MirrorNotHostedBanner], with "Import from files") and Next
-/// downloads nothing.
+/// Where the web app cannot download the languages
+/// ([MirrorHostingBuilder]: its server does not host them, or the
+/// original publishers refuse web pages), nothing is offered for download
+/// and the picker marks only the languages already here as available
+/// offline: the step says so ([MirrorNotHostedBanner], with "Import from
+/// files") and Next downloads nothing. In Offline only, with no language
+/// of the pair on the device, it also says that Offline only can't
+/// translate yet and offers to change the privacy mode.
 ///
 /// Expects an [OnboardingCubit] and an [OfflineModelsCubit] above it.
 class LanguagesStep extends StatelessWidget {
@@ -210,7 +218,12 @@ class LanguagesStep extends StatelessWidget {
         target: settings.target,
       ),
     );
-    for (final code in onboardingCheckedDownloads(state, offline, pair.codes)) {
+    for (final code in onboardingCheckedDownloads(
+      state,
+      offline,
+      pair.codes,
+      offlineOnly: settings.privacyMode == PrivacyMode.offlineOnly,
+    )) {
       unawaited(cubit.download(code));
     }
   }
@@ -315,6 +328,7 @@ class LanguagesStep extends StatelessWidget {
             label: l10n.onboardingLanguagesFrom,
             language: source,
             source: true,
+            blocked: blocked,
           ),
           if (suggested != null)
             _SourceSuggestion(language: suggested, fromPhone: fromPhone),
@@ -324,6 +338,7 @@ class LanguagesStep extends StatelessWidget {
             label: l10n.onboardingLanguagesInto,
             language: target,
             source: false,
+            blocked: blocked,
           ),
           const SizedBox(height: 24),
           _OfflineDownloads(
@@ -414,12 +429,17 @@ class _LanguageField extends StatelessWidget {
     required this.label,
     required this.language,
     required this.source,
+    this.blocked = false,
     super.key,
   });
 
   final String label;
   final Language language;
   final bool source;
+
+  /// The languages can't be downloaded here: only those on the device are
+  /// marked as available offline.
+  final bool blocked;
 
   Future<void> _pick(BuildContext context) async {
     final cubit = context.read<OnboardingCubit>();
@@ -429,13 +449,17 @@ class _LanguageField extends StatelessWidget {
       source: source,
       selected: language,
       isOffline: offline.isAvailable
-          ? (language) =>
-                offlineCodeFor(
-                  language,
-                  offline.languages,
-                  isTarget: !source,
-                ) !=
-                null
+          ? (language) => switch (offlineCodeFor(
+              language,
+              offline.languages,
+              isTarget: !source,
+            )) {
+              null => false,
+              // Nothing can be downloaded: only what is here works offline.
+              final code when blocked =>
+                offline.isDownloaded(code) || offline.isBuiltIn(code),
+              _ => true,
+            }
           : null,
     );
     if (picked == null) return;
@@ -536,7 +560,23 @@ class _OfflineDownloads extends StatelessWidget {
       suggested: suggested,
     );
     final onboarding = context.watch<OnboardingCubit>();
-    final checked = onboardingCheckedDownloads(onboarding.state, state, codes);
+    final offlineOnly = context.select<SettingsCubit, bool>(
+      (c) => c.state.privacyMode == PrivacyMode.offlineOnly,
+    );
+    final checked = onboardingCheckedDownloads(
+      onboarding.state,
+      state,
+      codes,
+      offlineOnly: offlineOnly,
+    );
+    // Offline only with nothing of the pair here and no way to download
+    // it: the first translation could not work.
+    final stranded =
+        offlineOnly &&
+        blocked &&
+        !codes.any(
+          (code) => state.isDownloaded(code) && !state.isBuiltIn(code),
+        );
     final checkable =
         !blocked &&
         codes.any((code) => onboardingCanCheckDownload(state, code));
@@ -599,8 +639,31 @@ class _OfflineDownloads extends StatelessWidget {
               key: const Key('onboarding_offline_on_next'),
               icon: Icons.download_outlined,
               color: palette.secondaryText,
-              text: l10n.onboardingLanguagesDownloadOnNext,
+              text: offlineOnly
+                  ? l10n.onboardingLanguagesOfflineOnlyNeeded
+                  : l10n.onboardingLanguagesDownloadOnNext,
             ),
+          if (stranded) ...[
+            const SizedBox(height: 8),
+            OnboardingNote(
+              key: const Key('onboarding_offline_only_blocked'),
+              icon: Icons.wifi_off_outlined,
+              text: l10n.onboardingLanguagesOfflineOnlyBlocked,
+              background: theme.colorScheme.errorContainer,
+              foreground: theme.colorScheme.onErrorContainer,
+            ),
+            if (onboarding.state.steps.contains(OnboardingStep.privacy))
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: TextButton.icon(
+                  key: const Key('onboarding_offline_only_change_privacy'),
+                  style: TextButton.styleFrom(minimumSize: const Size(64, 48)),
+                  onPressed: () => onboarding.goTo(OnboardingStep.privacy),
+                  icon: const Icon(Icons.shield_outlined),
+                  label: Text(l10n.onboardingChangePrivacy),
+                ),
+              ),
+          ],
           if (blocked)
             MirrorNotHostedBanner(
               onImport: state.canImport

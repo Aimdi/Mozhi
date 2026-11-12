@@ -344,6 +344,16 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Markdown'), findsOneWidget);
       expect(find.text('2 segments'), findsOneWidget);
+      // The dropdown arrow is no delete button (screen readers said
+      // "Delete").
+      final chip = tester.widget<InputChip>(
+        find.byKey(const Key('documents_format')),
+      );
+      expect(chip.onDeleted, isNull);
+      final semantics = tester.ensureSemantics();
+      await tester.pump();
+      expect(find.bySemanticsLabel(RegExp('Delete')), findsNothing);
+      semantics.dispose();
 
       await tester.tap(find.byKey(const Key('documents_format')));
       await tester.pumpAndSettle();

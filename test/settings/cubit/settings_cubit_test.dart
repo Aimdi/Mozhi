@@ -888,6 +888,51 @@ void main() {
       );
     });
 
+    group('dictionary languages', () {
+      mutation(
+        'setDictionaryLanguages remembers both',
+        act: (cubit) => cubit.setDictionaryLanguages(
+          source: Language.auto,
+          target: _french,
+        ),
+        expected: const AppSettings(
+          dictionarySource: Language.auto,
+          dictionaryTarget: _french,
+        ),
+      );
+
+      mutation(
+        'setDictionaryLanguages ignores an auto or custom target',
+        initial: const AppSettings(dictionaryTarget: _german),
+        act: (cubit) => cubit.setDictionaryLanguages(
+          source: _french,
+          target: Language.auto,
+        ),
+        expected: const AppSettings(
+          dictionarySource: _french,
+          dictionaryTarget: _german,
+        ),
+      );
+
+      noOp(
+        'setDictionaryLanguages ignores custom languages',
+        act: (cubit) => cubit.setDictionaryLanguages(
+          source: const Language.custom('Yoda'),
+          target: const Language.custom('Pirate'),
+        ),
+      );
+
+      noOp(
+        'setDictionaryLanguages ignores the remembered languages',
+        initial: const AppSettings(
+          dictionarySource: _french,
+          dictionaryTarget: _german,
+        ),
+        act: (cubit) =>
+            cubit.setDictionaryLanguages(source: _french, target: _german),
+      );
+    });
+
     group('privacy', () {
       mutation(
         'setPrivacyMode stores the mode',

@@ -394,6 +394,18 @@ void main() {
     });
 
     group('input', () {
+      testWidgets('shows the whole hint, however long, on a phone', (
+        tester,
+      ) async {
+        await pumpView(tester, readyState, size: const Size(360, 800));
+        final field = tester.widget<TextField>(
+          find.byKey(const Key('proofread_input')),
+        );
+        // No line limit, so long translations (German) never end in "…".
+        expect(field.decoration?.hintMaxLines, isNull);
+        expect(field.maxLines, isNull);
+      });
+
       testWidgets('shows the input and forwards typing', (tester) async {
         await pumpView(tester, readyState.copyWith(input: 'Hello'));
         expect(find.text('Hello'), findsOneWidget);
@@ -1388,6 +1400,110 @@ void main() {
         verify(() => cubit.proofread()).called(1);
       });
 
+      testWidgets('flags a result checked with other options', (tester) async {
+        await pumpView(
+          tester,
+          successState().copyWith(tone: WritingTone.confident),
+        );
+        expect(find.byKey(const Key('proofread_stale')), findsOneWidget);
+        expect(
+          find.text('You changed the options since your text was checked.'),
+          findsOneWidget,
+        );
+        // The text itself is current: it can still be used as input.
+        final useAsInput = tester.widget<ButtonStyleButton>(
+          find.ancestor(
+            of: find.text('Use as input'),
+            matching: find.byWidgetPredicate((w) => w is ButtonStyleButton),
+          ),
+        );
+        expect(useAsInput.onPressed, isNotNull);
+        await tester.tap(find.byKey(const Key('proofread_stale_action')));
+        verify(() => cubit.proofread()).called(1);
+      });
+
+      testWidgets('offers to undo an edit change that dropped rephrasings', (
+        tester,
+      ) async {
+        when(() => cubit.undoDroppedRephrasings()).thenReturn(null);
+        final controller = StreamController<ProofreadState>();
+        addTearDown(controller.close);
+        await pumpView(tester, successState(), stream: controller.stream);
+        controller.add(
+          successState(accepted: {1, 2}).copyWith(droppedRephrasings: 1),
+        );
+        await tester.pumpAndSettle();
+        expect(
+          find.byKey(const Key('proofread_rephrasings_dropped')),
+          findsOneWidget,
+        );
+        expect(
+          find.text(
+            'The sentence you rephrased changed, so its new wording was '
+            'removed.',
+          ),
+          findsOneWidget,
+        );
+        await tester.tap(find.text('Undo'));
+        verify(() => cubit.undoDroppedRephrasings()).called(1);
+      });
+
+      testWidgets('shows long edit lists a page at a time', (tester) async {
+        final edits = [
+          for (var i = 0; i < ProofreadEditsList.pageSize + 5; i++)
+            ProofreadEdit(original: 'w$i', replacement: 'W$i'),
+        ];
+        final input = [for (var i = 0; i < edits.length; i++) 'w$i'].join(' ');
+        await pumpView(
+          tester,
+          readyState.copyWith(
+            input: input,
+            status: ProofreadStatus.success,
+            result: () => ProofreadResult(
+              correctedText: input.toUpperCase(),
+              edits: edits,
+            ),
+            proofreadInput: input,
+            acceptedEdits: {for (var i = 0; i < edits.length; i++) i},
+          ),
+          size: const Size(800, 20000),
+        );
+        expect(
+          find.byType(ProofreadEditTile),
+          findsNWidgets(ProofreadEditsList.pageSize),
+        );
+        await tester.tap(find.byKey(const Key('proofread_edits_more')));
+        await tester.pump();
+        expect(find.byType(ProofreadEditTile), findsNWidgets(edits.length));
+        expect(find.byKey(const Key('proofread_edits_more')), findsNothing);
+      });
+
+      testWidgets('builds edit tiles lazily in the wide result pane', (
+        tester,
+      ) async {
+        final edits = [
+          for (var i = 0; i < 200; i++)
+            ProofreadEdit(original: 'w$i', replacement: 'W$i'),
+        ];
+        final input = [for (var i = 0; i < edits.length; i++) 'w$i'].join(' ');
+        await pumpView(
+          tester,
+          readyState.copyWith(
+            input: input,
+            status: ProofreadStatus.success,
+            result: () => ProofreadResult(
+              correctedText: input.toUpperCase(),
+              edits: edits,
+            ),
+            proofreadInput: input,
+            acceptedEdits: {for (var i = 0; i < edits.length; i++) i},
+          ),
+          size: const Size(1400, 1000),
+        );
+        final built = find.byType(ProofreadEditTile).evaluate().length;
+        expect(built, lessThan(edits.length));
+      });
+
       testWidgets('hides the stale notice while re-proofreading', (
         tester,
       ) async {
@@ -1724,23 +1840,61 @@ void main() {
         );
       });
 
-      testWidgets('shows provider messages', (tester) async {
+      testWidgets('explains provider errors without their raw message', (
+        tester,
+      ) async {
         await pumpError(
           tester,
           const LlmApiException('model not found', statusCode: 404),
         );
+        final l10n = lookupAppLocalizations(const Locale('en'));
+        expect(find.text(l10n.translateErrorModelNotFound), findsOneWidget);
+        expect(find.textContaining('model not found'), findsNothing);
+        // Fixed in the provider settings, so it links there.
         expect(
-          find.text('The AI provider returned an error: model not found'),
+          find.byKey(const Key('proofread_error_providers')),
           findsOneWidget,
+        );
+        expect(find.byKey(const Key('proofread_error_retry')), findsOneWidget);
+      });
+
+      testWidgets('explains server errors in plain words', (tester) async {
+        await pumpError(
+          tester,
+          const LlmApiException('Internal error: boom', statusCode: 500),
+        );
+        final l10n = lookupAppLocalizations(const Locale('en'));
+        expect(
+          find.text(l10n.translateErrorProviderServer('500')),
+          findsOneWidget,
+        );
+        expect(find.textContaining('boom'), findsNothing);
+        expect(
+          find.byKey(const Key('proofread_error_providers')),
+          findsNothing,
         );
       });
 
-      testWidgets('falls back for empty provider messages', (tester) async {
-        await pumpError(tester, const LlmApiException(' ', statusCode: 500));
-        expect(
-          find.text('Something went wrong. Please try again.'),
-          findsOneWidget,
+      testWidgets('keeps the message readable on a narrow phone', (
+        tester,
+      ) async {
+        await pumpView(
+          tester,
+          readyState.copyWith(
+            input: 'text',
+            status: ProofreadStatus.failure,
+            error: () => const LlmApiException('x', statusCode: 429),
+          ),
+          size: const Size(320, 700),
         );
+        // The actions are below the text, not beside it: the text gets
+        // (nearly) the whole width, never a word per line.
+        final body = tester.getSize(
+          find.text(
+            'The AI provider is rate limiting requests. Try again in a moment.',
+          ),
+        );
+        expect(body.width, greaterThan(200));
       });
     });
 
@@ -1882,7 +2036,9 @@ void main() {
           findsOneWidget,
         );
         final input = tester.getTopLeft(find.byType(ProofreadInputCard));
-        final result = tester.getTopLeft(find.byType(ProofreadResultSection));
+        final result = tester.getTopLeft(
+          find.byKey(const Key('proofread_result_pane')),
+        );
         expect(result.dx, greaterThan(input.dx));
       });
 

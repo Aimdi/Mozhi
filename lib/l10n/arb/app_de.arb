@@ -1495,7 +1495,7 @@
   "dictionaryListenNeedsLanguage": "Wähle die Sprache des Wortes, um es anzuhören",
   "proofreadOptionsTooltip": "Korrektur-Optionen",
   "proofreadOptionsModifiedTooltip": "Korrektur-Optionen (geändert)",
-  "proofreadShortcutTooltip": "Korrigieren (Strg+Eingabe)",
+  "proofreadShortcutTooltip": "Prüfen (Strg+Eingabe)",
   "proofreadLanguageTitle": "Sprache",
   "proofreadLanguageAuto": "Sprache erkennen",
   "proofreadLanguageButton": "Sprache: {language}",

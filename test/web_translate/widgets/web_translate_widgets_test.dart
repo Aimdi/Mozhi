@@ -9,6 +9,7 @@ import 'package:mozhi/on_device_ai/data/on_device_ai.dart';
 import 'package:mozhi/platform/device_conditions.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
+import 'package:mozhi/settings/view/widgets/link_launcher.dart';
 import 'package:mozhi/web_translate/web_translate.dart';
 import 'package:mozhi/web_translate/widgets/readable_block_view.dart';
 import 'package:mozhi/web_translate/widgets/web_reader.dart';
@@ -271,6 +272,32 @@ void main() {
         ),
         1,
       );
+    });
+
+    testWidgets('a download the browser blocked offers the page, no retry', (
+      tester,
+    ) async {
+      await pumpPanel(
+        tester,
+        const WebTranslateState(
+          status: WebTranslateStatus.failure,
+          url: 'https://example.org/a',
+          error: WebPageException(WebPageError.blockedByBrowser),
+        ),
+      );
+      expect(find.text(l10n.webTranslateErrorBlockedWeb), findsOneWidget);
+      expect(find.textContaining('computer'), findsNothing);
+      expect(find.byKey(const Key('web_translate_retry_button')), findsNothing);
+      final opened = <Uri>[];
+      final original = LinkLauncher.launcher;
+      addTearDown(() => LinkLauncher.launcher = original);
+      LinkLauncher.launcher = (uri) async {
+        opened.add(uri);
+        return true;
+      };
+      await tester.tap(find.byKey(const Key('web_translate_open_page_button')));
+      await tester.pump();
+      expect(opened, [Uri.parse('https://example.org/a')]);
     });
 
     testWidgets('a download failure reloads on retry', (tester) async {
@@ -538,7 +565,7 @@ void main() {
       );
       expect(
         describe(const WebPageException(WebPageError.blockedByBrowser)),
-        l10n.webTranslateErrorBlocked,
+        l10n.webTranslateErrorBlockedWeb,
       );
       expect(
         describe(const WebPageException(WebPageError.tooManyRedirects)),

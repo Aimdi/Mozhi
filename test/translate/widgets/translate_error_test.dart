@@ -1,10 +1,13 @@
 import 'dart:async';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/platform/metered_network.dart';
+import 'package:mozhi/platform/system_app_settings.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/translate.dart';
 import 'package:mozhi/translate/widgets/widgets.dart';
@@ -1279,6 +1282,226 @@ void main() {
         ),
       );
       expect(find.byKey(const Key('translate_error_fix')), findsNothing);
+    });
+  });
+
+  group('titles say who failed', () {
+    test('an AI provider that answered with a 5xx is the provider', () {
+      const error = LlmApiException('Service Unavailable', statusCode: 503);
+      final info = describeTranslateError(l10n, error);
+      expect(info.title, l10n.translateErrorTitleProvider);
+      expect(info.title, isNot(l10n.translateErrorTitleConnection));
+      expect(info.message, l10n.translateErrorProviderServer('503'));
+      // The on-device engine may still help.
+      expect(isNetworkFailure(error), isTrue);
+    });
+
+    test('an AI provider 4xx keeps its message', () {
+      const error = LlmApiException('Bad request', statusCode: 400);
+      final info = describeTranslateError(l10n, error);
+      expect(info.title, l10n.translateErrorTitleProvider);
+      expect(info.message, l10n.translateErrorProvider('400'));
+    });
+
+    test('a Mozhi instance that answered with a 5xx is the instance', () {
+      const error = MozhiApiException('Bad gateway', statusCode: 502);
+      expect(
+        describeTranslateError(l10n, error).title,
+        l10n.translateErrorTitleInstance,
+      );
+    });
+
+    test('no answer at all is still the connection', () {
+      expect(
+        describeTranslateError(
+          l10n,
+          const LlmApiException('down', unreachable: true),
+        ).title,
+        l10n.translateErrorTitleConnection,
+      );
+      expect(
+        describeTranslateError(
+          l10n,
+          const MozhiApiException('Connection refused'),
+        ).title,
+        l10n.translateErrorTitleConnection,
+      );
+    });
+  });
+
+  group('checkDeviceNetwork', () {
+    const channel = MethodChannel('io.github.aimdi.mozhi/privacy');
+    late MeteredNetwork saved;
+
+    setUp(() => saved = MeteredNetwork.instance);
+    tearDown(() {
+      MeteredNetwork.instance = saved;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null);
+    });
+
+    void android(Map<String, bool>? access) {
+      MeteredNetwork.instance = MeteredNetwork(
+        channel: channel,
+        isAndroid: true,
+      );
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            expect(call.method, 'networkAccess');
+            return access;
+          });
+    }
+
+    test('off Android it is the interfaces check', () async {
+      deviceOfflineCheck = () async => false;
+      expect(await checkDeviceNetwork(), DeviceNetworkState.online);
+      deviceOfflineCheck = () async => true;
+      expect(await checkDeviceNetwork(), DeviceNetworkState.offline);
+    });
+
+    testWidgets('the Network permission turned off is no access', (
+      tester,
+    ) async {
+      android({'internetPermission': false, 'hasNetwork': false});
+      deviceOfflineCheck = () async => true;
+      expect(await checkDeviceNetwork(), DeviceNetworkState.noAccess);
+    });
+
+    testWidgets('a blocked network (VPN lockdown) is no access', (
+      tester,
+    ) async {
+      android({
+        'internetPermission': true,
+        'hasNetwork': true,
+        'blocked': true,
+      });
+      expect(await checkDeviceNetwork(), DeviceNetworkState.noAccess);
+    });
+
+    testWidgets('no network for Mozhi while Wi-Fi is up is no access', (
+      tester,
+    ) async {
+      android({'internetPermission': true, 'hasNetwork': false});
+      deviceOfflineCheck = () async => false;
+      expect(await checkDeviceNetwork(), DeviceNetworkState.noAccess);
+      // Nothing up at all: plainly offline.
+      deviceOfflineCheck = () async => true;
+      expect(await checkDeviceNetwork(), DeviceNetworkState.offline);
+    });
+
+    testWidgets('a usable network is online', (tester) async {
+      android({'internetPermission': true, 'hasNetwork': true});
+      expect(await checkDeviceNetwork(), DeviceNetworkState.online);
+      // An older platform side: the interfaces decide.
+      android(null);
+      expect(await checkDeviceNetwork(), DeviceNetworkState.online);
+    });
+  });
+
+  group('when Mozhi may not use the network', () {
+    late Future<bool> Function() opener;
+
+    setUp(() => opener = SystemAppSettings.opener);
+    tearDown(() {
+      deviceNetworkCheck = checkDeviceNetwork;
+      SystemAppSettings.debugIsSupported = null;
+      SystemAppSettings.opener = opener;
+    });
+
+    testWidgets('says so instead of blaming the servers, with App info', (
+      tester,
+    ) async {
+      deviceNetworkCheck = () async => DeviceNetworkState.noAccess;
+      SystemAppSettings.debugIsSupported = true;
+      var opened = 0;
+      SystemAppSettings.opener = () async {
+        opened++;
+        return true;
+      };
+      const error = AllInstancesFailedException(
+        'Connection refused',
+        engine: google,
+        instances: [MozhiInstance(url: 'https://a.example', isCustom: false)],
+      );
+      var retried = 0;
+      final harness = TranslateHarness(
+        state: readyState(
+          input: 'Hello',
+          status: TranslateStatus.failure,
+        ).copyWith(error: () => error),
+      );
+      await harness.pump(
+        tester,
+        child: TranslateErrorView(error: error, onRetry: () => retried++),
+      );
+      await tester.pump();
+
+      expect(find.text(l10n.translateErrorTitleNoNetworkAccess), findsOne);
+      expect(find.text(l10n.translateErrorNoNetworkAccess), findsOne);
+      expect(find.text(l10n.translateErrorTitleAllServers), findsNothing);
+      // The ways on that need the network are left out.
+      expect(
+        find.byKey(const Key('translate_error_another_server')),
+        findsNothing,
+      );
+      final settings = find.byKey(const Key('translate_error_app_settings'));
+      expect(tester.widget(settings), isA<FilledButton>());
+      expect(
+        tester.widget(find.byKey(const Key('translate_error_retry'))),
+        isA<TextButton>(),
+      );
+      await tester.tap(settings);
+      await tester.tap(find.byKey(const Key('translate_error_retry')));
+      expect((opened, retried), (1, 1));
+    });
+
+    testWidgets('without App info (the web) only says so', (tester) async {
+      deviceNetworkCheck = () async => DeviceNetworkState.noAccess;
+      SystemAppSettings.debugIsSupported = false;
+      final harness = TranslateHarness();
+      await harness.pump(
+        tester,
+        child: TranslateErrorView(
+          error: const LlmApiException('down', unreachable: true),
+          onRetry: () {},
+        ),
+      );
+      await tester.pump();
+      expect(find.text(l10n.translateErrorTitleNoNetworkAccess), findsOne);
+      expect(
+        find.byKey(const Key('translate_error_app_settings')),
+        findsNothing,
+      );
+    });
+  });
+
+  group('missing models make the download the main action', () {
+    testWidgets('elsewhere: "Download German" first, Retry second', (
+      tester,
+    ) async {
+      final harness = TranslateHarness();
+      await harness.pump(
+        tester,
+        child: TranslateErrorView(
+          error: const OfflineModelMissingException(['de']),
+          onRetry: () {},
+        ),
+      );
+      expect(
+        tester.widget(find.byKey(const Key('translate_error_fix'))),
+        isA<FilledButton>(),
+      );
+      expect(
+        tester.widget(find.byKey(const Key('translate_error_retry'))),
+        isA<TextButton>(),
+      );
+      final fix = tester.getTopLeft(
+        find.byKey(const Key('translate_error_fix')),
+      );
+      final retry = tester.getTopLeft(
+        find.byKey(const Key('translate_error_retry')),
+      );
+      expect(fix.dx < retry.dx || fix.dy < retry.dy, isTrue);
     });
   });
 }

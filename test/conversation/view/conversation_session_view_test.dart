@@ -389,7 +389,9 @@ void main() {
       recognizer.fail(SpeechInputFailure.permissionDenied);
       await tester.pumpAndSettle();
       final l10n = lookupAppLocalizations(const Locale('en'));
-      expect(find.text(l10n.voiceErrorPermission), findsOneWidget);
+      // Said once, above the microphone (no snack bar over it).
+      expect(find.text(l10n.voiceErrorPermission), findsNothing);
+      expect(find.byType(SnackBar), findsNothing);
       expect(
         statusText(tester),
         '${l10n.voiceErrorPermission} Tap the microphone to try again.',

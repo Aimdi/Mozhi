@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/core/network/network.dart';
@@ -138,10 +140,50 @@ void main() {
         l10n.proofreadError(const LlmApiException('x', statusCode: 429)),
         l10n.proofreadErrorRateLimited,
       );
+      // Never the provider's raw message.
+      for (final error in [
+        const LlmApiException(' timeout '),
+        const LlmApiException('Internal error', statusCode: 500),
+        const LlmApiException('Bad request', statusCode: 400),
+      ]) {
+        expect(l10n.proofreadError(error), isNot(contains(error.message)));
+      }
       expect(
         l10n.proofreadError(const LlmApiException(' timeout ')),
-        'The AI provider returned an error: timeout',
+        l10n.proofreadErrorProviderFailed,
       );
+      expect(
+        l10n.proofreadError(const LlmApiException('x', statusCode: 404)),
+        l10n.translateErrorModelNotFound,
+      );
+      expect(
+        l10n.proofreadError(const LlmTruncatedException(partialText: 'I have')),
+        l10n.proofreadErrorTruncated,
+      );
+      expect(
+        l10n.proofreadError(const LlmInterruptedException()),
+        l10n.proofreadErrorInterrupted,
+      );
+      expect(
+        l10n.proofreadError(const LlmStoppedException('stop')),
+        l10n.proofreadErrorStopped,
+      );
+      expect(
+        l10n.proofreadError(TimeoutException('slow')),
+        l10n.translateErrorTimeout,
+      );
+      expect(
+        proofreadErrorNeedsProviders(
+          l10n,
+          const LlmApiException('x', statusCode: 401),
+        ),
+        isTrue,
+      );
+      expect(
+        proofreadErrorNeedsProviders(l10n, const LlmRefusalException('no')),
+        isFalse,
+      );
+      expect(proofreadErrorNeedsProviders(l10n, null), isFalse);
       expect(
         l10n.proofreadError(
           const ConsentRequiredException(

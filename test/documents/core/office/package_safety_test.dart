@@ -375,14 +375,14 @@ void main() {
       final eocd = ByteData.sublistView(bytes, end);
       final size = eocd.getUint32(12, Endian.little);
       final offset = eocd.getUint32(16, Endian.little);
-      Uint8List zip64({required int signature, int count = 1}) {
+      Uint8List zip64({required int signature, int count = 1, int? recordAt}) {
         final record = ByteData(56 + 20)
           ..setUint32(0, signature, Endian.little)
           ..setUint32(32, count, Endian.little)
           ..setUint32(40, size, Endian.little)
           ..setUint32(48, offset, Endian.little)
           ..setUint32(56, 0x07064b50, Endian.little)
-          ..setUint32(56 + 8, end, Endian.little);
+          ..setUint32(56 + 8, recordAt ?? end, Endian.little);
         return Uint8List.fromList([
           ...bytes.sublist(0, end),
           ...record.buffer.asUint8List(),
@@ -399,8 +399,39 @@ void main() {
         () => ZipPackage.read(zip64(signature: 0x06064b50, count: 20000)),
         throwsProblem(PackageProblem.unsafe, contains('too many')),
       );
-      // A locator pointing at something else: the end record's values.
-      expect(ZipPackage.read(zip64(signature: 0)).entries, hasLength(1));
+      // A locator pointing at something else: the record right before it,
+      // as the decoder takes it.
+      expect(
+        ZipPackage.read(zip64(signature: 0x06064b50, recordAt: 0)).entries,
+        hasLength(1),
+      );
+      expect(
+        () => ZipPackage.read(
+          zip64(signature: 0x06064b50, count: 20000, recordAt: 0),
+        ),
+        throwsProblem(PackageProblem.unsafe, contains('too many')),
+      );
+      // No record at all: the decoder would read nothing.
+      for (final recordAt in [null, 0]) {
+        expect(
+          () => ZipPackage.read(zip64(signature: 0, recordAt: recordAt)),
+          throwsProblem(PackageProblem.damaged, contains('ZIP64')),
+          reason: '$recordAt',
+        );
+      }
+    });
+
+    test('a directory away from its declared place is refused', () {
+      // The end record's offset points at the local header, so the decoder
+      // would look for the directory before the end record and move every
+      // entry (a self-extracting archive's prefix).
+      final bytes = _rawZip([_RawEntry('a.xml', ascii.encode('<a/>'))]);
+      final end = bytes.length - 22;
+      ByteData.sublistView(bytes).setUint32(end + 16, 0, Endian.little);
+      expect(
+        () => ZipPackage.read(bytes),
+        throwsProblem(PackageProblem.damaged, contains('declared')),
+      );
     });
 
     test('macros and ActiveX controls are kept and reported', () {

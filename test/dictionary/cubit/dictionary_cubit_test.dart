@@ -4,6 +4,7 @@ import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/dictionary/cubit/dictionary_cubit.dart';
+import 'package:mozhi/dictionary/data/dictionary_entry_store.dart';
 import 'package:mozhi/history/history.dart'
     show HistoryEntry, HistoryEntryKind, HistoryState, HistoryStatus;
 import 'package:mozhi/settings/models/app_settings.dart';
@@ -1041,8 +1042,9 @@ void main() {
           'detail level and a summary', () async {
         await build(verbosity: DictionaryVerbosity.concise).lookUp();
 
+        final saved = added();
         expect(
-          added(),
+          saved,
           HistoryEntry(
             id: 'dictionary:${now.microsecondsSinceEpoch}',
             kind: HistoryEntryKind.dictionary,
@@ -1054,8 +1056,11 @@ void main() {
             engineName: 'Claude',
             createdAt: now,
             verbosity: DictionaryVerbosity.concise,
+            dictionaryJson: encodeDictionaryEntry(gatoEntry),
           ),
         );
+        // The entry itself is kept, so opening it needs no new request.
+        expect(decodeDictionaryEntry(saved.dictionaryJson), gatoEntry);
       });
 
       test('of the word looked up, with the languages it was looked up '

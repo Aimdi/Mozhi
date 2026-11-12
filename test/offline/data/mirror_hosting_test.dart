@@ -55,30 +55,71 @@ void main() {
       expect(requests, isEmpty);
     });
 
-    test(
-      'asks nothing for the original publishers or a custom mirror',
-      () async {
-        final web = probe();
+    test('asks nothing for a custom mirror', () async {
+      expect(
+        await probe().downloadsBlocked(
+          MirrorDataKind.dictionary,
+          const ModelSource(
+            kind: ModelSourceKind.custom,
+            customUrl: 'https://mirror.example.org/models/',
+          ),
+        ),
+        isFalse,
+      );
+      expect(requests, isEmpty);
+    });
+
+    test('the original publishers refuse a web page, except for text '
+        'recognition data (asking nothing)', () async {
+      final web = probe();
+      for (final kind in [
+        MirrorDataKind.translation,
+        MirrorDataKind.dictionary,
+        MirrorDataKind.phrasebook,
+      ]) {
         expect(
-          await web.downloadsBlocked(
+          await web.downloadBlock(kind, ModelSource.defaultHosts),
+          DownloadBlock.browserRefused,
+          reason: kind.name,
+        );
+      }
+      expect(
+        await web.downloadBlock(
+          MirrorDataKind.textRecognition,
+          ModelSource.defaultHosts,
+        ),
+        isNull,
+      );
+      expect(requests, isEmpty);
+      // Outside a browser they download as before.
+      expect(
+        await probe(isWeb: false)
+            .downloadBlock(MirrorDataKind.dictionary, ModelSource.defaultHosts),
+        isNull,
+      );
+    });
+
+    test("Mozilla's bucket answers a web app on localhost", () async {
+      for (final host in ['localhost', '127.0.0.1', '[::1]']) {
+        final web = probe(appBase: Uri.parse('http://$host:8080/'));
+        expect(
+          await web.downloadBlock(
+            MirrorDataKind.translation,
+            ModelSource.defaultHosts,
+          ),
+          isNull,
+          reason: host,
+        );
+        expect(
+          await web.downloadBlock(
             MirrorDataKind.dictionary,
             ModelSource.defaultHosts,
           ),
-          isFalse,
+          DownloadBlock.browserRefused,
+          reason: host,
         );
-        expect(
-          await web.downloadsBlocked(
-            MirrorDataKind.dictionary,
-            const ModelSource(
-              kind: ModelSourceKind.custom,
-              customUrl: 'https://mirror.example.org/models/',
-            ),
-          ),
-          isFalse,
-        );
-        expect(requests, isEmpty);
-      },
-    );
+      }
+    });
 
     test("reads the index of this server's folder of the kind", () async {
       final web = probe();
@@ -98,6 +139,10 @@ void main() {
       expect(
         await probe().downloadsBlocked(MirrorDataKind.dictionary, _thisServer),
         isTrue,
+      );
+      expect(
+        await probe().downloadBlock(MirrorDataKind.dictionary, _thisServer),
+        DownloadBlock.notHosted,
       );
     });
 

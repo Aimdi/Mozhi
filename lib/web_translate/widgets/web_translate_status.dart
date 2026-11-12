@@ -8,7 +8,9 @@ import 'package:mozhi/core/widgets/tab_hero.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/on_device_ai/view/on_device_ai_paused_notice.dart';
+import 'package:mozhi/settings/view/widgets/link_launcher.dart';
 import 'package:mozhi/web_translate/cubit/web_translate_cubit.dart';
+import 'package:mozhi/web_translate/data/web_page_fetcher.dart';
 import 'package:mozhi/web_translate/widgets/web_translate_messages.dart';
 import 'package:translation_repository/translation_repository.dart'
     show ConsentRequiredException;
@@ -125,6 +127,29 @@ class WebTranslateStatusPanel extends StatelessWidget {
           consent: state.error! as ConsentRequiredException,
           requests: webTranslateRequests(state),
           onGranted: () => unawaited(cubit.consentGranted()),
+        );
+
+      // The browser refuses to read the site (CORS): loading it again
+      // fails the same way, so offer the page itself (to copy its text)
+      // instead of "Retry".
+      case WebTranslateStatus.failure
+          when state.error is WebPageException &&
+              (state.error! as WebPageException).error ==
+                  WebPageError.blockedByBrowser:
+        final page = Uri.tryParse(state.url);
+        return _Banner(
+          key: const Key('web_translate_error'),
+          icon: Icons.public_off,
+          error: true,
+          message: describeWebTranslateError(l10n, state.error),
+          action: page == null || !page.hasScheme
+              ? null
+              : TextButton.icon(
+                  key: const Key('web_translate_open_page_button'),
+                  onPressed: () => unawaited(LinkLauncher.open(context, page)),
+                  icon: const Icon(Icons.open_in_new),
+                  label: Text(l10n.webTranslateOpenOriginal),
+                ),
         );
 
       case WebTranslateStatus.failure:

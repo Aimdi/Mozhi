@@ -80,7 +80,7 @@ void main() {
           cause: AllInstancesFailedException(
             'boom',
             engine: TranslationEngine.mozhi('google', 'Google'),
-            instances: const [MozhiInstance(url: 'https://mozhi.example')],
+            instances: [MozhiInstance.publicInstances.first],
             statusCode: 502,
           ),
         );
@@ -233,7 +233,7 @@ void main() {
       final allFailed = AllInstancesFailedException(
         'Post "https://translate.google.com/?q=Bonjour": boom',
         engine: TranslationEngine.mozhi('google', 'Google'),
-        instances: const [MozhiInstance(url: 'https://mozhi.example')],
+        instances: [MozhiInstance.publicInstances.first],
         statusCode: 502,
       );
 
@@ -253,13 +253,40 @@ void main() {
           MozhiApiException('No response within 30000 ms'),
         ]) {
           final error = SpeechUnavailableException('fr', cause: cause);
+          // Which server did not answer is unknown: no "volunteer".
           expect(
             speechErrorMessage(l10n, error),
-            l10n.speechErrorServersUnavailable,
+            l10n.speechErrorMozhiFailed,
             reason: '$cause',
           );
           expect(speechServersFailed(error), isTrue, reason: '$cause');
         }
+      });
+
+      test('names the own server of the user, not volunteers', () {
+        AllInstancesFailedException failed(List<MozhiInstance> instances) =>
+            AllInstancesFailedException(
+              'boom',
+              engine: TranslationEngine.mozhi('google', 'Google'),
+              instances: instances,
+            );
+        const own = MozhiInstance(url: 'https://mozhi.home.lan');
+        final public = MozhiInstance.publicInstances.first;
+
+        expect(
+          speechErrorMessage(
+            l10n,
+            SpeechUnavailableException('fr', cause: failed(const [own])),
+          ),
+          l10n.speechErrorOwnServerUnavailable,
+        );
+        expect(
+          speechErrorMessage(
+            l10n,
+            SpeechUnavailableException('fr', cause: failed([own, public])),
+          ),
+          l10n.speechErrorMozhiFailed,
+        );
       });
 
       test('speechServersFailed only for server failures', () {
@@ -292,6 +319,26 @@ void main() {
           expect(speechServersFailed(error), isFalse, reason: '$error');
         }
       });
+    });
+
+    test('says that a clip could not be played, not to add an instance', () {
+      expect(
+        speechErrorMessage(
+          l10n,
+          SpeechUnavailableException(
+            'fr',
+            cause: SpeechPlaybackException(Exception('MEDIA_ERR')),
+            mozhiConfigured: true,
+          ),
+        ),
+        l10n.speechErrorPlayback,
+      );
+    });
+
+    test('with instances configured, does not suggest adding one', () {
+      const error = SpeechUnavailableException('fr', mozhiConfigured: true);
+      expect(speechErrorMessage(l10n, error), l10n.speechUnavailableNoVoice);
+      expect(error.withoutCause().mozhiConfigured, isTrue);
     });
 
     test('falls back to the generic playback error', () {

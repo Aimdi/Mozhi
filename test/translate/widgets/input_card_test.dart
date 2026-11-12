@@ -18,6 +18,7 @@ import 'package:mozhi/usage/usage.dart';
 import 'package:mozhi/voice/voice.dart';
 import 'package:translation_repository/translation_repository.dart';
 
+import '../../helpers/terminal_font.dart';
 import '../helpers/helpers.dart';
 
 void main() {
@@ -54,12 +55,23 @@ void main() {
       });
     });
 
-    testWidgets('shows the hint and a paste button when empty', (tester) async {
+    testWidgets('shows the placeholder and a paste button when empty, no '
+        'Listen', (tester) async {
       final harness = TranslateHarness();
       await harness.pump(tester, child: const InputCard());
-      expect(find.text('Enter text'), findsOneWidget);
+      expect(find.byKey(const Key('translate_composer_hint')), findsOneWidget);
+      expect(find.text('Enter text'), findsNothing);
       expect(find.byTooltip('Paste'), findsOneWidget);
       expect(find.byTooltip('Clear'), findsNothing);
+      // Nothing to read aloud: no disabled Listen.
+      expect(findListenTooltip('Listen'), findsNothing);
+    });
+
+    testWidgets('offers Listen once there is text', (tester) async {
+      final harness = TranslateHarness(state: translatedState());
+      await harness.pump(tester, child: const InputCard());
+      expect(findListenTooltip('Listen'), findsOneWidget);
+      expect(find.byTooltip('Paste'), findsNothing);
     });
 
     testWidgets('paste puts clipboard text into the input', (tester) async {
@@ -398,6 +410,64 @@ void main() {
         speech.finish();
         await tester.pump();
         expect(find.byTooltip('Speak'), findsOneWidget);
+      });
+
+      testWidgets('a final result after listening ended replaces the '
+          'partial one: nothing is repeated or translated twice', (
+        tester,
+      ) async {
+        final speech = FakeSpeechInput();
+        final harness = TranslateHarness(
+          state: readyState(input: 'Hello', source: english),
+          speechInput: speech.service,
+        );
+        await harness.pump(tester, child: const InputCard());
+        await tester.tap(mic());
+        await tester.pump();
+        speech.say('big world');
+        await tester.pump();
+        // Android reports the end of listening before the final result.
+        speech.finish();
+        await tester.pump();
+        speech.say('big world', isFinal: true);
+        await tester.pump();
+
+        final field = tester.widget<TextField>(
+          find.byKey(const Key('translate_input_field')),
+        );
+        expect(field.controller!.text, 'Hello big world');
+        verifyNever(
+          () => harness.translate.setInput(
+            'Hello big world big world',
+            dictated: true,
+          ),
+        );
+      });
+
+      testWidgets('a late result does not undo an edit', (tester) async {
+        final speech = FakeSpeechInput();
+        final harness = TranslateHarness(
+          state: readyState(input: 'Hi', source: english),
+          speechInput: speech.service,
+        );
+        await harness.pump(tester, child: const InputCard());
+        await tester.tap(mic());
+        await tester.pump();
+        speech.say('there');
+        await tester.pump();
+        speech.finish();
+        await tester.pump();
+        await tester.enterText(
+          find.byKey(const Key('translate_input_field')),
+          'Hi you',
+        );
+        speech.say('there', isFinal: true);
+        await tester.pump();
+
+        final field = tester.widget<TextField>(
+          find.byKey(const Key('translate_input_field')),
+        );
+        expect(field.controller!.text, 'Hi you');
       });
 
       testWidgets('fills an empty input and ignores silence', (tester) async {
@@ -762,11 +832,12 @@ void main() {
         expect(hint(), findsNothing);
       });
 
-      testWidgets('is not shown outside the empty composer', (tester) async {
+      testWidgets('is the same outside the empty composer', (tester) async {
         final harness = TranslateHarness();
         await harness.pump(tester, child: const InputCard());
-        expect(hint(), findsNothing);
-        expect(find.text('Enter text'), findsOneWidget);
+        expect(hint(), findsOneWidget);
+        expect(link(), findsOneWidget);
+        expect(find.text('Enter text'), findsNothing);
       });
 
       testWidgets('screen readers get the field name and a Paste button', (
@@ -1056,6 +1127,136 @@ void main() {
       expect(parts.before, 'Type text ');
       expect(parts.link, 'paste');
       expect(parts.after, '');
+    });
+  });
+
+  group('InputCard in the terminal look', () {
+    setUpAll(loadTerminalFont);
+
+    Finder toolbar(Finder finder) => find.descendant(
+      of: find.byKey(const Key('translate_input_toolbar')),
+      matching: finder,
+    );
+
+    Future<TranslateHarness> pumpStdin(
+      WidgetTester tester, {
+      TranslateState? state,
+      ThemeData? theme,
+    }) async {
+      final harness = TranslateHarness(
+        state: state,
+        speechInput: FakeSpeechInput().service,
+      );
+      await harness.pump(
+        tester,
+        size: const Size(390, 844),
+        theme: theme ?? terminalTestTheme(),
+        child: const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16),
+          child: InputCard(),
+        ),
+      );
+      await tester.pump();
+      return harness;
+    }
+
+    testWidgets('empty: paste in the listen slot, no count or clear', (
+      tester,
+    ) async {
+      await pumpStdin(tester);
+      expect(
+        toolbar(find.byKey(const Key('translate_paste_button'))),
+        findsOneWidget,
+      );
+      expect(findListenTooltip('Listen'), findsNothing);
+      expect(find.byKey(const Key('translate_clear_button')), findsNothing);
+      expect(find.byKey(const Key('translate_input_count_row')), findsNothing);
+    });
+
+    testWidgets('with text: listen in the slot, count and clear on the '
+        'label line, nothing moves', (tester) async {
+      final states = StreamController<TranslateState>();
+      addTearDown(states.close);
+      final harness = TranslateHarness(speechInput: FakeSpeechInput().service);
+      whenListen(harness.translate, states.stream, initialState: readyState());
+      await harness.pump(
+        tester,
+        size: const Size(390, 844),
+        theme: terminalTestTheme(),
+        child: const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16),
+          child: InputCard(),
+        ),
+      );
+      await tester.pump();
+      final field = find.byKey(const Key('translate_input_field'));
+      final before = tester.getRect(field);
+
+      states.add(readyState(source: english, input: 'Hello'));
+      await tester.pumpAndSettle();
+
+      expect(tester.getRect(field), before);
+      expect(
+        toolbar(find.byKey(const Key('translate_paste_button'))),
+        findsNothing,
+      );
+      expect(toolbar(findListenTooltip('Listen')), findsOneWidget);
+      final clear = find.byKey(const Key('translate_clear_button'));
+      expect(clear, findsOneWidget);
+      expect(toolbar(clear), findsNothing);
+      expect(tester.getRect(clear).bottom, lessThanOrEqualTo(before.top));
+      expect(find.text('5 characters'), findsOneWidget);
+    });
+
+    testWidgets('the tools fit one row on a phone', (tester) async {
+      await pumpStdin(
+        tester,
+        state: readyState(source: english, input: 'Hello'),
+      );
+      final tools = [
+        find.byKey(const Key('translate_hero_camera')),
+        find.byKey(const Key('translate_hero_document')),
+        find.byKey(const Key('translate_voice_input')),
+        toolbar(findListenTooltip('Listen')),
+        find.byKey(const Key('translate_translate_button')),
+      ];
+      final row = tester.getCenter(tools.first).dy;
+      for (final tool in tools) {
+        expect(tool, findsOneWidget);
+        expect(tester.getCenter(tool).dy, closeTo(row, 1));
+      }
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a long count fits the label line', (tester) async {
+      await pumpStdin(
+        tester,
+        state: readyState(
+          engine: claude,
+          source: english,
+          input: 'a' * (TranslateCubit.maxInputLength - 50),
+        ),
+      );
+      expect(find.byKey(const Key('translate_clear_button')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('every framed tool is one 48 dp square with a mouse', (
+      tester,
+    ) async {
+      await pumpStdin(
+        tester,
+        state: readyState(input: 'Hello'),
+        theme: terminalTestTheme().copyWith(
+          platform: TargetPlatform.linux,
+          visualDensity: VisualDensity.compact,
+        ),
+      );
+      final frames = find.byType(TerminalFrame);
+      expect(frames, findsAtLeast(5));
+      for (final frame in tester.widgetList(frames)) {
+        expect(tester.getSize(find.byWidget(frame)), const Size.square(48));
+      }
     });
   });
 }

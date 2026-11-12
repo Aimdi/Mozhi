@@ -39,11 +39,9 @@ class ImageMethodSelector extends StatelessWidget {
                 key: Key('image_translate_method_${method.id}'),
                 avatar: Icon(imageMethodIcon(method.kind)),
                 showCheckmark: false,
-                // Long names end in "…" on narrow screens with large text.
-                label: Text(
-                  imageMethodLabel(l10n, method),
-                  overflow: TextOverflow.ellipsis,
-                ),
+                // Long names wrap onto a second line rather than end in
+                // "…" on narrow screens.
+                label: Text(imageMethodLabel(l10n, method)),
                 selected: method == selected,
                 materialTapTargetSize: MaterialTapTargetSize.padded,
                 onSelected: (_) => unawaited(cubit.selectMethod(method)),

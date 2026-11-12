@@ -249,7 +249,15 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('proofread_rephrase_error')), findsOne);
       expect(find.text("Couldn't load alternatives"), findsOneWidget);
-      expect(find.textContaining('Overloaded'), findsOneWidget);
+      // Never the provider's raw (English) message.
+      expect(find.textContaining('Overloaded'), findsNothing);
+      expect(
+        find.text(
+          "The AI provider couldn't proofread this text. Try again or pick "
+          'another model.',
+        ),
+        findsOneWidget,
+      );
 
       await tester.tap(find.byKey(const Key('proofread_rephrase_retry')));
       await tester.pumpAndSettle();

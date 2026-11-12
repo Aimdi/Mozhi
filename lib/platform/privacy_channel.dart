@@ -11,6 +11,10 @@ import 'package:flutter/services.dart';
 /// * `isActiveNetworkMetered()` -> `Boolean`:
 ///   `ConnectivityManager.isActiveNetworkMetered()` (true when there is no
 ///   network or the app may not ask; see `MeteredNetwork`).
+/// * `networkAccess()` -> `Map`: `{internetPermission, hasNetwork,
+///   blocked}` (Booleans), whether Mozhi itself may use the network
+///   (GrapheneOS's Network permission, a blocked network; see
+///   `MeteredNetwork.networkAccess`).
 /// * `sdkInt()` -> `Int`: `Build.VERSION.SDK_INT`, the Android API level
 ///   (see `androidSdkInt`; the system bars depend on it).
 /// * `setKeepScreenOn(on: Boolean)` sets or clears the window's

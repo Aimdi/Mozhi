@@ -93,6 +93,23 @@ void main() {
       await completed;
     });
 
+    test('in the web app, a rejected clip is not tried again', () async {
+      final web = AudioPlayersOutput(createPlayer: () => player, isWeb: true);
+      when(() => player.play(any())).thenThrow(Exception('unplayable'));
+
+      await expectLater(web.play(bytes), throwsException);
+      verify(() => player.play(any())).called(1);
+    });
+
+    test('a player error ends the clip instead of going uncaught', () async {
+      await output.play(bytes);
+      final completed = expectLater(output.onComplete, emits(anything));
+
+      completions.addError(Exception('MEDIA_ERR_SRC_NOT_SUPPORTED'));
+
+      await completed;
+    });
+
     test('stop is a no-op before anything was played', () async {
       await output.stop();
 

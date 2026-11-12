@@ -91,15 +91,38 @@ void main() {
     expect(bridge.reloads, 1);
   });
 
-  testWidgets('says when the browser cannot keep the app', (tester) async {
+  testWidgets('says when the browser did not keep the app', (tester) async {
     setUpShell();
     bridge.next = null;
     await shell.setEnabled(enabled: true);
     await pump(tester);
     expect(
       status(tester),
+      'This browser didn’t keep the app (a private window or blocked site '
+      'data?). It still works online.',
+    );
+  });
+
+  testWidgets('a browser that cannot keep the app: off and disabled', (
+    tester,
+  ) async {
+    setUpShell();
+    shell = AppShell(bridge: _UnsupportedBridge());
+    addTearDown(shell.dispose);
+    await pump(tester);
+    expect(
+      status(tester),
       'This browser can’t keep the app: it needs an https site and a browser '
       'that allows it',
+    );
+    final toggle = tester.widget<SwitchListTile>(
+      find.byKey(const Key('settings_offline_app_shell')),
+    );
+    expect(toggle.value, isFalse);
+    expect(toggle.onChanged, isNull);
+    await tester.tap(find.byKey(const Key('settings_offline_app_shell')));
+    verifyNever(
+      () => settings.setOfflineAppShell(enabled: any(named: 'enabled')),
     );
   });
 
@@ -119,4 +142,10 @@ void main() {
     await tester.tap(find.byKey(const Key('settings_offline_app_shell')));
     verify(() => settings.setOfflineAppShell(enabled: true)).called(1);
   });
+}
+
+/// A browser without service workers (or a page not served over https).
+class _UnsupportedBridge extends FakeAppShellBridge {
+  @override
+  bool get isSupported => false;
 }

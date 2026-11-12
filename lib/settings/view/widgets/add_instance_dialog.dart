@@ -5,6 +5,7 @@ import 'package:mozhi/core/network/network.dart';
 import 'package:mozhi/core/privacy/ime_learning.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/view/widgets/insecure_http_warning.dart';
+import 'package:mozhi/settings/view/widgets/runs_on_web.dart';
 import 'package:mozhi/settings/view/widgets/settings_section.dart';
 import 'package:mozhi_api/mozhi_api.dart' show MozhiApiClient;
 import 'package:translation_repository/translation_repository.dart';
@@ -252,7 +253,9 @@ class _AddInstanceDialogState extends State<AddInstanceDialog> {
                 key: const Key('instance_needs_proxy'),
                 icon: Icons.vpn_lock_outlined,
                 color: colors.warning,
-                text: l10n.settingsInstanceNeedsProxyNote,
+                text: runsOnWeb
+                    ? l10n.settingsInstanceNeedsProxyNoteWeb
+                    : l10n.settingsInstanceNeedsProxyNote,
               ),
             ],
             const SizedBox(height: 16),

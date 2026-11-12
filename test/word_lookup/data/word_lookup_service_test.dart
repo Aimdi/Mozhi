@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:mozhi/dictionary/data/dictionary_entry_store.dart';
 import 'package:mozhi/usage/models/usage_stats.dart';
 import 'package:mozhi/word_lookup/data/word_lookup_service.dart';
 import 'package:mozhi/word_lookup/data/word_segmenter.dart';
@@ -149,6 +150,57 @@ void main() {
           output: any(named: 'output'),
         ),
       ).thenAnswer((_) async => UsageStats.zero);
+    });
+
+    test('keeps the entry: asked again, and for the dictionary', () async {
+      final service = WordLookupService(repository: repository);
+      Future<DictionaryEntry> ask(String sentence, {bool incognito = false}) =>
+          service.lookUpOnline(
+            aiEngine,
+            'gato',
+            language: spanish,
+            into: english,
+            sentence: sentence,
+            incognito: incognito,
+          );
+      await ask('El gato duerme.');
+      expect(await ask('El gato duerme.'), aiGatoEntry);
+      verify(
+        () => repository.lookUp(
+          any(),
+          any(),
+          source: any(named: 'source'),
+          target: any(named: 'target'),
+          context: any(named: 'context'),
+          uiLanguage: any(named: 'uiLanguage'),
+          verbosity: any(named: 'verbosity'),
+        ),
+      ).called(1);
+      // The dictionary at the same detail level finds it too.
+      expect(
+        DictionaryEntryCache.of(repository).get(
+          'gato',
+          source: spanish,
+          target: english,
+          verbosity: WordLookupService.lookUpVerbosity,
+          engineId: aiEngine.id,
+        ),
+        aiGatoEntry,
+      );
+      // Another sentence, or incognito, asks again.
+      await ask('Un gato.');
+      await ask('El gato duerme.', incognito: true);
+      verify(
+        () => repository.lookUp(
+          any(),
+          any(),
+          source: any(named: 'source'),
+          target: any(named: 'target'),
+          context: any(named: 'context'),
+          uiLanguage: any(named: 'uiLanguage'),
+          verbosity: any(named: 'verbosity'),
+        ),
+      ).called(2);
     });
 
     test('asks the engine with the sentence as context', () async {

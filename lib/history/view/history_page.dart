@@ -208,9 +208,11 @@ class _HistoryViewState extends State<HistoryView>
     context.go(AppRoutes.translate);
   }
 
-  /// Opens the Dictionary tab on [entry]'s word and languages and looks it
-  /// up with its detail level (also when the tab already shows that word,
-  /// see [DictionaryLookUpRequest]).
+  /// Opens the Dictionary tab on [entry]'s word and languages: the entry
+  /// as it was kept (no new request; a look-up kept without it is looked
+  /// up again with its detail level), also when the tab already shows that
+  /// word (see [DictionaryLookUpRequest]). Back from the entry returns
+  /// here.
   void _openLookUp(HistoryEntry entry) {
     final source = entry.source;
     final target = entry.target;
@@ -220,8 +222,22 @@ class _HistoryViewState extends State<HistoryView>
         from: source.isCustom ? null : source.code,
         to: target.isCustom || target.isAuto ? null : target.code,
       ),
-      extra: DictionaryLookUpRequest(verbosity: entry.verbosity),
+      extra: DictionaryLookUpRequest(
+        verbosity: entry.verbosity,
+        saved: entry,
+        returnTo: _location(),
+      ),
     );
+  }
+
+  /// The location the router shows (this page), null when it cannot
+  /// tell.
+  String? _location() {
+    try {
+      return GoRouter.maybeOf(context)?.state.uri.toString();
+    } on Object {
+      return null;
+    }
   }
 
   /// Deletes [entry]; Undo puts it back as it was (its place, favourite

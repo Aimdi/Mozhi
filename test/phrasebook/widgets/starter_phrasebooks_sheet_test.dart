@@ -6,9 +6,11 @@ import 'package:http/testing.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/offline/data/mirror_hosting.dart';
 import 'package:mozhi/phrasebook/data/phrasebook_repository.dart';
 import 'package:mozhi/phrasebook/widgets/starter_phrasebooks_sheet.dart';
 import 'package:mozhi/platform/free_space.dart';
+import 'package:mozhi/settings/models/model_source.dart';
 import 'package:mozhi/settings/view/widgets/link_launcher.dart';
 
 import '../pump.dart';
@@ -107,6 +109,24 @@ void main() {
     await _tapAndDownload(tester, _button('download'));
     expect(
       find.text(
+        'The server doesn’t have it (error 404). Ask its owner to mirror the '
+        'phrasebooks, or change the model source.',
+      ),
+      findsOneWidget,
+    );
+    await open(
+      tester,
+      StarterPhrasebooks(
+        catalog: StarterPhrasebookCatalog([info]),
+        store: MemoryStore(),
+        httpClient: MockClient(
+          (_) async => throw http.ClientException('Connection refused'),
+        ),
+      ),
+    );
+    await _tapAndDownload(tester, _button('download'));
+    expect(
+      find.text(
         "Couldn't download it. Check your connection and the model source.",
       ),
       findsOneWidget,
@@ -145,6 +165,103 @@ void main() {
     );
     await _tapAndDownload(tester, _button('download'));
     expect(find.textContaining('Not enough free space: needs'), findsOneWidget);
+  });
+
+  group('in a web app that cannot download them', () {
+    late MirrorHostingProbe probe;
+    late ModelSource source;
+
+    setUp(() {
+      probe = MirrorHostingProbe.instance;
+      source = ModelSource.current;
+    });
+
+    tearDown(() {
+      MirrorHostingProbe.instance = probe;
+      ModelSource.current = source;
+    });
+
+    MirrorHostingProbe browser({required bool hosted}) => MirrorHostingProbe(
+      client: MockClient(
+        (_) async => hosted
+            ? http.Response('{"items": ["pt"]}', 200)
+            : http.Response('Not Found', 404),
+      ),
+      isWeb: true,
+      appBase: () => Uri.parse('https://translate.example.org/'),
+    );
+
+    testWidgets('a server without them: says so, no Download', (tester) async {
+      MirrorHostingProbe.instance = browser(hosted: false);
+      ModelSource.current = const ModelSource(kind: ModelSourceKind.thisServer);
+      var requests = 0;
+      await open(
+        tester,
+        StarterPhrasebooks(
+          catalog: StarterPhrasebookCatalog([info]),
+          store: MemoryStore(),
+          httpClient: MockClient((_) async {
+            requests++;
+            return http.Response('', 404);
+          }),
+        ),
+      );
+      expect(find.byKey(const Key('mirror_not_hosted')), findsOneWidget);
+      expect(
+        find.text("This web server doesn't host the downloads"),
+        findsOneWidget,
+      );
+      await tester.scrollUntilVisible(_button('download'), 100);
+      final download = tester.widget<FilledButton>(_button('download'));
+      expect(download.onPressed, isNull);
+      await tester.tap(_button('download'), warnIfMissed: false);
+      await tester.pumpAndSettle();
+      expect(requests, 0);
+    });
+
+    testWidgets('the original publishers: says the browser cannot', (
+      tester,
+    ) async {
+      MirrorHostingProbe.instance = browser(hosted: true);
+      ModelSource.current = ModelSource.defaultHosts;
+      await open(
+        tester,
+        StarterPhrasebooks(
+          catalog: StarterPhrasebookCatalog([info]),
+          store: MemoryStore(),
+          httpClient: MockClient((_) async => http.Response('', 404)),
+        ),
+      );
+      expect(
+        find.text(
+          'Your browser can’t download these from the original publishers',
+        ),
+        findsOneWidget,
+      );
+      await tester.scrollUntilVisible(_button('download'), 100);
+      expect(
+        tester.widget<FilledButton>(_button('download')).onPressed,
+        isNull,
+      );
+    });
+
+    testWidgets('a server with them: downloads as before', (tester) async {
+      MirrorHostingProbe.instance = browser(hosted: true);
+      ModelSource.current = const ModelSource(kind: ModelSourceKind.thisServer);
+      await open(
+        tester,
+        StarterPhrasebooks(
+          catalog: StarterPhrasebookCatalog([info]),
+          store: MemoryStore(),
+          httpClient: MockClient((_) async => http.Response('', 404)),
+        ),
+      );
+      expect(find.byKey(const Key('mirror_not_hosted')), findsNothing);
+      expect(
+        tester.widget<FilledButton>(_button('download')).onPressed,
+        isNotNull,
+      );
+    });
   });
 
   testWidgets('offers updates', (tester) async {

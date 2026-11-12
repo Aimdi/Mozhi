@@ -929,7 +929,15 @@ class _LanguagePickerSheetState extends State<LanguagePickerSheet> {
       return null;
     }
 
-    final recents = settings.recentLanguages.map(available).nonNulls.toList();
+    // Sources: also the languages detected for "Detect language" (the
+    // user's own language is there even if they never picked it).
+    final recents =
+        (widget.source
+                ? TranslateCubit.recentSourceLanguagesOf(settings)
+                : settings.recentLanguages)
+            .map(available)
+            .nonNulls
+            .toList();
     // Targets: the pins as the engine lists them, in the order the
     // shortcuts number them. Each tile (un)pins the stored language.
     final pinnedAvailable = widget.source

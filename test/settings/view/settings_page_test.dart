@@ -18,11 +18,15 @@ import 'package:mozhi/platform/clipboard_service.dart';
 import 'package:mozhi/platform/privacy_channel.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/settings/view/about_page.dart';
+import 'package:mozhi/settings/view/categories/ai_settings.dart';
+import 'package:mozhi/settings/view/categories/appearance_settings.dart';
+import 'package:mozhi/settings/view/categories/engine_settings.dart';
 import 'package:mozhi/settings/view/settings_page.dart';
 import 'package:mozhi/settings/view/settings_search_index.dart';
 import 'package:mozhi/settings/view/widgets/choice_dialog.dart';
 import 'package:mozhi/settings/view/widgets/history_data_actions.dart';
 import 'package:mozhi/settings/view/widgets/link_launcher.dart';
+import 'package:mozhi/settings/view/widgets/privacy_settings_section.dart';
 import 'package:mozhi/settings/view/widgets/settings_search.dart';
 import 'package:mozhi/settings/view/widgets/settings_section.dart';
 import 'package:mozhi/settings/view/widgets/speech_settings_section.dart';
@@ -1957,6 +1961,39 @@ void main() {
         expect(find.byKey(const Key('settings_result_dark_look')), findsOne);
         await search(tester, 'offline first');
         expect(find.byKey(const Key('settings_result_privacy_mode')), findsOne);
+      });
+
+      testWidgets('finds providers, keys, DeepL, budgets and dark mode', (
+        tester,
+      ) async {
+        await pump(tester);
+        Finder result(String anchor) =>
+            find.byKey(Key('settings_result_$anchor'));
+        for (final (query, anchors) in [
+          ('ai provider', [AiAnchors.providers]),
+          ('api key', [AiAnchors.providers, EngineAnchors.services]),
+          ('openai', [AiAnchors.providers]),
+          ('deepl', [EngineAnchors.services]),
+          ('budget', [AiAnchors.usage]),
+          ('dark mode', [AppearanceAnchors.theme]),
+        ]) {
+          await search(tester, query);
+          for (final anchor in anchors) {
+            expect(result(anchor), findsOneWidget, reason: '$query: $anchor');
+          }
+        }
+      });
+
+      testWidgets('"tor" finds the proxy, not the history rows', (
+        tester,
+      ) async {
+        await pump(tester);
+        await search(tester, 'tor');
+        expect(
+          find.byKey(const Key('settings_result_${PrivacyAnchors.httpProxy}')),
+          findsOneWidget,
+        );
+        expect(find.text('1 setting found'), findsOneWidget);
       });
 
       testWidgets('says when nothing matches', (tester) async {

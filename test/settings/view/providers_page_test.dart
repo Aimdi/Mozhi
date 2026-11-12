@@ -250,6 +250,39 @@ void main() {
         expect(find.text(footer), findsNothing);
       });
 
+      testWidgets('shows which providers lost their key', (tester) async {
+        await pump(
+          tester,
+          state: const AppSettings(
+            providers: [
+              _claude,
+              _ollama,
+              _deepl,
+              _libre,
+              AiProviderConfig(
+                id: 'p3',
+                name: 'Keyed',
+                provider: LlmProvider.gemini,
+                baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+                model: 'gemini-flash-latest',
+                apiKey: 'g-key',
+              ),
+            ],
+          ),
+          isWeb: true,
+        );
+        Finder missingIn(String name) => find.descendant(
+          of: find.ancestor(of: find.text(name), matching: find.byType(Card)),
+          matching: find.text('API key missing'),
+        );
+        // Anthropic and DeepL need a key; Ollama and LibreTranslate don't.
+        expect(missingIn('Claude'), findsOneWidget);
+        expect(missingIn('Work translator'), findsOneWidget);
+        expect(missingIn('Local Gemma'), findsNothing);
+        expect(missingIn('Home translator'), findsNothing);
+        expect(missingIn('Keyed'), findsNothing);
+      });
+
       testWidgets('says it in the empty state too', (tester) async {
         await pump(tester, state: const AppSettings(), isWeb: true);
         expect(find.text(webNote), findsOneWidget);

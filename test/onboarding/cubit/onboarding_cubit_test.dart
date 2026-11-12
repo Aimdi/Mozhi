@@ -522,7 +522,7 @@ void main() {
         verifyNever(() => repository.pingInstance(any(), engine: 'duckduckgo'));
       });
 
-      test('is not used in Offline only', () async {
+      test('Offline only contacts no server at all', () async {
         settings.setPrivacyMode(PrivacyMode.offlineOnly);
         stubGoogleLimited(instanceA.url, duckDuckGo: 10);
         stubLatencies({instanceB.url: 100, instanceC.url: null});
@@ -530,11 +530,12 @@ void main() {
 
         await cubit.findFastestInstance();
 
-        expect(
-          cubit.state.pings[instanceA.url]?.status,
-          PingStatus.noTranslation,
+        expect(cubit.state.pings, isEmpty);
+        expect(cubit.state.serviceStatus, ServiceStatus.idle);
+        expect(cubit.state.selectedUrl, isNull);
+        verifyNever(
+          () => repository.pingInstance(any(), engine: any(named: 'engine')),
         );
-        verifyNever(() => repository.pingInstance(any(), engine: 'duckduckgo'));
       });
 
       test('is not used while another engine is tested', () async {

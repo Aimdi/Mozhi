@@ -10,8 +10,14 @@ import 'package:translation_repository/translation_repository.dart';
 import '../helpers/fake_offline.dart';
 import '../helpers/helpers.dart';
 
-const _first = MozhiInstance(url: 'https://user:secret@mozhi.one.example');
-const _second = MozhiInstance(url: 'https://mozhi.two.example');
+const _first = MozhiInstance(
+  url: 'https://user:secret@mozhi.one.example',
+  isCustom: false,
+);
+const _second = MozhiInstance(
+  url: 'https://mozhi.two.example',
+  isCustom: false,
+);
 
 final _offline = TranslationEngine.offline();
 
@@ -311,6 +317,90 @@ void main() {
       await tester.tap(find.byKey(const Key('translate_error_choose_source')));
       await tester.tap(find.byKey(const Key('translate_error_retry')));
       expect((chosen, retried), (1, 1));
+    });
+  });
+
+  group('who runs the servers', () {
+    const own = MozhiInstance(url: 'https://mozhi.home.example');
+    const ownToo = MozhiInstance(url: 'https://mozhi.office.example');
+    // A public server added by hand is still a volunteer's.
+    const publicByHand = MozhiInstance(url: 'https://mozhi.adminforge.de');
+
+    AllInstancesFailedException failed(
+      List<MozhiInstance> instances, {
+      int? status,
+    }) => AllInstancesFailedException(
+      'refused',
+      engine: google,
+      instances: instances,
+      statusCode: status,
+    );
+
+    test("the user's own server is never called a volunteer's", () {
+      final info = describeTranslateError(l10n, failed([own]));
+      expect(info.title, l10n.translateErrorTitleOwnServer);
+      expect(info.message, l10n.translateErrorOwnServerFailed(1, 'Google'));
+      expect(info.message, isNot(contains('volunteer')));
+      expect(info.fix, TranslateErrorFix.instances);
+    });
+
+    test('several own servers', () {
+      final info = describeTranslateError(l10n, failed([own, ownToo]));
+      expect(info.message, l10n.translateErrorOwnServerFailed(2, 'Google'));
+      expect(info.message, contains('they are running'));
+    });
+
+    test('own and volunteer servers together', () {
+      final info = describeTranslateError(l10n, failed([own, _second]));
+      expect(info.title, l10n.translateErrorTitleServers);
+      expect(info.message, l10n.translateErrorServersFailed(2, 'Google'));
+    });
+
+    test("a public server added by hand counts as a volunteer's", () {
+      final info = describeTranslateError(l10n, failed([publicByHand]));
+      expect(info.title, l10n.translateErrorTitleAllServers);
+    });
+
+    test('rate limits name whose servers are limited', () {
+      AllInstancesFailedException limited(List<MozhiInstance> instances) =>
+          AllInstancesFailedException(
+            'Too many requests',
+            engine: google,
+            instances: instances,
+            failures: const [MozhiApiException('rate limit', statusCode: 429)],
+            statusCode: 429,
+          );
+      expect(
+        describeTranslateError(l10n, limited([own])).message,
+        l10n.translateErrorOwnServerRateLimited('Google'),
+      );
+      expect(
+        describeTranslateError(l10n, limited([own, _first])).message,
+        l10n.translateErrorServersRateLimited('Google'),
+      );
+    });
+
+    test('a detection that failed on the own server says so', () {
+      for (final (instances, message, title) in [
+        (
+          [own],
+          l10n.translateErrorDetectionOwnServerFailed,
+          l10n.translateErrorTitleOwnServer,
+        ),
+        (
+          [own, _first],
+          l10n.translateErrorDetectionServersFailedMixed,
+          l10n.translateErrorTitleServers,
+        ),
+      ]) {
+        final info = describeTranslateError(
+          l10n,
+          SourceLanguageRequiredException(cause: failed(instances)),
+        );
+        expect(info.message, message);
+        expect(info.title, title);
+        expect(info.chooseSourceLanguage, isTrue);
+      }
     });
   });
 }

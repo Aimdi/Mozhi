@@ -111,19 +111,21 @@ SpeechInputService? _speechInputServiceOf(BuildContext context) {
 }
 
 /// The source text field with voice input at its top end, as on Kagi
-/// Translate, then the tools row: listen, image and paste at the start,
+/// Translate, then the tools row: listen (once there is text), image and
+/// paste (while empty) at the start,
 /// the character count (plus a token estimate for AI engines; near the
 /// limit "19,950 / 20,000" and X's count ring, [CountRing.showsFor]) and
 /// clear at the end. A tap outside the focused field while it is empty
-/// takes the focus away, so the empty screen's greeting comes back. Pasted
+/// takes the focus away (and the keyboard with it). Pasted
 /// text (the paste buttons, the field's own Paste) is marked as such for
 /// `TranslateCubit.setInput`, dictated text too. [compact] (the composer
-/// of the empty screen)
-/// leaves the tools row out; while the field is empty its placeholder
-/// reads "Type or paste text", "paste" being a link that pastes
-/// ([_PastePrompt]). A notice says when long text was shortened. Esc
-/// clears the field while it is focused and not empty. The go button
-/// ("Translate") is at the end of the language bar (`TranslateGoButton`).
+/// of the empty screen) leaves the tools row out. While the field is
+/// empty its placeholder reads "Type or paste text", "paste" being a link
+/// that pastes ([_PastePrompt]), in both forms, so focusing the empty
+/// composer changes nothing but the keyboard. A notice says when long
+/// text was shortened. Esc clears the field while it is focused and not
+/// empty. The go button ("Translate") is at the end of the language bar
+/// (`TranslateGoButton`).
 ///
 /// [focusNode] is the field's focus node (the screen follows it to leave
 /// the empty screen); without one the card makes its own.
@@ -151,9 +153,12 @@ SpeechInputService? _speechInputServiceOf(BuildContext context) {
 /// ([TerminalPanel]): the accent `>` prompt before the borderless field
 /// (`<` in right-to-left layouts), "type or paste text_" as its
 /// placeholder (hidden from screen readers, like the empty composer's),
-/// and below it the tools as small framed buttons: `cam` (image
-/// translation), `doc` (document translation), voice input, listen, paste
-/// (while empty), the translation options, the count and clear; then the
+/// the count and clear at the end of the `stdin` label's line (which keeps
+/// its 48 dp height without them, so the first character moves nothing),
+/// and below the field one row of small framed 48 dp tools: `cam` (image
+/// translation), `doc` (document translation), voice input, paste while
+/// the field is empty and listen once it has text (in the same slot, so
+/// there is never a disabled listen), the translation options; then the
 /// accent-filled `run ⏎` ([TranslateGoButton]). [compact] changes nothing
 /// there. Same keys, names, tooltips and actions as the classic tools.
 class InputCard extends StatefulWidget {
@@ -205,6 +210,12 @@ class _InputCardState extends State<InputCard> {
   /// The input before the current dictation; recognised speech is appended
   /// to it (each partial result replaces the previous one).
   String? _dictationBase;
+
+  /// Voice input is listening (see [_onListeningChanged]).
+  bool _dictating = false;
+
+  /// The input as the last recognised speech left it.
+  String? _dictated;
 
   /// When the field's own Paste (context menu, Ctrl/Cmd+V) was chosen: the
   /// next edit soon after is that paste (see [_takePasteMark]).
@@ -375,7 +386,7 @@ class _InputCardState extends State<InputCard> {
   /// Whether the empty composer's placeholder ([_PastePrompt]) shows for
   /// the field's [value]: no text and no input method composing.
   bool _showsPrompt(TextEditingValue value) =>
-      widget.compact && value.text.isEmpty && !value.composing.isValid;
+      value.text.isEmpty && !value.composing.isValid;
 
   void _clear() {
     _syncController('');
@@ -392,17 +403,29 @@ class _InputCardState extends State<InputCard> {
   }
 
   void _onListeningChanged(bool listening) {
-    _dictationBase = listening ? _controller.text : null;
+    _dictating = listening;
+    // The final result may follow the end of listening (Android reports
+    // it after), with the words the partial results put in already: it
+    // replaces them, so the base stays until it arrives.
+    if (listening) _dictationBase = _controller.text;
   }
 
   void _onVoiceResult(String text, {required bool isFinal}) {
     final spoken = text.trim();
+    // Edited after listening ended: a late result must not undo that (its
+    // words are in the input already).
+    if (!_dictating && _dictated != null && _controller.text != _dictated) {
+      _dictationBase = null;
+      _dictated = null;
+      return;
+    }
     final base = _dictationBase ?? _controller.text;
     // A later utterance of the same session goes after this one.
     _dictationBase = isFinal ? null : base;
     if (spoken.isEmpty) return;
     final separator = base.isEmpty || _endsWithSpace.hasMatch(base) ? '' : ' ';
     final combined = '$base$separator$spoken';
+    _dictated = combined;
     _syncController(combined);
     _cubit.setInput(combined, dictated: true);
   }
@@ -521,17 +544,46 @@ class _InputCardState extends State<InputCard> {
       onTapOutside: _onTapOutside,
       onTapInside: _webMenu.onPointerDown,
       onTapUpInside: _webMenu.onPointerUp,
-      child: TerminalPanel(
-        key: const Key('translate_input_card'),
-        label: 'stdin',
-        child: IconButtonTheme(
-          data: IconButtonThemeData(
-            style: IconButton.styleFrom(
-              foregroundColor: scheme.onSurface,
-              disabledForegroundColor: palette.secondaryText,
-              shape: const RoundedRectangleBorder(),
-            ),
+      child: IconButtonTheme(
+        data: IconButtonThemeData(
+          style: IconButton.styleFrom(
+            foregroundColor: scheme.onSurface,
+            disabledForegroundColor: palette.secondaryText,
+            shape: const RoundedRectangleBorder(),
+            // One 48 dp square for every tool, also with a mouse (whose
+            // compact density would shrink the icon buttons to 40 dp).
+            visualDensity: VisualDensity.standard,
+            minimumSize: const Size.square(kMinInteractiveDimension),
           ),
+        ),
+        child: TerminalPanel(
+          key: const Key('translate_input_card'),
+          label: 'stdin',
+          // The count and clear on the label's line, which keeps its height
+          // when they come, so the first character moves nothing.
+          trailing: input.isEmpty
+              ? const SizedBox.shrink()
+              : Row(
+                  key: const Key('translate_input_count_row'),
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: _CharacterCounter(
+                        text: input,
+                        showTokens: state.isAiEngine,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    framed(
+                      IconButton(
+                        key: const Key('translate_clear_button'),
+                        tooltip: l10n.commonClear,
+                        icon: const Icon(Icons.close),
+                        onPressed: _clear,
+                      ),
+                    ),
+                  ],
+                ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -630,13 +682,8 @@ class _InputCardState extends State<InputCard> {
                               onListeningChanged: _onListeningChanged,
                             ),
                           ),
-                        framed(
-                          ListenButton(
-                            id: 'source',
-                            text: input,
-                            languageCode: state.effectiveSourceCode,
-                          ),
-                        ),
+                        // One slot: paste while there is nothing to read
+                        // aloud, then listen (never a disabled listen).
                         if (input.isEmpty)
                           framed(
                             IconButton(
@@ -645,29 +692,16 @@ class _InputCardState extends State<InputCard> {
                               icon: const Icon(Icons.content_paste),
                               onPressed: () => unawaited(_paste()),
                             ),
+                          )
+                        else
+                          framed(
+                            ListenButton(
+                              id: 'source',
+                              text: input,
+                              languageCode: state.effectiveSourceCode,
+                            ),
                           ),
                         framed(const OptionsButton()),
-                        if (input.isNotEmpty)
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Flexible(
-                                child: _CharacterCounter(
-                                  text: input,
-                                  showTokens: state.isAiEngine,
-                                ),
-                              ),
-                              const SizedBox(width: 4),
-                              framed(
-                                IconButton(
-                                  key: const Key('translate_clear_button'),
-                                  tooltip: l10n.commonClear,
-                                  icon: const Icon(Icons.close),
-                                  onPressed: _clear,
-                                ),
-                              ),
-                            ],
-                          ),
                       ],
                     ),
                   ),
@@ -682,8 +716,8 @@ class _InputCardState extends State<InputCard> {
     );
   }
 
-  /// The source text field (also the terminal look's, [terminal]: no
-  /// hint of its own, the terminal's text style).
+  /// The source text field (no hint of its own: see [_PastePrompt]; in
+  /// the terminal look, [terminal], the terminal's text style).
   Widget _field(
     BuildContext context,
     TranslateState state,
@@ -691,14 +725,13 @@ class _InputCardState extends State<InputCard> {
     required bool terminal,
   }) {
     final l10n = context.l10n;
-    final palette = AppPalette.of(context);
     final input = state.input;
     return Focus(
       canRequestFocus: false,
       skipTraversal: true,
       onKeyEvent: _onKeyEvent,
-      // The hint disappears once there is text, so
-      // name the field explicitly for screen readers.
+      // The placeholder is not the field's hint, so name the field
+      // explicitly for screen readers.
       child: Semantics(
         label: l10n.translateInputLabel,
         child: Actions(
@@ -740,16 +773,9 @@ class _InputCardState extends State<InputCard> {
                 ? _terminalTextStyle(context, input.length)
                 : TranslateLayout.textStyle(context, input.length),
             decoration: InputDecoration(
-              // The empty composer has its own
-              // placeholder with a link
-              // ([_PastePrompt]).
-              hintText: terminal || widget.compact
-                  ? null
-                  : l10n.translateInputHint,
-              hintStyle: TranslateLayout.textStyle(
-                context,
-                0,
-              )?.copyWith(color: palette.secondaryText),
+              // No hint: the empty field shows its own placeholder with a
+              // link ([_PastePrompt]; the terminal look's `type or paste
+              // text_`).
               border: InputBorder.none,
               enabledBorder: InputBorder.none,
               focusedBorder: InputBorder.none,
@@ -920,11 +946,14 @@ class _InputCardState extends State<InputCard> {
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  ListenButton(
-                                    id: 'source',
-                                    text: input,
-                                    languageCode: state.effectiveSourceCode,
-                                  ),
+                                  // Nothing to read aloud yet: no
+                                  // disabled Listen.
+                                  if (input.isNotEmpty)
+                                    ListenButton(
+                                      id: 'source',
+                                      text: input,
+                                      languageCode: state.effectiveSourceCode,
+                                    ),
                                   if (GoRouter.maybeOf(context) != null)
                                     const ImageTranslateButton(
                                       key: Key('translate_image_button'),

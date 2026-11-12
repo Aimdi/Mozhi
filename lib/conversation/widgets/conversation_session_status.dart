@@ -68,6 +68,11 @@ String conversationSessionStatus(
 /// turn it is while a conversation is active. Centred, or start aligned
 /// when [compact] (next to a small microphone).
 ///
+/// When voice input failed, the explanation is shown here, once (not in a
+/// snack bar as well, which would cover the microphone), with what can be
+/// done about it right away ([voiceInputErrorAction]: "Download model",
+/// "Open settings").
+///
 /// It is not a live region: announcing every change would talk over the
 /// translations read aloud (and the microphone would hear it). The
 /// microphone's semantics carry the status instead; `ConversationView`
@@ -94,8 +99,17 @@ class ConversationSessionStatus extends StatelessWidget {
           ? theme.colorScheme.onSurface
           : AppPalette.of(context).secondaryText,
     );
+    final fix = switch (session) {
+      ConversationSessionFailed(:final failure, :final offlineSupported) =>
+        voiceInputErrorAction(
+          context,
+          failure,
+          offlineSupported: offlineSupported,
+        ),
+      _ => null,
+    };
     // While active the microphone's semantics carry the status.
-    return ExcludeSemantics(
+    final status = ExcludeSemantics(
       excluding: session.isActive,
       child: Row(
         key: const Key('conversation_session_status'),
@@ -112,7 +126,7 @@ class ConversationSessionStatus extends StatelessWidget {
             child: Text(
               text,
               key: const Key('conversation_session_status_text'),
-              maxLines: compact ? 2 : 3,
+              maxLines: warning ? 5 : (compact ? 2 : 3),
               overflow: TextOverflow.ellipsis,
               textAlign: compact ? TextAlign.start : TextAlign.center,
               style: style,
@@ -120,6 +134,22 @@ class ConversationSessionStatus extends StatelessWidget {
           ),
         ],
       ),
+    );
+    if (fix == null) return status;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: compact
+          ? CrossAxisAlignment.start
+          : CrossAxisAlignment.center,
+      children: [
+        status,
+        TextButton(
+          key: fix.key,
+          style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
+          onPressed: fix.onPressed,
+          child: Text(fix.label),
+        ),
+      ],
     );
   }
 }

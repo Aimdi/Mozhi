@@ -335,14 +335,29 @@ class _ProviderTile extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 6),
-                      StatusBadge(
-                        label: isLocal
-                            ? l10n.settingsProvidersLocal
-                            : l10n.settingsProvidersCloud,
-                        color: isLocal ? colors.success : colors.tertiary,
-                        icon: isLocal
-                            ? Icons.shield_outlined
-                            : Icons.public_outlined,
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
+                        children: [
+                          StatusBadge(
+                            label: isLocal
+                                ? l10n.settingsProvidersLocal
+                                : l10n.settingsProvidersCloud,
+                            color: isLocal ? colors.success : colors.tertiary,
+                            icon: isLocal
+                                ? Icons.shield_outlined
+                                : Icons.public_outlined,
+                          ),
+                          // E.g. on the web, once the tab that held the key
+                          // was closed.
+                          if (providerKeyMissing(provider))
+                            StatusBadge(
+                              key: const Key('provider_key_missing'),
+                              label: l10n.settingsProvidersKeyMissing,
+                              color: colors.error,
+                              icon: Icons.key_off_outlined,
+                            ),
+                        ],
                       ),
                     ],
                   ),

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
@@ -22,6 +23,7 @@ import 'package:mozhi/phrasebook/widgets/phrasebook_labels.dart'
 import 'package:mozhi/platform/android_device.dart';
 import 'package:mozhi/platform/clipboard_service.dart';
 import 'package:mozhi/platform/device_conditions.dart';
+import 'package:mozhi/platform/web_share.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/speech/widgets/spoken_range_builder.dart';
@@ -299,11 +301,29 @@ class OutputCard extends StatefulWidget {
   const new({
     this.meaningButtonFocusNode,
     this.webSemantics = kIsWeb,
+    this.revealWhileFocused,
     super.key,
   });
 
   /// How long the changed words of a refinement stay highlighted.
   static const refinementFlash = Duration(milliseconds: 1500);
+
+  /// How many lines of a new translation [revealWhileFocused] brings into
+  /// view.
+  static const int revealPeekLines = 2;
+
+  /// How much of a prompt, an error or the placeholder lines
+  /// [revealWhileFocused] brings into view.
+  static const double revealPromptPeek = 120;
+
+  /// The input's focus node: while it has focus (the keyboard is up), or
+  /// when the card was empty before, each new thing the card shows (a new
+  /// translation, its placeholder lines, a prompt or an error) is scrolled
+  /// into view far enough to show its first lines
+  /// ([revealPeekLines] lines of the translation itself, not just the
+  /// header above it): minimally, at once with reduced motion. Null: the
+  /// card never scrolls by itself (except after a refinement).
+  final FocusNode? revealWhileFocused;
 
   /// Focus node of the "Check meaning" row, e.g. for
   /// [MeaningCheckPanel.returnFocusNode].
@@ -337,6 +357,46 @@ class _OutputCardState extends State<OutputCard>
     vsync: this,
     duration: OutputCard.refinementFlash,
   )..addStatusListener(_onFlashStatus);
+
+  /// The places to reveal ([_RevealAnchor]), oldest first: the fade
+  /// between phases keeps the old phase's in the tree for a while.
+  final List<_RevealAnchorState> _anchors = [];
+
+  /// The phase ([_phaseKey]) of the last build, to notice a new one.
+  Key? _shownPhase;
+
+  /// Reveals the newest anchor after this frame when [phase] is new and
+  /// the input has focus (or nothing was shown before).
+  void _maybeReveal(Key phase) {
+    final previous = _shownPhase;
+    _shownPhase = phase;
+    final focus = widget.revealWhileFocused;
+    if (focus == null || previous == phase) return;
+    if (phase == const ValueKey('translate_phase_empty')) return;
+    // The first build (a card that comes with its translation) only
+    // reveals for the focused input.
+    final wasEmpty = previous == const ValueKey('translate_phase_empty');
+    if (!focus.hasFocus && !wasEmpty) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _reveal());
+  }
+
+  /// Scrolls the newest anchor's first [_RevealAnchor.peek] into view.
+  void _reveal() {
+    if (!mounted || _anchors.isEmpty) return;
+    final anchor = _anchors.last;
+    if (!anchor.mounted) return;
+    final box = anchor.context.findRenderObject();
+    if (box is! RenderBox || !box.attached || !box.hasSize) return;
+    // A little room below (the fade's scale moves the new phase by a pixel
+    // or so while it starts).
+    final peek = math.min(box.size.height, anchor.widget.peek) + 8;
+    final reduceMotion = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    box.showOnScreen(
+      rect: Offset.zero & Size(box.size.width, peek),
+      duration: reduceMotion ? Duration.zero : TranslateLayout.motion(context),
+      curve: Curves.easeOutCubic,
+    );
+  }
 
   TranslateMoreController _more(BuildContext context) =>
       TranslateMoreScope.maybeOf(context) ??
@@ -464,7 +524,10 @@ class _OutputCardState extends State<OutputCard>
   }
 
   Future<void> _share(BuildContext buttonContext, String text) async {
-    final box = buttonContext.findRenderObject() as RenderBox?;
+    // The button may be gone by now (a menu item once its menu closed).
+    final box = buttonContext.mounted
+        ? buttonContext.findRenderObject() as RenderBox?
+        : null;
     final origin = box == null || !box.hasSize
         ? null
         : box.localToGlobal(Offset.zero) & box.size;
@@ -622,6 +685,8 @@ class _OutputCardState extends State<OutputCard>
       ],
       child: BlocBuilder<TranslateCubit, TranslateState>(
         builder: (context, state) {
+          final phase = _phaseKey(state);
+          _maybeReveal(phase);
           final refreshing = outputIsRefreshing(state);
           final (announcement, announcementDirection) = _announcement(
             context,
@@ -693,7 +758,7 @@ class _OutputCardState extends State<OutputCard>
                     ),
                     child: FadeThroughSwitcher(
                       child: KeyedSubtree(
-                        key: _phaseKey(state),
+                        key: phase,
                         child: _content(context, state),
                       ),
                     ),
@@ -825,47 +890,56 @@ class _OutputCardState extends State<OutputCard>
             TranslateFirstUseHint(consent: consent.exception),
         ],
       );
-      return Padding(
-        padding: const EdgeInsetsDirectional.only(top: 8, end: 12, bottom: 8),
-        // "Offline only" with nothing on the device to translate with: say
-        // that instead of "this engine needs the network".
-        child: consent.exception.kind == ConsentKind.offlineOnly
-            ? OfflineOnlyNotice(consent: consent.exception, fallback: prompt)
-            : prompt,
+      return _RevealAnchor(
+        peek: OutputCard.revealPromptPeek,
+        child: Padding(
+          padding: const EdgeInsetsDirectional.only(top: 8, end: 12, bottom: 8),
+          // "Offline only" with nothing on the device to translate with:
+          // say that instead of "this engine needs the network".
+          child: consent.exception.kind == ConsentKind.offlineOnly
+              ? OfflineOnlyNotice(consent: consent.exception, fallback: prompt)
+              : prompt,
+        ),
       );
     }
 
     if (showsTranslateEngineError(state)) {
       // The engine's languages could not be loaded (e.g. offline first has
       // not loaded the lists of this server yet).
-      return Padding(
-        padding: const EdgeInsetsDirectional.only(top: 8, end: 12, bottom: 8),
-        child: TranslateErrorView(
-          key: const Key('translate_engine_error'),
-          error: state.error,
-          onRetry: () =>
-              unawaited(context.read<TranslateCubit>().loadEngines()),
-          onSwitchInstance: _switchInstance(context),
+      return _RevealAnchor(
+        peek: OutputCard.revealPromptPeek,
+        child: Padding(
+          padding: const EdgeInsetsDirectional.only(top: 8, end: 12, bottom: 8),
+          child: TranslateErrorView(
+            key: const Key('translate_engine_error'),
+            error: state.error,
+            onRetry: () =>
+                unawaited(context.read<TranslateCubit>().loadEngines()),
+            onSwitchInstance: _switchInstance(context),
+          ),
         ),
       );
     }
 
     if (state.status == TranslateStatus.failure && output.isEmpty) {
       final cubit = context.read<TranslateCubit>();
-      return Padding(
-        padding: const EdgeInsetsDirectional.only(end: 12, bottom: 8),
-        child: TranslateErrorView(
-          error: state.error,
-          onRetry: () => unawaited(cubit.translate()),
-          onSwitchInstance: _switchInstance(context),
-          // The engine could not detect the language (e.g. a short text on
-          // the offline engine): pick it, or take the last one used.
-          onChooseSourceLanguage: () =>
-              unawaited(pickTranslateLanguage(context, source: true)),
-          suggestedSourceLanguage: state.recentSourceSuggestion(
-            context.read<SettingsCubit>().state.recentPairs,
+      return _RevealAnchor(
+        peek: OutputCard.revealPromptPeek,
+        child: Padding(
+          padding: const EdgeInsetsDirectional.only(end: 12, bottom: 8),
+          child: TranslateErrorView(
+            error: state.error,
+            onRetry: () => unawaited(cubit.translate()),
+            onSwitchInstance: _switchInstance(context),
+            // The engine could not detect the language (e.g. a short text on
+            // the offline engine): pick it, or take the last one used.
+            onChooseSourceLanguage: () =>
+                unawaited(pickTranslateLanguage(context, source: true)),
+            suggestedSourceLanguage: state.recentSourceSuggestion(
+              context.read<SettingsCubit>().state.recentPairs,
+            ),
+            onUseSourceLanguage: cubit.setSource,
           ),
-          onUseSourceLanguage: cubit.setSource,
         ),
       );
     }
@@ -891,15 +965,18 @@ class _OutputCardState extends State<OutputCard>
         children: [
           _header(context, state, loading: true),
           const SizedBox(height: 8),
-          _surface(
-            context,
-            // The first request after a pause loads the model.
-            onDeviceAi
-                ? Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [const OnDeviceAiLoadingNotice(), skeleton],
-                  )
-                : skeleton,
+          _RevealAnchor(
+            peek: OutputCard.revealPromptPeek,
+            child: _surface(
+              context,
+              // The first request after a pause loads the model.
+              onDeviceAi
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [const OnDeviceAiLoadingNotice(), skeleton],
+                    )
+                  : skeleton,
+            ),
           ),
           const SizedBox(height: 4 + 48),
         ],
@@ -935,7 +1012,10 @@ class _OutputCardState extends State<OutputCard>
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _text(context, state, settings),
+              _RevealAnchor(
+                peek: _revealTextPeek(context, state),
+                child: _text(context, state, settings),
+              ),
               if (insightsReady)
                 InsightChips(
                   insights: state.insights,
@@ -1024,6 +1104,13 @@ class _OutputCardState extends State<OutputCard>
     );
   }
 
+  /// The height of [OutputCard.revealPeekLines] lines of the translation.
+  static double _revealTextPeek(BuildContext context, TranslateState state) {
+    final style = TranslateLayout.outputTextStyle(context, state.output.length);
+    final size = MediaQuery.textScalerOf(context).scale(style?.fontSize ?? 16);
+    return OutputCard.revealPeekLines * size * (style?.height ?? 1.4);
+  }
+
   /// The translation's header line, like a reply's: the target language in
   /// bold, then " · engine" (" · 0.7 s" once complete) in the secondary
   /// colour, where the text went and the applied refinements. [loading]
@@ -1062,19 +1149,28 @@ class _OutputCardState extends State<OutputCard>
               fontWeight: FontWeight.w800,
             ),
           ),
-          if (engineName != null && engineName.isNotEmpty) ...[
-            ExcludeSemantics(child: Text(' · ', style: meta)),
-            Text(
-              complete && elapsed != null && result != null
-                  ? l10n.translateEngineElapsed(
-                      result.engineName,
-                      formatSeconds(elapsed, locale: l10n.localeName),
-                    )
-                  : engineName,
-              key: const Key('translate_output_footer'),
-              style: meta,
+          // The separator goes with the engine: when the header wraps it
+          // starts the next line, never hangs at the end of this one.
+          if (engineName != null && engineName.isNotEmpty)
+            Row(
+              key: const Key('translate_output_engine'),
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ExcludeSemantics(child: Text(' · ', style: meta)),
+                Flexible(
+                  child: Text(
+                    complete && elapsed != null && result != null
+                        ? l10n.translateEngineElapsed(
+                            result.engineName,
+                            formatSeconds(elapsed, locale: l10n.localeName),
+                          )
+                        : engineName,
+                    key: const Key('translate_output_footer'),
+                    style: meta,
+                  ),
+                ),
+              ],
             ),
-          ],
           if (destination != null) ...[
             const SizedBox(width: 8),
             DestinationChip(
@@ -1551,25 +1647,117 @@ class _OutputCardState extends State<OutputCard>
   }
 
   /// The everyday actions, clustered at the start edge (48 dp targets, 8 dp
-  /// apart): copy, listen, favourite (a heart), share and show full screen.
+  /// apart): copy, listen, favourite (a heart), share (where the platform
+  /// can share text, [canShareText]) and show full screen. They stay on one
+  /// line ([actionsLayout]): when they do not fit, the space between them
+  /// shrinks first, then share and show full screen move into a "More
+  /// options" menu at the end of the row, so no action is left alone on a
+  /// second line.
   Widget _actions(BuildContext context, TranslateState state) {
     final l10n = context.l10n;
     final palette = AppPalette.of(context);
     // The terminal look frames each action as a small square button.
     final terminal = AppLook.of(context).isTerminal;
-    return Wrap(
-      key: const Key('translate_output_actions'),
-      spacing: terminal ? 2 : 8,
-      runSpacing: terminal ? 2 : 0,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        for (final action in _actionButtons(context, state, l10n, palette))
-          if (terminal) TerminalFrame(child: action) else action,
-      ],
+    final buttons = _actionButtons(context, state, l10n, palette);
+    final extras = _extraActions(context, state, l10n);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final layout = actionsLayout(
+          maxWidth: constraints.maxWidth,
+          count: buttons.length + extras.length,
+          overflowable: extras.length,
+          spacing: terminal ? 2 : 8,
+        );
+        final children = [
+          ...buttons,
+          if (layout.menu)
+            _moreActions(context, extras)
+          else
+            for (final extra in extras)
+              Builder(
+                builder: (buttonContext) => XActionButton(
+                  key: extra.key,
+                  tooltip: extra.label,
+                  icon: extra.icon,
+                  onPressed: () => extra.onPressed(buttonContext),
+                ),
+              ),
+        ];
+        return Wrap(
+          key: const Key('translate_output_actions'),
+          spacing: layout.spacing,
+          runSpacing: terminal ? 2 : 0,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            for (final action in children)
+              if (terminal) TerminalFrame(child: action) else action,
+          ],
+        );
+      },
     );
   }
 
-  /// The buttons of [_actions].
+  /// The "More options" button at the end of the actions, with the
+  /// [extras] that did not fit as its menu items (same keys).
+  Widget _moreActions(BuildContext context, List<_ExtraAction> extras) {
+    return MenuAnchor(
+      menuChildren: [
+        for (final extra in extras)
+          Builder(
+            builder: (itemContext) => MenuItemButton(
+              key: extra.key,
+              leadingIcon: Icon(extra.icon),
+              onPressed: () => extra.onPressed(itemContext),
+              child: Text(extra.label),
+            ),
+          ),
+      ],
+      builder: (anchorContext, controller, _) => XActionButton(
+        key: const Key('translate_more_actions_button'),
+        tooltip: context.l10n.commonMoreOptions,
+        icon: Icons.more_horiz,
+        onPressed: () =>
+            controller.isOpen ? controller.close() : controller.open(),
+      ),
+    );
+  }
+
+  /// The actions that move into the "More options" menu when the row is
+  /// full: share (where the platform can share text) and show full screen.
+  /// Each one is given the context of the button (or menu item) that ran
+  /// it.
+  List<_ExtraAction> _extraActions(
+    BuildContext context,
+    TranslateState state,
+    AppLocalizations l10n,
+  ) {
+    final output = state.output;
+    final target = state.target;
+    return [
+      if (canShareText)
+        (
+          key: const Key('translate_share_button'),
+          icon: Icons.ios_share,
+          label: l10n.commonShare,
+          onPressed: (origin) => unawaited(_share(origin, output)),
+        ),
+      (
+        key: const Key('translate_show_button'),
+        icon: Icons.fullscreen,
+        label: l10n.translateShowMode,
+        onPressed: (_) => unawaited(
+          showTranslationFullScreen(
+            context,
+            text: output,
+            textDirection: outputTextDirection(state),
+            locale: localeForLanguage(target),
+          ),
+        ),
+      ),
+    ];
+  }
+
+  /// The buttons of [_actions] that always show in the row.
   List<Widget> _actionButtons(
     BuildContext context,
     TranslateState state,
@@ -1618,27 +1806,6 @@ class _OutputCardState extends State<OutputCard>
         AddToPhrasebookButton(
           draft: complete ? translationPhraseDraft(state) : null,
         ),
-      Builder(
-        builder: (buttonContext) => XActionButton(
-          key: const Key('translate_share_button'),
-          tooltip: l10n.commonShare,
-          icon: Icons.ios_share,
-          onPressed: () => unawaited(_share(buttonContext, output)),
-        ),
-      ),
-      XActionButton(
-        key: const Key('translate_show_button'),
-        tooltip: l10n.translateShowMode,
-        icon: Icons.fullscreen,
-        onPressed: () => unawaited(
-          showTranslationFullScreen(
-            context,
-            text: output,
-            textDirection: outputTextDirection(state),
-            locale: localeForLanguage(target),
-          ),
-        ),
-      ),
     ];
   }
 
@@ -2036,4 +2203,76 @@ class _PlainOutputTextState extends State<_PlainOutputText> {
       recognizer: _tap,
     );
   }
+}
+
+/// An action of the output card that can move into its "More options"
+/// menu; `onPressed` gets the context of the button or menu item.
+typedef _ExtraAction = ({
+  Key key,
+  IconData icon,
+  String label,
+  void Function(BuildContext origin) onPressed,
+});
+
+/// How [count] actions of [size] fit on one line of [maxWidth], [spacing]
+/// apart: the space between them shrinks (down to [minSpacing]) before the
+/// last [overflowable] ones move into a "More options" menu (`menu`; the
+/// menu's button takes their place, so it needs two of them at least).
+/// [spacing] is the space to use between the buttons on the line.
+@visibleForTesting
+({double spacing, bool menu}) actionsLayout({
+  required double maxWidth,
+  required int count,
+  required int overflowable,
+  required double spacing,
+  double minSpacing = 0,
+  double size = kMinInteractiveDimension,
+}) {
+  // Rounding must not push the last button onto a line of its own.
+  const tolerance = 0.01;
+  double fit(int n) {
+    if (n < 2 || !maxWidth.isFinite) return spacing;
+    final gap = (maxWidth - n * size) / (n - 1);
+    return gap.clamp(minSpacing, spacing);
+  }
+
+  final narrowest = count * size + (count - 1) * minSpacing;
+  if (narrowest <= maxWidth + tolerance || overflowable < 2) {
+    return (spacing: fit(count), menu: false);
+  }
+  return (spacing: fit(count - overflowable + 1), menu: true);
+}
+
+/// Marks what [OutputCard.revealWhileFocused] scrolls into view: the first
+/// [peek] of [child]. Registered with the card, newest last (the fade
+/// between phases keeps the old one in the tree for a while, which rules
+/// out a global key).
+class _RevealAnchor extends StatefulWidget {
+  const new({required this.peek, required this.child});
+
+  final double peek;
+  final Widget child;
+
+  @override
+  State<_RevealAnchor> createState() => _RevealAnchorState();
+}
+
+class _RevealAnchorState extends State<_RevealAnchor> {
+  _OutputCardState? _card;
+
+  @override
+  void initState() {
+    super.initState();
+    _card = context.findAncestorStateOfType<_OutputCardState>()
+      ?.._anchors.add(this);
+  }
+
+  @override
+  void dispose() {
+    _card?._anchors.remove(this);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }

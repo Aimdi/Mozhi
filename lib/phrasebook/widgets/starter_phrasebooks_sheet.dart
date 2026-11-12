@@ -4,6 +4,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/offline/data/mirror_hosting.dart';
+import 'package:mozhi/offline/widgets/mirror_hosting_banner.dart';
 import 'package:mozhi/phrasebook/cubit/starter_phrasebooks_cubit.dart';
 import 'package:mozhi/phrasebook/data/phrasebook_repository.dart';
 import 'package:mozhi/settings/view/widgets/delete_local_data.dart'
@@ -24,7 +26,10 @@ final Uri ccBySa4Url = Uri.parse(
 /// Wikivoyage's credit. The phrasebooks of the app's own language are left
 /// out unless installed ([StarterPhrasebooksState.itemsFor]). Says so
 /// gracefully while the catalogue is empty (until the first release of
-/// the data).
+/// the data). Where the web app cannot download them
+/// ([MirrorHostingBuilder]: its server does not host them, or the
+/// original publisher refuses web pages), says so once
+/// ([MirrorNotHostedBanner]) and offers no Download or Update.
 Future<void> showStarterPhrasebooks(
   BuildContext context,
   StarterPhrasebooks packs,
@@ -48,7 +53,10 @@ class StarterPhrasebooksView extends StatelessWidget {
   const new({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      MirrorHostingBuilder(kind: MirrorDataKind.phrasebook, builder: _build);
+
+  Widget _build(BuildContext context, {required bool blocked}) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final muted = AppPalette.of(context).secondaryText;
@@ -104,8 +112,11 @@ class StarterPhrasebooksView extends StatelessWidget {
                 ],
               ),
             )
-          else
-            for (final item in items) _StarterTile(item: item),
+          else ...[
+            if (blocked) const MirrorNotHostedBanner(),
+            for (final item in items)
+              _StarterTile(item: item, canDownload: !blocked),
+          ],
           Padding(
             padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
             child: Text(
@@ -143,9 +154,13 @@ class StarterPhrasebooksView extends StatelessWidget {
 }
 
 class _StarterTile extends StatelessWidget {
-  const new({required this.item});
+  const new({required this.item, required this.canDownload});
 
   final StarterPhrasebookItem item;
+
+  /// False: the web app cannot download it here (no Download or Update;
+  /// Delete still works).
+  final bool canDownload;
 
   @override
   Widget build(BuildContext context) {
@@ -177,7 +192,7 @@ class _StarterTile extends StatelessWidget {
       trailing = Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (item.hasUpdate)
+          if (item.hasUpdate && canDownload)
             TextButton(
               key: ValueKey('phrasebook_starter_update_${info.id}'),
               onPressed: () => unawaited(cubit.install(info)),
@@ -194,7 +209,8 @@ class _StarterTile extends StatelessWidget {
     } else {
       trailing = FilledButton.tonal(
         key: ValueKey('phrasebook_starter_download_${info.id}'),
-        onPressed: () => unawaited(cubit.install(info)),
+        style: FilledButton.styleFrom(minimumSize: const Size(64, 48)),
+        onPressed: canDownload ? () => unawaited(cubit.install(info)) : null,
         child: Text(l10n.phrasebookStarterDownload),
       );
     }
@@ -220,6 +236,10 @@ class _StarterTile extends StatelessWidget {
               switch (error) {
                 StarterPhrasebookError.download =>
                   l10n.phrasebookStarterErrorDownload,
+                StarterPhrasebookError.server =>
+                  l10n.phrasebookStarterErrorServer(item.statusCode ?? 0),
+                StarterPhrasebookError.browserRefused =>
+                  l10n.phrasebookStarterErrorBrowserRefused,
                 StarterPhrasebookError.checksum =>
                   l10n.phrasebookStarterErrorChecksum,
                 StarterPhrasebookError.space => switch (item.space) {

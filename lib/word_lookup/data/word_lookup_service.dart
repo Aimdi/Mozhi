@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:mozhi/dictionary/data/dictionary_entry_store.dart';
 import 'package:mozhi/usage/data/usage_tracker.dart';
 import 'package:mozhi/word_lookup/data/word_segmenter.dart';
 import 'package:translation_repository/translation_repository.dart';
@@ -83,6 +84,11 @@ class WordLookupService {
   /// as its context: one request, which the privacy settings may stop
   /// first (a [ConsentRequiredException]; nothing was sent then). A
   /// finished request is counted for bring-your-own-key providers.
+  ///
+  /// The entry is kept in the repository's [DictionaryEntryCache] (unless
+  /// [incognito]): asking again for the same word in the same sentence
+  /// shows it without a new request, and so does the dictionary for the
+  /// word at the [lookUpVerbosity] ("Open in Dictionary").
   Future<DictionaryEntry> lookUpOnline(
     TranslationEngine engine,
     String word, {
@@ -90,23 +96,50 @@ class WordLookupService {
     required Language into,
     String sentence = '',
     String uiLanguage = 'English',
+    bool incognito = false,
   }) async {
     final repository = this.repository;
     if (repository == null) {
       throw StateError('No translation repository for dictionary look-ups');
     }
+    final source = language.isCustom ? Language.auto : language;
+    final cache = incognito ? null : DictionaryEntryCache.of(repository);
+    final cached = cache?.get(
+      word,
+      source: source,
+      target: into,
+      verbosity: lookUpVerbosity,
+      engineId: engine.id,
+      context: sentence,
+    );
+    if (cached != null) return cached;
     final entry = await repository.lookUp(
       engine,
       word,
-      source: language.isCustom ? Language.auto : language,
+      source: source,
       target: into,
       context: sentence,
       uiLanguage: uiLanguage,
-      verbosity: DictionaryVerbosity.concise,
+      verbosity: lookUpVerbosity,
     );
     _recordUsage(engine, word, sentence, entry);
+    for (final context in {sentence, ''}) {
+      cache?.put(
+        word,
+        entry,
+        source: source,
+        target: into,
+        verbosity: lookUpVerbosity,
+        engineId: engine.id,
+        context: context,
+      );
+    }
     return entry;
   }
+
+  /// The detail level of [lookUpOnline].
+  static const DictionaryVerbosity lookUpVerbosity =
+      DictionaryVerbosity.concise;
 
   /// The words of the installed dictionary of [language], for
   /// [WordSegmenter.lookUpWordAt]; null without dictionaries.

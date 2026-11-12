@@ -25,6 +25,9 @@ Future<void> showExtraTargetsSheet(BuildContext context) {
   final translate = context.read<TranslateCubit>();
   return showModalBottomSheet<void>(
     context: context,
+    // Above the bottom navigation bar (dimmed, covered), and not left
+    // open in a tab the user switched away from.
+    useRootNavigator: true,
     isScrollControlled: true,
     useSafeArea: true,
     showDragHandle: true,

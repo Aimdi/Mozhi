@@ -155,7 +155,7 @@ void main() {
       await tester.tap(
         find.descendant(
           of: find.byKey(const ValueKey('dictionary-pack-es')),
-          matching: find.byKey(const Key('offline_downloaded_pill')),
+          matching: find.byKey(const Key('offline_delete')),
         ),
       );
       await tester.pumpAndSettle();

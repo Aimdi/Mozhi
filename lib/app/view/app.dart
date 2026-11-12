@@ -166,6 +166,8 @@ class _AppState extends State<App> {
       settings: _settingsCubit,
       history: _historyCubit,
       usageTracker: _deps.usageTracker,
+      // Which on-device languages are downloaded (smart swap).
+      offlineTranslator: _deps.offlineTranslator,
     );
     // The engines are needed by the first screen: start right away.
     unawaited(_translateCubit.loadEngines());
@@ -542,8 +544,15 @@ class _AppState extends State<App> {
                     ),
                     BlocListener<SettingsCubit, AppSettings>(
                       listenWhen: engineConfigurationChanged,
+                      // Until setup is finished (a first run, or after
+                      // "Delete all local data"), a change the user did not
+                      // ask to check must not contact the servers: only
+                      // their stored lists are read.
                       listener: (context, settings) =>
-                          _applyEngineConfiguration(settings),
+                          _applyEngineConfiguration(
+                            settings,
+                            refresh: settings.onboardingComplete,
+                          ),
                     ),
                     BlocListener<SettingsCubit, AppSettings>(
                       listenWhen: (previous, current) =>

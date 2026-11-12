@@ -4,6 +4,8 @@ import 'package:mozhi/core/network/network.dart'
 import 'package:mozhi/core/widgets/consent_prompt.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/proofread/models/writing_stats.dart';
+import 'package:mozhi/translate/widgets/translate_error.dart'
+    show TranslateErrorFix, describeTranslateError;
 import 'package:translation_repository/translation_repository.dart';
 
 /// Localized labels for proofreading enums and edit categories.
@@ -121,19 +123,45 @@ extension ProofreadLabels on AppLocalizations {
     return words[0].toUpperCase() + words.substring(1);
   }
 
-  /// User-facing message for a proofreading error.
-  String proofreadError(Object? error) => switch (error) {
-    final ConsentRequiredException consent => consentMessage(this, consent),
-    _ when describeNetworkPolicyError(this, error) != null =>
-      describeNetworkPolicyError(this, error)!,
-    LlmRefusalException() => proofreadErrorRefused,
-    LlmApiException(isAuthError: true) => proofreadErrorAuth,
-    LlmApiException(isRateLimited: true) => proofreadErrorRateLimited,
-    LlmApiException(:final message) when message.trim().isNotEmpty =>
-      proofreadErrorProvider(message.trim()),
-    _ => proofreadErrorGeneric,
-  };
+  /// User-facing message for a proofreading error: what happened and what
+  /// to do, in the UI language, never the provider's raw (often English)
+  /// message. Errors that are not proofreading-specific are described like
+  /// Translate's ([describeTranslateError]).
+  String proofreadError(Object? error) {
+    if (error is ConsentRequiredException) return consentMessage(this, error);
+    if (describeNetworkPolicyError(this, error) case final message?) {
+      return message;
+    }
+    return switch (error) {
+      null => proofreadErrorGeneric,
+      LlmRefusalException() => proofreadErrorRefused,
+      LlmApiException(isAuthError: true) => proofreadErrorAuth,
+      LlmApiException(isRateLimited: true) => proofreadErrorRateLimited,
+      LlmApiException(isTruncated: true) => proofreadErrorTruncated,
+      LlmApiException(isInterrupted: true) => proofreadErrorInterrupted,
+      LlmStoppedException() => proofreadErrorStopped,
+      _ => _sharedError(error),
+    };
+  }
+
+  /// Translate's description of [error], with its translation-specific
+  /// wording replaced.
+  String _sharedError(Object error) {
+    final message = describeTranslateError(this, error).message;
+    if (message == translateErrorProviderFailed) {
+      return proofreadErrorProviderFailed;
+    }
+    if (message == translateErrorGeneric) return proofreadErrorGeneric;
+    return message;
+  }
 }
+
+/// Whether [error] is fixed in the AI provider settings (a rejected API
+/// key, an unknown model, an unreachable server).
+bool proofreadErrorNeedsProviders(AppLocalizations l10n, Object? error) =>
+    error is! ConsentRequiredException &&
+    error is! LlmRefusalException &&
+    describeTranslateError(l10n, error).fix == TranslateErrorFix.providers;
 
 /// Icon for an edit category.
 IconData proofreadCategoryIcon(String category) =>

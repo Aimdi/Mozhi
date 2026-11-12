@@ -206,7 +206,9 @@ class _ProofreadInputCardState extends State<ProofreadInputCard> {
                         style: textStyle,
                         decoration: InputDecoration(
                           hintText: l10n.proofreadInputHint,
-                          hintMaxLines: 3,
+                          // As many lines as the hint needs (the field grows
+                          // with its text): long translations such as the
+                          // German one must not end in "…".
                           border: InputBorder.none,
                           focusedBorder: InputBorder.none,
                           enabledBorder: InputBorder.none,

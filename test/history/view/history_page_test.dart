@@ -6,6 +6,7 @@ import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
@@ -66,6 +67,8 @@ final _older = HistoryEntry(
 );
 
 const _spanish = Language(code: 'es', name: 'Spanish');
+
+class _MockGoRouterState extends Mock implements GoRouterState;
 
 final _lookUp = HistoryEntry(
   id: 'dictionary:1',
@@ -1792,7 +1795,28 @@ void main() {
                 ).captured.single
                 as DictionaryLookUpRequest;
         expect(extra.verbosity, DictionaryVerbosity.comprehensive);
+        // The kept entry is shown as it is (no new request).
+        expect(extra.saved, _lookUp);
         verifyNever(() => translate.openHistoryEntry(any()));
+      });
+
+      testWidgets('say where Back from the entry returns', (tester) async {
+        final location = _MockGoRouterState();
+        when(() => location.uri).thenReturn(Uri.parse('/history?tab=1'));
+        when(() => router.state).thenReturn(location);
+        await pump(tester, state: withLookUp);
+
+        await tester.tap(find.text('hola'));
+
+        final extra =
+            verify(
+                  () => router.go(
+                    '/dictionary?word=hola&from=es&to=en',
+                    extra: captureAny(named: 'extra'),
+                  ),
+                ).captured.single
+                as DictionaryLookUpRequest;
+        expect(extra.returnTo, '/history?tab=1');
       });
 
       testWidgets('detected words open with the language detected', (

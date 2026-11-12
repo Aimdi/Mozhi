@@ -8,6 +8,8 @@ import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:mozhi/conversation/cubit/conversation_state.dart';
 import 'package:mozhi/conversation/models/conversation_turn.dart';
 import 'package:mozhi/conversation/recognizer/conversation_recognizer.dart';
+import 'package:mozhi/speech/speech_error_message.dart'
+    show speechServersFailed;
 import 'package:mozhi/speech/speech_service.dart';
 import 'package:mozhi/translate/cubit/translate_state.dart';
 import 'package:mozhi/usage/data/usage_tracker.dart';
@@ -119,6 +121,8 @@ class ConversationCubit extends Cubit<ConversationState> {
     this._options,
     this._availableLanguages,
     bool autoSpeak = false,
+    bool detectSpeaker = true,
+    Duration turnPause = ConversationState.defaultTurnPause,
     this.contextTurns = 4,
     DateTime Function()? clock,
     this._usageTracker,
@@ -136,6 +140,8 @@ class ConversationCubit extends Cubit<ConversationState> {
            languageB: languageB,
            autoSpeak: autoSpeak,
            handsFree: recognizer != null,
+           detectSpeaker: detectSpeaker,
+           turnPause: _keptPause(turnPause),
          ),
        ) {
     // Speech ids are unique per conversation, so nothing of this one can
@@ -242,6 +248,11 @@ class ConversationCubit extends Cubit<ConversationState> {
 
   /// The user chose whether translations are read aloud.
   bool _autoSpeakChosen = false;
+
+  /// Languages that could not be read aloud in the running hands-free
+  /// conversation: their later translations are shown, not read aloud,
+  /// so the failure is reported once (not after every turn).
+  final Set<String> _unspeakable = {};
 
   /// Default languages for a new conversation: side A speaks the translate
   /// screen's source language (or the detected one when it is "Detect
@@ -818,13 +829,16 @@ class ConversationCubit extends Cubit<ConversationState> {
   /// within [ConversationState.minTurnPause] and
   /// [ConversationState.maxTurnPause]; from the next utterance on.
   void setTurnPause(Duration pause) {
-    final kept = pause < ConversationState.minTurnPause
-        ? ConversationState.minTurnPause
-        : pause > ConversationState.maxTurnPause
-        ? ConversationState.maxTurnPause
-        : pause;
+    final kept = _keptPause(pause);
     if (kept != state.turnPause) emit(state.copyWith(turnPause: kept));
   }
+
+  static Duration _keptPause(Duration pause) =>
+      pause < ConversationState.minTurnPause
+      ? ConversationState.minTurnPause
+      : pause > ConversationState.maxTurnPause
+      ? ConversationState.maxTurnPause
+      : pause;
 
   /// Face-to-face mode stops a hands-free conversation.
   void setFaceToFace({required bool enabled}) {
@@ -881,6 +895,9 @@ class ConversationCubit extends Cubit<ConversationState> {
   void startSession({ConversationSide? side}) {
     if (_recognizer == null || isClosed || _closing) return;
     if (state.session.isActive) return;
+    // A new conversation tries every language again (a voice may have
+    // been installed meanwhile).
+    _unspeakable.clear();
     if (!_autoSpeakChosen && !state.autoSpeak) {
       emit(state.copyWith(autoSpeak: true));
     }
@@ -1214,10 +1231,11 @@ class ConversationCubit extends Cubit<ConversationState> {
     if (session is! ConversationSessionTranslating) return;
     if (turn.translation.trim().isEmpty) {
       _listen(session.next);
-    } else if (!state.autoSpeak) {
-      // Shown, not read aloud: a screen reader may announce it, so the
-      // microphone waits as after reading aloud (and [announced] can keep
-      // it closed for longer).
+    } else if (!state.autoSpeak || _unspeakable.contains(turn.target.code)) {
+      // Shown, not read aloud (also when its language could not be read
+      // aloud before: that was said once): a screen reader may announce
+      // it, so the microphone waits as after reading aloud (and
+      // [announced] can keep it closed for longer).
       _listen(session.next, afterSpeech: true);
     } else {
       unawaited(_speakForSession(turn, session.next));
@@ -1281,6 +1299,9 @@ class ConversationCubit extends Cubit<ConversationState> {
         _pause(next, ConversationPauseReason.speechConsent, turnId: turn.id);
         return;
       }
+      // Nothing reads this language: not tried (and reported) again in this
+      // conversation. Servers that failed just now may work next turn.
+      if (!speechServersFailed(failure)) _unspeakable.add(turn.target.code);
     }
     // Still reading aloud: _onSpeaking listens once it ended.
     if (state.session is ConversationSessionSpeaking &&

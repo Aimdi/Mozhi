@@ -1,8 +1,11 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/semantics.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/router.dart' show AppRoutes;
 import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/widgets/consent_prompt.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
@@ -24,11 +27,18 @@ import 'package:translation_repository/translation_repository.dart';
 
 /// Result area: loading/error states, the corrected text with an inline
 /// diff, the summary, the writing statistics and the list of edits.
+///
+/// As a [sliver] (in a [CustomScrollView]) the edits are built lazily, as
+/// they scroll into view; otherwise they are shown a page at a time
+/// ([ProofreadEditsList]).
 class ProofreadResultSection extends StatelessWidget {
-  const new({this.showPlaceholder = false, super.key});
+  const new({this.showPlaceholder = false, this.sliver = false, super.key});
 
   /// Show a hint card before the first result (wide layouts).
   final bool showPlaceholder;
+
+  /// Whether this is a sliver rather than a box.
+  final bool sliver;
 
   /// Announces the outcome of a request to assistive technology, since the
   /// result may appear off screen (WCAG 4.1.3).
@@ -69,9 +79,36 @@ class ProofreadResultSection extends StatelessWidget {
             : null,
         onGranted: (context) =>
             unawaited(context.read<ProofreadCubit>().proofread()),
-        child: _buildContent(),
+        child: BlocListener<ProofreadCubit, ProofreadState>(
+          listenWhen: (previous, current) =>
+              current.droppedRephrasings > 0 &&
+              previous.acceptedEdits != current.acceptedEdits,
+          listener: _showDroppedRephrasings,
+          child: _buildContent(),
+        ),
       ),
     );
+  }
+
+  /// Tells the user that accepting or rejecting an edit removed their
+  /// rephrasing of its sentence, with "Undo".
+  void _showDroppedRephrasings(BuildContext context, ProofreadState state) {
+    final l10n = context.l10n;
+    final cubit = context.read<ProofreadCubit>();
+    ScaffoldMessenger.maybeOf(context)
+      ?..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          key: const Key('proofread_rephrasings_dropped'),
+          content: Text(
+            l10n.proofreadRephrasingsDropped(state.droppedRephrasings),
+          ),
+          action: SnackBarAction(
+            label: l10n.commonUndo,
+            onPressed: cubit.undoDroppedRephrasings,
+          ),
+        ),
+      );
   }
 
   Widget _buildContent() {
@@ -84,55 +121,79 @@ class ProofreadResultSection extends StatelessWidget {
           previous.proofreadInput != current.proofreadInput ||
           previous.error != current.error ||
           previous.engine != current.engine ||
-          previous.input != current.input ||
+          // Not every keystroke: only what the notices and buttons show.
+          previous.inputChanged != current.inputChanged ||
+          previous.optionsChanged != current.optionsChanged ||
+          previous.canProofread != current.canProofread ||
           // The statistics fall back to the variety's language.
           previous.variety != current.variety,
       builder: (context, state) {
         final result = state.result;
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          spacing: 16,
-          children: [
-            if (state.status == ProofreadStatus.failure)
-              _ErrorCard(error: state.error, canRetry: state.canProofread),
-            if (result == null && state.isLoading)
+        final showEdits =
+            result != null && !state.isClean && result.edits.isNotEmpty;
+        final children = <Widget>[
+          if (state.status == ProofreadStatus.failure)
+            _ErrorCard(error: state.error, canRetry: state.canProofread),
+          if (result == null && state.isLoading)
+            OnDeviceAiExtraLoading(
+              engine: state.engine,
+              child: const _LoadingCard(),
+            ),
+          if (result == null &&
+              state.status == ProofreadStatus.idle &&
+              showPlaceholder)
+            const _PlaceholderCard(),
+          if (result != null) ...[
+            if (state.isLoading)
               OnDeviceAiExtraLoading(
                 engine: state.engine,
-                child: const _LoadingCard(),
+                child: const LinearProgressIndicator(),
               ),
-            if (result == null &&
-                state.status == ProofreadStatus.idle &&
-                showPlaceholder)
-              const _PlaceholderCard(),
-            if (result != null) ...[
-              if (state.isLoading)
-                OnDeviceAiExtraLoading(
-                  engine: state.engine,
-                  child: const LinearProgressIndicator(),
-                ),
-              if (state.isStale && !state.isLoading)
-                _StaleNotice(canProofread: state.canProofread),
-              // A clean text can still be rephrased, sentence by sentence.
-              if (state.isClean) ...[
-                _NoIssuesCard(summary: result.summary),
-                ProofreadResultCard(
-                  key: const Key('proofread_clean_text'),
-                  state: state,
-                  clean: true,
-                ),
-              ] else
-                ProofreadResultCard(state: state),
-              // Flat sections divided by hairlines, X style.
+            if (state.isStale && !state.isLoading)
+              _StaleNotice(
+                canProofread: state.canProofread,
+                optionsOnly: !state.inputChanged,
+              ),
+            // A clean text can still be rephrased, sentence by sentence.
+            if (state.isClean) ...[
+              _NoIssuesCard(summary: result.summary),
+              ProofreadResultCard(
+                key: const Key('proofread_clean_text'),
+                state: state,
+                clean: true,
+              ),
+            ] else
+              ProofreadResultCard(state: state),
+            // Flat sections divided by hairlines, X style.
+            const Hairline(),
+            ProofreadStatsPanel(
+              original: state.proofreadInput,
+              corrected: state.finalText,
+              languageCode: state.textLanguage,
+            ),
+            if (showEdits && !sliver) ...[
               const Hairline(),
-              ProofreadStatsPanel(
-                original: state.proofreadInput,
-                corrected: state.finalText,
-                languageCode: state.textLanguage,
+              ProofreadEditsList(state: state),
+            ],
+          ],
+        ];
+        final column = Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: 16,
+          children: children,
+        );
+        if (!sliver) return column;
+        return SliverMainAxisGroup(
+          slivers: [
+            SliverToBoxAdapter(child: column),
+            if (showEdits) ...[
+              const SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                  child: Hairline(),
+                ),
               ),
-              if (!state.isClean && result.edits.isNotEmpty) ...[
-                const Hairline(),
-                ProofreadEditsList(state: state),
-              ],
+              ProofreadEditsList(state: state, sliver: true),
             ],
           ],
         );
@@ -444,7 +505,7 @@ class _ProofreadResultCardState extends State<ProofreadResultCard> {
               OutlinedButton.icon(
                 // Replacing newer input with an older result would silently
                 // discard what the user typed since.
-                onPressed: output.isEmpty || state.isStale
+                onPressed: output.isEmpty || state.inputChanged
                     ? null
                     : context.read<ProofreadCubit>().useOutputAsInput,
                 style: OutlinedButton.styleFrom(
@@ -590,70 +651,123 @@ Future<void> showProofreadEditSheet(BuildContext context, int index) {
 /// The suggested edits: a header with how many apply and, once one was
 /// rejected, "Reset" (every suggestion again), then one tile per edit with
 /// its own accept and reject buttons.
-class ProofreadEditsList extends StatelessWidget {
-  const new({required this.state, super.key});
+///
+/// As a [sliver] the tiles are built as they scroll into view; as a box
+/// the first [pageSize] are shown, then "Show more" adds the next ones.
+class ProofreadEditsList extends StatefulWidget {
+  const new({required this.state, this.sliver = false, super.key});
 
   final ProofreadState state;
+
+  /// Whether this is a sliver rather than a box.
+  final bool sliver;
+
+  /// How many tiles the box shows at first, and adds per "Show more".
+  static const pageSize = 30;
+
+  @override
+  State<ProofreadEditsList> createState() => _ProofreadEditsListState();
+}
+
+class _ProofreadEditsListState extends State<ProofreadEditsList> {
+  int _shown = ProofreadEditsList.pageSize;
+
+  @override
+  void didUpdateWidget(ProofreadEditsList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // A new result starts with the first page again.
+    if (!identical(widget.state.result, oldWidget.state.result)) {
+      _shown = ProofreadEditsList.pageSize;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final cubit = context.read<ProofreadCubit>();
+    final state = widget.state;
     final edits = state.edits;
-    final locations = ProofreadDiff.locate(state.proofreadInput, edits);
+    // Located once per result (not on every rebuild).
+    final locations = state.editLocations;
     final accepted = state.acceptedCount;
 
+    // The buttons move below the title when they do not fit beside it
+    // (narrow screens, large text).
+    final header = Wrap(
+      key: const Key('proofread_edits_header'),
+      alignment: WrapAlignment.spaceBetween,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 8,
+      runSpacing: 4,
+      children: [
+        Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              l10n.proofreadEditsTitle,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            Text(
+              l10n.proofreadEditsApplied(accepted, edits.length),
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: AppPalette.of(context).secondaryText,
+              ),
+            ),
+          ],
+        ),
+        if (accepted < edits.length)
+          Tooltip(
+            message: l10n.proofreadEditsResetTooltip,
+            excludeFromSemantics: true,
+            child: TextButton(
+              key: const Key('proofread_edits_reset'),
+              onPressed: cubit.acceptAll,
+              child: Text(l10n.proofreadEditsReset),
+            ),
+          ),
+      ],
+    );
+
+    Widget tile(int i) => ProofreadEditTile(
+      key: ValueKey('proofread_edit_$i'),
+      edit: edits[i],
+      accepted: state.acceptedEdits.contains(i),
+      located: i < locations.length && locations[i] != null,
+      onToggle: () => cubit.toggleEdit(i),
+      divider: i < edits.length - 1,
+    );
+
+    if (widget.sliver) {
+      return SliverMainAxisGroup(
+        slivers: [
+          SliverToBoxAdapter(child: header),
+          SliverList.builder(
+            itemCount: edits.length,
+            itemBuilder: (context, i) => tile(i),
+          ),
+        ],
+      );
+    }
+    final shown = math.min(_shown, edits.length);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // The buttons move below the title when they do not fit beside it
-        // (narrow screens, large text).
-        Wrap(
-          key: const Key('proofread_edits_header'),
-          alignment: WrapAlignment.spaceBetween,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          spacing: 8,
-          runSpacing: 4,
-          children: [
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  l10n.proofreadEditsTitle,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                Text(
-                  l10n.proofreadEditsApplied(accepted, edits.length),
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: AppPalette.of(context).secondaryText,
-                  ),
-                ),
-              ],
+        header,
+        for (var i = 0; i < shown; i++) tile(i),
+        if (shown < edits.length)
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: TextButton.icon(
+              key: const Key('proofread_edits_more'),
+              onPressed: () =>
+                  setState(() => _shown = shown + ProofreadEditsList.pageSize),
+              icon: const Icon(Icons.expand_more),
+              label: Text(l10n.proofreadEditsShowMore(edits.length - shown)),
             ),
-            if (accepted < edits.length)
-              Tooltip(
-                message: l10n.proofreadEditsResetTooltip,
-                excludeFromSemantics: true,
-                child: TextButton(
-                  key: const Key('proofread_edits_reset'),
-                  onPressed: cubit.acceptAll,
-                  child: Text(l10n.proofreadEditsReset),
-                ),
-              ),
-          ],
-        ),
-        for (var i = 0; i < edits.length; i++)
-          ProofreadEditTile(
-            key: ValueKey('proofread_edit_$i'),
-            edit: edits[i],
-            accepted: state.acceptedEdits.contains(i),
-            located: locations[i] != null,
-            onToggle: () => cubit.toggleEdit(i),
-            divider: i < edits.length - 1,
           ),
       ],
     );
@@ -678,38 +792,59 @@ class _ErrorCard extends StatelessWidget {
         onGranted: () => unawaited(context.read<ProofreadCubit>().proofread()),
       );
     }
+    final providers = proofreadErrorNeedsProviders(l10n, error);
     return _FlatNotice(
+      key: const Key('proofread_error'),
       icon: Icons.error_outline,
       iconColor: scheme.error,
       title: l10n.proofreadErrorTitle,
       body: l10n.proofreadError(error),
-      action: TextButton(
-        onPressed: canRetry ? context.read<ProofreadCubit>().proofread : null,
-        child: Text(l10n.commonRetry),
-      ),
+      actions: [
+        if (providers)
+          TextButton(
+            key: const Key('proofread_error_providers'),
+            // Above the tabs, so back returns here.
+            onPressed: () => unawaited(context.push<void>(AppRoutes.providers)),
+            child: Text(l10n.translateProvidersAction),
+          ),
+        TextButton(
+          key: const Key('proofread_error_retry'),
+          onPressed: canRetry ? context.read<ProofreadCubit>().proofread : null,
+          child: Text(l10n.commonRetry),
+        ),
+      ],
     );
   }
 }
 
-/// Shown when the input changed after the result was computed.
+/// Shown when the input or the options changed after the result was
+/// computed, with "Proofread again".
 class _StaleNotice extends StatelessWidget {
-  const new({required this.canProofread});
+  const new({required this.canProofread, required this.optionsOnly});
 
   final bool canProofread;
+
+  /// Whether only the options (not the text) changed.
+  final bool optionsOnly;
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     return _FlatNotice(
       key: const Key('proofread_stale'),
-      icon: Icons.edit_note,
-      body: l10n.proofreadStaleNotice,
-      action: TextButton(
-        onPressed: canProofread
-            ? context.read<ProofreadCubit>().proofread
-            : null,
-        child: Text(l10n.proofreadStaleAction),
-      ),
+      icon: optionsOnly ? Icons.tune : Icons.edit_note,
+      body: optionsOnly
+          ? l10n.proofreadStaleOptionsNotice
+          : l10n.proofreadStaleNotice,
+      actions: [
+        TextButton(
+          key: const Key('proofread_stale_action'),
+          onPressed: canProofread
+              ? context.read<ProofreadCubit>().proofread
+              : null,
+          child: Text(l10n.proofreadStaleAction),
+        ),
+      ],
     );
   }
 }
@@ -775,7 +910,8 @@ class _NoIssuesCard extends StatelessWidget {
 }
 
 /// A flat notice: a hairline-bordered box (radius 16, no fill) with an
-/// icon, an optional bold title, a body and an optional trailing action.
+/// icon, an optional bold title, a body and optional [actions] below them
+/// (never beside the text, which would squeeze it on narrow screens).
 class _FlatNotice extends StatelessWidget {
   const new({
     required this.body,
@@ -783,7 +919,7 @@ class _FlatNotice extends StatelessWidget {
     this.iconColor,
     this.leading,
     this.title,
-    this.action,
+    this.actions = const [],
     super.key,
   });
 
@@ -792,7 +928,7 @@ class _FlatNotice extends StatelessWidget {
   final Widget? leading;
   final String? title;
   final String body;
-  final Widget? action;
+  final List<Widget> actions;
 
   @override
   Widget build(BuildContext context) {
@@ -800,7 +936,6 @@ class _FlatNotice extends StatelessWidget {
     final palette = AppPalette.of(context);
     final title = this.title;
     final icon = this.icon;
-    final action = this.action;
     return Semantics(
       container: true,
       child: DecoratedBox(
@@ -812,8 +947,8 @@ class _FlatNotice extends StatelessWidget {
           padding: EdgeInsetsDirectional.fromSTEB(
             16,
             12,
-            action == null ? 16 : 8,
-            12,
+            16,
+            actions.isEmpty ? 12 : 4,
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -843,10 +978,18 @@ class _FlatNotice extends StatelessWidget {
                             : theme.colorScheme.onSurface,
                       ),
                     ),
+                    if (actions.isNotEmpty)
+                      Align(
+                        alignment: AlignmentDirectional.centerEnd,
+                        child: Wrap(
+                          alignment: WrapAlignment.end,
+                          spacing: 8,
+                          children: actions,
+                        ),
+                      ),
                   ],
                 ),
               ),
-              ?action,
             ],
           ),
         ),

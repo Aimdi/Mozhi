@@ -1,4 +1,7 @@
 import 'package:equatable/equatable.dart';
+import 'package:mozhi/dictionary/cubit/dictionary_cubit.dart'
+    show dictionaryScriptLanguage;
+import 'package:mozhi/dictionary/data/dictionary_entry_store.dart';
 import 'package:mozhi/history/models/history_entry.dart';
 import 'package:mozhi/phrasebook/models/phrase.dart';
 import 'package:translation_repository/translation_repository.dart';
@@ -18,15 +21,42 @@ class PhraseDraft extends Equatable {
   });
 
   /// A history entry: a translation ([PhraseOrigin.history]) or a
-  /// dictionary look-up ([PhraseOrigin.dictionary]: the word and its
-  /// summary), in the languages of [phraseLanguageOf].
-  factory fromHistory(HistoryEntry entry) => PhraseDraft(
-    text: entry.text.trim(),
-    translation: entry.translation.trim(),
-    sourceCode: phraseLanguageOf(entry.source, detected: entry.detectedSource),
-    targetCode: phraseLanguageOf(entry.target),
-    origin: entry.isDictionary ? PhraseOrigin.dictionary : PhraseOrigin.history,
-  );
+  /// dictionary look-up ([PhraseOrigin.dictionary]), in the languages of
+  /// [phraseLanguageOf].
+  ///
+  /// A look-up is the word with its first translation into the target
+  /// language, from the entry the history kept
+  /// ([HistoryEntry.dictionaryJson]); only without one (an offline
+  /// dictionary's entry, or one saved before entries were kept) its
+  /// summary. A word looked up with "Detect language" is in the language
+  /// found then ([HistoryEntry.detectedSource]), else in the one its
+  /// script tells, if any.
+  factory fromHistory(HistoryEntry entry) {
+    if (!entry.isDictionary) {
+      return PhraseDraft(
+        text: entry.text.trim(),
+        translation: entry.translation.trim(),
+        sourceCode: phraseLanguageOf(
+          entry.source,
+          detected: entry.detectedSource,
+        ),
+        targetCode: phraseLanguageOf(entry.target),
+        origin: PhraseOrigin.history,
+      );
+    }
+    final kept = decodeDictionaryEntry(entry.dictionaryJson);
+    final translation = kept == null ? null : firstDictionaryTranslation(kept);
+    return PhraseDraft(
+      text: entry.text.trim(),
+      translation: translation ?? entry.translation.trim(),
+      sourceCode: phraseLanguageOf(
+        entry.source,
+        detected: entry.detectedSource ?? dictionaryScriptLanguage(entry.text),
+      ),
+      targetCode: phraseLanguageOf(entry.target),
+      origin: PhraseOrigin.dictionary,
+    );
+  }
 
   /// A copy of [phrase] (a favourite or a starter phrase going into a
   /// collection), with its note, pronunciation and topic.

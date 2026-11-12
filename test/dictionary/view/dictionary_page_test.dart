@@ -11,9 +11,15 @@ import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/app/router.dart' show AppRoutes;
 import 'package:mozhi/app/view/top_level_actions.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
+import 'package:mozhi/dictionary/data/dictionary_entry_store.dart';
 import 'package:mozhi/dictionary/dictionary.dart';
 import 'package:mozhi/history/history.dart'
-    show HistoryCubit, HistoryEntry, HistoryState, HistoryStatus;
+    show
+        HistoryCubit,
+        HistoryEntry,
+        HistoryEntryKind,
+        HistoryState,
+        HistoryStatus;
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/on_device_ai/data/on_device_models.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
@@ -682,6 +688,8 @@ void main() {
         OfflineTranslator? offline,
       }) async {
         stubLookUp(repository, () async => entry);
+        // Each call shows its own entry, not the one kept from before.
+        DictionaryEntryCache.of(repository).clear();
         await pumpPage(
           tester,
           size: size,
@@ -1627,6 +1635,100 @@ void main() {
         verifyNoLookUp();
       });
 
+      testWidgets('offers the recent languages first and remembers the '
+          'choice', (tester) async {
+        when(() => settingsCubit.state).thenReturn(
+          const AppSettings(
+            pinnedLanguages: [french],
+            recentLanguages: [spanish, french, Language.custom('Pirate speak')],
+          ),
+        );
+        await pumpPage(tester, page: const DictionaryPage(word: 'gato'));
+
+        await tester.tap(find.byKey(const Key('dictionary_bar_target')));
+        await tester.pumpAndSettle();
+        expect(find.text('Recent'), findsOneWidget);
+        expect(find.text('All languages'), findsOneWidget);
+        expect(
+          find.byKey(const Key('dictionary_recent_language_fr')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const Key('dictionary_recent_language_es')),
+          findsOneWidget,
+        );
+        expect(
+          tester
+              .getTopLeft(
+                find.byKey(const Key('dictionary_recent_language_fr')),
+              )
+              .dy,
+          lessThan(
+            tester
+                .getTopLeft(
+                  find.byKey(const Key('dictionary_recent_language_es')),
+                )
+                .dy,
+          ),
+        );
+
+        await tester.tap(
+          find.byKey(const Key('dictionary_recent_language_fr')),
+        );
+        await tester.pumpAndSettle();
+        expect(dictionaryState(tester).target, french);
+        verify(() => settingsCubit.addRecentLanguage(french)).called(1);
+        verify(
+          () => settingsCubit.setDictionaryLanguages(
+            source: any(named: 'source'),
+            target: french,
+          ),
+        ).called(1);
+
+        // A search lists the matches only.
+        await tester.tap(find.byKey(const Key('dictionary_bar_target')));
+        await tester.pumpAndSettle();
+        await tester.enterText(
+          find.byKey(const Key('dictionary_language_search')),
+          'span',
+        );
+        await tester.pump();
+        expect(find.text('Recent'), findsNothing);
+      });
+
+      testWidgets('start with the languages the user chose last', (
+        tester,
+      ) async {
+        when(() => settingsCubit.state).thenReturn(
+          const AppSettings(
+            source: english,
+            target: spanish,
+            dictionarySource: french,
+            dictionaryTarget: english,
+          ),
+        );
+        await pumpPage(tester);
+        expect(dictionaryState(tester).source, french);
+        expect(dictionaryState(tester).target, english);
+      });
+
+      testWidgets('a remembered "Detect language" is kept', (tester) async {
+        when(() => settingsCubit.state)
+            .thenReturn(const AppSettings(dictionarySource: Language.auto));
+        await pumpPage(tester);
+        expect(dictionaryState(tester).source, Language.auto);
+      });
+
+      testWidgets("a link's languages come first", (tester) async {
+        when(() => settingsCubit.state)
+            .thenReturn(const AppSettings(dictionarySource: french));
+        await pumpPage(
+          tester,
+          page: const DictionaryPage(word: 'gato', from: 'es'),
+        );
+        expect(dictionaryState(tester).source, spanish);
+      });
+
       testWidgets('keeps the language list above the keyboard', (tester) async {
         await pumpPage(
           tester,
@@ -2151,6 +2253,71 @@ void main() {
         expect(state.word, 'gato');
         expect(state.lookedUp, 'gato');
         expect(find.byKey(const Key('dictionary_entry')), findsOneWidget);
+      });
+
+      testWidgets('History shows the kept entry, and Back returns there', (
+        tester,
+      ) async {
+        final router = await pumpRouter(tester);
+        final saved = HistoryEntry(
+          id: 'dictionary:1',
+          kind: HistoryEntryKind.dictionary,
+          text: 'gato',
+          translation: 'noun · A small domesticated feline.',
+          source: spanish,
+          target: english,
+          engineId: claudeEngine.id,
+          engineName: claudeEngine.name,
+          createdAt: DateTime(2026),
+          verbosity: DictionaryVerbosity.comprehensive,
+          dictionaryJson: encodeDictionaryEntry(gatoEntry),
+        );
+
+        router.go(
+          '/dictionary?word=gato&from=es&to=en',
+          extra: DictionaryLookUpRequest(saved: saved, returnTo: '/history'),
+        );
+        await tester.pumpAndSettle();
+
+        verifyNoLookUp();
+        expect(find.byKey(const Key('dictionary_entry')), findsOneWidget);
+        expect(find.text('Saved entry, not looked up again'), findsOneWidget);
+        expect(dictionaryState(tester).saved, isTrue);
+
+        await tester.tap(find.byKey(const Key('dictionary_back')));
+        await tester.pumpAndSettle();
+        expect(find.text('History page'), findsOneWidget);
+
+        // Opened again (the page is kept): Refresh asks the AI.
+        router.go(
+          '/dictionary?word=gato&from=es&to=en',
+          extra: DictionaryLookUpRequest(saved: saved),
+        );
+        await tester.pumpAndSettle();
+        verifyNoLookUp();
+        await tester.tap(find.byKey(const Key('dictionary_refresh')));
+        await tester.pumpAndSettle();
+        verifyGato(DictionaryVerbosity.comprehensive);
+        expect(find.byKey(const Key('dictionary_refresh')), findsNothing);
+        // Without a way back, Back returns to the search.
+        await tester.tap(find.byKey(const Key('dictionary_back')));
+        await tester.pumpAndSettle();
+        expect(dictionaryState(tester).status, DictionaryStatus.idle);
+      });
+
+      testWidgets('system back from the entry returns where the user came '
+          'from', (tester) async {
+        final router = await pumpRouter(tester);
+        router.go(
+          '/dictionary?word=gato&from=es&to=en',
+          extra: DictionaryLookUpRequest(returnTo: '/history'),
+        );
+        await tester.pumpAndSettle();
+        verifyGato(DictionaryVerbosity.standard);
+
+        await tester.binding.handlePopRoute();
+        await tester.pumpAndSettle();
+        expect(find.text('History page'), findsOneWidget);
       });
 
       testWidgets('other navigation extras are no requests', (tester) async {

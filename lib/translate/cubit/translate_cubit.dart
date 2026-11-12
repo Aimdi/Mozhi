@@ -160,7 +160,9 @@ class TranslateCubit extends Cubit<TranslateState> {
     this._usageTracker,
     TranslationMemory? memory,
     DeviceConditions? deviceConditions,
+    this._offlineTranslator,
   }) : _settings = settings,
+       _privacyModeSeen = settings.state.privacyMode,
        _deviceConditions = deviceConditions ?? DeviceConditions.instance,
        offlineDebounce = _atMost(
          offlineDebounce ?? defaultOfflineDebounce,
@@ -194,6 +196,62 @@ class TranslateCubit extends Cubit<TranslateState> {
        ) {
     _settingsSubscription = settings.stream.listen(_onSettings);
     _historySubscription = _history.stream.listen(_onHistory);
+    unawaited(_refreshOfflineReady());
+  }
+
+  /// The on-device engine's backend, to know which of its languages are
+  /// downloaded (smart swap with the on-device engine only switches to one
+  /// of those, see [_targetOtherThan]). Null: not known.
+  final OfflineTranslator? _offlineTranslator;
+
+  /// Keys ([_offlineKey]) of the languages whose on-device models were
+  /// downloaded when last asked ([_refreshOfflineReady]); null until then
+  /// (or without [_offlineTranslator]).
+  Set<String>? _offlineReady;
+
+  /// Asks [_offlineTranslator] which languages are on the device. Never
+  /// throws.
+  Future<void> _refreshOfflineReady() async {
+    final translator = _offlineTranslator;
+    if (translator == null) return;
+    try {
+      if (!translator.isAvailable) {
+        _offlineReady = const {};
+        return;
+      }
+      final downloaded = await translator.downloadedLanguages();
+      _offlineReady = {for (final code in downloaded) _offlineKey(code)};
+    } on Object {
+      // Unknown: smart swap is not restricted.
+    }
+  }
+
+  /// The key on-device languages are compared by: the primary subtag of
+  /// the normalised code (`zh-CN` and `zh` are one model).
+  static String _offlineKey(String code) =>
+      LanguageMatcher.normalize(code).split('-').first.toLowerCase();
+
+  /// Recent languages for the source language picker: the sources of
+  /// `AppSettings.recentPairs` first (the language the user picked, or the
+  /// one detected for "Detect language", so their own language is there
+  /// too), then `AppSettings.recentLanguages`; without auto and duplicates,
+  /// at most [SettingsCubit.maxRecentLanguages].
+  static List<Language> recentSourceLanguagesOf(AppSettings settings) {
+    final languages = <Language>[];
+    final seen = <String>{};
+    for (final language in [
+      for (final pair in settings.recentPairs) pair.source,
+      ...settings.recentLanguages,
+    ]) {
+      if (language.isAuto) continue;
+      final key = language.isCustom
+          ? 'custom:${language.name}'
+          : LanguageMatcher.normalize(language.code);
+      if (!seen.add(key)) continue;
+      languages.add(language);
+      if (languages.length == SettingsCubit.maxRecentLanguages) break;
+    }
+    return List.unmodifiable(languages);
   }
 
   /// Most codes in [TranslationRequest.recentSourceLanguages].
@@ -437,6 +495,10 @@ class TranslateCubit extends Cubit<TranslateState> {
   /// The last smart swap, for [undoSmartSwap] (also after the notice was
   /// consumed).
   SmartSwapNotice? _lastSmartSwap;
+
+  /// The privacy mode [_onSettings] last saw, to follow its changes
+  /// ([_followPrivacyMode]).
+  PrivacyMode _privacyModeSeen;
 
   /// The input came from outside the app and has not been translated yet.
   bool _externalPending = false;
@@ -1027,6 +1089,11 @@ class TranslateCubit extends Cubit<TranslateState> {
     if (!settings.saveHistory && state.memoryMatch != null && !isClosed) {
       emit(state.copyWith(memoryMatch: () => null));
     }
+    final privacyMode = settings.privacyMode;
+    if (privacyMode != _privacyModeSeen) {
+      _privacyModeSeen = privacyMode;
+      if (!isClosed) _followPrivacyMode(privacyMode);
+    }
     if (isClosed || state.engines.isEmpty) return;
     final (:fast, :best) = _resolveQuality(state.engines);
     final changed = fast != state.fastEngine || best != state.bestEngine;
@@ -1053,6 +1120,47 @@ class TranslateCubit extends Cubit<TranslateState> {
     }
     if (engine != null && engine.id != state.engine?.id) {
       unawaited(_switchEngine(engine, keepResult: true, persist: false));
+    }
+  }
+
+  /// After the privacy mode changed to [mode], switches to the engine the
+  /// app would pick in it, when that is another one: [_usualEngineIn]
+  /// (the saved engine, else the on-device engine unless [mode] is
+  /// [PrivacyMode.online], else the default engine), or in
+  /// [PrivacyMode.offlineOnly] the on-device engine (nothing else may
+  /// translate there). Without this, the on-device engine the app picked
+  /// in Offline first stayed after choosing Online, and every translation
+  /// failed with "Download needed". The switch is not saved
+  /// (`AppSettings.engineId` stays the user's choice); the input is
+  /// translated again. Nothing changes while a quality mode is on or the
+  /// engines load (the load picks with the new mode, see
+  /// [_engineCandidates]).
+  void _followPrivacyMode(PrivacyMode mode) {
+    final engines = state.engines;
+    if (engines.isEmpty ||
+        _listPending ||
+        state.enginesStatus != EnginesStatus.ready ||
+        state.qualityMode != QualityMode.off) {
+      return;
+    }
+    final engine = mode == PrivacyMode.offlineOnly
+        ? engines.where((e) => e.isOffline).firstOrNull
+        : _usualEngineIn(engines);
+    if (engine == null || engine.id == state.engine?.id) return;
+    unawaited(_switchForPrivacy(engine));
+  }
+
+  Future<void> _switchForPrivacy(TranslationEngine engine) async {
+    final switched = await _switchEngine(
+      engine,
+      keepResult: false,
+      persist: false,
+    );
+    if (switched &&
+        !isClosed &&
+        state.input.trim().isNotEmpty &&
+        !state.compareMode) {
+      await _translate();
     }
   }
 
@@ -1153,12 +1261,23 @@ class TranslateCubit extends Cubit<TranslateState> {
 
     final offline = engines.where((e) => e.isOffline).firstOrNull;
     final saved = _settings.state.engineId;
-    final online = _settings.state.privacyMode == PrivacyMode.online;
+    final mode = _settings.state.privacyMode;
+    final online = mode == PrivacyMode.online;
+    final current = state.engine;
+    // The on-device engine the app picked by itself (none was saved) does
+    // not stay once the mode is Online: it would only fail for languages
+    // that are not downloaded.
+    final keepCurrent =
+        current == null ||
+        !(online && saved == null && current.isOffline) ||
+        preferred?.id == current.id;
     final candidates = <TranslationEngine>[];
     for (final engine in [
       byId(preferred?.id),
+      // Offline only: nothing but the device may translate.
+      if (mode == PrivacyMode.offlineOnly) offline,
       byId(saved),
-      byId(state.engine?.id),
+      if (keepCurrent) byId(current?.id),
       if (saved == null) ...[
         if (!online) offline,
         byId(_defaultEngineId),
@@ -2210,6 +2329,8 @@ class TranslateCubit extends Cubit<TranslateState> {
     final selected = engine ?? state.engine;
     final input = text ?? state.input;
     if (selected == null || input.trim().isEmpty) return Future.value();
+    // Smart swap looks at the downloaded languages when the result comes.
+    if (selected.isOffline) unawaited(_refreshOfflineReady());
     _cancelTranslation();
     // A translation of the input is on its way: no instant one of it.
     if (input == state.input) _debounceTimer?.cancel();
@@ -2342,7 +2463,7 @@ class TranslateCubit extends Cubit<TranslateState> {
         if (swapEarly && !result.isComplete) {
           // AI engines report the detected language before the text: stop
           // at once instead of waiting for a same-language "translation".
-          final swapTo = _smartSwapTarget(request, result);
+          final swapTo = _smartSwapTarget(selected, request, result);
           if (swapTo != null) {
             _smartSwap(
               selected,
@@ -2410,7 +2531,7 @@ class TranslateCubit extends Cubit<TranslateState> {
       );
       return;
     }
-    final swapTo = smartSwap ? _smartSwapTarget(request, result) : null;
+    final swapTo = smartSwap ? _smartSwapTarget(engine, request, result) : null;
     if (swapTo != null) {
       _smartSwap(engine, request, swapTo, auto: auto, external: external);
       return;
@@ -3108,7 +3229,12 @@ class TranslateCubit extends Cubit<TranslateState> {
   /// the target, else null. Never for a detection the engine marks as
   /// uncertain (`TranslationResult.detectionUncertain`): the UI offers the
   /// other likely languages instead.
+  ///
+  /// With the on-device [engine], only a language it can translate the
+  /// text into right now (both models downloaded, [_offlineReady]): the
+  /// swap must not turn a translation into an error or a consent prompt.
   Language? _smartSwapTarget(
+    TranslationEngine engine,
     TranslationRequest request,
     TranslationResult result,
   ) {
@@ -3125,7 +3251,8 @@ class TranslateCubit extends Cubit<TranslateState> {
         detectedCode == _smartSwapDeclined) {
       return null;
     }
-    return _targetOtherThan(detectedCode);
+    final ready = engine.isOffline ? _offlineReady : null;
+    return _targetOtherThan(detectedCode, offlineReady: ready);
   }
 
   /// A target language for text in [detectedCode] (normalised) other than
@@ -3133,13 +3260,24 @@ class TranslateCubit extends Cubit<TranslateState> {
   ///
   /// Candidates: recent, then pinned languages, the device languages,
   /// English (for non-English text), then a few widely used languages.
-  /// Never an arbitrary list entry.
-  Language? _targetOtherThan(String detectedCode) {
+  /// Never an arbitrary list entry. With [offlineReady] (the on-device
+  /// engine's downloaded languages, [_offlineKey]s), only a language it
+  /// can translate [detectedCode] into: both are downloaded, or one of
+  /// them is English (the models translate to and from English); null
+  /// when [detectedCode] itself is not on the device.
+  Language? _targetOtherThan(String detectedCode, {Set<String>? offlineReady}) {
     final targets = state.targetLanguages;
+    bool onDevice(String code) {
+      final key = _offlineKey(code);
+      return key == 'en' || offlineReady!.contains(key);
+    }
+
+    if (offlineReady != null && !onDevice(detectedCode)) return null;
     bool differs(Language language) =>
         !language.isAuto &&
         !language.isCustom &&
-        LanguageMatcher.normalize(language.code) != detectedCode;
+        LanguageMatcher.normalize(language.code) != detectedCode &&
+        (offlineReady == null || onDevice(language.code));
     Language? available(Language language) =>
         targets.isEmpty ? language : LanguageMatcher.match(language, targets);
     Language? listed(String code) => targets.isEmpty

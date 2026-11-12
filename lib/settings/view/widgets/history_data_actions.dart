@@ -6,6 +6,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/core/privacy/ime_learning.dart';
+import 'package:mozhi/documents/data/document_file_service.dart';
 import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/history/data/history_repository.dart';
 import 'package:mozhi/l10n/l10n.dart';
@@ -22,6 +23,10 @@ abstract final class HistoryShare {
   static Future<void> Function(String json) share = _defaultShare;
 
   static const fileName = 'mozhi-history.json';
+
+  /// Picks the file to import ("Choose file"); replaceable in tests.
+  @visibleForTesting
+  static DocumentFileService files = const PlatformDocumentFileService();
 
   static Future<void> _defaultShare(String json) async {
     try {
@@ -166,7 +171,8 @@ Future<void> showImportHistoryDialog(BuildContext context) async {
   messenger?.showSnackBar(SnackBar(content: Text(message)));
 }
 
-/// Paste exported JSON and import it into [HistoryCubit]. Pops the
+/// Choose an exported file (the one "Share as file" made) or paste
+/// exported JSON, and import it into [HistoryCubit]. Pops the
 /// [HistoryImport] on success, null when cancelled.
 class ImportHistoryDialog extends StatefulWidget {
   const new({super.key});
@@ -196,8 +202,31 @@ class _ImportHistoryDialogState extends State<ImportHistoryDialog> {
     });
   }
 
-  Future<void> _import() async {
-    final text = _controller.text.trim();
+  /// Imports a picked file directly (it can be large: it is not shown in
+  /// the text field).
+  Future<void> _chooseFile() async {
+    final invalid = context.l10n.settingsImportInvalid;
+    final PickedFile? file;
+    try {
+      file = await HistoryShare.files.pickFile(extensions: const ['json']);
+    } on Object {
+      if (mounted) setState(() => _error = invalid);
+      return;
+    }
+    if (file == null || !mounted) return;
+    final String text;
+    try {
+      text = utf8.decode(file.bytes);
+    } on FormatException {
+      setState(() => _error = invalid);
+      return;
+    }
+    await _importText(text.trim());
+  }
+
+  Future<void> _import() => _importText(_controller.text.trim());
+
+  Future<void> _importText(String text) async {
     final invalid = context.l10n.settingsImportInvalid;
     if (text.isEmpty) {
       setState(() => _error = invalid);
@@ -239,7 +268,7 @@ class _ImportHistoryDialogState extends State<ImportHistoryDialog> {
             style: const TextStyle(fontFamily: 'monospace'),
             decoration: InputDecoration(
               labelText: l10n.settingsImportLabel,
-              hintText: l10n.settingsImportHint,
+              hintText: l10n.settingsImportFileHint,
               alignLabelWithHint: true,
               errorText: _error,
               errorMaxLines: 3,
@@ -250,13 +279,21 @@ class _ImportHistoryDialogState extends State<ImportHistoryDialog> {
             },
           ),
           const SizedBox(height: 8),
-          Align(
-            alignment: AlignmentDirectional.centerStart,
-            child: TextButton.icon(
-              onPressed: _busy ? null : _paste,
-              icon: const Icon(Icons.content_paste),
-              label: Text(l10n.settingsImportPaste),
-            ),
+          Wrap(
+            spacing: 8,
+            children: [
+              TextButton.icon(
+                key: const Key('history_import_choose_file'),
+                onPressed: _busy ? null : _chooseFile,
+                icon: const Icon(Icons.file_open_outlined),
+                label: Text(l10n.settingsImportChooseFile),
+              ),
+              TextButton.icon(
+                onPressed: _busy ? null : _paste,
+                icon: const Icon(Icons.content_paste),
+                label: Text(l10n.settingsImportPaste),
+              ),
+            ],
           ),
         ],
       ),

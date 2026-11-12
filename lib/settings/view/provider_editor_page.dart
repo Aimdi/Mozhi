@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/semantics.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -23,8 +24,11 @@ import 'package:translation_repository/translation_repository.dart';
 
 /// Create or edit an AI provider or a machine translation service (DeepL,
 /// LibreTranslate).
+///
+/// On the web ([isWeb]) it says that the API key is kept only for the
+/// browser tab (`sessionStorage`).
 class ProviderEditorPage extends StatelessWidget {
-  const new({super.key, this.providerId, this.presetId});
+  const new({super.key, this.providerId, this.presetId, this.isWeb = kIsWeb});
 
   /// Edit an existing provider (null = create new).
   final String? providerId;
@@ -32,9 +36,42 @@ class ProviderEditorPage extends StatelessWidget {
   /// Preset to prefill a new provider from.
   final String? presetId;
 
+  /// Whether the app runs in a browser, where API keys are session-only.
+  final bool isWeb;
+
   @override
-  Widget build(BuildContext context) =>
-      ProviderEditorView(providerId: providerId, presetId: presetId);
+  Widget build(BuildContext context) => ProviderEditorView(
+    providerId: providerId,
+    presetId: presetId,
+    isWeb: isWeb,
+  );
+}
+
+/// Whether a provider of [service] and [provider] type needs an API key:
+/// [preset]'s rule when it is one (of that type), else the type's.
+bool apiKeyRequired({
+  required MtService service,
+  required LlmProvider provider,
+  AiProviderPreset? preset,
+}) => switch (service) {
+  MtService.deepl => true,
+  MtService.libreTranslate => false,
+  MtService.llm =>
+    (preset?.provider == provider ? preset?.requiresApiKey : null) ??
+        (provider == LlmProvider.anthropic || provider == LlmProvider.gemini),
+};
+
+/// Whether [config] needs an API key it does not have, e.g. on the web
+/// after the browser tab that held it was closed.
+bool providerKeyMissing(AiProviderConfig config) {
+  if (config.apiKey?.trim().isNotEmpty ?? false) return false;
+  final presetId = config.presetId;
+  final preset = presetId == null ? null : AiProviderPreset.byId(presetId);
+  return apiKeyRequired(
+    service: config.service,
+    provider: config.provider,
+    preset: preset?.service == config.service ? preset : null,
+  );
 }
 
 /// Readable name of an [LlmProvider].
@@ -101,10 +138,13 @@ const List<LlmProvider> editableLlmProviders = [
 ];
 
 class ProviderEditorView extends StatefulWidget {
-  const new({super.key, this.providerId, this.presetId});
+  const new({super.key, this.providerId, this.presetId, this.isWeb = kIsWeb});
 
   final String? providerId;
   final String? presetId;
+
+  /// Whether the app runs in a browser, where API keys are session-only.
+  final bool isWeb;
 
   @override
   State<ProviderEditorView> createState() => _ProviderEditorViewState();
@@ -148,7 +188,20 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
   final _modelFocus = FocusNode();
 
   AiProviderConfig? _existing;
+
+  /// The preset the editor opened with (of the provider's kind).
+  AiProviderPreset? _originalPreset;
+
+  /// [_originalPreset] while the provider type is still the preset's: a
+  /// preset's name, model, key rule and key link are not another type's.
   AiProviderPreset? _preset;
+
+  /// The provider as the editor opened it, to tell whether anything
+  /// changed ([_dirty]).
+  AiProviderConfig? _initial;
+
+  /// Set once the user saved, deleted or chose to discard their changes.
+  bool _closing = false;
   UsageTracker? _usageTracker;
   bool _notFound = false;
   LlmProvider _provider = LlmProvider.openAiCompatible;
@@ -201,11 +254,12 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
           : AiProviderPreset.byId(existing.presetId!);
       // A preset of another kind (e.g. an AI preset id on a DeepL
       // provider) must not supply key rules, links or headers.
-      _preset = preset?.service == existing.service ? preset : null;
+      _originalPreset = preset?.service == existing.service ? preset : null;
       _service = existing.service;
       _promptProfile = existing.promptProfile;
       _name.text = existing.name;
       _provider = existing.provider;
+      _preset = _presetFor(_provider);
       _baseUrl.text = existing.baseUrl;
       _apiKey.text = existing.apiKey ?? '';
       _model.text = existing.model;
@@ -217,6 +271,7 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
     } else {
       final presetId = widget.presetId;
       final preset = presetId == null ? null : AiProviderPreset.byId(presetId);
+      _originalPreset = preset;
       _preset = preset;
       if (preset != null) {
         _service = preset.service;
@@ -229,9 +284,22 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
         _baseUrl.text = defaultBaseUrl(_provider);
       }
     }
-    _baseUrl.addListener(_onFieldChanged);
-    _model.addListener(_onFieldChanged);
+    _initial = _buildConfig();
+    for (final field in [_name, _baseUrl, _apiKey, _model]) {
+      field.addListener(_onFieldChanged);
+    }
   }
+
+  /// [_originalPreset] if it is a preset of [provider]'s type (machine
+  /// translation services have no type to change).
+  AiProviderPreset? _presetFor(LlmProvider provider) {
+    final preset = _originalPreset;
+    if (preset == null || _service != MtService.llm) return preset;
+    return preset.provider == provider ? preset : null;
+  }
+
+  /// Whether anything differs from how the editor opened.
+  bool get _dirty => !_notFound && _buildConfig() != _initial;
 
   @override
   void dispose() {
@@ -248,14 +316,8 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
 
   void _onFieldChanged() => setState(() {});
 
-  bool get _apiKeyRequired => switch (_service) {
-    MtService.deepl => true,
-    MtService.libreTranslate => false,
-    MtService.llm =>
-      _preset?.requiresApiKey ??
-          (_provider == LlmProvider.anthropic ||
-              _provider == LlmProvider.gemini),
-  };
+  bool get _apiKeyRequired =>
+      apiKeyRequired(service: _service, provider: _provider, preset: _preset);
 
   bool get _showTemperature => _provider != LlmProvider.anthropic;
 
@@ -301,13 +363,45 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
   String? _validateKey(String? value) =>
       _apiKeyRequired ? _required(value) : null;
 
+  /// Switches the provider type. What the previous type or its preset
+  /// filled in (URL, name, model, effort) and the user kept follows the new
+  /// type; a preset of another type no longer applies (its key rule and
+  /// key link included), and comes back with its type.
   void _setProvider(LlmProvider? provider) {
     if (provider == null || provider == _provider) return;
+    final l10n = context.l10n;
+    final from = _preset;
+    final to = _presetFor(provider);
+    String nameOf(AiProviderPreset? preset, LlmProvider type) =>
+        preset?.name ?? llmProviderName(l10n, type);
+    void follow(
+      TextEditingController field,
+      String old,
+      String now, {
+      bool fillEmpty = true,
+    }) {
+      final current = field.text.trim();
+      if (current == old || (fillEmpty && current.isEmpty)) field.text = now;
+    }
+
+    follow(
+      _baseUrl,
+      from?.baseUrl ?? defaultBaseUrl(_provider),
+      to?.baseUrl ?? defaultBaseUrl(provider),
+    );
+    // A name the user has not typed yet stays empty.
+    follow(
+      _name,
+      nameOf(from, _provider),
+      nameOf(to, provider),
+      fillEmpty: false,
+    );
+    follow(_model, from?.defaultModel ?? '', to?.defaultModel ?? '');
     setState(() {
-      final current = _baseUrl.text.trim();
-      if (current.isEmpty || current == defaultBaseUrl(_provider)) {
-        _baseUrl.text = defaultBaseUrl(provider);
+      if (_effort == (from?.defaultEffort ?? _defaultEffort)) {
+        _effort = to?.defaultEffort ?? _defaultEffort;
       }
+      _preset = to;
       _provider = provider;
       _test = null;
     });
@@ -331,7 +425,10 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
       baseUrl: _normalizedBaseUrl(),
       model: _model.text.trim(),
       apiKey: apiKey.isEmpty ? null : apiKey,
-      presetId: existing?.presetId ?? _preset?.id,
+      // Not a preset of another type (see [_setProvider]).
+      presetId:
+          _preset?.id ??
+          (_provider == existing?.provider ? existing?.presetId : null),
       // Machine translation services have no model settings.
       effort: _isMt || _effort == _defaultEffort ? null : _effort,
       temperature: !_isMt && _showTemperature ? _temperature : null,
@@ -347,6 +444,7 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
   }
 
   void _close() {
+    setState(() => _closing = true);
     if (context.canPop()) {
       context.pop();
     } else {
@@ -432,6 +530,34 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
     _close();
   }
 
+  /// Asks whether to throw away the changes; true to discard them.
+  Future<bool> _confirmDiscard() async {
+    final l10n = context.l10n;
+    final discard = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(l10n.settingsProviderDiscardTitle),
+        content: Text(l10n.settingsProviderDiscardBody),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(l10n.settingsProviderKeepEditing),
+          ),
+          TextButton(
+            key: const Key('provider_discard'),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(l10n.settingsProviderDiscard),
+          ),
+        ],
+      ),
+    );
+    return discard ?? false;
+  }
+
+  Future<void> _onPopBlocked() async {
+    if (await _confirmDiscard() && mounted) _close();
+  }
+
   Future<void> _testConnection() async {
     if (!_validate()) return;
     final l10n = context.l10n;
@@ -511,6 +637,23 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
     };
     final urlField = _buildUrlField(context);
     final keyField = _buildKeyField(context);
+    // Back asks before throwing away what was typed (an API key included).
+    return PopScope<Object?>(
+      canPop: _closing || !_dirty,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) unawaited(_onPopBlocked());
+      },
+      child: _buildScaffold(context, title, urlField, keyField),
+    );
+  }
+
+  Widget _buildScaffold(
+    BuildContext context,
+    String title,
+    Widget urlField,
+    Widget keyField,
+  ) {
+    final l10n = context.l10n;
     return Scaffold(
       appBar: AppBar(
         title: AppBarTitle(title),
@@ -692,9 +835,14 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
             labelText: _apiKeyRequired
                 ? l10n.settingsProviderApiKey
                 : l10n.settingsProviderApiKeyOptional,
-            helperText: _service == MtService.libreTranslate
-                ? l10n.settingsProviderLibreKeyHelper
-                : l10n.settingsProviderKeyStorage,
+            helperText: switch ((_service, widget.isWeb)) {
+              (MtService.libreTranslate, false) =>
+                l10n.settingsProviderLibreKeyHelper,
+              (MtService.libreTranslate, true) =>
+                l10n.settingsProviderLibreKeyHelperWeb,
+              (_, false) => l10n.settingsProviderKeyStorage,
+              (_, true) => l10n.settingsProviderKeyStorageWeb,
+            },
             helperMaxLines: 3,
             border: const OutlineInputBorder(),
             suffixIcon: IconButton(
@@ -781,6 +929,8 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
         ),
       const SizedBox(height: 16),
       DropdownButtonFormField<String>(
+        // A new provider type can bring another default effort.
+        key: ValueKey('provider_effort ${_provider.name}'),
         initialValue: _efforts.contains(_effort) ? _effort : _defaultEffort,
         isExpanded: true,
         decoration: InputDecoration(
@@ -1061,10 +1211,14 @@ class _TestResultView extends StatelessWidget {
             children: [
               Icon(icon, color: color),
               const SizedBox(width: 12),
+              // Selectable, yet read as text (not as a disabled text
+              // field) by screen readers.
               Expanded(
-                child: SelectableText(
-                  text,
-                  style: Theme.of(context).textTheme.bodyMedium,
+                child: SelectionArea(
+                  child: Text(
+                    text,
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
                 ),
               ),
             ],

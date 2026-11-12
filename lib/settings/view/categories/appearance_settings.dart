@@ -55,26 +55,9 @@ class AppearanceSettings extends StatelessWidget {
           id: AppearanceAnchors.style,
           child: _StylePicker(value: settings.style, onChanged: cubit.setStyle),
         ),
-        if (terminal)
-          SettingsAnchor(
-            id: AppearanceAnchors.terminalAccent,
-            child: _AccentRow(
-              child: AccentColorPicker(
-                key: const Key('settings_terminal_accent'),
-                options: AccentColorOption.terminalOptions,
-                selected: settings.terminalAccent,
-                onSelected: cubit.setTerminalAccent,
-              ),
-            ),
-          ),
-        SettingsAnchor(
-          id: AppearanceAnchors.theme,
-          child: _ThemeModePicker(
-            value: settings.themeMode,
-            subtitle: terminal ? l10n.settingsThemeTerminalSubtitle : null,
-            onChanged: cubit.setThemeMode,
-          ),
-        ),
+        // The colours first, in both styles right below the style: Material
+        // You, then the accent (the terminal's or, without Material You, the
+        // classic one).
         if (dynamicColor)
           SettingsAnchor(
             id: AppearanceAnchors.dynamicColor,
@@ -87,6 +70,36 @@ class AppearanceSettings extends StatelessWidget {
               onChanged: (value) => cubit.setDynamicColor(enabled: value),
             ),
           ),
+        if (terminal)
+          SettingsAnchor(
+            id: AppearanceAnchors.terminalAccent,
+            child: _AccentRow(
+              child: AccentColorPicker(
+                key: const Key('settings_terminal_accent'),
+                options: AccentColorOption.terminalOptions,
+                selected: settings.terminalAccent,
+                onSelected: cubit.setTerminalAccent,
+              ),
+            ),
+          ),
+        if (showAccent)
+          SettingsAnchor(
+            id: AppearanceAnchors.accentColor,
+            child: _AccentRow(
+              child: AccentColorPicker(
+                selected: settings.seedColor,
+                onSelected: cubit.setSeedColor,
+              ),
+            ),
+          ),
+        SettingsAnchor(
+          id: AppearanceAnchors.theme,
+          child: _ThemeModePicker(
+            value: settings.themeMode,
+            subtitle: terminal ? l10n.settingsThemeTerminalSubtitle : null,
+            onChanged: cubit.setThemeMode,
+          ),
+        ),
         if (!terminal)
           SettingsAnchor(
             id: AppearanceAnchors.darkLook,
@@ -129,16 +142,6 @@ class AppearanceSettings extends StatelessWidget {
             onChanged: (value) => cubit.setHighlightSpokenWord(enabled: value),
           ),
         ),
-        if (showAccent)
-          SettingsAnchor(
-            id: AppearanceAnchors.accentColor,
-            child: _AccentRow(
-              child: AccentColorPicker(
-                selected: settings.seedColor,
-                onSelected: cubit.setSeedColor,
-              ),
-            ),
-          ),
       ],
     );
   }

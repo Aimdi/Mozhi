@@ -298,7 +298,9 @@ void main() {
     test('aborts a request still waiting for its answer', () async {
       server.hang = true;
       final install = manager.install(deu.language);
-      await pumpEventQueue();
+      // Sent once the manager has looked at what is on disk (real I/O, so
+      // not after a fixed number of event-loop turns).
+      await server.requested.future;
       expect(server.requests, hasLength(1));
       expect(server.requests.single, isA<http.Abortable>());
 

@@ -242,6 +242,9 @@ String offlineOutcomeMessage(
       null when mirror != null => l10n.offlineErrorNetworkMirror(name, mirror),
       null => l10n.offlineErrorNetwork(name),
     },
+    OfflineModelErrorKind.browserRefused => l10n.offlineErrorBrowserRefused(
+      name,
+    ),
     OfflineModelErrorKind.storage => l10n.offlineErrorStorage(name),
     OfflineModelErrorKind.space => switch (error.space) {
       final space? => l10n.commonNotEnoughSpaceFor(
@@ -560,52 +563,98 @@ class _Overview extends StatelessWidget {
               ),
             ),
           ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Text(l10n.offlineDescriptionMozilla, style: secondary),
+        _More(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Text(l10n.offlineDescriptionMozilla, style: secondary),
+            ),
+            if (state.hasDetails) ...[
+              _Note(icon: Icons.alt_route, text: l10n.offlineViaEnglish),
+              _Note(
+                icon: Icons.verified_outlined,
+                text: switch (modelSourceHost(_modelSource(context))) {
+                  final host? => l10n.offlineModelSourceMirror(host),
+                  null => l10n.offlineModelSource,
+                },
+              ),
+              if (kIsWeb && state.isAvailable)
+                _Note(
+                  icon: Icons.web_outlined,
+                  text: l10n.offlineWebStorageNote,
+                ),
+            ],
+            const SizedBox(height: 8),
+            SwitchListTile(
+              secondary: const Icon(Icons.wifi),
+              title: Text(l10n.offlineWifiOnly),
+              subtitle: Text(
+                l10n.offlineWifiOnlyAsk,
+                style: TextStyle(color: palette.secondaryText),
+              ),
+              value: state.wifiOnly,
+              onChanged: state.isAvailable
+                  ? (enabled) => unawaited(
+                      context.read<OfflineModelsCubit>().setWifiOnly(
+                        enabled: enabled,
+                      ),
+                    )
+                  : null,
+            ),
+            // Where this page's (and voice input's) models come from.
+            const ModelSourceTile(),
+            if (state.canImport) _ImportTile(importing: state.importing),
+            if (textRecognition case final data? when data.isSupported)
+              OcrLanguagesEntry(data: data),
+            if (maybeDictionaryPacks(context) case final packs?)
+              DictionaryPacksEntry(packs: packs),
+            // AI translation and the extras on this phone (Android).
+            const OnDeviceAiOfflineEntry(),
+            // Phone to phone with the packs selected (Android).
+            const SharePacksEntry(),
+          ],
         ),
-        if (state.hasDetails) ...[
-          _Note(icon: Icons.alt_route, text: l10n.offlineViaEnglish),
-          _Note(
-            icon: Icons.verified_outlined,
-            text: switch (modelSourceHost(_modelSource(context))) {
-              final host? => l10n.offlineModelSourceMirror(host),
-              null => l10n.offlineModelSource,
-            },
-          ),
-          if (kIsWeb && state.isAvailable)
-            _Note(icon: Icons.web_outlined, text: l10n.offlineWebStorageNote),
-        ],
-        const SizedBox(height: 8),
-        SwitchListTile(
-          secondary: const Icon(Icons.wifi),
-          title: Text(l10n.offlineWifiOnly),
-          subtitle: Text(
-            l10n.offlineWifiOnlyAsk,
-            style: TextStyle(color: palette.secondaryText),
-          ),
-          value: state.wifiOnly,
-          onChanged: state.isAvailable
-              ? (enabled) => unawaited(
-                  context.read<OfflineModelsCubit>().setWifiOnly(
-                    enabled: enabled,
-                  ),
-                )
-              : null,
-        ),
-        // Where this page's (and voice input's) models come from.
-        const ModelSourceTile(),
-        if (state.canImport) _ImportTile(importing: state.importing),
-        if (textRecognition case final data? when data.isSupported)
-          OcrLanguagesEntry(data: data),
-        if (maybeDictionaryPacks(context) case final packs?)
-          DictionaryPacksEntry(packs: packs),
-        // AI translation and the extras on this phone (Android).
-        const OnDeviceAiOfflineEntry(),
-        // Phone to phone with the packs selected (Android).
-        const SharePacksEntry(),
         const Hairline(),
       ],
+    );
+  }
+}
+
+/// The explanation and settings of the offline languages page: shown as
+/// they are in a wide window; on a phone ([compactWidth]) folded into
+/// "About and settings", so that the first languages are on screen
+/// without scrolling.
+class _More extends StatelessWidget {
+  const new({required this.children});
+
+  final List<Widget> children;
+
+  /// Windows narrower than this fold the section.
+  static const compactWidth = 600.0;
+
+  @override
+  Widget build(BuildContext context) {
+    if (MediaQuery.sizeOf(context).width >= compactWidth) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: children,
+      );
+    }
+    final l10n = context.l10n;
+    final palette = AppPalette.of(context);
+    return ExpansionTile(
+      key: const PageStorageKey('offline_more'),
+      leading: const Icon(Icons.tune),
+      title: Text(l10n.offlineMoreTitle),
+      subtitle: Text(
+        l10n.offlineMoreSubtitle,
+        style: TextStyle(color: palette.secondaryText),
+      ),
+      shape: const Border(),
+      collapsedShape: const Border(),
+      expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
+      childrenPadding: const EdgeInsets.only(bottom: 8),
+      children: children,
     );
   }
 }

@@ -61,6 +61,36 @@ void main() {
       expect(find.byType(CircularProgressIndicator), findsNothing);
     });
 
+    testWidgets('a phone shows languages first, the settings folded', (
+      tester,
+    ) async {
+      tester.view
+        ..physicalSize = const Size(390, 844)
+        ..devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpApp(
+        OfflineModelsPage(translator: translator, store: store),
+      );
+      await tester.pumpAndSettle();
+      final more = find.byKey(const PageStorageKey('offline_more'));
+      expect(more, findsOneWidget);
+      expect(find.text('About and settings'), findsOneWidget);
+      expect(find.byType(SwitchListTile), findsNothing);
+      // The first language is on screen without scrolling.
+      final first = find.byType(OfflineLanguageTile).first;
+      expect(tester.getBottomLeft(first).dy, lessThan(844));
+
+      await tester.tap(find.text('About and settings'));
+      await tester.pumpAndSettle();
+      expect(find.byType(SwitchListTile), findsOneWidget);
+    });
+
+    testWidgets('a wide window shows the settings as they are', (tester) async {
+      await pumpPage(tester);
+      expect(find.byKey(const PageStorageKey('offline_more')), findsNothing);
+      expect(find.byType(SwitchListTile), findsOneWidget);
+    });
+
     testWidgets('lists downloaded and available languages', (tester) async {
       await pumpPage(tester);
       expect(find.text('Offline languages'), findsOneWidget);
@@ -569,6 +599,18 @@ void main() {
       expect(
         message(OfflineModelOperation.delete, succeeded: true),
         'German deleted',
+      );
+    });
+
+    test('blames the browser, not the connection, for a refusal', () {
+      expect(
+        message(
+          OfflineModelOperation.download,
+          error: const OfflineModelError(OfflineModelErrorKind.browserRefused),
+        ),
+        'Couldn’t download German: its original publisher doesn’t let web '
+        'pages download it. Choose a mirror as the model source, or import '
+        'the files.',
       );
     });
 

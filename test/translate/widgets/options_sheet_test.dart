@@ -221,6 +221,65 @@ void main() {
       verifyNever(() => harness.translate.setOptions(any()));
     });
 
+    testWidgets('a typed pair is added on Done (without "+")', (tester) async {
+      final harness = await _open(tester);
+      await tester.enterText(
+        find.byKey(const Key('translate_glossary_source')),
+        'report',
+      );
+      await tester.enterText(
+        find.byKey(const Key('translate_glossary_target')),
+        'compte rendu',
+      );
+      await tester.tap(find.byKey(const Key('translate_options_done')));
+      await tester.pumpAndSettle();
+      expect(_captured(harness).glossary, {'report': 'compte rendu'});
+      expect(find.byKey(const Key('translate_options_done')), findsNothing);
+    });
+
+    testWidgets('a typed pair is added when the sheet is dismissed', (
+      tester,
+    ) async {
+      final harness = await _open(tester);
+      await tester.enterText(
+        find.byKey(const Key('translate_glossary_source')),
+        'report',
+      );
+      await tester.enterText(
+        find.byKey(const Key('translate_glossary_target')),
+        'compte rendu',
+      );
+      await tester.tapAt(const Offset(10, 10));
+      await tester.pumpAndSettle();
+      expect(_captured(harness).glossary, {'report': 'compte rendu'});
+    });
+
+    testWidgets('Done with half a pair says what is missing', (tester) async {
+      final harness = await _open(tester);
+      final l10n = lookupAppLocalizations(const Locale('en'));
+      await tester.enterText(
+        find.byKey(const Key('translate_glossary_source')),
+        'report',
+      );
+      await tester.tap(find.byKey(const Key('translate_options_done')));
+      await tester.pumpAndSettle();
+      // Still open, nothing dropped or saved.
+      expect(find.byKey(const Key('translate_options_done')), findsOneWidget);
+      expect(find.text(l10n.translateGlossaryIncomplete), findsOneWidget);
+      verifyNever(() => harness.translate.setOptions(any()));
+
+      // Typing goes on: the hint goes away, and Done adds the pair.
+      await tester.enterText(
+        find.byKey(const Key('translate_glossary_target')),
+        'compte rendu',
+      );
+      await tester.pump();
+      expect(find.text(l10n.translateGlossaryIncomplete), findsNothing);
+      await tester.tap(find.byKey(const Key('translate_options_done')));
+      await tester.pumpAndSettle();
+      expect(_captured(harness).glossary, {'report': 'compte rendu'});
+    });
+
     testWidgets('glossary terms can be removed', (tester) async {
       final harness = await _open(
         tester,

@@ -7,17 +7,21 @@ import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/dictionary/cubit/dictionary_cubit.dart';
 import 'package:mozhi/dictionary/widgets/dictionary_language_picker.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 /// Opens the searchable list of the word's languages ([source]) or of the
 /// translations' languages and applies the choice to the
-/// [DictionaryCubit] of [context].
+/// [DictionaryCubit] of [context]. The list starts with the pinned and
+/// recent languages of the app's [SettingsCubit] (when there is one), and
+/// the choice becomes a recent language.
 Future<void> pickDictionaryLanguage(
   BuildContext context, {
   required bool source,
 }) async {
   final l10n = context.l10n;
   final cubit = context.read<DictionaryCubit>();
+  final settings = _maybeSettings(context);
   final state = cubit.state;
   final picked = await showDictionaryLanguagePicker(
     context,
@@ -28,12 +32,29 @@ Future<void> pickDictionaryLanguage(
         ? DictionaryLanguageBar.sourceLanguages
         : DictionaryLanguageBar.targetLanguages,
     selected: source ? state.source : state.target,
+    recent: [
+      ...?settings?.state.pinnedLanguages,
+      ...?settings?.state.recentLanguages,
+    ],
   );
   if (picked == null || cubit.isClosed) return;
+  try {
+    settings?.addRecentLanguage(picked);
+  } on Object {
+    // The recent languages are a convenience.
+  }
   if (source) {
     cubit.setSource(picked);
   } else {
     cubit.setTarget(picked);
+  }
+}
+
+SettingsCubit? _maybeSettings(BuildContext context) {
+  try {
+    return context.read<SettingsCubit>();
+  } on ProviderNotFoundException {
+    return null;
   }
 }
 

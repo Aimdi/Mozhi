@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:bloc/bloc.dart';
 import 'package:mozhi/dictionary/cubit/dictionary_state.dart';
+import 'package:mozhi/dictionary/data/dictionary_entry_store.dart';
 import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/history/models/history_entry.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
@@ -37,11 +38,16 @@ export 'dictionary_state.dart';
 /// * History (optional `history` and `settings`): every look-up that finds
 ///   an entry is saved as a dictionary entry of the history
 ///   ([HistoryEntryKind.dictionary]: the word, its languages, the engine,
-///   the detail level and a one-line [historySummary]) when
-///   `AppSettings.saveHistory` is on and incognito is off, exactly like
-///   translations. A new look-up of the same word and languages updates
-///   that entry (`HistoryRepository.add`). [toggleFavorite] stars the shown
-///   entry. History errors never fail a look-up.
+///   the detail level, the detected language, a one-line [historySummary]
+///   and the AI's entry itself) when `AppSettings.saveHistory` is on and
+///   incognito is off, exactly like translations. A new look-up of the
+///   same word and languages updates that entry (`HistoryRepository.add`).
+///   [toggleFavorite] stars the shown entry. [openSaved] shows a saved
+///   look-up without a new request. History errors never fail a look-up.
+/// * The AI's latest entries are kept in memory ([DictionaryEntryCache],
+///   one per repository; not in incognito): looking the same word up
+///   again in the same languages, detail level and engine shows the kept
+///   entry ([DictionaryState.saved]); [refresh] asks the AI again.
 /// * The engine follows the app's AI engine ([setEngine], [updateEngines])
 ///   until the user picks one for the dictionary ([pickEngine]), which is
 ///   then kept while it is available (not saved: like Proofread's model).
@@ -65,8 +71,10 @@ class DictionaryCubit extends Cubit<DictionaryState> {
     this._settings,
     this._identifyLanguage,
     this._offlineDictionary,
+    DictionaryEntryCache? cache,
     DateTime Function()? clock,
   }) : _clock = clock ?? DateTime.now,
+       _cache = cache ?? DictionaryEntryCache.of(_repository),
        super(
          DictionaryState(
            word: _cut(word),
@@ -113,6 +121,10 @@ class DictionaryCubit extends Cubit<DictionaryState> {
   final HistoryCubit? _history;
   final SettingsCubit? _settings;
   final DateTime Function() _clock;
+
+  /// The latest AI entries, so that looking a word up again does not ask
+  /// the AI again (see [refresh]).
+  final DictionaryEntryCache _cache;
 
   /// Identifies the language of a text on the device (null: unknown).
   final Future<String?> Function(String text)? _identifyLanguage;
@@ -261,18 +273,37 @@ class DictionaryCubit extends Cubit<DictionaryState> {
     emit(state.copyWith(word: cut));
   }
 
+  /// The user chose [language] for the word (remembered in the settings,
+  /// [SettingsCubit.setDictionaryLanguages]).
   void setSource(Language language) {
     if (language == state.source || language.isCustom) return;
     emit(state.copyWith(source: language));
+    _rememberLanguages();
     _refresh();
   }
 
+  /// The user chose [language] for the translations (remembered like
+  /// [setSource]).
   void setTarget(Language language) {
     if (language == state.target || language.isAuto || language.isCustom) {
       return;
     }
     emit(state.copyWith(target: language));
+    _rememberLanguages();
     _refresh();
+  }
+
+  /// Saves the languages the user chose, so the dictionary starts with
+  /// them next time.
+  void _rememberLanguages() {
+    try {
+      _settings?.setDictionaryLanguages(
+        source: state.source,
+        target: state.target,
+      );
+    } on Object {
+      // Settings must never break a look-up.
+    }
   }
 
   /// Sets how much a look-up asks for. The shown (or loading) entry is
@@ -333,6 +364,78 @@ class DictionaryCubit extends Cubit<DictionaryState> {
     return lookUp();
   }
 
+  /// Shows the look-up [saved] (a dictionary entry of the history) as it
+  /// was kept: its word, languages, detail level and entry, without asking
+  /// the AI again ([DictionaryState.saved]; [refresh] does). A look-up
+  /// kept without its entry (an offline dictionary's, or one saved before
+  /// entries were kept) is looked up again, like [open].
+  Future<void> openSaved(HistoryEntry saved) {
+    final entry = decodeDictionaryEntry(saved.dictionaryJson);
+    final source = saved.source;
+    final target = saved.target;
+    if (entry == null) {
+      return open(
+        saved.text,
+        source: source,
+        target: target,
+        verbosity: saved.verbosity,
+      );
+    }
+    _pending = false;
+    final word = _cut(saved.text.trim());
+    final engine = TranslationEngine(
+      id: saved.engineId,
+      kind: EngineKind.ai,
+      name: saved.engineName,
+    );
+    _aiRequest = true;
+    final request = ++_request;
+    _entryEngine = engine;
+    final language = source.isAuto
+        ? saved.detectedSource ?? dictionaryScriptLanguage(entry.word)
+        : source.code;
+    emit(
+      state.copyWith(
+        word: word,
+        source: source.isCustom ? null : source,
+        target: target.isAuto || target.isCustom ? null : target,
+        verbosity: saved.verbosity,
+        status: DictionaryStatus.success,
+        saved: true,
+        entry: () => entry,
+        lookedUp: word,
+        error: () => null,
+        entryLanguage: () => language,
+        offlineAnswer: () => null,
+        suggestions: const [],
+      ),
+    );
+    if (!(_settings?.state.incognito ?? false)) {
+      _cache.put(
+        word,
+        entry,
+        source: state.source,
+        target: state.target,
+        verbosity: state.verbosity,
+        engineId: engine.id,
+      );
+    }
+    if (source.isAuto && language == null) {
+      unawaited(_identify(entry, request));
+    }
+    return Future.value();
+  }
+
+  /// Asks the AI again for the shown entry (a [DictionaryState.saved] one:
+  /// from the history or looked up a little earlier). Nothing without an
+  /// engine or an entry.
+  Future<void> refresh() {
+    final engine = state.engine;
+    final word = state.lookedUp.isNotEmpty ? state.lookedUp : state.word.trim();
+    if (engine == null || word.isEmpty) return Future.value();
+    return _lookUp(engine, word, fresh: true);
+  }
+
   /// Adds the shown entry to the favorites, or takes it out: toggles the
   /// favorite of its look-up in the history (`HistoryState.lookUpOf`), or
   /// saves the look-up as a favorite when the history does not have it
@@ -376,6 +479,7 @@ class DictionaryCubit extends Cubit<DictionaryState> {
             source: state.source,
             target: state.target,
             verbosity: state.verbosity,
+            detected: state.entryLanguage,
             isFavorite: true,
           ),
         );
@@ -389,6 +493,7 @@ class DictionaryCubit extends Cubit<DictionaryState> {
   void swap() {
     if (!state.canSwap) return;
     emit(state.copyWith(source: state.target, target: state.source));
+    _rememberLanguages();
     _refresh();
   }
 
@@ -400,6 +505,7 @@ class DictionaryCubit extends Cubit<DictionaryState> {
       state.copyWith(
         word: '',
         status: DictionaryStatus.idle,
+        saved: false,
         entry: () => null,
         lookedUp: '',
         error: () => null,
@@ -419,6 +525,7 @@ class DictionaryCubit extends Cubit<DictionaryState> {
     emit(
       state.copyWith(
         status: DictionaryStatus.idle,
+        saved: false,
         entry: () => null,
         lookedUp: '',
         error: () => null,
@@ -481,6 +588,7 @@ class DictionaryCubit extends Cubit<DictionaryState> {
     emit(
       state.copyWith(
         status: DictionaryStatus.loading,
+        saved: false,
         entry: () => null,
         lookedUp: word,
         error: () => null,
@@ -511,6 +619,7 @@ class DictionaryCubit extends Cubit<DictionaryState> {
           source: source,
           target: target,
           verbosity: verbosity,
+          detected: source.isAuto ? answer.language : null,
         );
       }
       return;
@@ -600,17 +709,39 @@ class DictionaryCubit extends Cubit<DictionaryState> {
     if (_pending && state.hasOfflineDictionaries) unawaited(lookUp());
   }
 
-  /// Looks [word] up with [engine] and the current verbosity.
-  Future<void> _lookUp(TranslationEngine engine, String word) async {
+  /// Looks [word] up with [engine] and the current verbosity: the entry
+  /// the AI wrote for the same look-up a little earlier
+  /// ([DictionaryEntryCache], not in incognito) unless [fresh], else a new
+  /// request.
+  Future<void> _lookUp(
+    TranslationEngine engine,
+    String word, {
+    bool fresh = false,
+  }) async {
     final verbosity = state.verbosity;
     final source = state.source;
     final target = state.target;
     _pending = false;
     _aiRequest = true;
     final request = ++_request;
+    final incognito = _settings?.state.incognito ?? false;
+    final cached = fresh || incognito
+        ? null
+        : _cache.get(
+            word,
+            source: source,
+            target: target,
+            verbosity: verbosity,
+            engineId: engine.id,
+          );
+    if (cached != null) {
+      _show(engine, cached, word: word, request: request, saved: true);
+      return;
+    }
     emit(
       state.copyWith(
         status: DictionaryStatus.loading,
+        saved: false,
         entry: () => null,
         lookedUp: word,
         error: () => null,
@@ -629,29 +760,18 @@ class DictionaryCubit extends Cubit<DictionaryState> {
         verbosity: verbosity,
       );
       _recordUsage(engine, word, entry);
-      if (isClosed || request != _request) return;
-      _entryEngine = engine;
-      final known = source.isAuto ? dictionaryScriptLanguage(entry.word) : null;
-      emit(
-        state.copyWith(
-          status: DictionaryStatus.success,
-          entry: () => entry,
-          entryLanguage: () => source.isAuto ? known : source.code,
-        ),
-      );
-      if (source.isAuto && known == null) {
-        unawaited(_identify(entry, request));
-      }
-      if (!state.isEmptyEntry) {
-        _record(
-          engine,
+      if (!incognito && !_isEmpty(entry)) {
+        _cache.put(
+          word,
           entry,
-          word: word,
           source: source,
           target: target,
           verbosity: verbosity,
+          engineId: engine.id,
         );
       }
+      if (isClosed || request != _request) return;
+      _show(engine, entry, word: word, request: request);
     } on Object catch (error, stackTrace) {
       if (isClosed || request != _request) return;
       addError(error, stackTrace);
@@ -661,13 +781,64 @@ class DictionaryCubit extends Cubit<DictionaryState> {
     }
   }
 
+  /// Whether [entry] says nothing (see [DictionaryState.isEmptyEntry]): it
+  /// is not kept for later, the next look-up asks again.
+  static bool _isEmpty(DictionaryEntry entry) =>
+      DictionaryState(entry: entry).isEmptyEntry;
+
+  /// Shows [entry], the AI's entry for [word] (the look-up [request]) in
+  /// the current languages and detail level, and saves it in the history.
+  /// With "Detect language" the word's language is identified first (when
+  /// it can be), so the history and phrases made of it have it.
+  void _show(
+    TranslationEngine engine,
+    DictionaryEntry entry, {
+    required String word,
+    required int request,
+    bool saved = false,
+  }) {
+    final source = state.source;
+    final target = state.target;
+    final verbosity = state.verbosity;
+    _entryEngine = engine;
+    final known = source.isAuto ? dictionaryScriptLanguage(entry.word) : null;
+    emit(
+      state.copyWith(
+        status: DictionaryStatus.success,
+        saved: saved,
+        entry: () => entry,
+        lookedUp: word,
+        error: () => null,
+        entryLanguage: () => source.isAuto ? known : source.code,
+        offlineAnswer: () => null,
+        suggestions: const [],
+      ),
+    );
+    if (state.isEmptyEntry) return;
+    void record(String? detected) => _record(
+      engine,
+      entry,
+      word: word,
+      source: source,
+      target: target,
+      verbosity: verbosity,
+      detected: detected,
+    );
+    if (source.isAuto && known == null && _identifyLanguage != null) {
+      unawaited(_identify(entry, request).then(record));
+    } else {
+      record(known);
+    }
+  }
+
   /// Sets [DictionaryState.entryLanguage] from the on-device identifier
   /// for [entry] (the look-up [request]): its headword, examples and
   /// synonyms are all in the word's language. Unknown codes and failures
-  /// leave it unknown.
-  Future<void> _identify(DictionaryEntry entry, int request) async {
+  /// leave it unknown. Returns the language found (also when another
+  /// look-up has started since), else null.
+  Future<String?> _identify(DictionaryEntry entry, int request) async {
     final identify = _identifyLanguage;
-    if (identify == null) return;
+    if (identify == null) return null;
     final text = [
       entry.word,
       for (final example in entry.examples) example.source,
@@ -678,13 +849,14 @@ class DictionaryCubit extends Cubit<DictionaryState> {
     try {
       code = (await identify(text))?.trim();
     } on Object {
-      return;
+      return null;
     }
-    if (isClosed || request != _request || code == null || code.isEmpty) {
-      return;
+    if (code == null || code.isEmpty) return null;
+    if (LanguageCatalog.byCode(code) == null) return null;
+    if (!isClosed && request == _request) {
+      emit(state.copyWith(entryLanguage: () => code));
     }
-    if (LanguageCatalog.byCode(code) == null) return;
-    emit(state.copyWith(entryLanguage: () => code));
+    return code;
   }
 
   /// Looks the word up again after a language change, once something was
@@ -719,6 +891,7 @@ class DictionaryCubit extends Cubit<DictionaryState> {
     required Language source,
     required Language target,
     required DictionaryVerbosity verbosity,
+    String? detected,
   }) {
     final history = _history;
     final settings = _settings?.state;
@@ -736,6 +909,7 @@ class DictionaryCubit extends Cubit<DictionaryState> {
         source: source,
         target: target,
         verbosity: verbosity,
+        detected: detected,
       );
       unawaited(history.add(saved).then((_) {}, onError: (Object _) {}));
     } on Object {
@@ -743,7 +917,10 @@ class DictionaryCubit extends Cubit<DictionaryState> {
     }
   }
 
-  /// The history entry of the look-up of [word] that found [entry].
+  /// The history entry of the look-up of [word] that found [entry]: its
+  /// summary, the language [detected] for "Detect language" and, for an
+  /// entry of the AI, the entry itself ([HistoryEntry.dictionaryJson]), so
+  /// that opening it needs no new request.
   HistoryEntry _historyEntry(
     TranslationEngine engine,
     DictionaryEntry entry, {
@@ -751,9 +928,11 @@ class DictionaryCubit extends Cubit<DictionaryState> {
     required Language source,
     required Language target,
     required DictionaryVerbosity verbosity,
+    String? detected,
     bool isFavorite = false,
   }) {
     final now = _clock();
+    final language = detected?.trim();
     return HistoryEntry(
       id: '$historyIdPrefix${now.microsecondsSinceEpoch}',
       kind: HistoryEntryKind.dictionary,
@@ -764,8 +943,14 @@ class DictionaryCubit extends Cubit<DictionaryState> {
       engineId: engine.id,
       engineName: engine.name,
       createdAt: now,
+      detectedSource: source.isAuto && language != null && language.isNotEmpty
+          ? language
+          : null,
       verbosity: verbosity,
       isFavorite: isFavorite,
+      dictionaryJson: engine.id == offlineEngineId
+          ? null
+          : encodeDictionaryEntry(entry),
     );
   }
 

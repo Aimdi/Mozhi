@@ -112,7 +112,7 @@ void main() {
         cause: AllInstancesFailedException(
           'boom',
           engine: TranslationEngine.mozhi('google', 'Google'),
-          instances: const [MozhiInstance(url: 'https://mozhi.example')],
+          instances: [MozhiInstance.publicInstances.first],
           statusCode: 502,
         ),
       );

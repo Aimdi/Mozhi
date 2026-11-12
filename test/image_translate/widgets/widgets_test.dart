@@ -839,6 +839,22 @@ void main() {
       );
       expect(find.byType(ChoiceChip), findsNothing);
     });
+
+    testWidgets('shows long method names in full on a phone', (tester) async {
+      await harness.pumpWithCubit(
+        tester,
+        mockImageCubit(working),
+        child: const ImageMethodSelector(),
+        size: const Size(360, 800),
+      );
+      final label = tester.widget<Text>(
+        find.text(l10n.imageTranslateMethodMozhiGoogle),
+      );
+      // Wrapped onto another line when needed, never cut off with "…".
+      expect(label.overflow, isNot(TextOverflow.ellipsis));
+      expect(label.maxLines, isNull);
+      expect(tester.takeException(), isNull);
+    });
   });
 
   group('ImageTranslateButton', () {

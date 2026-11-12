@@ -1,12 +1,16 @@
 import 'package:equatable/equatable.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/core/network/url_credentials.dart';
+import 'package:mozhi/settings/models/conversation_preferences.dart';
 import 'package:mozhi/settings/models/language_pair.dart';
 import 'package:mozhi/settings/models/model_source.dart';
+import 'package:mozhi/settings/models/proofread_preferences.dart';
 import 'package:translation_repository/translation_repository.dart';
 
+export 'conversation_preferences.dart';
 export 'language_pair.dart';
 export 'model_source.dart';
+export 'proofread_preferences.dart';
 
 /// How long non-favourite history entries are kept before they are
 /// deleted automatically. Favourites are always kept.
@@ -107,6 +111,8 @@ class AppSettings extends Equatable {
     this.source = Language.auto,
     this.target = const Language(code: 'en', name: 'English'),
     this.options = const TranslationOptions(),
+    this.proofread = const ProofreadPreferences(),
+    this.conversation = const ConversationPreferences(),
     this.instantTranslate = true,
     this.instantTranslateAi = true,
     this.saveHistory = true,
@@ -143,6 +149,8 @@ class AppSettings extends Equatable {
     this.fallbackToDuckDuckGoChosen = false,
     this.style = AppStyle.terminal,
     this.terminalAccent = kTerminalAmber,
+    this.dictionarySource,
+    this.dictionaryTarget,
   });
 
   /// Tolerant counterpart of [toJson]: missing or invalid fields fall back to
@@ -171,6 +179,12 @@ class AppSettings extends Equatable {
       options:
           _object(json['options'], TranslationOptions.fromJson) ??
           defaults.options,
+      proofread:
+          _object(json['proofread'], ProofreadPreferences.fromJson) ??
+          defaults.proofread,
+      conversation:
+          _object(json['conversation'], ConversationPreferences.fromJson) ??
+          defaults.conversation,
       instantTranslate:
           _bool(json['instantTranslate']) ?? defaults.instantTranslate,
       instantTranslateAi:
@@ -250,6 +264,8 @@ class AppSettings extends Equatable {
         final int accent when kTerminalAccents.contains(accent) => accent,
         _ => defaults.terminalAccent,
       },
+      dictionarySource: _object(json['dictionarySource'], Language.fromJson),
+      dictionaryTarget: _object(json['dictionaryTarget'], Language.fromJson),
     );
   }
 
@@ -315,6 +331,13 @@ class AppSettings extends Equatable {
 
   /// Persisted default translation options (AI engines).
   final TranslationOptions options;
+
+  /// The proofreading options last chosen (style, level, formality, tone,
+  /// reading level, region).
+  final ProofreadPreferences proofread;
+
+  /// The conversation's language pair and voice options as last chosen.
+  final ConversationPreferences conversation;
 
   /// Translate while typing for Mozhi engines (debounced ~600 ms).
   final bool instantTranslate;
@@ -475,6 +498,15 @@ class AppSettings extends Equatable {
   /// [seedColor] (or Material You) instead.
   final int terminalAccent;
 
+  /// The dictionary's word language as the user last chose it (`auto`:
+  /// detect it); null until then (the dictionary starts from the
+  /// translate screen's languages).
+  final Language? dictionarySource;
+
+  /// The language of the dictionary's translations as the user last chose
+  /// it; null until then (see [dictionarySource]).
+  final Language? dictionaryTarget;
+
   /// The theme mode the app uses: [themeMode], except that the terminal
   /// look is dark when it follows the system (it has a light, paper
   /// variant for an explicit "Light").
@@ -512,6 +544,8 @@ class AppSettings extends Equatable {
     Language? source,
     Language? target,
     TranslationOptions? options,
+    ProofreadPreferences? proofread,
+    ConversationPreferences? conversation,
     bool? instantTranslate,
     bool? instantTranslateAi,
     bool? saveHistory,
@@ -548,6 +582,8 @@ class AppSettings extends Equatable {
     bool? fallbackToDuckDuckGoChosen,
     AppStyle? style,
     int? terminalAccent,
+    Language? Function()? dictionarySource,
+    Language? Function()? dictionaryTarget,
   }) {
     return AppSettings(
       themeMode: themeMode ?? this.themeMode,
@@ -563,6 +599,8 @@ class AppSettings extends Equatable {
       source: source ?? this.source,
       target: target ?? this.target,
       options: options ?? this.options,
+      proofread: proofread ?? this.proofread,
+      conversation: conversation ?? this.conversation,
       instantTranslate: instantTranslate ?? this.instantTranslate,
       instantTranslateAi: instantTranslateAi ?? this.instantTranslateAi,
       saveHistory: saveHistory ?? this.saveHistory,
@@ -600,6 +638,12 @@ class AppSettings extends Equatable {
           fallbackToDuckDuckGoChosen ?? this.fallbackToDuckDuckGoChosen,
       style: style ?? this.style,
       terminalAccent: terminalAccent ?? this.terminalAccent,
+      dictionarySource: dictionarySource != null
+          ? dictionarySource()
+          : this.dictionarySource,
+      dictionaryTarget: dictionaryTarget != null
+          ? dictionaryTarget()
+          : this.dictionaryTarget,
     );
   }
 
@@ -631,6 +675,8 @@ class AppSettings extends Equatable {
       'source': source.toJson(),
       'target': target.toJson(),
       'options': {...options.toJson()}..remove('instructions'),
+      'proofread': proofread.toJson(),
+      'conversation': conversation.toJson(),
       'instantTranslate': instantTranslate,
       'instantTranslateAi': instantTranslateAi,
       'saveHistory': saveHistory,
@@ -671,6 +717,10 @@ class AppSettings extends Equatable {
       'fallbackToDuckDuckGoChosen': fallbackToDuckDuckGoChosen,
       'style': style.name,
       'terminalAccent': terminalAccent,
+      if (dictionarySource case final language?)
+        'dictionarySource': language.toJson(),
+      if (dictionaryTarget case final language?)
+        'dictionaryTarget': language.toJson(),
     };
   }
 
@@ -688,6 +738,8 @@ class AppSettings extends Equatable {
     source,
     target,
     options,
+    proofread,
+    conversation,
     instantTranslate,
     instantTranslateAi,
     saveHistory,
@@ -724,6 +776,8 @@ class AppSettings extends Equatable {
     fallbackToDuckDuckGoChosen,
     style,
     terminalAccent,
+    dictionarySource,
+    dictionaryTarget,
   ];
 }
 

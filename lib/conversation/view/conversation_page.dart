@@ -1,9 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/router.dart' show AppRoutes;
 import 'package:mozhi/app/view/top_level_actions.dart';
 import 'package:mozhi/conversation/cubit/conversation_cubit.dart';
+import 'package:mozhi/conversation/data/leave_warning.dart';
 import 'package:mozhi/conversation/models/conversation_mic.dart';
 import 'package:mozhi/conversation/models/conversation_turn.dart';
 import 'package:mozhi/conversation/recognizer/speech_input_conversation_recognizer.dart';
@@ -14,6 +17,8 @@ import 'package:mozhi/conversation/widgets/widgets.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/platform/android_device.dart';
+import 'package:mozhi/settings/cubit/settings_cubit.dart';
+import 'package:mozhi/settings/models/conversation_preferences.dart';
 import 'package:mozhi/speech/speech_service.dart';
 import 'package:mozhi/speech/widgets/speech_error_snack_bar.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
@@ -22,7 +27,6 @@ import 'package:mozhi/translate/widgets/no_engines_view.dart';
 import 'package:mozhi/translate/widgets/status_announcer.dart';
 import 'package:mozhi/usage/data/usage_tracker.dart';
 import 'package:mozhi/voice/speech_input_service.dart';
-import 'package:mozhi/voice/widgets/voice_error_message.dart';
 import 'package:mozhi/voice/widgets/voice_model_offer.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -76,10 +80,18 @@ class ConversationPage extends StatelessWidget {
     return BlocProvider(
       create: (context) {
         final translate = context.read<TranslateCubit>();
-        final languages = ConversationCubit.defaultLanguages(
+        final kept = _settingsOf(context)?.state.conversation;
+        final defaults = ConversationCubit.defaultLanguages(
           translate.state,
           deviceLanguageCode: deviceLanguageCode,
         );
+        // The pair chosen last time, else the defaults.
+        final languages = switch (kept) {
+          ConversationPreferences(languageA: final a?, languageB: final b?)
+              when a != b =>
+            (a: a, b: b),
+          _ => defaults,
+        };
         return ConversationCubit(
           repository: context.read<TranslationRepository>(),
           speech: context.read<SpeechService>(),
@@ -90,22 +102,27 @@ class ConversationPage extends StatelessWidget {
           languageB: languages.b,
           usageTracker: _usageTracker(context),
           recognizer: micBuilder == null ? null : recognizer(context),
+          detectSpeaker: kept?.detectSpeaker ?? true,
+          turnPause:
+              kept?.turnPause ?? ConversationPreferences.defaultTurnPause,
         );
       },
       // While the app is locked the turns stay, hidden behind the lock
       // (AppLockGate: not drawn, not in the accessibility tree): leaving
       // the app must not end a conversation, shared ones included.
-      child: (networkShare ?? runsOnAndroid)
-          ? BlocProvider(
-              create: (context) => ConversationShareCubit.withTranslate(
-                conversation: context.read<ConversationCubit>(),
-                translate: context.read<TranslateCubit>(),
-                repository: context.read<TranslationRepository>(),
-                usageTracker: _usageTracker(context),
-              ),
-              child: ConversationView(micBuilder: micBuilder, share: share),
-            )
-          : ConversationView(micBuilder: micBuilder, share: share),
+      child: _ConversationKeeper(
+        child: (networkShare ?? runsOnAndroid)
+            ? BlocProvider(
+                create: (context) => ConversationShareCubit.withTranslate(
+                  conversation: context.read<ConversationCubit>(),
+                  translate: context.read<TranslateCubit>(),
+                  repository: context.read<TranslationRepository>(),
+                  usageTracker: _usageTracker(context),
+                ),
+                child: ConversationView(micBuilder: micBuilder, share: share),
+              )
+            : ConversationView(micBuilder: micBuilder, share: share),
+      ),
     );
   }
 }
@@ -128,7 +145,7 @@ class ConversationPage extends StatelessWidget {
 /// Face-to-face mode ([ConversationState.faceToFace]) is pushed as a
 /// full-screen route ([ConversationFaceToFaceView]) on the root navigator,
 /// above the tabs; leaving it (its toggle or back) pops it.
-class ConversationView extends StatelessWidget {
+class ConversationView extends StatefulWidget {
   const new({this.micBuilder, this.share = shareConversationText, super.key});
 
   /// At and above this width the two composers sit side by side.
@@ -142,11 +159,22 @@ class ConversationView extends StatelessWidget {
   final ConversationShareCallback share;
 
   @override
+  State<ConversationView> createState() => _ConversationViewState();
+}
+
+class _ConversationViewState extends State<ConversationView> {
+  /// The hands-free conversation's dock (the large microphone and its
+  /// status): snack bars stay above it ([_SnackBarClearance]).
+  final GlobalKey _controls = GlobalKey(debugLabel: 'conversationControls');
+
+  @override
   Widget build(BuildContext context) {
+    final micBuilder = widget.micBuilder;
+    final share = widget.share;
     final l10n = context.l10n;
     final noEngines = _noEngines(context);
     final width = MediaQuery.sizeOf(context).width;
-    final compact = width < compactBreakpoint;
+    final compact = width < ConversationView.compactBreakpoint;
     final handsFree = context.select<ConversationCubit, bool>(
       (cubit) => cubit.state.handsFree,
     );
@@ -191,10 +219,24 @@ class ConversationView extends StatelessWidget {
           ? const NoEnginesView()
           : _StandardLayout(
               micBuilder: micBuilder,
-              wide: width >= wideBreakpoint,
+              wide: width >= ConversationView.wideBreakpoint,
+              controlsKey: _controls,
             ),
     );
 
+    // Its own messenger: snack bars of the conversation are shown above its
+    // controls, never over the microphone.
+    return ScaffoldMessenger(
+      child: _SnackBarClearance(
+        controls: _controls,
+        child: _listeners(scaffold),
+      ),
+    );
+  }
+
+  Widget _listeners(Widget scaffold) {
+    final micBuilder = widget.micBuilder;
+    final share = widget.share;
     return MultiBlocListener(
       listeners: [
         BlocListener<ConversationCubit, ConversationState>(
@@ -203,11 +245,16 @@ class ConversationView extends StatelessWidget {
               current.speechFailures > previous.speechFailures &&
               current.lastSpeechFailure != null,
           listener: (context, state) {
-            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+            // Face-to-face mode covers the page: its snack bars are the
+            // app's.
+            final shown = state.faceToFace
+                ? Navigator.of(context, rootNavigator: true).context
+                : context;
+            ScaffoldMessenger.of(shown).hideCurrentSnackBar();
             final failure = state.lastSpeechFailure!;
             final cubit = context.read<ConversationCubit>();
             showSpeechErrorSnackBar(
-              context,
+              shown,
               failure.error,
               // Asked once: a refusal after consent only says why.
               onListenOnline: failure.asked
@@ -249,9 +296,10 @@ class ConversationView extends StatelessWidget {
 /// away ([offerVoiceModel]) and the conversation goes on listening once
 /// the model is installed (not when the app is in the background
 /// meanwhile); everything else, and a model that still does not work
-/// after the offer, is explained in a snack bar with a way forward
-/// ([showVoiceInputErrorSnackBar]: "Open settings" for a denied
-/// microphone, "Download model").
+/// after the offer, is explained once, by the status line above the
+/// microphone (`ConversationSessionStatus`, with "Open settings" for a
+/// denied microphone or "Download model"), not in a snack bar too, which
+/// would cover the microphone.
 class _VoiceFailureHandler extends StatefulWidget {
   const new({required this.child});
 
@@ -295,12 +343,7 @@ class _VoiceFailureHandlerState extends State<_VoiceFailureHandler> {
           service: service,
           offline: offline,
         )) {
-      showVoiceInputErrorSnackBar(
-        context,
-        failed.failure,
-        onDevice: failed.onDevice,
-        offlineSupported: failed.offlineSupported,
-      );
+      // The status line explains it.
       return;
     }
     final cubit = context.read<ConversationCubit>();
@@ -395,7 +438,12 @@ class _SessionGuardState extends State<_SessionGuard> {
     if (shown && _shown != true) {
       // After the frame: the messenger cannot change while building.
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) ScaffoldMessenger.maybeOf(context)?.hideCurrentSnackBar();
+        if (!mounted) return;
+        // The app's messenger: the conversation has its own, whose snack
+        // bars stay above the microphone.
+        context
+            .findRootAncestorStateOfType<ScaffoldMessengerState>()
+            ?.hideCurrentSnackBar();
       });
     }
     _shown = shown;
@@ -426,8 +474,10 @@ class _SessionGuardState extends State<_SessionGuard> {
 /// * why a hands-free conversation paused and how to go on
 ///   ([conversationSessionStatus]), unless something of the conversation
 ///   is read aloud. A pause because a translation may only be read aloud
-///   online, and voice input failures, are explained by their snack bars,
-///   which screen readers announce already.
+///   online is explained by its snack bar, which screen readers announce
+///   already;
+/// * why voice input failed (the status line above the microphone says it,
+///   not a snack bar).
 class _ConversationAnnouncer extends StatefulWidget {
   const new({required this.child});
 
@@ -473,6 +523,11 @@ class _ConversationAnnouncerState extends State<_ConversationAnnouncer> {
     _say(('pause', ++_pauses), conversationSessionStatus(context.l10n, state));
   }
 
+  void _onFailed(BuildContext context, ConversationState state) => _say((
+    'pause',
+    ++_pauses,
+  ), conversationSessionStatus(context.l10n, state));
+
   @override
   Widget build(BuildContext context) => MultiBlocListener(
     listeners: [
@@ -485,6 +540,12 @@ class _ConversationAnnouncerState extends State<_ConversationAnnouncer> {
             current.session is ConversationSessionPaused &&
             previous.session != current.session,
         listener: _onPaused,
+      ),
+      BlocListener<ConversationCubit, ConversationState>(
+        listenWhen: (previous, current) =>
+            current.session is ConversationSessionFailed &&
+            previous.session != current.session,
+        listener: _onFailed,
       ),
     ],
     child: StatusAnnouncer(
@@ -536,6 +597,9 @@ class _FaceToFacePresenter extends StatefulWidget {
 class _FaceToFacePresenterState extends State<_FaceToFacePresenter> {
   Route<void>? _route;
 
+  /// The face-to-face page opened through the router (until it closes).
+  ConversationFaceToFaceLaunch? _launch;
+
   @override
   void initState() {
     super.initState();
@@ -559,9 +623,37 @@ class _FaceToFacePresenterState extends State<_FaceToFacePresenter> {
   }
 
   void _show() {
-    if (!mounted || _route != null) return;
+    if (!mounted || _route != null || _launch != null) return;
     final cubit = context.read<ConversationCubit>();
     final shareCubit = maybeConversationShare(context);
+    if (GoRouter.maybeOf(context) case final router?) {
+      // A location of its own: back (the browser's too) closes it.
+      late final ConversationFaceToFaceLaunch launch;
+      launch = _launch = ConversationFaceToFaceLaunch(
+        conversation: cubit,
+        share: shareCubit,
+        micBuilder: widget.micBuilder,
+        shareText: widget.share,
+        onRoute: (route) {
+          if (identical(_launch, launch)) _route = route;
+        },
+        onClosed: () {
+          if (!identical(_launch, launch)) return;
+          _launch = null;
+          _route = null;
+          // Not while the navigator removes the page.
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!cubit.isClosed && cubit.state.faceToFace) {
+              cubit.setFaceToFace(enabled: false);
+            }
+          });
+        },
+      );
+      unawaited(
+        router.push<void>(AppRoutes.conversationFaceToFace, extra: launch),
+      );
+      return;
+    }
     final route = _route = MaterialPageRoute<void>(
       builder: (_) {
         final view = BlocProvider<ConversationCubit>.value(
@@ -592,6 +684,7 @@ class _FaceToFacePresenterState extends State<_FaceToFacePresenter> {
   void _hide() {
     final route = _route;
     _route = null;
+    _launch = null;
     if (route == null || !route.isActive) return;
     final navigator = route.navigator!;
     if (route.isCurrent) {
@@ -609,6 +702,92 @@ class _FaceToFacePresenterState extends State<_FaceToFacePresenter> {
         listener: (context, state) => state.faceToFace ? _show() : _hide(),
         child: widget.child,
       );
+}
+
+/// What the face-to-face page ([ConversationFaceToFacePage]) shows, as the
+/// navigation's `extra` of [AppRoutes.conversationFaceToFace]: the
+/// conversation's cubits and microphones, and whom to tell about the page.
+class ConversationFaceToFaceLaunch {
+  const new({
+    required this.conversation,
+    this.share,
+    this.micBuilder,
+    this.shareText = shareConversationText,
+    this.onRoute,
+    this.onClosed,
+  });
+
+  final ConversationCubit conversation;
+  final ConversationShareCubit? share;
+  final ConversationMicBuilder? micBuilder;
+  final ConversationShareCallback shareText;
+
+  /// Receives the page's route once it is shown.
+  final ValueChanged<Route<dynamic>>? onRoute;
+
+  /// Called when the page is gone (back, or face-to-face mode ended).
+  final VoidCallback? onClosed;
+}
+
+/// Face-to-face mode at [AppRoutes.conversationFaceToFace]: the
+/// [ConversationFaceToFaceView] of the launch's cubits. Leaving the page
+/// (back) ends face-to-face mode (`ConversationLaunch.onClosed`).
+class ConversationFaceToFacePage extends StatefulWidget {
+  const new({required this.launch, super.key});
+
+  /// The page for the navigation's [extra] (a
+  /// [ConversationFaceToFaceLaunch]); an empty page for anything else (the
+  /// router sends a link without one to the conversation).
+  static Widget fromExtra(Object? extra) =>
+      extra is ConversationFaceToFaceLaunch
+      ? ConversationFaceToFacePage(launch: extra)
+      : const Scaffold(body: SizedBox.shrink());
+
+  final ConversationFaceToFaceLaunch launch;
+
+  @override
+  State<ConversationFaceToFacePage> createState() =>
+      _ConversationFaceToFacePageState();
+}
+
+class _ConversationFaceToFacePageState
+    extends State<ConversationFaceToFacePage> {
+  bool _reported = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_reported) return;
+    if (ModalRoute.of(context) case final route?) {
+      _reported = true;
+      widget.launch.onRoute?.call(route);
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.launch.onClosed?.call();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final launch = widget.launch;
+    final view = BlocProvider<ConversationCubit>.value(
+      value: launch.conversation,
+      child: ConversationFaceToFaceView(
+        micBuilder: launch.micBuilder,
+        share: launch.shareText,
+      ),
+    );
+    return switch (launch.share) {
+      final share? => BlocProvider<ConversationShareCubit>.value(
+        value: share,
+        child: view,
+      ),
+      null => view,
+    };
+  }
 }
 
 /// Face-to-face mode on its own full-screen route (see [ConversationView]):
@@ -645,7 +824,15 @@ class ConversationFaceToFaceView extends StatelessWidget {
 /// their microphones while the conversation is active; while they are
 /// shown on a phone, or with little height, the dock is a single row.
 class _StandardLayout extends StatefulWidget {
-  const new({required this.micBuilder, required this.wide});
+  const new({
+    required this.micBuilder,
+    required this.wide,
+    required this.controlsKey,
+  });
+
+  /// The key of the hands-free conversation's dock (its microphone), which
+  /// snack bars stay above ([_SnackBarClearance]).
+  final GlobalKey controlsKey;
 
   /// Below this height the dock is a single row.
   static const double compactDockHeight = 560;
@@ -706,13 +893,16 @@ class _StandardLayoutState extends State<_StandardLayout> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   if (handsFree)
-                    ConversationSessionDock(
-                      composersShown: composersShown,
-                      onToggleComposers: wide ? null : _toggleComposers,
-                      // One row while typing on a phone or when short.
-                      compact:
-                          (composersShown && !wide) ||
-                          height < _StandardLayout.compactDockHeight,
+                    KeyedSubtree(
+                      key: widget.controlsKey,
+                      child: ConversationSessionDock(
+                        composersShown: composersShown,
+                        onToggleComposers: wide ? null : _toggleComposers,
+                        // One row while typing on a phone or when short.
+                        compact:
+                            (composersShown && !wide) ||
+                            height < _StandardLayout.compactDockHeight,
+                      ),
                     ),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
@@ -747,13 +937,15 @@ class _StandardLayoutState extends State<_StandardLayout> {
                   ),
                   // The transcript keeps some room; with large text or an
                   // open keyboard the controls scroll instead.
-                  ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxHeight: height * _StandardLayout.maxControlsShare,
-                    ),
-                    child: SingleChildScrollView(
-                      reverse: true,
-                      child: controls,
+                  SizeChangedLayoutNotifier(
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxHeight: height * _StandardLayout.maxControlsShare,
+                      ),
+                      child: SingleChildScrollView(
+                        reverse: true,
+                        child: controls,
+                      ),
                     ),
                   ),
                 ],
@@ -812,6 +1004,167 @@ class _FaceToFaceLayout extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// Keeps the floating snack bars of the page's messenger above [controls]
+/// (the hands-free conversation's dock with the large microphone, and all
+/// below it): their bottom inset is raised by that height, measured after
+/// each layout change. Without a dock, and with little room (a short
+/// window, the keyboard open), they stay at the bottom, where they fit.
+class _SnackBarClearance extends StatefulWidget {
+  const new({required this.controls, required this.child});
+
+  final GlobalKey controls;
+  final Widget child;
+
+  /// The most of the page's height the controls may take for snack bars
+  /// to go above them.
+  static const double maxShare = 0.6;
+
+  @override
+  State<_SnackBarClearance> createState() => _SnackBarClearanceState();
+}
+
+class _SnackBarClearanceState extends State<_SnackBarClearance> {
+  double _clearance = 0;
+  bool _scheduled = false;
+
+  void _schedule() {
+    if (_scheduled) return;
+    _scheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scheduled = false;
+      if (!mounted) return;
+      final clearance = _measure();
+      if ((clearance - _clearance).abs() >= 1) {
+        setState(() => _clearance = clearance);
+      }
+    });
+  }
+
+  double _measure() {
+    final page = context.findRenderObject();
+    final controls = widget.controls.currentContext?.findRenderObject();
+    if (page is! RenderBox ||
+        controls is! RenderBox ||
+        !page.hasSize ||
+        !controls.hasSize) {
+      return 0;
+    }
+    final bottom = page.localToGlobal(Offset(0, page.size.height)).dy;
+    final top = controls.localToGlobal(Offset.zero).dy;
+    final clearance = bottom - top;
+    if (clearance <= 0 ||
+        clearance > page.size.height * _SnackBarClearance.maxShare) {
+      return 0;
+    }
+    return clearance;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // A new size or inset moves the controls.
+    MediaQuery.sizeOf(context);
+    MediaQuery.viewInsetsOf(context);
+    _schedule();
+    final theme = Theme.of(context);
+    final inset =
+        theme.snackBarTheme.insetPadding ??
+        const EdgeInsets.fromLTRB(15, 5, 15, 10);
+    return NotificationListener<SizeChangedLayoutNotification>(
+      onNotification: (_) {
+        _schedule();
+        return false;
+      },
+      child: Theme(
+        data: theme.copyWith(
+          snackBarTheme: theme.snackBarTheme.copyWith(
+            // Only floating snack bars can be lifted (the app's are).
+            behavior: SnackBarBehavior.floating,
+            insetPadding: inset.copyWith(bottom: inset.bottom + _clearance),
+          ),
+        ),
+        child: widget.child,
+      ),
+    );
+  }
+}
+
+/// Keeps what the [ConversationCubit] above it should not lose:
+/// * its language pair and voice options ("Detect the speaker", the pause
+///   that ends a turn) in the settings
+///   ([SettingsCubit.setConversationPreferences], restored by
+///   [ConversationPage]);
+/// * its turns, which live in memory only: while there are any, the web
+///   app asks before the page is reloaded or closed ([setLeaveWarning]).
+class _ConversationKeeper extends StatefulWidget {
+  const new({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_ConversationKeeper> createState() => _ConversationKeeperState();
+}
+
+class _ConversationKeeperState extends State<_ConversationKeeper> {
+  bool _warning = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _warn(context.read<ConversationCubit>().state.turns.isNotEmpty);
+  }
+
+  @override
+  void dispose() {
+    _warn(false);
+    super.dispose();
+  }
+
+  void _warn(bool enabled) {
+    if (enabled == _warning) return;
+    _warning = enabled;
+    setLeaveWarning(enabled: enabled);
+  }
+
+  void _keep(BuildContext context, ConversationState state) =>
+      _settingsOf(context)?.setConversationPreferences(
+        ConversationPreferences(
+          languageA: state.languageA,
+          languageB: state.languageB,
+          detectSpeaker: state.detectSpeaker,
+          turnPause: state.turnPause,
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context) => MultiBlocListener(
+    listeners: [
+      BlocListener<ConversationCubit, ConversationState>(
+        listenWhen: (previous, current) =>
+            previous.languageA != current.languageA ||
+            previous.languageB != current.languageB ||
+            previous.detectSpeaker != current.detectSpeaker ||
+            previous.turnPause != current.turnPause,
+        listener: _keep,
+      ),
+      BlocListener<ConversationCubit, ConversationState>(
+        listenWhen: (previous, current) =>
+            previous.turns.isEmpty != current.turns.isEmpty,
+        listener: (context, state) => _warn(state.turns.isNotEmpty),
+      ),
+    ],
+    child: widget.child,
+  );
+}
+
+/// The app-wide settings, or null without them (tests).
+SettingsCubit? _settingsOf(BuildContext context) {
+  try {
+    return context.read<SettingsCubit>();
+  } on ProviderNotFoundException {
+    return null;
   }
 }
 

@@ -10,8 +10,14 @@ import 'package:translation_repository/translation_repository.dart';
 
 import 'helpers/helpers.dart';
 
-const _first = MozhiInstance(url: 'https://user:secret@mozhi.one.example');
-const _second = MozhiInstance(url: 'https://mozhi.two.example');
+const _first = MozhiInstance(
+  url: 'https://user:secret@mozhi.one.example',
+  isCustom: false,
+);
+const _second = MozhiInstance(
+  url: 'https://mozhi.two.example',
+  isCustom: false,
+);
 
 final _googleEngine = TranslationEngine.mozhi('google', 'Google');
 

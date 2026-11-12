@@ -1556,6 +1556,71 @@ void main() {
     );
   });
 
+  group('a language no voice reads', () {
+    blocTest<ConversationCubit, ConversationState>(
+      'is reported once, then its translations are only shown',
+      build: build,
+      act: (cubit) async {
+        when(
+          () => speech.speak(
+            id: any(named: 'id'),
+            text: any(named: 'text'),
+            languageCode: 'es',
+            slow: any(named: 'slow'),
+            allowOnline: any(named: 'allowOnline'),
+          ),
+        ).thenThrow(const SpeechUnavailableException('es'));
+        await cubit.toggleSession();
+        await hear('Hello');
+        await hear('Hola');
+        timers.fire(_echo);
+        await settle();
+        await hear('Hello again');
+        timers.fire(_echo);
+        await settle();
+      },
+      verify: (cubit) {
+        // Spanish failed once; English was read aloud.
+        expect(cubit.state.speechFailures, 1);
+        verifySpoke('Hello!', 'es');
+        verifySpoke('Hola!', 'en');
+        verifyNever(
+          () => speech.speak(
+            id: any(named: 'id'),
+            text: 'Hello again!',
+            languageCode: any(named: 'languageCode'),
+            slow: any(named: 'slow'),
+            allowOnline: any(named: 'allowOnline'),
+          ),
+        );
+        expect(cubit.state.turns.last.translation, 'Hello again!');
+        expect(cubit.state.session, listeningB);
+      },
+    );
+
+    blocTest<ConversationCubit, ConversationState>(
+      'is tried again in a new conversation',
+      build: build,
+      act: (cubit) async {
+        when(
+          () => speech.speak(
+            id: any(named: 'id'),
+            text: any(named: 'text'),
+            languageCode: any(named: 'languageCode'),
+            slow: any(named: 'slow'),
+            allowOnline: any(named: 'allowOnline'),
+          ),
+        ).thenThrow(const SpeechUnavailableException('es'));
+        await cubit.toggleSession();
+        await hear('Hello');
+        await cubit.stopSession();
+        cubit.startSession(side: ConversationSide.a);
+        await hear('Hi');
+      },
+      verify: (cubit) => expect(cubit.state.speechFailures, 2),
+    );
+  });
+
   group('reading aloud by hand', () {
     blocTest<ConversationCubit, ConversationState>(
       'closes the microphone and listens again afterwards',

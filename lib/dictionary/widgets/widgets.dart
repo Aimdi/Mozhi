@@ -8,4 +8,5 @@ export 'dictionary_language_picker.dart';
 export 'dictionary_offline.dart';
 export 'dictionary_options_sheet.dart';
 export 'dictionary_result.dart';
+export 'dictionary_saved_notice.dart';
 export 'dictionary_search_field.dart';

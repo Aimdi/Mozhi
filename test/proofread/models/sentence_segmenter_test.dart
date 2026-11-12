@@ -89,10 +89,113 @@ void main() {
       ]);
     });
 
-    test('splits after etc. before a capital', () {
-      expect(_split('Bring pens, paper etc. We start soon.'), [
-        'Bring pens, paper etc.',
-        'We start soon.',
+    test('keeps etc. and usw. with what follows (no fragment)', () {
+      expect(_split('Bring pens, paper etc. Markers too. Go.'), [
+        'Bring pens, paper etc. Markers too.',
+        'Go.',
+      ]);
+      expect(_split('Äpfel, Birnen usw. Gemüse gab es nicht. Gut.'), [
+        'Äpfel, Birnen usw. Gemüse gab es nicht.',
+        'Gut.',
+      ]);
+    });
+
+    group('German abbreviations', () {
+      test('does not split at spaced dotted abbreviations', () {
+        expect(_split('Obst, z. B. Äpfel, schmeckt gut. Dann gehen wir.'), [
+          'Obst, z. B. Äpfel, schmeckt gut.',
+          'Dann gehen wir.',
+        ]);
+        expect(_split('Er kommt, d. h. Sie warten. Gut.'), [
+          'Er kommt, d. h. Sie warten.',
+          'Gut.',
+        ]);
+        expect(_split('Es kamen u. a. Anna und Ben. Schön.'), [
+          'Es kamen u. a. Anna und Ben.',
+          'Schön.',
+        ]);
+        expect(_split('Das gilt i. d. R. Montags. Sonst nicht.'), [
+          'Das gilt i. d. R. Montags.',
+          'Sonst nicht.',
+        ]);
+        expect(_split('Bücher, Hefte o. Ä. Kosten extra. Ok.'), [
+          'Bücher, Hefte o. Ä. Kosten extra.',
+          'Ok.',
+        ]);
+      });
+
+      test('does not split at unspaced dotted abbreviations', () {
+        expect(_split('Obst, z.B. Äpfel, ist gut. Dann d.h. Birnen. Ja.'), [
+          'Obst, z.B. Äpfel, ist gut.',
+          'Dann d.h. Birnen.',
+          'Ja.',
+        ]);
+        expect(_split('Sie lebt in den U.S.A. Seit Jahren. Toll.'), [
+          'Sie lebt in den U.S.A. Seit Jahren.',
+          'Toll.',
+        ]);
+        expect(_split('Im Jahr 50 v. Chr. Begann es. Dann.'), [
+          'Im Jahr 50 v. Chr. Begann es.',
+          'Dann.',
+        ]);
+      });
+
+      test('does not split at single-word abbreviations', () {
+        for (final text in [
+          'Er wohnt in Nr. 5 hier. Danach.',
+          'Es kostet ca. Zehn Euro hier. Danach.',
+          'Rot bzw. Blau passt hier. Danach.',
+          'Das ist evtl. Unsinn hier. Danach.',
+          'Bitte ggf. Rückmeldung geben. Danach.',
+        ]) {
+          expect(_split(text), hasLength(2), reason: text);
+          expect(_split(text).last, 'Danach.', reason: text);
+        }
+      });
+
+      test('does not split at ordinal numbers and dates', () {
+        expect(_split('Wir treffen uns am 3. Oktober in Bonn. Komm mit.'), [
+          'Wir treffen uns am 3. Oktober in Bonn.',
+          'Komm mit.',
+        ]);
+        expect(_split('Er belegte den 2. Platz im Rennen. Toll.'), [
+          'Er belegte den 2. Platz im Rennen.',
+          'Toll.',
+        ]);
+        expect(_split('Sie wurde der 2. Sieger. Zum 1. Mal! Ja.'), [
+          'Sie wurde der 2. Sieger.',
+          'Zum 1. Mal!',
+          'Ja.',
+        ]);
+        expect(_split('Vom 1. Mai bis 31. Dez. bleibt es zu. Leider.'), [
+          'Vom 1. Mai bis 31. Dez. bleibt es zu.',
+          'Leider.',
+        ]);
+        expect(_split('Am 24. Dezember 2024. Dann kam Silvester.'), [
+          'Am 24. Dezember 2024.',
+          'Dann kam Silvester.',
+        ]);
+      });
+
+      test('still splits after a number that ends a sentence', () {
+        expect(_split('I am 25. My name is Ann.'), [
+          'I am 25.',
+          'My name is Ann.',
+        ]);
+        expect(_split('Wir zählten bis 2024. Dann bis 5. Ende.'), [
+          'Wir zählten bis 2024.',
+          'Dann bis 5.',
+          'Ende.',
+        ]);
+      });
+    });
+
+    test('keeps an English sentence end before a capital', () {
+      expect(_split('I like plan b. A new day. See www.example.com. Ok.'), [
+        'I like plan b.',
+        'A new day.',
+        'See www.example.com.',
+        'Ok.',
       ]);
     });
 

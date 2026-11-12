@@ -12,7 +12,7 @@ import 'package:mozhi/dictionary/data/default_dictionary_packs.dart'
 import 'package:mozhi/dictionary/data/dictionary_packs.dart'
     show DictionaryPacks;
 import 'package:mozhi/dictionary/view/dictionary_page.dart'
-    show DictionaryLaunch, dictionaryEngine, dictionaryUiLanguage;
+    show DictionaryLookUpRequest, dictionaryEngine, dictionaryUiLanguage;
 import 'package:mozhi/dictionary/widgets/dictionary_attribution.dart'
     show DictionaryAttributionLink;
 import 'package:mozhi/dictionary/widgets/dictionary_offline.dart'
@@ -24,6 +24,7 @@ import 'package:mozhi/phrasebook/widgets/add_to_phrasebook.dart'
     show showAddToPhrasebook;
 import 'package:mozhi/phrasebook/widgets/phrasebook_labels.dart'
     show maybePhrasebookRepository;
+import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/widgets/copy_action_button.dart';
 import 'package:mozhi/translate/widgets/language_text.dart';
@@ -171,12 +172,32 @@ class WordLookupSheet extends StatelessWidget {
         sentence: sentence,
         engine: engine,
         uiLanguage: uiLanguage,
+        incognito: _incognito(context),
       );
       unawaited(cubit.load());
       return cubit;
     },
     child: WordLookupView(router: router, packs: packs),
   );
+}
+
+/// The location [router] shows (null when it cannot tell).
+String? _location(GoRouter router) {
+  try {
+    return router.state.uri.toString();
+  } on Object {
+    return null;
+  }
+}
+
+/// Whether the app is in incognito (false without settings, e.g. in
+/// tests).
+bool _incognito(BuildContext context) {
+  try {
+    return context.read<SettingsCubit>().state.incognito;
+  } on ProviderNotFoundException {
+    return false;
+  }
 }
 
 /// The word card: the headword in its language with Listen and Copy, its
@@ -229,6 +250,9 @@ class WordLookupView extends StatelessWidget {
         language == null || language.isAuto || language.isCustom
         ? null
         : language.code;
+    // Back from the dictionary's entry returns here (to this screen), and
+    // the dictionary shows the entry the AI already wrote, if any.
+    final returnTo = _location(router);
     Navigator.of(context).pop();
     router.go(
       AppRoutes.dictionaryWord(
@@ -236,7 +260,12 @@ class WordLookupView extends StatelessWidget {
         from: code(state.language),
         to: code(state.into),
       ),
-      extra: DictionaryLaunch.lookUp,
+      extra: DictionaryLookUpRequest(
+        verbosity: state.onlineEntry != null
+            ? WordLookupService.lookUpVerbosity
+            : null,
+        returnTo: returnTo,
+      ),
     );
   }
 

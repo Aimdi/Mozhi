@@ -10,8 +10,8 @@ import 'package:translation_repository/translation_repository.dart';
 import '../helpers/fake_offline.dart';
 import '../helpers/helpers.dart';
 
-const _one = MozhiInstance(url: 'https://mozhi.one.example');
-const _two = MozhiInstance(url: 'https://mozhi.two.example');
+const _one = MozhiInstance(url: 'https://mozhi.one.example', isCustom: false);
+const _two = MozhiInstance(url: 'https://mozhi.two.example', isCustom: false);
 
 /// What today's public servers answer for Google.
 const _rateLimited = MozhiApiException(

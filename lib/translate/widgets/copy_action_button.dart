@@ -15,8 +15,9 @@ import 'package:mozhi/translate/widgets/status_announcer.dart';
 /// ([tooltip], "Copy" by default) while it shows the check mark.
 ///
 /// [quiet] draws it like the other actions under the translation (a grey
-/// 20 dp icon); otherwise it takes the ambient [IconButton] style. An empty
-/// [text] disables it. Copying ticks lightly (haptics).
+/// 20 dp icon in a 48 dp square on every platform); otherwise it takes
+/// the ambient [IconButton] style. An empty [text] disables it. Copying
+/// ticks lightly (haptics).
 class CopyActionButton extends StatefulWidget {
   const new({required this.text, this.tooltip, this.quiet = false, super.key});
 
@@ -100,6 +101,11 @@ class _CopyActionButtonState extends State<CopyActionButton> {
             ? IconButton.styleFrom(
                 iconSize: 20,
                 foregroundColor: palette.secondaryText,
+                // One 48 dp size with the other actions under the
+                // translation ([XActionButton]), also with a mouse (whose
+                // compact density would shrink it to 40 dp).
+                visualDensity: VisualDensity.standard,
+                minimumSize: const Size.square(kMinInteractiveDimension),
               )
             : null,
         icon: icon,

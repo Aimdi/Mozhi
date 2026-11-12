@@ -11,6 +11,7 @@ import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/settings/view/instances_page.dart';
 import 'package:mozhi/settings/view/widgets/add_instance_dialog.dart';
 import 'package:mozhi/settings/view/widgets/link_launcher.dart';
+import 'package:mozhi/settings/view/widgets/runs_on_web.dart';
 import 'package:mozhi/settings/view/widgets/settings_section.dart';
 import 'package:mozhi_api/mozhi_api.dart' show MozhiPublicInstance;
 // The page shows this session's checks (core/network), not the
@@ -154,7 +155,9 @@ void main() {
       expect(find.text('What is Mozhi?'), findsOneWidget);
       expect(find.textContaining('Self-hosting'), findsOneWidget);
       expect(
-        find.textContaining('only contacted when you check or test'),
+        find.textContaining(
+          'may ask your first instance for its list of engines',
+        ),
         findsOneWidget,
       );
     });
@@ -883,6 +886,28 @@ void main() {
         );
       });
 
+      testWidgets('in the browser, says Tor and I2P cannot be used', (
+        tester,
+      ) async {
+        debugRunsOnWeb = true;
+        addTearDown(() => debugRunsOnWeb = null);
+        // A proxy setting (kept from elsewhere) does not apply here.
+        when(() => settings.state).thenReturn(
+          const AppSettings(instances: [_fast], httpProxy: '127.0.0.1:8118'),
+        );
+        await pump(tester, catalog: catalog);
+
+        expect(find.text('cfmirror.onion'), findsNothing);
+        expect(
+          find.text(
+            "Tor and I2P addresses can't be used in the browser version of "
+            'the app.',
+          ),
+          findsOneWidget,
+        );
+        expect(find.textContaining('once a proxy is set'), findsNothing);
+      });
+
       testWidgets('lists Tor and I2P addresses with a proxy setting', (
         tester,
       ) async {
@@ -1314,6 +1339,25 @@ void main() {
               verify(() => settings.addInstance(captureAny())).captured.single
                   as MozhiInstance;
           expect(added.url, 'http://abc.onion');
+        });
+
+        testWidgets('in the browser, say they cannot be reached', (
+          tester,
+        ) async {
+          debugRunsOnWeb = true;
+          addTearDown(() => debugRunsOnWeb = null);
+          await openDialog(tester);
+          await tester.enterText(field('Instance URL'), 'abc.onion');
+          await tester.pump();
+
+          expect(
+            find.descendant(
+              of: find.byKey(note),
+              matching: find.textContaining('browser version'),
+            ),
+            findsOneWidget,
+          );
+          expect(find.textContaining('privacy settings'), findsNothing);
         });
 
         testWidgets('need no note with an active proxy', (tester) async {

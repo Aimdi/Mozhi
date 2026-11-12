@@ -4,6 +4,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/settings/view/widgets/privacy_settings_section.dart';
+import 'package:mozhi/settings/view/widgets/runs_on_web.dart';
 import 'package:mozhi/settings/view/widgets/settings_section.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -258,7 +259,33 @@ void main() {
       });
     });
 
+    testWidgets('history saving shows that Incognito pauses it', (
+      tester,
+    ) async {
+      await pump(tester, const AppSettings(incognito: true));
+      final tile = tester.widget<SwitchListTile>(
+        find.byKey(const Key('settings_save_history')),
+      );
+      expect(tile.value, isFalse);
+      expect(tile.onChanged, isNull);
+      expect(
+        find.text('Paused while Incognito is on: only favorites are saved'),
+        findsOneWidget,
+      );
+      expect(find.text('Keep translations on this device'), findsNothing);
+    });
+
     group('HTTP proxy', () {
+      tearDown(() => debugRunsOnWeb = null);
+
+      testWidgets('is not offered in the browser', (tester) async {
+        debugRunsOnWeb = true;
+        await pump(tester);
+        expect(find.text('HTTP proxy'), findsNothing);
+        expect(find.byKey(const Key('settings_http_proxy')), findsNothing);
+        expect(PrivacySettingsSection.httpProxySupported, isFalse);
+      });
+
       Future<void> open(WidgetTester tester) async {
         await tester.tap(find.text('HTTP proxy'));
         await tester.pumpAndSettle();

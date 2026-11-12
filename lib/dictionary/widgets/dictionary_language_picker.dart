@@ -12,13 +12,15 @@ String dictionaryLanguageName(AppLocalizations l10n, Language language) =>
     ? l10n.dictionaryDetectLanguage
     : languageDisplayName(language, l10n.localeName);
 
-/// Opens a searchable list of [languages] with [selected] checked; resolves
-/// to the chosen language (null when dismissed).
+/// Opens a searchable list of [languages] with [selected] checked, and the
+/// [recent] ones (pinned and recently used) on top; resolves to the chosen
+/// language (null when dismissed).
 Future<Language?> showDictionaryLanguagePicker(
   BuildContext context, {
   required String title,
   required List<Language> languages,
   required Language selected,
+  List<Language> recent = const [],
 }) => showModalBottomSheet<Language>(
   context: context,
   isScrollControlled: true,
@@ -28,22 +30,31 @@ Future<Language?> showDictionaryLanguagePicker(
     title: title,
     languages: languages,
     selected: selected,
+    recent: recent,
   ),
 );
 
 /// Searchable language list of the dictionary (by English name, native
 /// name or code). Picking a language pops it.
+///
+/// Without a search, the [recent] languages that are among [languages]
+/// come first ("Recent"), above "All languages".
 class DictionaryLanguagePicker extends StatefulWidget {
   const new({
     required this.title,
     required this.languages,
     required this.selected,
+    this.recent = const [],
     super.key,
   });
 
   final String title;
   final List<Language> languages;
   final Language selected;
+
+  /// The pinned and recently used languages, in order (those not among
+  /// [languages] are left out).
+  final List<Language> recent;
 
   @override
   State<DictionaryLanguagePicker> createState() =>
@@ -93,6 +104,21 @@ class _DictionaryLanguagePickerState extends State<DictionaryLanguagePicker> {
     final theme = Theme.of(context);
     final palette = AppPalette.of(context);
     final matches = _matches(l10n);
+    final recent = _query.trim().isNotEmpty
+        ? const <Language>[]
+        : <Language>{
+            for (final language in widget.recent)
+              if (widget.languages.contains(language)) language,
+          }.toList();
+    // Headers, then the languages (recent ones first, keyed apart).
+    final rows = <(String?, Language?, bool)>[
+      if (recent.isNotEmpty) ...[
+        (l10n.dictionaryPickerRecent, null, false),
+        for (final language in recent) (null, language, true),
+        (l10n.dictionaryPickerAll, null, false),
+      ],
+      for (final language in matches) (null, language, false),
+    ];
     // Above the keyboard the search opens, so the results stay in view.
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
@@ -158,14 +184,39 @@ class _DictionaryLanguagePickerState extends State<DictionaryLanguagePicker> {
                       ),
                     )
                   : ListView.separated(
-                      itemCount: matches.length,
-                      separatorBuilder: (_, _) => const Hairline(indent: 80),
+                      itemCount: rows.length,
+                      separatorBuilder: (_, index) =>
+                          rows[index].$1 != null ||
+                              (index + 1 < rows.length &&
+                                  rows[index + 1].$1 != null)
+                          ? const SizedBox.shrink()
+                          : const Hairline(indent: 80),
                       itemBuilder: (context, index) {
-                        final language = matches[index];
+                        final (header, row, isRecent) = rows[index];
+                        if (header != null) {
+                          return Padding(
+                            padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
+                            child: Semantics(
+                              header: true,
+                              child: Text(
+                                header,
+                                style: theme.textTheme.labelLarge?.copyWith(
+                                  color: palette.secondaryText,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          );
+                        }
+                        final language = row!;
                         final selected = language == widget.selected;
                         final native = language.nativeName;
                         return ListTile(
-                          key: ValueKey('dictionary_language_${language.code}'),
+                          key: ValueKey(
+                            isRecent
+                                ? 'dictionary_recent_language_${language.code}'
+                                : 'dictionary_language_${language.code}',
+                          ),
                           contentPadding: const EdgeInsetsDirectional.only(
                             start: 24,
                             end: 16,

@@ -735,7 +735,16 @@ void main() {
 
         await expectLater(
           service.toggle(id: 'target', text: 'Bonjour', languageCode: 'fr'),
-          throwsA(unavailable('fr', cause: isStateError)),
+          throwsA(
+            unavailable(
+              'fr',
+              cause: isA<SpeechPlaybackException>().having(
+                (e) => e.cause,
+                'cause',
+                isStateError,
+              ),
+            ),
+          ),
         );
 
         expect(service.current, isNull);

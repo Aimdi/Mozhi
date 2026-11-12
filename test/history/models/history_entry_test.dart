@@ -277,6 +277,57 @@ void main() {
         );
       });
 
+      group('dictionaryJson', () {
+        const json = '{"word":"gato","senses":[{"definition":"A cat."}]}';
+        final kept = HistoryEntry(
+          id: lookUp.id,
+          kind: HistoryEntryKind.dictionary,
+          text: lookUp.text,
+          translation: lookUp.translation,
+          source: lookUp.source,
+          target: lookUp.target,
+          engineId: lookUp.engineId,
+          engineName: lookUp.engineName,
+          createdAt: lookUp.createdAt,
+          dictionaryJson: json,
+        );
+
+        test('round-trips, is kept by copyWith and takes part in equality', () {
+          expect(kept.toJson()['dictionaryJson'], json);
+          expect(
+            HistoryEntry.fromJson(
+              jsonDecode(jsonEncode(kept.toJson())) as Map<String, dynamic>,
+            ),
+            kept,
+          );
+          expect(kept.copyWith(isFavorite: true).dictionaryJson, json);
+          expect(kept, isNot(lookUp.copyWith(id: kept.id)));
+        });
+
+        test('look-ups saved before it existed have none', () {
+          expect(lookUp.toJson(), isNot(contains('dictionaryJson')));
+          expect(HistoryEntry.fromJson(lookUp.toJson()).dictionaryJson, isNull);
+        });
+
+        test('is ignored on a translation, when blank or not a string', () {
+          expect(
+            HistoryEntry.fromJson({..._entry.toJson(), 'dictionaryJson': json})
+                .dictionaryJson,
+            isNull,
+          );
+          expect(_entry.copyWith().toJson(), isNot(contains('dictionaryJson')));
+          for (final value in ['', 42]) {
+            expect(
+              HistoryEntry.fromJson({
+                ...lookUp.toJson(),
+                'dictionaryJson': value,
+              }).dictionaryJson,
+              isNull,
+            );
+          }
+        });
+      });
+
       test('a look-up without a detail level round-trips', () {
         final entry = HistoryEntry(
           id: lookUp.id,
