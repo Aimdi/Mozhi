@@ -3,6 +3,56 @@
 All notable changes to Mozhi, by release tag on GitHub (pre-releases end
 in `-rc.N`).
 
+## 0.2.0-rc.2
+
+A round of fixes from eight testers using the real app (74 problems found,
+nearly all fixed here).
+
+### Fixed
+
+- **Switching the privacy mode switches the engine**: after choosing
+  Online, translations no longer fail with "Download needed" until a
+  reload; the swap button no longer switches the on-device engine to a
+  language that isn't downloaded.
+- **Honest errors**: your own Mozhi server being down no longer blames
+  "volunteer servers"; an AI provider's server error is not "Couldn't
+  connect"; with Mozhi's Network permission off (GrapheneOS) or a VPN
+  lockdown the error says so and offers the offline languages;
+  "Download needed" makes Download the main button.
+- **Voice**: dictation no longer repeats the spoken text or translates it
+  twice; Transcribe on the web keeps and translates every phrase; in
+  Conversation (Gespräch) no message covers the microphone, each failure
+  is shown once with advice that works on that device, Back leaves
+  face-to-face, and the language pair and voice options are remembered.
+- **Translate screen**: the translation scrolls into view above the
+  keyboard (Terminal and Classic); sheets cover the bottom bar; a
+  glossary term is kept when you tap Done; the Terminal language bar
+  shows names like "Portuguese (Brazil)" instead of codes; one row of
+  equally sized tools; no lone button on a second line; Share is hidden
+  in browsers that would open an empty e-mail.
+- **Proofread (Korrektur)**: tapping a sentence no longer splits German
+  text at "z. B.", "d. h." or "am 3. Oktober"; changing the tone or
+  style after a result marks it out of date with a re-run button; the
+  options are remembered; long texts stay smooth; errors are readable.
+- **Dictionary and History**: saved and favourite look-ups open without
+  asking the AI again (Refresh does); favourites become correct phrases
+  and flashcards; the language pair is remembered; Back returns where
+  you came from; History imports a file; practice buttons are readable
+  in the Terminal style.
+- **Offline and first run**: in a browser, sources it can't download from
+  are explained up front; "Offline only" setup no longer contacts public
+  servers and ends with a language ready; the Offline languages page
+  shows the languages first; tapping "Downloaded" no longer deletes.
+- **Settings**: "Delete all local data" no longer contacts the public
+  servers before setup; changing an AI provider's type resets its
+  preset (Ollama without a key works); unsaved provider edits ask before
+  being thrown away; search finds AI providers, API keys, DeepL and the
+  theme; the web app explains that keys and the proxy don't apply there.
+- **Android**: "Open in Mozhi" from the text-selection menu opens Mozhi in
+  its own window, and Replace is offered only where it works.
+- **Terminal style everywhere**: Dictionary, Proofread, Documents and
+  Image use the Terminal composer too; every tab keeps its number.
+
 ## 0.2.0-rc.1
 
 ### Added
