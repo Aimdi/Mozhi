@@ -77,6 +77,8 @@ async function refuseModelDownloads(context) {
 async function importGerman(page) {
   await openApp(page, '/settings/offline');
   await skipWithoutOnDeviceEngine(page);
+  // On a phone the import row is folded under "About and settings".
+  await page.getByRole('button', { name: /About and settings/ }).click();
   const chooser = page.waitForEvent('filechooser');
   // The row, not the banner's button of the same name (shown when this web
   // server does not host the models, as here).
@@ -92,13 +94,19 @@ async function importGerman(page) {
   await expect(dialog.getByText(/^Installed \W?German\W? → /)).toBeVisible();
   await expect(dialog.getByText(/^Installed \W?English\W? → /)).toBeVisible();
   await dialog.getByRole('button', { name: 'Close' }).click();
+  // Fold "About and settings" again, so the list (and its search) comes
+  // back into view; the fold animates, so wait for the search field.
+  const search = page.getByRole('searchbox', { name: 'Search languages' });
+  await expect(async () => {
+    if (!(await search.isVisible())) {
+      await page.getByRole('button', { name: /About and settings/ }).click();
+    }
+    await expect(search).toBeVisible({ timeout: 3_000 });
+  }).toPass({ timeout: 20_000 });
   // The list is lazy (and the banner takes room): find the row first. It is
   // a group, or a button when it also opens the files to download by hand.
-  await fillField(
-    page.getByRole('searchbox', { name: 'Search languages' }),
-    'German',
-  );
-  const name = /^Delete German .*on this device/;
+  await fillField(search, 'German');
+  const name = /^German .*on this device/;
   await expect(
     page.getByRole('button', { name }).or(page.getByRole('group', { name })),
   ).toBeVisible();

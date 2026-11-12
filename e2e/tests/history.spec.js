@@ -319,16 +319,22 @@ test('a dictionary look-up is saved to History, liked and opened again', async (
   await page.getByRole('tab', { name: 'Favorites' }).click();
   await expect(item).toBeVisible();
 
-  // Opening it looks the word up again on the Dictionary tab. The click
+  // Opening it shows the saved entry on the Dictionary tab, without asking
+  // the AI again (Refresh does that). The click
   // goes to the word: a mouse over the row brings in its Copy, Share and
   // Delete buttons, which on a phone-wide page reach its middle (WebKit
   // draws them before the click lands).
   await item.click({ position: { x: 48, y: 20 } });
   await expect(page.getByRole('tab', { name: 'Dictionary' }))
     .toHaveAttribute('aria-selected', 'true');
-  await expect.poll(() => requests.length).toBe(2);
+  await expect(page.getByRole('heading', { name: 'hello' })).toBeVisible();
+  await expect(page.getByText('Saved entry, not looked up again')).toBeVisible();
   await expect(
     page.getByRole('button', { name: 'Remove from favorites' }),
   ).toBeEnabled();
+  expect(requests.length).toBe(1);
+  // Refresh looks it up again.
+  await page.getByRole('button', { name: /Refresh|Look the word up again/ }).click();
+  await expect.poll(() => requests.length).toBe(2);
   expect(errors).toEqual([]);
 });
