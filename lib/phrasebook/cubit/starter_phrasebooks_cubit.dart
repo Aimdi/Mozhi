@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
-import 'package:flutter/foundation.dart';
+import 'package:mozhi/core/runs_in_browser.dart';
 import 'package:mozhi/phrasebook/data/starter_phrasebooks.dart';
 import 'package:mozhi/phrasebook/models/starter_phrasebook.dart';
 import 'package:mozhi/platform/free_space.dart';
@@ -128,20 +128,23 @@ class StarterPhrasebooksState extends Equatable {
 /// is installed, and their downloads (once, on request, checked against
 /// the catalogue's SHA-256).
 ///
-/// In the web app ([isWeb]), a failed connection while the model source
+/// In the web app (`isWeb`), a failed connection while the model source
 /// reaches the original publishers (`source`, default
 /// [ModelSource.current]: the original publishers, or a mirror that falls
 /// back to them) is [StarterPhrasebookError.browserRefused]: GitHub's
 /// release downloads send no CORS headers.
 class StarterPhrasebooksCubit extends Cubit<StarterPhrasebooksState> {
-  new(this._packs, {this.isWeb = kIsWeb, ModelSource Function()? source})
-    : _source = source ?? _currentSource,
-      super(const StarterPhrasebooksState());
+  new(
+    this._packs, {
+    this._isWeb = runsInBrowser,
+    ModelSource Function()? source,
+  }) : _source = source ?? _currentSource,
+       super(const StarterPhrasebooksState());
 
   final StarterPhrasebooks _packs;
 
   /// Whether the app runs in a browser.
-  final bool isWeb;
+  final bool _isWeb;
 
   final ModelSource Function() _source;
 
@@ -233,7 +236,7 @@ class StarterPhrasebooksCubit extends Cubit<StarterPhrasebooksState> {
           source.kind == ModelSourceKind.defaultHosts ||
           source.fallsBackToDefault;
       return (
-        isWeb && original
+        _isWeb && original
             ? StarterPhrasebookError.browserRefused
             : StarterPhrasebookError.download,
         null,

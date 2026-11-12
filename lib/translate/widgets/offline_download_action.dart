@@ -305,7 +305,10 @@ class _OfflineDownloadActionState extends State<OfflineDownloadAction> {
         Padding(
           padding: const EdgeInsets.only(top: 4),
           child: Text(
-            l10n.translateOfflineNotHostedHint(names),
+            MirrorHostingBuilder.blockOf(context) ==
+                    DownloadBlock.browserRefused
+                ? l10n.offlineBrowserRefusedTitle
+                : l10n.translateOfflineNotHostedHint(names),
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),

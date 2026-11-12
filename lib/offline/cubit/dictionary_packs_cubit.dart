@@ -1,9 +1,9 @@
 import 'dart:async';
 
 import 'package:bloc/bloc.dart';
-import 'package:flutter/foundation.dart';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/core/network/network_policy.dart';
+import 'package:mozhi/core/runs_in_browser.dart';
 import 'package:mozhi/dictionary/data/dictionary_packs.dart';
 import 'package:mozhi/offline/cubit/dictionary_packs_state.dart';
 import 'package:mozhi/offline/cubit/offline_models_cubit.dart';
@@ -301,7 +301,7 @@ class DictionaryPacksCubit extends Cubit<DictionaryPacksState> {
 OfflineModelError dictionaryPackError(
   Object error, {
   Uri? catalogUrl,
-  bool isWeb = kIsWeb,
+  bool isWeb = runsInBrowser,
 }) {
   String? mirrorOf(Uri? url) {
     if (url == null || catalogUrl == null || url.host == catalogUrl.host) {
