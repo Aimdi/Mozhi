@@ -1217,7 +1217,7 @@ void main() {
       );
       expect(
         message(const LlmApiException('x', statusCode: 500)),
-        l10n.translateErrorProvider('500'),
+        l10n.translateErrorProviderServer('500'),
       );
       expect(
         message(const MozhiApiException('x')),
