@@ -64,12 +64,22 @@ class TerminalPanel extends StatelessWidget {
     required this.label,
     required this.child,
     this.show = true,
+    this.trailing,
     super.key,
   });
 
   /// The CLI word above [child] (decoration: hidden from screen readers).
   final String label;
   final Widget child;
+
+  /// Shown at the end of the label's line (e.g. the input's count and
+  /// clear button). With it the line is [trailingLineHeight] high whether
+  /// [trailing] shows anything or not, so nothing moves when it changes.
+  final Widget? trailing;
+
+  /// The height of the label's line with a [trailing] widget: a touch
+  /// target's.
+  static const double trailingLineHeight = kMinInteractiveDimension;
 
   /// Whether the box and its label are drawn.
   final bool show;
@@ -84,6 +94,11 @@ class TerminalPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final palette = AppPalette.of(context);
+    final labelGlyph = TerminalGlyph(
+      label,
+      key: ValueKey('terminal_panel_label:$label'),
+      style: TerminalStyles.label(context),
+    );
     return DecoratedBox(
       decoration: show
           ? BoxDecoration(
@@ -98,15 +113,28 @@ class TerminalPanel extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (show) ...[
-              Align(
-                alignment: AlignmentDirectional.centerStart,
-                child: TerminalGlyph(
-                  label,
-                  key: ValueKey('terminal_panel_label:$label'),
-                  style: TerminalStyles.label(context),
+              if (trailing case final trailing?)
+                SizedBox(
+                  height: trailingLineHeight,
+                  child: Row(
+                    children: [
+                      labelGlyph,
+                      const SizedBox(width: labelGap),
+                      Expanded(
+                        child: Align(
+                          alignment: AlignmentDirectional.centerEnd,
+                          child: trailing,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: labelGlyph,
                 ),
-              ),
-              const SizedBox(height: labelGap),
+              SizedBox(height: trailing == null ? labelGap : labelGap / 2),
             ],
             child,
           ],
@@ -119,14 +147,24 @@ class TerminalPanel extends StatelessWidget {
 /// The square 1 px hairline frame of the terminal look's small tool
 /// buttons, drawn [inset] inside [child] (a 48 dp touch target shows a
 /// 40 dp box, like an icon button's own). Decoration only: [child] keeps
-/// its size, actions and semantics.
+/// its actions and semantics, and is at least [minSize] square, so every
+/// framed tool shows the same box whatever its density (a mouse's compact
+/// density would shrink an icon button to 40 dp).
 class TerminalFrame extends StatelessWidget {
-  const new({required this.child, this.inset = 4, super.key});
+  const new({
+    required this.child,
+    this.inset = 4,
+    this.minSize = kMinInteractiveDimension,
+    super.key,
+  });
 
   final Widget child;
 
   /// Space between the edge of [child] and the frame.
   final double inset;
+
+  /// The smallest width and height of the framed [child].
+  final double minSize;
 
   @override
   Widget build(BuildContext context) {
@@ -135,7 +173,10 @@ class TerminalFrame extends StatelessWidget {
         color: AppPalette.of(context).hairline,
         inset: inset,
       ),
-      child: child,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(minWidth: minSize, minHeight: minSize),
+        child: Center(widthFactor: 1, heightFactor: 1, child: child),
+      ),
     );
   }
 }
@@ -188,8 +229,11 @@ class TerminalTextButton extends StatelessWidget {
         excludeFromSemantics: true,
         child: TextButton(
           style: TextButton.styleFrom(
-            minimumSize: const Size(48, 48),
-            padding: const EdgeInsets.symmetric(horizontal: 14),
+            minimumSize: const Size.square(kMinInteractiveDimension),
+            // 48 dp on every platform, like the framed icon buttons.
+            visualDensity: VisualDensity.standard,
+            tapTargetSize: MaterialTapTargetSize.padded,
+            padding: const EdgeInsets.symmetric(horizontal: 10),
             shape: const RoundedRectangleBorder(),
             foregroundColor: scheme.onSurface,
             backgroundColor: Colors.transparent,

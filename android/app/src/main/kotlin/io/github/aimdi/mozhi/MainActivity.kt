@@ -1,5 +1,6 @@
 package io.github.aimdi.mozhi
 
+import android.Manifest
 import android.app.Activity
 import android.app.ActivityManager
 import android.content.ClipData
@@ -7,7 +8,10 @@ import android.content.ClipDescription
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import android.net.NetworkInfo
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -26,10 +30,13 @@ import java.util.Locale
  *
  * - `ACTION_SEND` (text/plain) from the share sheet.
  * - `ACTION_PROCESS_TEXT` (text/plain) from the text selection toolbar
- *   ("Translate with Mozhi"). When the caller's text is editable, Dart may
- *   answer with `returnResult(text)` to replace the selection. The call is
- *   refused unless the current intent is that writable request and the
- *   activity was started for a result.
+ *   ("Translate with Mozhi"). When the caller's text is editable and it
+ *   started Mozhi for a result, Dart may answer with `returnResult(text)`
+ *   to replace the selection; otherwise the selection reaches Dart as
+ *   `readOnly` (no Replace is offered). The call is refused unless the
+ *   current intent is that writable request and the activity was started
+ *   for a result (a request delivered to the running window by
+ *   [onNewIntent] never is).
  * - `ACTION_PROCESS_TEXT` through the exported alias [TRANSLATE_OFFLINE_ALIAS]
  *   ("Translate offline", see [isTranslateOffline]): the same request, which
  *   Dart translates with the on-device engine only. Replace works the same.
@@ -61,6 +68,8 @@ import java.util.Locale
  * without copying on older versions (Dart then uses `Clipboard.setData`).
  * `isActiveNetworkMetered()` answers whether the active network is metered
  * (`lib/platform/metered_network.dart`: Wi-Fi-only offline model downloads).
+ * `networkAccess()` answers whether Mozhi may use the network at all (see
+ * [networkAccess]: GrapheneOS's Network permission, a blocked network).
  * `setKeepScreenOn(Boolean)` sets or clears `FLAG_KEEP_SCREEN_ON`
  * (`lib/transcribe/data/screen_awake.dart`: while Transcribe listens).
  * `thermalStatus()` answers `PowerManager.getCurrentThermalStatus()` (-1
@@ -109,7 +118,8 @@ open class MainActivity : FlutterActivity() {
 
     /**
      * Whether the current intent is a writable `ACTION_PROCESS_TEXT` request
-     * (`EXTRA_PROCESS_TEXT_READONLY` false) that `returnResult` may answer.
+     * (`EXTRA_PROCESS_TEXT_READONLY` false), started for a result, that
+     * `returnResult` may answer.
      * Updated for every intent in [onCreate] and [onNewIntent], so a share,
      * deep link or clipboard request arriving later clears it and a stale
      * `callingActivity` can never receive text. Cleared once answered.
@@ -120,9 +130,11 @@ open class MainActivity : FlutterActivity() {
         val flags = intent?.flags ?: 0
         val launchedFromHistory = (flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) != 0
         freshStart = savedInstanceState == null && !launchedFromHistory
-        writableProcessTextPending = isWritableProcessText(intent)
+        // Only a caller that started Mozhi for a result can get the text
+        // back (`callingActivity` is set before onCreate).
+        writableProcessTextPending = isWritableProcessText(intent) && callingActivity != null
         if (freshStart) {
-            initialText = sharedTextOf(intent)
+            initialText = sharedTextOf(intent, answerable = writableProcessTextPending)
             clipboardRequested = isTranslateClipboard(intent)
         }
         super.onCreate(savedInstanceState)
@@ -249,6 +261,8 @@ open class MainActivity : FlutterActivity() {
                     }
                 }
                 "isActiveNetworkMetered" -> result.success(isActiveNetworkMetered())
+                // Whether Mozhi may use the network at all (metered_network.dart).
+                "networkAccess" -> result.success(networkAccess())
                 // The API level: below 29 the app is not drawn edge to edge
                 // and needs an opaque navigation bar (system_bars.dart).
                 "sdkInt" -> result.success(Build.VERSION.SDK_INT)
@@ -309,12 +323,15 @@ open class MainActivity : FlutterActivity() {
         // rewritten route instead of the raw mozhi:// link.
         super.onNewIntent(withDeepLinkRoute(intent))
         setIntent(intent)
-        writableProcessTextPending = isWritableProcessText(intent)
+        // A request delivered to this running window cannot be answered: its
+        // caller is not the one `callingActivity` names (if any), so the
+        // text is offered read-only and `returnResult` is refused.
+        writableProcessTextPending = false
         if (isTranslateClipboard(intent)) {
             requestClipboard()
             return
         }
-        val text = sharedTextOf(intent) ?: return
+        val text = sharedTextOf(intent, answerable = false) ?: return
         send(text)
     }
 
@@ -407,6 +424,50 @@ open class MainActivity : FlutterActivity() {
     }
 
     /**
+     * Whether Mozhi itself can use the network, as a map
+     * `{internetPermission, hasNetwork, blocked}` (all Booleans):
+     *
+     * - `internetPermission`: [Manifest.permission.INTERNET] is granted
+     *   (false on GrapheneOS when the user turned Mozhi's Network
+     *   permission off).
+     * - `hasNetwork`: Mozhi's active network exists and has
+     *   [NetworkCapabilities.NET_CAPABILITY_INTERNET].
+     * - `blocked`: the system blocks Mozhi's traffic on it
+     *   ([NetworkInfo.DetailedState.BLOCKED]: a VPN in lockdown mode while
+     *   the VPN is down, Data Saver, a firewall).
+     *
+     * Asks the system only; nothing is sent.
+     */
+    @Suppress("DEPRECATION")
+    private fun networkAccess(): Map<String, Boolean> {
+        val internetPermission =
+            checkSelfPermission(Manifest.permission.INTERNET) == PackageManager.PERMISSION_GRANTED
+        val connectivity = getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+        // Unknown without the service: report a network, Dart keeps its own check.
+        var hasNetwork = connectivity == null
+        var blocked = false
+        if (connectivity != null) {
+            try {
+                val network = connectivity.activeNetwork
+                val capabilities = network?.let { connectivity.getNetworkCapabilities(it) }
+                hasNetwork =
+                    capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+                // NetworkInfo is deprecated (API 29) but the only way to read BLOCKED.
+                blocked = connectivity.activeNetworkInfo?.detailedState ==
+                    NetworkInfo.DetailedState.BLOCKED
+            } catch (e: SecurityException) {
+                // Unknown: report a network, so Dart keeps its own check.
+                hasNetwork = true
+            }
+        }
+        return mapOf(
+            "internetPermission" to internetPermission,
+            "hasNetwork" to hasNetwork,
+            "blocked" to blocked,
+        )
+    }
+
+    /**
      * The device's memory as [ActivityManager] reports it: `memoryClass` and
      * `largeMemoryClass` (the app's heap budget in MB), `totalMem` (bytes of
      * RAM) and `lowRam` (`isLowRamDevice`). Empty when the service is missing.
@@ -453,12 +514,17 @@ open class MainActivity : FlutterActivity() {
     private fun clipboardPayload(): Map<String, Any> =
         mapOf(KEY_ACTION to ACTION_VALUE_TRANSLATE_CLIPBOARD)
 
-    private fun sharedTextOf(intent: Intent?): Map<String, Any>? {
+    /**
+     * The payload for Dart of a share or selection [intent]. A selection is
+     * `readOnly` (no Replace) unless it is editable and [answerable]: the
+     * caller started Mozhi for a result, so `returnResult` can reach it.
+     */
+    private fun sharedTextOf(intent: Intent?, answerable: Boolean): Map<String, Any>? {
         if (intent == null) return null
         return when (intent.action) {
             Intent.ACTION_PROCESS_TEXT -> {
                 val text = intent.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT)?.toString()
-                val readOnly = isProcessTextReadOnly(intent)
+                val readOnly = isProcessTextReadOnly(intent) || !answerable
                 when {
                     text.isNullOrBlank() -> null
                     isTranslateOffline(intent) ->

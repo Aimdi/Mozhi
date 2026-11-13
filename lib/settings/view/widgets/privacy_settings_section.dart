@@ -16,6 +16,7 @@ import 'package:mozhi/settings/view/widgets/choice_dialog.dart';
 import 'package:mozhi/settings/view/widgets/delete_local_data.dart';
 import 'package:mozhi/settings/view/widgets/history_data_actions.dart';
 import 'package:mozhi/settings/view/widgets/http_proxy_dialog.dart';
+import 'package:mozhi/settings/view/widgets/runs_on_web.dart';
 import 'package:mozhi/settings/view/widgets/settings_search.dart';
 import 'package:mozhi/settings/view/widgets/settings_section.dart';
 import 'package:translation_repository/translation_repository.dart';
@@ -72,6 +73,11 @@ class PrivacySettingsSection extends StatelessWidget {
   /// screenshots" is Android's `FLAG_SECURE`).
   static bool get secureScreenSupported =>
       !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+
+  /// Whether the app can send its requests through an HTTP proxy: not in a
+  /// browser, which makes the requests itself (with its own proxy
+  /// settings).
+  static bool get httpProxySupported => !runsOnWeb;
 
   @override
   Widget build(BuildContext context) {
@@ -143,9 +149,16 @@ class PrivacySettingsSection extends StatelessWidget {
                 key: const Key('settings_save_history'),
                 secondary: const SettingsIcon(Icons.history),
                 title: Text(l10n.settingsSaveHistory),
-                subtitle: Text(l10n.settingsSaveHistorySubtitle),
-                value: settings.saveHistory,
-                onChanged: (value) => cubit.setSaveHistory(enabled: value),
+                // Incognito saves nothing, whatever this switch says.
+                subtitle: Text(
+                  settings.incognito
+                      ? l10n.settingsSaveHistoryIncognitoSubtitle
+                      : l10n.settingsSaveHistorySubtitle,
+                ),
+                value: settings.saveHistory && !settings.incognito,
+                onChanged: settings.incognito
+                    ? null
+                    : (value) => cubit.setSaveHistory(enabled: value),
               ),
             ),
             SettingsAnchor(
@@ -177,7 +190,7 @@ class PrivacySettingsSection extends StatelessWidget {
                 key: const Key('settings_import_history'),
                 leading: const SettingsIcon(Icons.download_outlined),
                 title: Text(l10n.settingsImportHistory),
-                subtitle: Text(l10n.settingsImportHistorySubtitle),
+                subtitle: Text(l10n.settingsImportHistoryFileSubtitle),
                 onTap: () => showImportHistoryDialog(context),
               ),
             ),
@@ -208,17 +221,20 @@ class PrivacySettingsSection extends StatelessWidget {
               id: PrivacyAnchors.consentedProviders,
               child: _ConsentedProviders(settings: settings),
             ),
-            SettingsAnchor(
-              id: PrivacyAnchors.httpProxy,
-              child: ListTile(
-                key: const Key('settings_http_proxy'),
-                leading: const SettingsIcon(Icons.vpn_lock_outlined),
-                title: Text(l10n.settingsHttpProxy),
-                subtitle: Text(settings.httpProxy ?? l10n.settingsHttpProxyOff),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => _editProxy(context),
+            if (httpProxySupported)
+              SettingsAnchor(
+                id: PrivacyAnchors.httpProxy,
+                child: ListTile(
+                  key: const Key('settings_http_proxy'),
+                  leading: const SettingsIcon(Icons.vpn_lock_outlined),
+                  title: Text(l10n.settingsHttpProxy),
+                  subtitle: Text(
+                    settings.httpProxy ?? l10n.settingsHttpProxyOff,
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => _editProxy(context),
+                ),
               ),
-            ),
             SettingsAnchor(
               id: PrivacyAnchors.networkActivity,
               child: ListTile(

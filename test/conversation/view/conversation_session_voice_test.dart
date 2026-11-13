@@ -149,9 +149,6 @@ void main() {
       .widget<Text>(find.byKey(const Key('conversation_session_status_text')))
       .data!;
 
-  Finder snackBarText(String text) =>
-      find.descendant(of: find.byType(SnackBar), matching: find.text(text));
-
   group('without a speech recognition service', () {
     setUp(() {
       system.initResult = false;
@@ -223,10 +220,12 @@ void main() {
       await settle(tester);
 
       expect(find.byType(VoiceModelOfferDialog), findsNothing);
+      // Once, above the microphone; no snack bar covers it.
       expect(
-        snackBarText(l10n.voiceErrorUnavailableOfflineModel),
-        findsOneWidget,
+        statusText(tester),
+        l10n.conversationSessionFailed(l10n.voiceErrorUnavailableOfflineModel),
       );
+      expect(find.byType(SnackBar), findsNothing);
       expect(cubitOf(tester).state.session, isA<ConversationSessionFailed>());
     });
 
@@ -236,9 +235,10 @@ void main() {
 
       expect(find.byType(VoiceModelOfferDialog), findsNothing);
       expect(
-        snackBarText(l10n.voiceErrorUnavailableOfflineModel),
-        findsOneWidget,
+        statusText(tester),
+        l10n.conversationSessionFailed(l10n.voiceErrorUnavailableOfflineModel),
       );
+      expect(find.byType(SnackBar), findsNothing);
     });
   });
 
@@ -299,7 +299,7 @@ void main() {
     await tapMic(tester);
 
     expect(find.byType(VoiceModelOfferDialog), findsNothing);
-    expect(snackBarText(l10n.voiceErrorPermission), findsOneWidget);
+    expect(find.byType(SnackBar), findsNothing);
     expect(
       statusText(tester),
       l10n.conversationSessionFailed(l10n.voiceErrorPermission),
@@ -351,7 +351,11 @@ void main() {
     await tapMic(tester);
     expect(find.byType(BrowserSpeechNoticeDialog), findsNothing);
     // In the web app this reads voiceErrorUnavailableBrowser (kIsWeb).
-    expect(snackBarText(l10n.voiceErrorUnavailable), findsOneWidget);
+    expect(
+      statusText(tester),
+      l10n.conversationSessionFailed(l10n.voiceErrorUnavailable),
+    );
+    expect(find.byType(SnackBar), findsNothing);
     expect(cubitOf(tester).state.session, isA<ConversationSessionFailed>());
     expect(system.initCalls, 0);
   });

@@ -49,6 +49,19 @@ enum MirrorHosting {
   unknown,
 }
 
+/// Why downloads of a kind cannot work in the web app
+/// ([MirrorHostingProbe.downloadBlock]).
+enum DownloadBlock {
+  /// The web server the app comes from ([ModelSourceKind.thisServer])
+  /// does not host them.
+  notHosted,
+
+  /// The original publishers ([ModelSourceKind.defaultHosts]) do not let a
+  /// web page download them (no CORS headers): the browser refuses every
+  /// download, whatever the connection.
+  browserRefused,
+}
+
 /// Asks, once per mirror and kind, whether the web server the web app
 /// comes from hosts a kind of download, so that the offline languages,
 /// dictionaries and text recognition screens can say so instead of
@@ -58,8 +71,9 @@ enum MirrorHosting {
 /// of a mirror it fills (`{"schemaVersion": 1, "kind": "phrasebook",
 /// "items": ["ar", ...]}`); the release's web zip carries
 /// `models/phrasebooks/` with its index. Only the web app with
-/// [ModelSourceKind.thisServer] is checked: Android and other mirrors
-/// download as before.
+/// [ModelSourceKind.thisServer] is asked; the original publishers are
+/// known not to answer a web page for most kinds; Android and other
+/// mirrors download as before.
 class MirrorHostingProbe {
   new({
     this._client,
@@ -84,18 +98,59 @@ class MirrorHostingProbe {
   final Uri? Function() _appBase;
   final Map<Uri, Future<MirrorHosting>> _answers = {};
 
-  /// Whether downloads of [kind] from [source] are known not to work: in
-  /// a browser, from this web server ([ModelSourceKind.thisServer]) when
-  /// it does not host them ([MirrorHosting.notHosted]), unless [source]
-  /// falls back to an original publisher that browsers can download from.
-  Future<bool> downloadsBlocked(MirrorDataKind kind, ModelSource source) async {
-    if (!isWeb || source.kind != ModelSourceKind.thisServer) return false;
-    if (source.fallsBackToDefault && kind.originalHostAllowsBrowsers) {
-      return false;
+  /// Whether downloads of [kind] from [source] are known not to work
+  /// here: [downloadBlock] has a reason.
+  Future<bool> downloadsBlocked(
+    MirrorDataKind kind,
+    ModelSource source,
+  ) async => await downloadBlock(kind, source) != null;
+
+  /// Why downloads of [kind] from [source] cannot work here, or null when
+  /// they may. Only in a browser:
+  ///
+  /// * [ModelSourceKind.defaultHosts]: [DownloadBlock.browserRefused] when
+  ///   the original publisher does not let a web page download [kind]
+  ///   ([originalHostAllowsBrowsers]); nothing is asked.
+  /// * [ModelSourceKind.thisServer]: [DownloadBlock.notHosted] when the
+  ///   web server does not host them ([MirrorHosting.notHosted]), unless
+  ///   [source] falls back to an original publisher that browsers can
+  ///   download from.
+  /// * A custom mirror is not checked (null).
+  Future<DownloadBlock?> downloadBlock(
+    MirrorDataKind kind,
+    ModelSource source,
+  ) async {
+    if (!isWeb) return null;
+    switch (source.kind) {
+      case ModelSourceKind.custom:
+        return null;
+      case ModelSourceKind.defaultHosts:
+        return originalHostAllowsBrowsers(kind)
+            ? null
+            : DownloadBlock.browserRefused;
+      case ModelSourceKind.thisServer:
+        if (source.fallsBackToDefault && originalHostAllowsBrowsers(kind)) {
+          return null;
+        }
+        final mirror = source.mirror(appBase: _appBase());
+        if (mirror == null) return null;
+        return await hosting(mirror, kind) == MirrorHosting.notHosted
+            ? DownloadBlock.notHosted
+            : null;
     }
-    final mirror = source.mirror(appBase: _appBase());
-    if (mirror == null) return false;
-    return await hosting(mirror, kind) == MirrorHosting.notHosted;
+  }
+
+  /// Whether the original publisher of [kind] lets this web app download
+  /// it: [MirrorDataKind.originalHostAllowsBrowsers], and Mozilla's bucket
+  /// for a web app served from this computer (`localhost`).
+  bool originalHostAllowsBrowsers(MirrorDataKind kind) {
+    if (kind.originalHostAllowsBrowsers) return true;
+    if (kind != MirrorDataKind.translation) return false;
+    final host = _appBase()?.host.toLowerCase();
+    return host == 'localhost' ||
+        host == '127.0.0.1' ||
+        host == '::1' ||
+        host == '[::1]';
   }
 
   /// What [mirror]'s index of [kind] says; asked once (again after an

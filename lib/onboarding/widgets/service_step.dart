@@ -6,6 +6,7 @@ import 'package:mozhi/core/privacy/ime_learning.dart';
 import 'package:mozhi/core/widgets/consent_prompt.dart' show upstreamEngineName;
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/offline/cubit/offline_models_cubit.dart';
 import 'package:mozhi/onboarding/cubit/onboarding_cubit.dart';
 import 'package:mozhi/onboarding/widgets/instance_tile.dart';
 import 'package:mozhi/onboarding/widgets/onboarding_badge.dart';
@@ -23,7 +24,8 @@ import 'package:translation_repository/translation_repository.dart';
 /// One row says which server is used ("Using mozhi.example · Change"); the
 /// bundled public Mozhi instances (run by volunteers) are behind
 /// "Change". "Find the fastest server" measures them, but only when
-/// tapped: it contacts every listed server, so it is never automatic.
+/// tapped: it contacts every listed server, so it is never automatic, and
+/// not offered at all in Offline only.
 /// Then the user's own instance, and a note that AI providers can be
 /// added in the settings ([onOpenAiSettings] opens them).
 class ServiceStep extends StatelessWidget {
@@ -65,6 +67,7 @@ class ServiceStep extends StatelessWidget {
             foreground: colors.onSecondaryContainer,
           ),
           const SizedBox(height: 16),
+          const _NoOfflineLanguage(),
         ],
         if (!onDevice) ...[
           const _AskBeforeSending(),
@@ -74,6 +77,57 @@ class ServiceStep extends StatelessWidget {
         const SizedBox(height: 24),
         const OwnInstanceForm(),
         _AiLater(onOpenAiSettings: onOpenAiSettings),
+      ],
+    );
+  }
+}
+
+/// In Offline only, when no language is on the device or downloading
+/// (the languages step offered none, or it was unchecked): says that
+/// nothing can be translated yet, with "Download languages" (back to the
+/// languages step). Nothing without an [OfflineModelsCubit] above.
+class _NoOfflineLanguage extends StatelessWidget {
+  const new();
+
+  static bool _none(OfflineModelsState state) =>
+      state.status == OfflineModelsStatus.ready &&
+      state.isAvailable &&
+      state.downloadedCount == 0 &&
+      state.pending.isEmpty;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool none;
+    try {
+      none = context.select<OfflineModelsCubit, bool>((c) => _none(c.state));
+    } on ProviderNotFoundException {
+      return const SizedBox.shrink();
+    }
+    if (!none) return const SizedBox.shrink();
+    final l10n = context.l10n;
+    final colors = Theme.of(context).colorScheme;
+    return Column(
+      key: const Key('onboarding_service_no_offline_language'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        OnboardingNote(
+          icon: Icons.translate,
+          text: l10n.onboardingServiceOfflineOnlyNoLanguage,
+          background: colors.errorContainer,
+          foreground: colors.onErrorContainer,
+        ),
+        Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: TextButton.icon(
+            key: const Key('onboarding_service_pick_languages'),
+            style: TextButton.styleFrom(minimumSize: const Size(64, 48)),
+            onPressed: () =>
+                context.read<OnboardingCubit>().goTo(OnboardingStep.languages),
+            icon: const Icon(Icons.arrow_back),
+            label: Text(l10n.onboardingServicePickLanguages),
+          ),
+        ),
+        const SizedBox(height: 16),
       ],
     );
   }
@@ -127,6 +181,9 @@ class _ServerChoiceState extends State<ServerChoice> {
     final colors = theme.colorScheme;
     final instances = context.select<SettingsCubit, List<MozhiInstance>>(
       (c) => c.state.instances,
+    );
+    final offlineOnly = context.select<SettingsCubit, bool>(
+      (c) => c.state.privacyMode == PrivacyMode.offlineOnly,
     );
     final state = context.watch<OnboardingCubit>().state;
     if (instances.isEmpty) {
@@ -211,8 +268,8 @@ class _ServerChoiceState extends State<ServerChoice> {
                 ),
               ),
               if (_open) ...[const Hairline(), const _InstanceList()],
-              const Hairline(),
-              const _FindFastest(),
+              // Offline only contacts no server: nothing to measure.
+              if (!offlineOnly) ...[const Hairline(), const _FindFastest()],
             ],
           ),
         ),

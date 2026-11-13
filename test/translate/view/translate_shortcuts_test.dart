@@ -254,9 +254,8 @@ void main() {
       expect(typed, isFalse);
     });
 
-    testWidgets('/ brings the phone screen from the greeting to the input', (
-      tester,
-    ) async {
+    testWidgets('/ focuses the input of the phone screen, under the '
+        'greeting', (tester) async {
       final harness = TranslateHarness();
       await harness.pump(tester, size: const Size(400, 800));
       await tester.pump();
@@ -264,7 +263,8 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.slash, character: '/');
       await tester.pumpAndSettle();
       expect(_inputFocused(tester), isTrue);
-      expect(find.byKey(const Key('translate_hero')), findsNothing);
+      // Focusing the empty composer moves nothing.
+      expect(find.byKey(const Key('translate_hero')), findsOneWidget);
     });
 
     testWidgets('/ is left alone without engines', (tester) async {

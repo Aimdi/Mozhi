@@ -331,13 +331,21 @@ class DocumentInfoChips extends StatelessWidget {
           )
         else if (format != null)
           MenuAnchor(
+            // The arrow is part of the label, not a delete button, so
+            // screen readers do not announce it as "Delete".
             builder: (context, controller, _) => InputChip(
               key: const Key('documents_format'),
               avatar: Icon(documentFormatIcon(format)),
-              label: Text(documentFormatLabel(l10n, format)),
+              label: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(child: Text(documentFormatLabel(l10n, format))),
+                  const ExcludeSemantics(
+                    child: Icon(Icons.arrow_drop_down, size: 18),
+                  ),
+                ],
+              ),
               tooltip: l10n.documentsFormatLabel,
-              deleteIcon: const Icon(Icons.arrow_drop_down),
-              onDeleted: busy ? null : controller.open,
               onPressed: busy ? null : controller.open,
               isEnabled: !busy,
             ),

@@ -14,6 +14,7 @@ import 'package:mozhi/dictionary/widgets/dictionary_composer.dart';
 import 'package:mozhi/dictionary/widgets/dictionary_entry_tabs.dart';
 import 'package:mozhi/dictionary/widgets/dictionary_favorite_button.dart';
 import 'package:mozhi/dictionary/widgets/dictionary_offline.dart';
+import 'package:mozhi/dictionary/widgets/dictionary_saved_notice.dart';
 import 'package:mozhi/dictionary/widgets/dictionary_search_field.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/phrasebook/widgets/dictionary_phrasebook_button.dart';
@@ -159,6 +160,9 @@ class DictionaryEngineMessage extends StatelessWidget {
 /// …?" look that word up ([DictionaryCubit.lookUpWord]). Screen readers
 /// hear "Dictionary entry ready".
 ///
+/// A saved entry ([DictionaryState.saved]: from the history, or looked
+/// up a little earlier) says so, with "Refresh" ([DictionarySavedNotice]).
+///
 /// An entry from an offline dictionary ([DictionaryState.offlineAnswer])
 /// says which word an inflected form belongs to
 /// ([DictionaryOfflineNotice]) and ends with its source and licence and,
@@ -192,7 +196,8 @@ class DictionaryResultView extends StatelessWidget {
           previous.offlineAnswer != current.offlineAnswer ||
           previous.suggestions != current.suggestions ||
           previous.offlineLanguages != current.offlineLanguages ||
-          previous.engine != current.engine,
+          previous.engine != current.engine ||
+          previous.saved != current.saved,
       builder: (context, state) {
         final cubit = context.read<DictionaryCubit>();
         final entry = state.entry;
@@ -226,6 +231,11 @@ class DictionaryResultView extends StatelessWidget {
               final answer? => DictionaryOfflineNotice(
                 answer: answer,
                 onWordTap: (word) => unawaited(cubit.lookUpWord(word)),
+              ),
+              null when state.saved => DictionarySavedNotice(
+                onRefresh: state.hasEngine
+                    ? () => unawaited(cubit.refresh())
+                    : null,
               ),
               null => null,
             },

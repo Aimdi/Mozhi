@@ -25,12 +25,21 @@ import 'package:translation_repository/translation_repository.dart';
 ///   ([DeviceTtsNoAnswerException]): [AppLocalizations.speechEngineNoAnswer];
 /// * Mozhi refused by the network policy (plain http, `.onion` without a
 ///   proxy): that policy's message ([describeNetworkPolicyError]);
+/// * the audio a Mozhi instance sent could not be played here
+///   ([SpeechPlaybackException]): [AppLocalizations.speechErrorPlayback];
 /// * the Mozhi servers failed or did not answer ([speechServersFailed]):
-///   [AppLocalizations.speechErrorServersUnavailable], in plain words and
-///   without an HTTP status, like the translator's "Volunteer servers
-///   unavailable" (offer Retry);
-/// * otherwise [AppLocalizations.speechUnavailable] when no voice can read
-///   the language, else the generic [AppLocalizations.translateSpeechError].
+///   in plain words and without an HTTP status, like the translator's
+///   "Volunteer servers unavailable" (offer Retry):
+///   [AppLocalizations.speechErrorServersUnavailable] for the public
+///   (volunteer) servers, [AppLocalizations.speechErrorOwnServerUnavailable]
+///   for servers the user added, [AppLocalizations.speechErrorMozhiFailed]
+///   for both or when it is unknown;
+/// * otherwise, when no voice can read the language,
+///   [AppLocalizations.speechUnavailable] (which suggests adding a Mozhi
+///   instance) or, with instances configured
+///   ([SpeechUnavailableException.mozhiConfigured]),
+///   [AppLocalizations.speechUnavailableNoVoice]; else the generic
+///   [AppLocalizations.translateSpeechError].
 String speechErrorMessage(AppLocalizations l10n, Object error) =>
     switch (error) {
       SpeechUnavailableException(cause: final ConsentRequiredException consent)
@@ -46,10 +55,14 @@ String speechErrorMessage(AppLocalizations l10n, Object error) =>
         l10n.speechUnavailableOfflineOnly,
       SpeechUnavailableException(cause: DeviceTtsNoAnswerException()) =>
         l10n.speechEngineNoAnswer,
+      SpeechUnavailableException(cause: SpeechPlaybackException()) =>
+        l10n.speechErrorPlayback,
       SpeechUnavailableException(:final cause) =>
         describeNetworkPolicyError(l10n, cause) ??
             (speechServersFailed(error)
-                ? l10n.speechErrorServersUnavailable
+                ? _serversMessage(l10n, cause)
+                : error.mozhiConfigured
+                ? l10n.speechUnavailableNoVoice
                 : l10n.speechUnavailable),
       _ => l10n.translateSpeechError,
     };
@@ -69,6 +82,26 @@ bool speechServersFailed(Object error) => switch (error) {
       _ => false,
     },
   _ => false,
+};
+
+/// The servers that failed to read aloud ([cause]), in plain words.
+String _serversMessage(AppLocalizations l10n, Object? cause) {
+  if (cause case AllInstancesFailedException(:final instances)
+      when instances.isNotEmpty) {
+    final own = instances
+        .where((i) => i.isCustom && !_publicUrls.contains(i.url))
+        .length;
+    if (own == 0) return l10n.speechErrorServersUnavailable;
+    if (own == instances.length) return l10n.speechErrorOwnServerUnavailable;
+  }
+  return l10n.speechErrorMozhiFailed;
+}
+
+/// The URLs of the public (volunteer) servers the app lists or listed.
+final Set<String> _publicUrls = {
+  for (final instance in MozhiInstance.publicInstances) instance.url,
+  for (final order in MozhiInstance.previousDefaultOrders) ...order,
+  ...MozhiInstance.retiredUrls,
 };
 
 /// What an online voice consent ([SpeechService.isOnlineVoiceConsent]) is

@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
@@ -13,6 +12,7 @@ import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/view/widgets/add_instance_dialog.dart';
 import 'package:mozhi/settings/view/widgets/link_launcher.dart';
 import 'package:mozhi/settings/view/widgets/region_names.dart';
+import 'package:mozhi/settings/view/widgets/runs_on_web.dart';
 import 'package:mozhi/settings/view/widgets/settings_section.dart';
 import 'package:mozhi_api/mozhi_api.dart' show MozhiPublicInstance;
 // The page shows this session's checks (core/network), not the
@@ -305,7 +305,7 @@ class _InstancesViewState extends State<InstancesView> {
     // The setting, not the session: addresses can be added before the
     // restart that activates the proxy (their badge says it is needed).
     final proxySet = context.select<SettingsCubit, bool>(
-      (cubit) => !kIsWeb && cubit.state.httpProxy != null,
+      (cubit) => !runsOnWeb && cubit.state.httpProxy != null,
     );
     final hasHidden = widget.catalog.any(
       (entry) => entry.onion != null || entry.i2p != null,
@@ -438,7 +438,11 @@ class _Header extends StatelessWidget {
                 const SizedBox(height: 8),
                 _Note(
                   icon: Icons.network_check,
-                  text: l10n.settingsInstancesCheckNote,
+                  // When the app contacts an instance on its own (WCAG
+                  // 3.3.2: what it says must be true).
+                  text: l10n.settingsInstancesContactNote(
+                    l10n.settingsPrivacyModeOnline,
+                  ),
                   style: secondary,
                 ),
                 const SizedBox(height: 4),
@@ -857,7 +861,12 @@ class _Catalog extends StatelessWidget {
           ),
           if (hiddenNote) ...[
             const SizedBox(height: 4),
-            Text(l10n.settingsInstancesCatalogHidden, style: secondary),
+            Text(
+              runsOnWeb
+                  ? l10n.settingsInstancesCatalogHiddenWeb
+                  : l10n.settingsInstancesCatalogHidden,
+              style: secondary,
+            ),
           ],
           const SizedBox(height: 8),
           if (available.isEmpty)

@@ -585,6 +585,155 @@ void main() {
       });
     });
 
+    group('changing the type of a preset', () {
+      Future<void> switchType(WidgetTester tester, String from, String to) =>
+          tester
+              .tap(find.text(from).last)
+              .then((_) => tester.pumpAndSettle())
+              .then((_) => tester.tap(find.text(to).last))
+              .then((_) => tester.pumpAndSettle());
+
+      testWidgets('drops the preset name, model, key rule and key link', (
+        tester,
+      ) async {
+        await pump(tester, presetId: 'openrouter');
+        expect(find.text('Get an API key'), findsOneWidget);
+        await switchType(tester, 'OpenAI-compatible', 'Ollama (native API)');
+
+        expect(textOf(tester, 'Name'), 'Ollama (native API)');
+        expect(textOf(tester, 'Base URL'), 'http://localhost:11434');
+        expect(textOf(tester, 'Model'), isEmpty);
+        expect(find.text('API key (optional)'), findsOneWidget);
+        expect(find.text('Get an API key'), findsNothing);
+        expect(
+          find.widgetWithText(ChoiceChip, 'openrouter/auto'),
+          findsNothing,
+        );
+      });
+
+      testWidgets('an Ollama provider is saved without a key', (tester) async {
+        await pump(tester, presetId: 'openrouter');
+        await switchType(tester, 'OpenAI-compatible', 'Ollama (native API)');
+        await tester.enterText(field('Model'), 'qwen3');
+        await tester.tap(find.text('Save'));
+        await tester.pumpAndSettle();
+
+        final config = savedConfig();
+        expect(config.provider, LlmProvider.ollama);
+        expect(config.name, 'Ollama (native API)');
+        expect(config.apiKey, isNull);
+        expect(config.presetId, isNull);
+      });
+
+      testWidgets('keeps what the user typed', (tester) async {
+        await pump(tester, presetId: 'anthropic');
+        await tester.enterText(field('Name'), 'Work');
+        await tester.enterText(field('Model'), 'my-model');
+        await switchType(tester, 'Anthropic', 'Ollama (native API)');
+        expect(textOf(tester, 'Name'), 'Work');
+        expect(textOf(tester, 'Model'), 'my-model');
+        // The preset's default effort went with it.
+        expect(find.text('Low (fastest)'), findsNothing);
+      });
+
+      testWidgets('switching back brings the preset back', (tester) async {
+        await pump(tester, presetId: 'anthropic');
+        await switchType(tester, 'Anthropic', 'Ollama (native API)');
+        await switchType(tester, 'Ollama (native API)', 'Anthropic');
+        expect(textOf(tester, 'Name'), 'Anthropic');
+        expect(textOf(tester, 'Model'), 'claude-opus-5-5');
+        expect(find.text('Low (fastest)'), findsOneWidget);
+        expect(find.text('Get an API key'), findsOneWidget);
+      });
+
+      testWidgets('an existing provider keeps its preset until it changes', (
+        tester,
+      ) async {
+        await pump(tester, providerId: 'g1');
+        await switchType(tester, 'Ollama (native API)', 'Google Gemini');
+        await tester.enterText(field('API key'), 'g-key');
+        await tester.enterText(field('Model'), 'gemini-flash-latest');
+        await tester.tap(find.text('Save'));
+        await tester.pumpAndSettle();
+        final config = savedConfig();
+        expect(config.provider, LlmProvider.gemini);
+        expect(config.presetId, isNull);
+        expect(config.name, 'Gemma');
+      });
+    });
+
+    group('Back with unsaved changes', () {
+      Future<void> back(WidgetTester tester) async {
+        await tester.state<NavigatorState>(find.byType(Navigator)).maybePop();
+        await tester.pumpAndSettle();
+      }
+
+      testWidgets('leaves at once without changes', (tester) async {
+        await pump(tester, providerId: 'p1');
+        await back(tester);
+        expect(find.text('Discard changes?'), findsNothing);
+      });
+
+      testWidgets('asks before discarding a typed key', (tester) async {
+        await pump(tester, presetId: 'openai');
+        await tester.enterText(field('API key'), 'sk-new');
+        await tester.pump();
+        await back(tester);
+        expect(find.text('Discard changes?'), findsOneWidget);
+
+        await tester.tap(find.text('Keep editing'));
+        await tester.pumpAndSettle();
+        expect(textOf(tester, 'API key'), 'sk-new');
+        verifyNever(() => router.pop<Object?>());
+
+        await back(tester);
+        await tester.tap(find.byKey(const Key('provider_discard')));
+        await tester.pumpAndSettle();
+        verify(() => router.pop<Object?>()).called(1);
+        verifyNever(() => settings.saveProvider(any()));
+      });
+
+      testWidgets('saving does not ask', (tester) async {
+        await pump(tester, providerId: 'p1');
+        await tester.enterText(field('Name'), 'Renamed');
+        await tester.tap(find.text('Save'));
+        await tester.pumpAndSettle();
+        expect(find.text('Discard changes?'), findsNothing);
+        verify(() => router.pop<Object?>()).called(1);
+      });
+    });
+
+    group('on the web', () {
+      testWidgets('says the key is kept only for this tab', (tester) async {
+        tester.setScreenSize(const Size(800, 2000));
+        await tester.pumpView(
+          const ProviderEditorPage(presetId: 'openai', isWeb: true),
+          settings: settings,
+          repository: repository,
+          router: router,
+        );
+        expect(
+          find.textContaining('Kept only for this browser tab'),
+          findsOneWidget,
+        );
+        expect(find.text('Stored securely on this device'), findsNothing);
+      });
+
+      testWidgets('LibreTranslate says so too', (tester) async {
+        tester.setScreenSize(const Size(800, 2000));
+        await tester.pumpView(
+          const ProviderEditorPage(presetId: 'libretranslate', isWeb: true),
+          settings: settings,
+          repository: repository,
+          router: router,
+        );
+        expect(
+          find.textContaining('Kept only for this browser tab'),
+          findsOneWidget,
+        );
+      });
+    });
+
     group('test connection', () {
       testWidgets('shows the French output', (tester) async {
         final completer = Completer<String>();
@@ -598,6 +747,23 @@ void main() {
         await tester.pumpAndSettle();
         expect(
           find.text('Connected. “Hello” in French: Bonjour'),
+          findsOneWidget,
+        );
+        // Read as text in a live region, not as a disabled text field.
+        expect(find.byType(SelectableText), findsNothing);
+        final node = tester.getSemantics(
+          find.text('Connected. “Hello” in French: Bonjour'),
+        );
+        expect(node.flagsCollection.isTextField, isFalse);
+        expect(
+          find.ancestor(
+            of: find.text('Connected. “Hello” in French: Bonjour'),
+            matching: find.byWidgetPredicate(
+              (widget) =>
+                  widget is Semantics &&
+                  (widget.properties.liveRegion ?? false),
+            ),
+          ),
           findsOneWidget,
         );
         final config =
@@ -1175,6 +1341,65 @@ void main() {
         const Offset(0, -300),
       );
       expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('providerKeyMissing', () {
+    AiProviderConfig config(
+      LlmProvider provider, {
+      String? apiKey,
+      String? presetId,
+      MtService service = MtService.llm,
+    }) => AiProviderConfig(
+      id: 'x',
+      name: 'x',
+      provider: provider,
+      baseUrl: '',
+      model: '',
+      apiKey: apiKey,
+      presetId: presetId,
+      service: service,
+    );
+
+    test('follows the type without a preset', () {
+      expect(providerKeyMissing(config(LlmProvider.anthropic)), isTrue);
+      expect(providerKeyMissing(config(LlmProvider.gemini)), isTrue);
+      expect(providerKeyMissing(config(LlmProvider.ollama)), isFalse);
+      expect(providerKeyMissing(config(LlmProvider.openAiCompatible)), isFalse);
+    });
+
+    test('follows a preset of the same type only', () {
+      const openAi = LlmProvider.openAiCompatible;
+      expect(providerKeyMissing(config(openAi, presetId: 'openai')), isTrue);
+      expect(providerKeyMissing(config(openAi, presetId: 'lmstudio')), isFalse);
+      // An Ollama provider made from the OpenRouter preset needs no key.
+      expect(
+        providerKeyMissing(config(LlmProvider.ollama, presetId: 'openrouter')),
+        isFalse,
+      );
+    });
+
+    test('machine translation services', () {
+      const openAi = LlmProvider.openAiCompatible;
+      expect(
+        providerKeyMissing(config(openAi, service: MtService.deepl)),
+        isTrue,
+      );
+      expect(
+        providerKeyMissing(config(openAi, service: MtService.libreTranslate)),
+        isFalse,
+      );
+    });
+
+    test('a key that is there is not missing', () {
+      expect(
+        providerKeyMissing(config(LlmProvider.anthropic, apiKey: 'k')),
+        isFalse,
+      );
+      expect(
+        providerKeyMissing(config(LlmProvider.anthropic, apiKey: '  ')),
+        isTrue,
+      );
     });
   });
 

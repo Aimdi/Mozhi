@@ -406,9 +406,7 @@ void main() {
     });
 
     group('without a result', () {
-      testWidgets('explains a failure with the provider message; Retry', (
-        tester,
-      ) async {
+      testWidgets('explains a failure in plain words; Retry', (tester) async {
         stub(
           const QuickImproveState(
             text: sentence,
@@ -421,7 +419,9 @@ void main() {
         await tester.pumpImprove(improveView(cubit));
 
         expect(find.text("Couldn't improve the text"), findsOneWidget);
-        expect(find.textContaining('Model overloaded'), findsOneWidget);
+        // Never the provider's raw (English) message.
+        expect(find.textContaining('Model overloaded'), findsNothing);
+        expect(find.textContaining('server error (529)'), findsOneWidget);
         await tester.tap(_byKey('quick_improve_error_retry'));
         verify(() => cubit.retry()).called(1);
       });

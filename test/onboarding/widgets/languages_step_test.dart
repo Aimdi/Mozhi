@@ -255,6 +255,43 @@ void main() {
         {'es'},
       );
     });
+
+    test('Offline only checks the pair unless it is known not to fit', () {
+      // The web: no free space to tell, nothing preselected otherwise.
+      expect(
+        onboardingCheckedDownloads(const OnboardingState(), offline, [
+          'fr',
+          'es',
+        ]),
+        isEmpty,
+      );
+      expect(
+        onboardingCheckedDownloads(const OnboardingState(), offline, [
+          'fr',
+          'es',
+          'de',
+        ], offlineOnly: true),
+        {'fr', 'es'},
+      );
+      expect(
+        onboardingCheckedDownloads(
+          const OnboardingState(downloadChoices: {'es': false}),
+          offline,
+          ['fr', 'es'],
+          offlineOnly: true,
+        ),
+        {'fr'},
+      );
+      expect(
+        onboardingCheckedDownloads(
+          const OnboardingState(freeBytes: 200 << 20),
+          offline,
+          ['fr', 'es'],
+          offlineOnly: true,
+        ),
+        isEmpty,
+      );
+    });
   });
 
   group('LanguagesStep', () {
@@ -606,6 +643,139 @@ void main() {
       onboarding.next();
       await tester.pumpAndSettle();
       expect(translator.downloads, isEmpty);
+    });
+
+    group('where the web app cannot download them', () {
+      late ModelSource source;
+      late MirrorHostingProbe probe;
+
+      setUp(() {
+        source = ModelSource.current;
+        probe = MirrorHostingProbe.instance;
+        ModelSource.current = ModelSource.defaultHosts;
+        MirrorHostingProbe.instance = MirrorHostingProbe(
+          client: MockClient((request) async => http.Response('', 404)),
+          isWeb: true,
+          appBase: () => Uri.parse('https://translate.example.org/'),
+        );
+      });
+
+      tearDown(() {
+        ModelSource.current = source;
+        MirrorHostingProbe.instance = probe;
+      });
+
+      testWidgets('the original publishers: says the browser cannot', (
+        tester,
+      ) async {
+        await pumpFlow(
+          tester,
+          settings: const AppSettings(
+            instances: testInstances,
+            target: _french,
+            modelSource: ModelSource.defaultHosts,
+          ),
+        );
+        expect(
+          find.text(
+            'Your browser can’t download these from the original publishers',
+          ),
+          findsOneWidget,
+        );
+        expect(checkbox('fr'), findsNothing);
+      });
+
+      testWidgets('the picker marks only what is here as offline', (
+        tester,
+      ) async {
+        translator = FakeOfflineTranslator(downloaded: {'en', 'es'});
+        await pumpFlow(
+          tester,
+          settings: const AppSettings(
+            instances: testInstances,
+            target: _french,
+            modelSource: ModelSource.defaultHosts,
+          ),
+        );
+        await tester.tap(find.byKey(const Key('onboarding_target_language')));
+        await tester.pumpAndSettle();
+        await tester.enterText(
+          find.byKey(const Key('onboarding_language_search')),
+          'deutsch',
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Deutsch · Available offline'), findsNothing);
+        expect(find.text('Deutsch'), findsOneWidget);
+        await tester.enterText(
+          find.byKey(const Key('onboarding_language_search')),
+          'español',
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Español · Available offline'), findsOneWidget);
+      });
+
+      testWidgets('Offline only: says it cannot translate yet and offers '
+          'another privacy mode', (tester) async {
+        final (onboarding, _) = await pumpFlow(
+          tester,
+          settings: const AppSettings(
+            instances: testInstances,
+            target: _french,
+            modelSource: ModelSource.defaultHosts,
+            privacyMode: PrivacyMode.offlineOnly,
+          ),
+        );
+        const note = Key('onboarding_offline_only_blocked');
+        expect(find.byKey(note), findsOneWidget);
+        final change = find.byKey(
+          const Key('onboarding_offline_only_change_privacy'),
+        );
+        await tester.ensureVisible(change);
+        await tester.tap(change);
+        await tester.pumpAndSettle();
+        expect(onboarding.state.step, OnboardingStep.privacy);
+      });
+
+      testWidgets('Offline only with the pair here: no warning', (
+        tester,
+      ) async {
+        translator = FakeOfflineTranslator(downloaded: {'en', 'fr'});
+        await pumpFlow(
+          tester,
+          settings: const AppSettings(
+            instances: testInstances,
+            target: _french,
+            modelSource: ModelSource.defaultHosts,
+            privacyMode: PrivacyMode.offlineOnly,
+          ),
+        );
+        expect(
+          find.byKey(const Key('onboarding_offline_only_blocked')),
+          findsNothing,
+        );
+      });
+    });
+
+    testWidgets('Offline only in a browser: the pair downloads on Next', (
+      tester,
+    ) async {
+      // Not on Android (no preselection), free space unknown.
+      final (onboarding, _) = await pumpFlow(
+        tester,
+        settings: const AppSettings(
+          instances: testInstances,
+          target: _french,
+          privacyMode: PrivacyMode.offlineOnly,
+        ),
+      );
+      expect(isChecked(tester, 'fr'), isTrue);
+      expect(
+        find.textContaining('Offline only translates with downloaded'),
+        findsOneWidget,
+      );
+      onboarding.next();
+      await tester.pumpAndSettle();
+      expect(translator.downloads.map((d) => d.$1), ['fr']);
     });
 
     testWidgets('Back and unchecked languages download nothing', (

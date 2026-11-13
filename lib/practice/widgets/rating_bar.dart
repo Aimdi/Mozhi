@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/practice/data/fsrs.dart';
 import 'package:mozhi/practice/widgets/practice_texts.dart';
@@ -22,8 +23,6 @@ class RatingBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
     return Row(
       children: [
         for (final rating in FsrsRating.values) ...[
@@ -39,7 +38,7 @@ class RatingBar extends StatelessWidget {
               shortcut: '${rating.grade}',
               suggested: rating == suggested,
               suggestedLabel: l10n.practiceRatingSuggested,
-              accent: rating == FsrsRating.again ? colors.error : null,
+              again: rating == FsrsRating.again,
               onPressed: () => onRate(rating),
             ),
           ),
@@ -57,7 +56,7 @@ class _RatingButton extends StatelessWidget {
     required this.suggested,
     required this.suggestedLabel,
     required this.onPressed,
-    this.accent,
+    this.again = false,
     super.key,
   });
 
@@ -66,7 +65,7 @@ class _RatingButton extends StatelessWidget {
   final String shortcut;
   final bool suggested;
   final String suggestedLabel;
-  final Color? accent;
+  final bool again;
   final VoidCallback onPressed;
 
   @override
@@ -80,6 +79,20 @@ class _RatingButton extends StatelessWidget {
         l10n.practiceRatingSemantics(label, interval),
       if (suggested) suggestedLabel,
     ].join(', ');
+    final colors = theme.colorScheme;
+    // Explicit colours: the looks' filled-button themes (an accent or an
+    // inverse fill) would otherwise also paint the tonal buttons, and the
+    // secondary interval text and the red "Again" would not read on them.
+    final background = suggested ? colors.primary : colors.surfaceContainerHigh;
+    final foreground = suggested ? colors.onPrimary : colors.onSurface;
+    final labelColor = again && !suggested
+        ? accentWithContrast(
+            colors.error,
+            background,
+            minContrast: kTextContrast,
+            darken: theme.brightness == Brightness.light,
+          )
+        : foreground;
     final content = Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -87,16 +100,14 @@ class _RatingButton extends StatelessWidget {
           label,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontWeight: FontWeight.w700),
+          style: TextStyle(fontWeight: FontWeight.w700, color: labelColor),
         ),
         if (interval.isNotEmpty)
           Text(
             interval,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: suggested ? null : theme.colorScheme.onSurfaceVariant,
-            ),
+            style: theme.textTheme.labelSmall?.copyWith(color: foreground),
           ),
       ],
     );
@@ -104,9 +115,20 @@ class _RatingButton extends StatelessWidget {
     final style = ButtonStyle(
       minimumSize: const WidgetStatePropertyAll(Size(0, 56)),
       padding: const WidgetStatePropertyAll(padding),
-      foregroundColor: accent == null || suggested
-          ? null
-          : WidgetStatePropertyAll(accent),
+      backgroundColor: WidgetStatePropertyAll(background),
+      foregroundColor: WidgetStatePropertyAll(foreground),
+      overlayColor: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.pressed)
+            ? foreground.withValues(alpha: 0.12)
+            : states.any(
+                (s) => s == WidgetState.hovered || s == WidgetState.focused,
+              )
+            ? foreground.withValues(alpha: 0.08)
+            : null,
+      ),
+      side: WidgetStatePropertyAll(
+        BorderSide(color: suggested ? colors.primary : colors.outline),
+      ),
     );
     return Tooltip(
       message: '$label ($shortcut)',
@@ -116,13 +138,7 @@ class _RatingButton extends StatelessWidget {
         label: semantics,
         excludeSemantics: true,
         onTap: onPressed,
-        child: suggested
-            ? FilledButton(onPressed: onPressed, style: style, child: content)
-            : FilledButton.tonal(
-                onPressed: onPressed,
-                style: style,
-                child: content,
-              ),
+        child: FilledButton(onPressed: onPressed, style: style, child: content),
       ),
     );
   }

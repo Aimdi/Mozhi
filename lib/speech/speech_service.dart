@@ -36,8 +36,16 @@ const maxDeviceSpeechChunkLength = 3900;
 /// ([DeviceTtsEngines.hasEngine] answered false): no voice can be
 /// installed for the language before a text-to-speech app is (common on
 /// Android phones without Google services).
+///
+/// [mozhiConfigured] tells that Mozhi instances are configured (so adding
+/// one is no advice).
 class SpeechUnavailableException implements Exception {
-  const new(this.languageCode, {this.cause, this.noDeviceEngine = false});
+  const new(
+    this.languageCode, {
+    this.cause,
+    this.noDeviceEngine = false,
+    this.mozhiConfigured = false,
+  });
 
   final String languageCode;
   final Object? cause;
@@ -45,11 +53,17 @@ class SpeechUnavailableException implements Exception {
   /// Whether the device has no speech engine installed at all.
   final bool noDeviceEngine;
 
+  /// Whether Mozhi instances are configured.
+  final bool mozhiConfigured;
+
   /// This failure without its [cause] (e.g. without the Mozhi instance
   /// that could have read the text with the user's consent, when that is
-  /// not offered), keeping [noDeviceEngine].
-  SpeechUnavailableException withoutCause() =>
-      SpeechUnavailableException(languageCode, noDeviceEngine: noDeviceEngine);
+  /// not offered), keeping [noDeviceEngine] and [mozhiConfigured].
+  SpeechUnavailableException withoutCause() => SpeechUnavailableException(
+    languageCode,
+    noDeviceEngine: noDeviceEngine,
+    mozhiConfigured: mozhiConfigured,
+  );
 
   /// The consent that lets a Mozhi instance read the text aloud once, when
   /// the privacy settings stopped it ([PrivacyMode.offlineFirst] and the
@@ -70,6 +84,18 @@ class SpeechUnavailableException implements Exception {
       'SpeechUnavailableException($languageCode'
       '${cause == null ? '' : ', cause: $cause'}'
       '${noDeviceEngine ? ', no device engine' : ''})';
+}
+
+/// A clip a Mozhi instance sent could not be played here ([cause]: the
+/// audio player's error), e.g. a format the browser does not support: the
+/// [SpeechUnavailableException.cause] then.
+class SpeechPlaybackException implements Exception {
+  const new(this.cause);
+
+  final Object cause;
+
+  @override
+  String toString() => 'SpeechPlaybackException($cause)';
 }
 
 /// Something [SpeechService] read aloud (see [SpeechService.lastUtterance]).
@@ -613,6 +639,7 @@ class SpeechService {
         languageCode,
         cause: cause,
         noDeviceEngine: noEngine,
+        mozhiConfigured: _repository.instances.isNotEmpty,
       );
     } on Object {
       if (generation != _generation) return;
@@ -682,7 +709,11 @@ class SpeechService {
   Future<bool> _startChunk(_MozhiPlayback playback, Uint8List bytes) async {
     final generation = playback.generation;
     _audioOwner = generation;
-    await _output.play(bytes);
+    try {
+      await _output.play(bytes);
+    } on Object catch (error) {
+      throw SpeechPlaybackException(error);
+    }
     if (generation != _generation) {
       // Stopped while starting: make sure nothing keeps playing.
       if (_audioOwner == generation) await _output.stop();

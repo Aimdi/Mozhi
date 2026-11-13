@@ -29,6 +29,11 @@ enum OfflineModelErrorKind {
   /// The connection failed (offline, timeout, proxy).
   network,
 
+  /// In the web app, a download from an original publisher that does not
+  /// let web pages download its files (no CORS headers): the browser
+  /// refused it, whatever the connection.
+  browserRefused,
+
   /// The models could not be written (usually a full disk).
   storage,
 
@@ -60,8 +65,11 @@ class OfflineModelError extends Equatable {
 
   /// Classifies [error] (thrown by `OfflineTranslator.downloadLanguage`,
   /// `deleteLanguage`, `OfflineModelDetails.download` or the text
-  /// recognition data's `downloadOcrLanguage`).
-  factory of(Object error) => switch (error) {
+  /// recognition data's `downloadOcrLanguage`). In a browser ([isWeb]) a
+  /// translation model that could not be fetched from Mozilla (no mirror)
+  /// is [OfflineModelErrorKind.browserRefused]
+  /// ([OfflineModelError.browserRefusedOrNetwork]).
+  factory of(Object error, {bool isWeb = kIsWeb}) => switch (error) {
     MeteredConnectionException() => const OfflineModelError(
       OfflineModelErrorKind.metered,
     ),
@@ -97,11 +105,12 @@ class OfflineModelError extends Equatable {
         statusCode: statusCode,
         mirror: mirrorName(mirror),
       ),
-    ModelDownloadException(:final message, :final mirror) => OfflineModelError(
-      OfflineModelErrorKind.network,
-      networkPolicy: NetworkPolicyError.of(message),
-      mirror: mirrorName(mirror),
-    ),
+    ModelDownloadException(:final message, :final mirror) =>
+      OfflineModelError.browserRefusedOrNetwork(
+        message,
+        mirror: mirror,
+        isWeb: isWeb,
+      ),
     FileSystemException() => const OfflineModelError(
       OfflineModelErrorKind.storage,
     ),
@@ -112,6 +121,27 @@ class OfflineModelError extends Equatable {
       const OfflineModelError(OfflineModelErrorKind.unsupported),
     _ => const OfflineModelError(OfflineModelErrorKind.unknown),
   };
+
+  /// A failed connection to [mirror] (null: the original publisher) with
+  /// [message]: in a browser ([isWeb]) without a mirror or a network rule
+  /// that refused it, [OfflineModelErrorKind.browserRefused] (the original
+  /// publishers of the offline languages and dictionaries send no CORS
+  /// headers); otherwise [OfflineModelErrorKind.network].
+  factory browserRefusedOrNetwork(
+    String message, {
+    Uri? mirror,
+    bool isWeb = kIsWeb,
+  }) {
+    final policy = NetworkPolicyError.of(message);
+    if (isWeb && mirror == null && policy == null) {
+      return const OfflineModelError(OfflineModelErrorKind.browserRefused);
+    }
+    return OfflineModelError(
+      OfflineModelErrorKind.network,
+      networkPolicy: policy,
+      mirror: mirrorName(mirror),
+    );
+  }
 
   final OfflineModelErrorKind kind;
 

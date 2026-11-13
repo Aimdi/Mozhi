@@ -1,4 +1,3 @@
-import 'package:flutter/gestures.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
@@ -129,22 +128,48 @@ void main() {
       expect(find.byType(LanguageAvatar), findsOneWidget);
     });
 
-    testWidgets('the downloaded pill reads Delete while hovered', (
+    testWidgets('"Downloaded" is a status: tapping it deletes nothing', (
       tester,
     ) async {
-      await pump(tester, downloaded: true);
-      expect(find.widgetWithText(OutlinedButton, 'Downloaded'), findsOneWidget);
-      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
-      addTearDown(gesture.removePointer);
-      await gesture.addPointer(location: Offset.zero);
-      await gesture.moveTo(
-        tester.getCenter(find.byKey(const Key('offline_downloaded_pill'))),
+      await pump(tester, downloaded: true, showFiles: true);
+      final label = find.byKey(const Key('offline_downloaded_pill'));
+      expect(
+        find.descendant(of: label, matching: find.byType(ButtonStyleButton)),
+        findsNothing,
       );
-      await tester.pumpAndSettle();
-      expect(find.widgetWithText(OutlinedButton, 'Delete'), findsOneWidget);
-      await gesture.moveTo(Offset.zero);
-      await tester.pumpAndSettle();
-      expect(find.widgetWithText(OutlinedButton, 'Downloaded'), findsOneWidget);
+      // Inside the row: a tap on it is the row's (the files), never Delete.
+      await tester.tap(label);
+      expect(taps, ['files']);
+      await tester.tap(find.byKey(const Key('offline_delete')));
+      expect(taps, ['files', 'delete']);
+    });
+
+    testWidgets('screen readers hear what each action does', (tester) async {
+      final handle = tester.ensureSemantics();
+      await pump(tester, downloaded: true, showFiles: true);
+      final row = tester.getSemantics(find.byType(ListTile));
+      expect(row.label, isNot(contains('Delete')));
+      expect(row.label, contains('German'));
+      expect(
+        row,
+        isSemantics(
+          hasTapAction: true,
+          onTapHint: 'Show the files to download by hand',
+        ),
+      );
+      expect(
+        tester.getSemantics(find.byKey(const Key('offline_delete'))),
+        isSemantics(
+          tooltip: 'Delete German',
+          isButton: true,
+          hasTapAction: true,
+          isEnabled: true,
+          hasEnabledState: true,
+          isFocusable: true,
+          hasFocusAction: true,
+        ),
+      );
+      handle.dispose();
     });
 
     testWidgets('shows progress while downloading', (tester) async {

@@ -282,6 +282,29 @@ void main() {
       expect(result, const ModelSource(kind: ModelSourceKind.thisServer));
     });
 
+    testWidgets('in a browser, says what the original publishers refuse', (
+      tester,
+    ) async {
+      const note =
+          'In a browser, only text recognition data comes from them: they '
+          'don’t let web pages download offline languages, dictionaries or '
+          'phrasebooks.';
+      await open(tester, offerThisServer: true);
+      // Under "Original publishers", before it is chosen.
+      expect(find.text(note), findsOneWidget);
+      await tester.tap(find.text('This web server'));
+      await tester.pump();
+      // And under the fallback to them.
+      expect(find.text(note), findsNWidgets(2));
+    });
+
+    testWidgets('outside a browser, no note on the original publishers', (
+      tester,
+    ) async {
+      await open(tester);
+      expect(find.textContaining('In a browser, only'), findsNothing);
+    });
+
     testWidgets('keeps a stored custom URL when another kind is saved', (
       tester,
     ) async {

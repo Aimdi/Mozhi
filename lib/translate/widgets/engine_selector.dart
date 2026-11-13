@@ -209,6 +209,9 @@ Future<void> showEngineSheet(BuildContext context) {
   unawaited(cubit.loadDeferredEngines());
   return showModalBottomSheet<void>(
     context: context,
+    // Above the bottom navigation bar (dimmed, covered), and not left
+    // open in a tab the user switched away from.
+    useRootNavigator: true,
     isScrollControlled: true,
     useSafeArea: true,
     showDragHandle: true,

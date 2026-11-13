@@ -8,6 +8,7 @@ import 'package:mozhi/proofread/cubit/proofread_state.dart';
 import 'package:mozhi/proofread/models/proofread_diff.dart';
 import 'package:mozhi/proofread/models/proofread_rephrasing.dart';
 import 'package:mozhi/proofread/models/sentence_segmenter.dart';
+import 'package:mozhi/settings/models/proofread_preferences.dart';
 import 'package:mozhi/usage/usage.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -23,7 +24,12 @@ export 'proofread_state.dart';
 /// replace whole sentences of it, and the text the user copies, shares or
 /// keeps is [ProofreadState.finalText], the corrected text with them. A
 /// new result drops the rephrasings; accepting or rejecting an edit keeps
-/// those of the sentences it does not touch ([ProofreadRephrasings.remap]).
+/// those of the sentences it does not touch ([ProofreadRephrasings.remap]);
+/// the ones it drops can be brought back ([undoDroppedRephrasings]).
+///
+/// The options start as the `preferences` given (the ones last chosen,
+/// kept in the settings); changing one after a result marks it stale
+/// ([ProofreadState.optionsChanged]).
 class ProofreadCubit extends Cubit<ProofreadState> {
   new({
     required this._repository,
@@ -31,7 +37,21 @@ class ProofreadCubit extends Cubit<ProofreadState> {
     TranslationEngine? engine,
     this._uiLanguage = 'English',
     this._usageTracker,
-  }) : super(_withEngines(const ProofreadState(), engines, engine));
+    ProofreadPreferences preferences = const ProofreadPreferences(),
+  }) : super(
+         _withEngines(
+           ProofreadState(
+             writingStyle: preferences.writingStyle,
+             correctionLevel: preferences.correctionLevel,
+             formality: preferences.formality,
+             tone: preferences.tone,
+             readingLevel: preferences.readingLevel,
+             variety: preferences.variety,
+           ),
+           engines,
+           engine,
+         ),
+       );
 
   final TranslationRepository _repository;
   final String _uiLanguage;
@@ -46,6 +66,16 @@ class ProofreadCubit extends Cubit<ProofreadState> {
   /// Incremented per alternatives request (and when the alternatives are
   /// closed) so stale ones are ignored.
   int _alternativesRequest = 0;
+
+  /// The accepted edits and rephrasings before the last change of the
+  /// edits dropped rephrasings ([undoDroppedRephrasings]), with the result
+  /// they belong to.
+  ({
+    ProofreadResult result,
+    Set<int> accepted,
+    List<ProofreadRephrasing> rephrasings,
+  })?
+  _beforeDrop;
 
   /// How many alternatives [loadAlternatives] asks for.
   static const alternativesCount = 3;
@@ -160,6 +190,8 @@ class ProofreadCubit extends Cubit<ProofreadState> {
     final text = state.input;
     if (engine == null || text.trim().isEmpty) return;
     final request = ++_request;
+    final preferences = state.preferences;
+    final context = state.context.trim();
     emit(state.copyWith(status: ProofreadStatus.loading, error: () => null));
     try {
       final result = await _repository.proofread(
@@ -170,7 +202,7 @@ class ProofreadCubit extends Cubit<ProofreadState> {
         formality: state.formality,
         readingLevel: state.readingLevel,
         variety: state.variety,
-        context: state.context.trim(),
+        context: context,
         uiLanguage: _uiLanguage,
         tone: state.tone,
       );
@@ -181,13 +213,17 @@ class ProofreadCubit extends Cubit<ProofreadState> {
       final reconciled = await _reconcile(text, result);
       if (isClosed || request != _request) return;
       _alternativesRequest++;
+      _beforeDrop = null;
       emit(
         state.copyWith(
           status: ProofreadStatus.success,
           result: () => reconciled,
           proofreadInput: text,
+          proofreadPreferences: preferences,
+          proofreadContext: context,
           acceptedEdits: {for (var i = 0; i < reconciled.edits.length; i++) i},
           rephrasings: const [],
+          droppedRephrasings: 0,
           alternatives: () => null,
         ),
       );
@@ -274,22 +310,52 @@ class ProofreadCubit extends Cubit<ProofreadState> {
   /// Emits [accepted] as the accepted edits, keeping the rephrasings of the
   /// sentences the change does not touch. Open alternatives are dropped
   /// when the corrected text changes (their sentence may have moved).
+  /// Rephrasings the change drops are counted in
+  /// [ProofreadState.droppedRephrasings], so the user can be told and
+  /// bring them back ([undoDroppedRephrasings]).
   void _emitAccepted(Set<int> accepted) {
-    final next = state.copyWith(acceptedEdits: accepted);
+    final next = state.copyWith(acceptedEdits: accepted, droppedRephrasings: 0);
     final before = state.outputText;
     final after = next.outputText;
     if (before == after) {
+      _beforeDrop = null;
       emit(next);
       return;
     }
     _alternativesRequest++;
+    final kept = ProofreadRephrasings.remap(before, after, state.rephrasings);
+    final dropped = state.rephrasings.length - kept.length;
+    final result = state.result;
+    _beforeDrop = dropped > 0 && result != null
+        ? (
+            result: result,
+            accepted: state.acceptedEdits,
+            rephrasings: state.rephrasings,
+          )
+        : null;
     emit(
       next.copyWith(
-        rephrasings: ProofreadRephrasings.remap(
-          before,
-          after,
-          state.rephrasings,
-        ),
+        rephrasings: kept,
+        droppedRephrasings: dropped > 0 ? dropped : 0,
+        alternatives: () => null,
+      ),
+    );
+  }
+
+  /// Undoes the last acceptance or rejection of an edit that dropped
+  /// rephrasings ([ProofreadState.droppedRephrasings]): the edits and the
+  /// rephrasings are as they were before it. Does nothing when there is
+  /// nothing to undo (or a new result arrived since).
+  void undoDroppedRephrasings() {
+    final before = _beforeDrop;
+    _beforeDrop = null;
+    if (before == null || !identical(before.result, state.result)) return;
+    _alternativesRequest++;
+    emit(
+      state.copyWith(
+        acceptedEdits: before.accepted,
+        rephrasings: before.rephrasings,
+        droppedRephrasings: 0,
         alternatives: () => null,
       ),
     );
@@ -376,9 +442,12 @@ class ProofreadCubit extends Cubit<ProofreadState> {
     );
     final closing = state.alternatives?.sentence == sentence;
     if (closing) _alternativesRequest++;
+    // A new choice: undoing an older change of the edits would lose it.
+    _beforeDrop = null;
     emit(
       state.copyWith(
         rephrasings: rephrasings,
+        droppedRephrasings: 0,
         alternatives: closing ? () => null : null,
       ),
     );
@@ -405,6 +474,7 @@ class ProofreadCubit extends Cubit<ProofreadState> {
 
   ProofreadState _cleared(String input) {
     _alternativesRequest++;
+    _beforeDrop = null;
     return state.copyWith(
       input: input,
       status: ProofreadStatus.idle,
@@ -412,6 +482,7 @@ class ProofreadCubit extends Cubit<ProofreadState> {
       proofreadInput: '',
       acceptedEdits: const {},
       rephrasings: const [],
+      droppedRephrasings: 0,
       alternatives: () => null,
       error: () => null,
     );

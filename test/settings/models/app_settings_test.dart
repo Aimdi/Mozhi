@@ -632,6 +632,33 @@ void main() {
         expect(stored.offlineAppShell, isFalse);
       });
 
+      test('round-trips the dictionary languages', () {
+        const french = Language(code: 'fr', name: 'French');
+        const settings = AppSettings(
+          dictionarySource: Language.auto,
+          dictionaryTarget: french,
+        );
+        final json = settings.toJson();
+        expect(AppSettings.fromJson(json), settings);
+        expect(AppSettings.fromJson(json).dictionarySource, Language.auto);
+        // Not chosen yet: not written, read as null.
+        expect(
+          const AppSettings().toJson(),
+          isNot(contains('dictionaryTarget')),
+        );
+        expect(AppSettings.fromJson(const {}).dictionaryTarget, isNull);
+        expect(
+          AppSettings.fromJson(const {'dictionarySource': 3}).dictionarySource,
+          isNull,
+        );
+        expect(
+          settings.copyWith(dictionaryTarget: () => null).dictionaryTarget,
+          isNull,
+        );
+        expect(settings.copyWith(), settings);
+        expect(settings, isNot(const AppSettings()));
+      });
+
       test('round-trips the DuckDuckGo fallback the user chose', () {
         final json = _custom.toJson();
         expect(json['fallbackToDuckDuckGo'], isFalse);

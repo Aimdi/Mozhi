@@ -866,15 +866,12 @@ void main() {
         tester.getBottomLeft(find.byType(TerminalRule)).dy,
         tester.getTopLeft(bar).dy,
       );
-      for (final label in [
-        '1:translate',
-        '2:dictionary',
-        '3:proofread',
-        // Too long with its number: it shows without it, whole.
-        'conversation',
-      ]) {
+      for (final label in ['1:translate', '2:dictionary', '3:proofread']) {
         expect(find.text(label), findsOneWidget);
       }
+      // Long, but it keeps its number (shortened if need be).
+      expect(find.textContaining(RegExp('^4:conv')), findsOneWidget);
+      expect(find.text('conversation'), findsNothing);
       // No icons.
       expect(find.byIcon(Icons.translate_outlined), findsNothing);
       expect(find.byIcon(Icons.translate), findsNothing);
@@ -936,7 +933,7 @@ void main() {
       final selected = await pumpShell(tester, width: 390);
 
       await tester.tap(find.text('2:dictionary'));
-      await tester.tap(find.text('conversation'));
+      await tester.tap(find.textContaining(RegExp('^4:conv')));
       expect(selected, [1, 3]);
       // 48 dp targets.
       final size = tester.getSize(

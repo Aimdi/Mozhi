@@ -486,10 +486,11 @@ class _RailHeader extends StatelessWidget {
 /// secondary colour. Decoration: the destination's own label names it for
 /// screen readers.
 ///
-/// Never cut with an ellipsis: it shows the first of [forms] that fits
-/// (`1:übersetzen`, then `übersetzen`, each also a size smaller, then
-/// shorter and shorter abbreviations `1:überset.`, …, and at last only the
-/// number).
+/// Never cut with an ellipsis, and never without its number (the tabs
+/// are numbered like a terminal's windows, so every tab keeps its place):
+/// it shows the first of [forms] that fits (`1:übersetzen`, also a size
+/// smaller, then shorter and shorter abbreviations `1:überset.`, …, and
+/// at last only the number).
 class TerminalNavLabel extends StatelessWidget {
   const new({
     required this.number,
@@ -514,15 +515,14 @@ class TerminalNavLabel extends StatelessWidget {
   static const int _shortestAbbreviation = 2;
 
   /// What the label may show, in order of preference: `<number>:<label>`,
-  /// the label alone, `<number>:<prefix>.` for shorter and shorter
-  /// prefixes of the label (by characters, down to two), and at last the
-  /// number alone. [label] in lower case.
+  /// `<number>:<prefix>.` for shorter and shorter prefixes of the label
+  /// (by characters, down to two), and at last the number alone; every
+  /// form keeps the number. [label] in lower case.
   static List<String> forms(int number, String label) {
     final lower = label.toLowerCase();
     final characters = lower.characters;
     return [
       '$number:$lower',
-      lower,
       for (
         var length = characters.length - 1;
         length >= _shortestAbbreviation;
@@ -552,7 +552,7 @@ class TerminalNavLabel extends StatelessWidget {
           for (final (index, form) in forms(number, label).indexed)
             // The whole label also goes a size smaller before it is
             // shortened.
-            for (final size in index < 2 ? const [12.0, 11.0] : const [12.0])
+            for (final size in index == 0 ? const [12.0, 11.0] : const [12.0])
               Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: padding,

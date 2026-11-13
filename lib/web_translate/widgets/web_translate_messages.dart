@@ -24,7 +24,9 @@ String describeWebTranslateError(AppLocalizations l10n, Object? error) {
       error.contentType ?? '?',
     ),
     WebPageError.timeout => l10n.webTranslateErrorTimeout,
-    WebPageError.blockedByBrowser => l10n.webTranslateErrorBlocked,
+    // Only the browser blocks this (the web app): no desktop app to send
+    // the user to.
+    WebPageError.blockedByBrowser => l10n.webTranslateErrorBlockedWeb,
     WebPageError.tooManyRedirects => l10n.webTranslateErrorRedirects,
     WebPageError.blockedRedirect => l10n.webTranslateErrorBlockedRedirect,
     WebPageError.noContent => l10n.webTranslateErrorNoContent,

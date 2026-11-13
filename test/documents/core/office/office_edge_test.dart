@@ -22,6 +22,36 @@ List<int> _localHeaders(Uint8List bytes) {
   ];
 }
 
+/// [bytes] (a ZIP file) with no valid time for any entry: MS-DOS dates and
+/// times of zero in the local and central headers, and the extended
+/// timestamp fields (0x5455, which the decoder prefers) renamed to an
+/// unknown field.
+Uint8List _withoutTimes(Uint8List bytes) {
+  final patched = Uint8List.fromList(bytes);
+  final data = ByteData.sublistView(patched);
+  void dropTimestamps(int start, int end) {
+    for (var at = start; at + 4 <= end;) {
+      if (data.getUint16(at, Endian.little) == 0x5455) {
+        data.setUint16(at, 0xCAFE, Endian.little);
+      }
+      at += 4 + data.getUint16(at + 2, Endian.little);
+    }
+  }
+
+  for (final offset in _localHeaders(patched)) {
+    patched.fillRange(offset + 10, offset + 14, 0);
+    final extra = offset + 30 + data.getUint16(offset + 26, Endian.little);
+    dropTimestamps(extra, extra + data.getUint16(offset + 28, Endian.little));
+  }
+  for (var i = 0; i + 46 <= patched.length; i++) {
+    if (data.getUint32(i, Endian.little) != 0x02014b50) continue;
+    patched.fillRange(i + 12, i + 16, 0);
+    final extra = i + 46 + data.getUint16(i + 28, Endian.little);
+    dropTimestamps(extra, extra + data.getUint16(i + 30, Endian.little));
+  }
+  return patched;
+}
+
 void main() {
   group('SourceDocument', () {
     Matcher problem(PackageProblem problem, String message) => throwsA(
@@ -422,14 +452,35 @@ void main() {
 
     test('entries without a valid time keep a valid one', () {
       final bytes = docx('<w:p><w:r><w:t>Hello</w:t></w:r></w:p>');
-      final patched = Uint8List.fromList(bytes);
-      for (final offset in _localHeaders(patched)) {
-        patched.fillRange(offset + 10, offset + 14, 0);
-      }
-      final document = parsePackagedDocument(patched, DocumentFormat.docx);
+      final document = parsePackagedDocument(
+        _withoutTimes(bytes),
+        DocumentFormat.docx,
+      );
       final output = document.render(['Hallo']);
       for (final entry in entriesOf(output)) {
-        expect(entry.lastModDateTime.year, 1980);
+        expect(entry.lastModDateTime, DateTime(1980));
+      }
+    });
+
+    test('entries keep their own time', () {
+      final time = DateTime(2024, 5, 6, 7, 8, 10);
+      final seconds = time.millisecondsSinceEpoch ~/ 1000;
+      final archive = Archive();
+      for (final entry in ZipDecoder().decodeBytes(
+        docx('<w:p><w:r><w:t>Hello</w:t></w:r></w:p>'),
+      )) {
+        archive.add(
+          ArchiveFile.bytes(entry.name, entry.readBytes()!)
+            ..lastModTime = seconds,
+        );
+      }
+      final document = parsePackagedDocument(
+        ZipEncoder().encodeBytes(archive),
+        DocumentFormat.docx,
+      );
+      final output = document.render(['Hallo']);
+      for (final entry in entriesOf(output)) {
+        expect(entry.lastModDateTime, time, reason: entry.name);
       }
     });
   });

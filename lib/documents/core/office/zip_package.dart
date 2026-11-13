@@ -254,24 +254,15 @@ final class ZipPackage {
     return output.getBytes();
   }
 
-  /// The archive library reads entry times in MS-DOS format but writes
-  /// them from seconds since the epoch; this converts, so that copied
-  /// entries keep their times.
-  static int _epochSeconds(ArchiveFile entry) {
-    final dos = entry.lastModDateTime;
-    final valid = dos.year >= 1980 && dos.month >= 1 && dos.day >= 1;
-    final local = valid
-        ? DateTime(
-            dos.year,
-            dos.month,
-            dos.day,
-            dos.hour,
-            dos.minute,
-            dos.second,
-          )
-        : DateTime(1980);
-    return local.millisecondsSinceEpoch ~/ 1000;
-  }
+  /// The time a copied [entry] is written with, in seconds since the
+  /// epoch: its own (the decoder reads it from the entry's extended
+  /// timestamp, else from its MS-DOS date and time), or the start of 1980
+  /// for a time a ZIP's MS-DOS fields cannot hold (e.g. an MS-DOS date of
+  /// zero, read as November 1979).
+  static int _epochSeconds(ArchiveFile entry) =>
+      entry.lastModDateTime.year >= 1980
+      ? entry.lastModTime
+      : DateTime(1980).millisecondsSinceEpoch ~/ 1000;
 
   /// Whether [name] stays inside the package when extracted.
   static bool isSafeEntryName(String name) {
@@ -353,20 +344,41 @@ final class ZipPackage {
     var directorySize = u32(position + 12);
     var directoryOffset = u32(position + 16);
     // Like the decoder, follow a ZIP64 locator whatever the record says.
+    // It takes the record right before the locator when the locator points
+    // at something else, and reads nothing at all when neither is a record
+    // (refused here as damaged, rather than an empty package).
     final locator = position - 20;
-    if (locator >= 0 && u32(locator) == _zip64LocatorSignature) {
-      final record = u64(locator + 8);
-      if (record > locator - 56) {
+    final zip64 = locator >= 0 && u32(locator) == _zip64LocatorSignature;
+    if (zip64) {
+      final before = locator - 56;
+      var record = u64(locator + 8);
+      if (record < before &&
+          u32(record) != _zip64RecordSignature &&
+          before >= 0 &&
+          u32(before) == _zip64RecordSignature) {
+        record = before;
+      }
+      if (record > before || u32(record) != _zip64RecordSignature) {
         throw const PackageParseException(
           PackageProblem.damaged,
           'damaged ZIP64 directory',
         );
       }
-      if (u32(record) == _zip64RecordSignature) {
-        count = u64(record + 32);
-        directorySize = u64(record + 40);
-        directoryOffset = u64(record + 48);
-      }
+      count = u64(record + 32);
+      directorySize = u64(record + 40);
+      directoryOffset = u64(record + 48);
+    }
+    // A self-extracting archive's prefix: when the directory is not where
+    // the end record says, the decoder looks for it right before the end
+    // records and moves every entry by the difference. No package has one,
+    // and the entries checked below would not be the ones decoded.
+    bool centralAt(int at) =>
+        at >= 0 && at + 4 <= bytes.length && u32(at) == _centralSignature;
+    final start = (zip64 ? locator - 56 : position) - directorySize;
+    if (start > directoryOffset &&
+        !centralAt(directoryOffset) &&
+        centralAt(start)) {
+      damaged('directory not where it is declared');
     }
     if (count > limits.maxEntries || directorySize > limits.maxEntries * 1024) {
       unsafe('too many entries');

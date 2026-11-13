@@ -5,6 +5,7 @@ import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/phrasebook/cubit/starter_phrasebooks_cubit.dart';
 import 'package:mozhi/phrasebook/data/phrasebook_repository.dart';
 import 'package:mozhi/platform/free_space.dart';
+import 'package:mozhi/settings/models/model_source.dart';
 
 import '../starter_fixtures.dart';
 
@@ -61,7 +62,8 @@ void main() {
     );
     await download.load();
     await download.install(info);
-    expect(download.state.items.single.error, StarterPhrasebookError.download);
+    expect(download.state.items.single.error, StarterPhrasebookError.server);
+    expect(download.state.items.single.statusCode, 404);
     expect(download.state.items.single.isDownloading, isFalse);
 
     final checksum = StarterPhrasebooksCubit(
@@ -80,6 +82,59 @@ void main() {
     await download.close();
     await checksum.close();
     await other.close();
+  });
+
+  group('a failed connection', () {
+    Future<StarterPhrasebookItem> failed({
+      required bool isWeb,
+      required ModelSource source,
+    }) async {
+      final cubit = StarterPhrasebooksCubit(
+        packs(
+          MemoryStore(),
+          (_) async => throw http.ClientException('Failed to fetch'),
+        ),
+        isWeb: isWeb,
+        source: () => source,
+      );
+      addTearDown(cubit.close);
+      await cubit.load();
+      await cubit.install(info);
+      return cubit.state.items.single;
+    }
+
+    test('is the connection outside a browser', () async {
+      final item = await failed(isWeb: false, source: ModelSource.defaultHosts);
+      expect(item.error, StarterPhrasebookError.download);
+      expect(item.statusCode, isNull);
+    });
+
+    test('is the browser with the original publishers', () async {
+      expect(
+        (await failed(isWeb: true, source: ModelSource.defaultHosts)).error,
+        StarterPhrasebookError.browserRefused,
+      );
+      expect(
+        (await failed(
+          isWeb: true,
+          source: const ModelSource(
+            kind: ModelSourceKind.thisServer,
+            fallbackToDefault: true,
+          ),
+        )).error,
+        StarterPhrasebookError.browserRefused,
+      );
+    });
+
+    test('is the connection to a mirror in a browser', () async {
+      expect(
+        (await failed(
+          isWeb: true,
+          source: const ModelSource(kind: ModelSourceKind.thisServer),
+        )).error,
+        StarterPhrasebookError.download,
+      );
+    });
   });
 
   test('an update is a new version in the catalogue', () async {

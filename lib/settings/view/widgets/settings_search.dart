@@ -25,14 +25,39 @@ class SettingsSearchEntry {
   final String? subtitle;
   final List<String> keywords;
 
+  static final _word = RegExp(r'[\p{L}\p{M}\p{N}]+', unicode: true);
+
+  /// Scripts written without spaces between words.
+  static final _unspaced = RegExp(
+    r'[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}'
+    r'\p{Script=Thai}\p{Script=Lao}\p{Script=Khmer}\p{Script=Myanmar}]',
+    unicode: true,
+  );
+
   /// Whether every word of [query] occurs in the title, the subtitle or a
   /// keyword (ignoring case).
+  ///
+  /// A short word (up to three letters) must start one of their words, so
+  /// that "tor" finds Tor, not "history" or "restore"; longer words, words
+  /// with punctuation and words of scripts written without spaces may
+  /// occur anywhere (e.g. inside a German compound).
   bool matches(String query) {
     final words = query.toLowerCase().split(RegExp(r'\s+'))
       ..removeWhere((word) => word.isEmpty);
     if (words.isEmpty) return false;
     final haystack = [title, ?subtitle, ...keywords].join('\n').toLowerCase();
-    return words.every(haystack.contains);
+    final starts = [for (final m in _word.allMatches(haystack)) m[0]!];
+    bool found(String word) {
+      final anywhere =
+          word.length > 3 ||
+          _unspaced.hasMatch(word) ||
+          _word.stringMatch(word) != word;
+      return anywhere
+          ? haystack.contains(word)
+          : starts.any((start) => start.startsWith(word));
+    }
+
+    return words.every(found);
   }
 
   /// Whether [query] (as a whole) occurs in the title.

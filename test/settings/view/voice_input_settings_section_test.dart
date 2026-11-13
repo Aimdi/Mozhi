@@ -185,15 +185,50 @@ void main() {
       expect(find.text(l10n.voiceModelsTitle), findsNothing);
     });
 
-    testWidgets('renders nothing with nothing to set', (tester) async {
+    testWidgets('with nothing to set, says what voice input uses', (
+      tester,
+    ) async {
       speech = SpeechInputService(
         store: store,
         adapter: FakeSpeechRecognizer(),
         platformSupported: true,
         onDeviceSupported: false,
+        isWeb: false,
       );
       await pumpSection(tester, withOffline: false);
-      expect(find.text(l10n.voiceSettingsTitle), findsNothing);
+      expect(find.text(l10n.voiceSettingsTitle), findsOneWidget);
+      expect(find.text(l10n.voiceEngineSystemSubtitle), findsOneWidget);
+    });
+
+    testWidgets('in the web app, explains the browser recognition', (
+      tester,
+    ) async {
+      speech = SpeechInputService(
+        store: store,
+        adapter: FakeSpeechRecognizer(),
+        platformSupported: true,
+        onDeviceSupported: false,
+        isWeb: true,
+        browserRecognizerAvailable: true,
+      );
+      await pumpSection(tester, withOffline: false);
+      expect(find.text(l10n.voiceSettingsTitle), findsOneWidget);
+      expect(find.text(l10n.voiceBrowserNoticeBody), findsOneWidget);
+    });
+
+    testWidgets('in a browser without speech recognition, says so', (
+      tester,
+    ) async {
+      speech = SpeechInputService(
+        store: store,
+        adapter: FakeSpeechRecognizer(),
+        platformSupported: true,
+        onDeviceSupported: false,
+        isWeb: true,
+        browserRecognizerAvailable: false,
+      );
+      await pumpSection(tester, withOffline: false);
+      expect(find.text(l10n.voiceErrorUnavailableBrowser), findsOneWidget);
     });
 
     testWidgets('lists the engine and the models', (tester) async {

@@ -144,7 +144,7 @@ test.describe('on-device translation in the browser', () => {
       page.locator('span', { hasText: 'German is ready for offline use' }),
     ).toBeVisible({ timeout: 120_000 });
     await expect(
-      languageRow(page, /^Delete German .*on this device/),
+      languageRow(page, /^German .*on this device/),
     ).toBeVisible();
     // Both directions, three files each, each fetched once.
     expect(requested).toHaveLength(6);
@@ -188,7 +188,7 @@ test.describe('on-device translation in the browser', () => {
       .getByRole('button', { name: 'Download' })
       .click();
     await expect(
-      languageRow(page, /^Delete German .*on this device/),
+      languageRow(page, /^German .*on this device/),
     ).toBeVisible({ timeout: 120_000 });
 
     const attempts = await cutModelHost(context);

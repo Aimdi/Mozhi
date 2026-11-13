@@ -142,6 +142,79 @@ void main() {
       expect(find.byKey(note), findsOneWidget);
     });
 
+    testWidgets('Offline only offers no "Find the fastest server"', (
+      tester,
+    ) async {
+      await pump(tester);
+      const fastest = Key('onboarding_find_fastest');
+      expect(find.byKey(fastest), findsOneWidget);
+
+      final cubit = await pump(
+        tester,
+        const OnboardingState(),
+        const AppSettings(
+          instances: testInstances,
+          privacyMode: PrivacyMode.offlineOnly,
+        ),
+      );
+      expect(find.byKey(fastest), findsNothing);
+      expect(find.text('Find the fastest server'), findsNothing);
+      verifyNever(cubit.findFastestInstance);
+    });
+
+    group('Offline only without a language on the device', () {
+      const missing = Key('onboarding_service_no_offline_language');
+      const offlineOnly = AppSettings(
+        instances: testInstances,
+        privacyMode: PrivacyMode.offlineOnly,
+      );
+
+      Future<MockOnboardingCubit> pumpWith(
+        WidgetTester tester, {
+        required AppSettings settings,
+        Set<String> downloaded = const {'en'},
+      }) async {
+        tester.setScreenSize(const Size(500, 2000));
+        final offline = await tester.runAsync(
+          () => createOfflineModels(
+            FakeOfflineTranslator(downloaded: {...downloaded}),
+          ),
+        );
+        addTearDown(offline!.close);
+        final cubit = createOnboardingCubit();
+        await tester.pumpOnboarding(
+          const ServiceStep(),
+          onboarding: cubit,
+          offline: offline,
+          settings: createSettings(settings),
+        );
+        return cubit;
+      }
+
+      testWidgets('says so and goes back to the languages', (tester) async {
+        final cubit = await pumpWith(tester, settings: offlineOnly);
+        expect(find.byKey(missing), findsOneWidget);
+        expect(
+          find.textContaining('No language is downloaded yet'),
+          findsOneWidget,
+        );
+        await tester.tap(
+          find.byKey(const Key('onboarding_service_pick_languages')),
+        );
+        verify(() => cubit.goTo(OnboardingStep.languages)).called(1);
+      });
+
+      testWidgets('nothing once a language is here', (tester) async {
+        await pumpWith(tester, settings: offlineOnly, downloaded: {'en', 'de'});
+        expect(find.byKey(missing), findsNothing);
+      });
+
+      testWidgets('nothing in another privacy mode', (tester) async {
+        await pumpWith(tester, settings: testSettings);
+        expect(find.byKey(missing), findsNothing);
+      });
+    });
+
     testWidgets('points to the AI provider settings', (tester) async {
       await pump(tester);
       expect(find.textContaining('AI translators are optional'), findsOne);

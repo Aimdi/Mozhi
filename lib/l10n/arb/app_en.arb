@@ -14414,5 +14414,378 @@
         "type": "String"
       }
     }
+  },
+  "translateErrorTitleOwnServer": "Your Mozhi server is unavailable",
+  "@translateErrorTitleOwnServer": {
+    "description": "Title of the error shown when every Mozhi server the text could go to failed and all of them are servers the user added (their own, self-hosted)."
+  },
+  "translateErrorOwnServerFailed": "{count, plural, =1{Your Mozhi server couldn't translate with {engine} just now. Check that it is running and that this device can reach it.} other{None of your {count} Mozhi servers could translate with {engine} just now. Check that they are running and that this device can reach them.}}",
+  "@translateErrorOwnServerFailed": {
+    "description": "Every Mozhi server of the user's list failed and all of them are servers the user added (self-hosted). engine is the engine name (Google, DeepL...).",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "engine": {
+        "type": "String"
+      }
+    }
+  },
+  "translateErrorOwnServerRateLimited": "{engine} is limiting requests from your Mozhi server right now. This usually passes after a while.",
+  "@translateErrorOwnServerRateLimited": {
+    "description": "Every Mozhi server failed because the engine (e.g. Google) rate-limits them; all of them are servers the user added.",
+    "placeholders": {
+      "engine": {
+        "type": "String"
+      }
+    }
+  },
+  "translateErrorDetectionOwnServerFailed": "Your Mozhi server couldn't detect the language just now. Choose the language the text is written in.",
+  "@translateErrorDetectionOwnServerFailed": {
+    "description": "The user's own Mozhi servers failed while detecting the source language; the user can pick the language instead."
+  },
+  "translateErrorTitleServers": "Mozhi servers unavailable",
+  "@translateErrorTitleServers": {
+    "description": "Title of the error shown when every Mozhi server failed and the list has both servers the user added and volunteer servers."
+  },
+  "translateErrorServersFailed": "{count, plural, =1{The Mozhi server couldn't translate with {engine} just now.} other{None of the {count} Mozhi servers in your list could translate with {engine} just now.}} Some are your own and some are run by volunteers.",
+  "@translateErrorServersFailed": {
+    "description": "Every Mozhi server failed; the list has both servers the user added and public volunteer servers. engine is the engine name.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "engine": {
+        "type": "String"
+      }
+    }
+  },
+  "translateErrorServersRateLimited": "{engine} is limiting requests from the Mozhi servers in your list right now. This usually passes after a while.",
+  "@translateErrorServersRateLimited": {
+    "description": "Every Mozhi server failed because the engine rate-limits them; the list has both the user's own and volunteer servers.",
+    "placeholders": {
+      "engine": {
+        "type": "String"
+      }
+    }
+  },
+  "translateErrorDetectionServersFailedMixed": "The Mozhi servers in your list couldn't detect the language just now. Choose the language the text is written in.",
+  "@translateErrorDetectionServersFailedMixed": {
+    "description": "Every Mozhi server (the user's own and volunteer ones) failed while detecting the source language."
+  },
+  "translateErrorProviderServer": "The AI provider answered with a server error ({code}). It may be busy or having problems: try again in a moment.",
+  "@translateErrorProviderServer": {
+    "description": "The AI provider answered with an HTTP 5xx server error. code is the status code.",
+    "placeholders": {
+      "code": {
+        "type": "String"
+      }
+    }
+  },
+  "translateErrorTitleNoNetworkAccess": "Mozhi can't use the network",
+  "@translateErrorTitleNoNetworkAccess": {
+    "description": "Title of the error shown when the device has a connection but Mozhi itself may not use it (GrapheneOS Network permission off, a VPN lockdown)."
+  },
+  "translateErrorNoNetworkAccess": "Your device seems connected, but Mozhi can't reach the network. If you turned off Mozhi's Network permission, or a VPN blocks connections, allow it, then try again.",
+  "@translateErrorNoNetworkAccess": {
+    "description": "Body of the error shown when Mozhi itself may not use the network although the device is connected. Shown with an Open settings button."
+  },
+  "translateOfflineDownloadNoNetworkAccess": "Mozhi can't use the network, so the download can't start. If you turned off Mozhi's Network permission, or a VPN blocks connections, allow it, then try again.",
+  "@translateOfflineDownloadNoNetworkAccess": {
+    "description": "Shown instead of the mobile data question when an offline language download cannot start because Mozhi may not use the network."
+  },
+  "translateOfflineDownloadOffline": "You're offline. Connect to the internet to download {language}.",
+  "@translateOfflineDownloadOffline": {
+    "description": "Shown instead of the mobile data question when an offline language download cannot start because the device has no network. language is the language name.",
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "translateOfflineNotHostedHint": "To translate {language} on this device, without the internet, add its language files on the offline languages page.",
+  "@translateOfflineNotHostedHint": {
+    "description": "Explains the Manage languages button when this web server does not host the offline language downloads (they can be imported there). language is one or more language names.",
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "translateGlossaryIncomplete": "Fill in both, or clear this field",
+  "@translateGlossaryIncomplete": {
+    "description": "Error under a glossary field on Done when only the term or only its translation was typed: the pair is not saved until both are filled in."
+  },
+  "offlineBrowserRefusedTitle": "Your browser can’t download these from the original publishers",
+  "@offlineBrowserRefusedTitle": {
+    "description": "offlineBrowserRefusedTitle"
+  },
+  "offlineBrowserRefusedBody": "Their servers don’t let web pages download these files, so every download would fail. Choose a mirror as the model source (such as this web server, if it hosts them), import files you downloaded elsewhere, or use the Android app.",
+  "@offlineBrowserRefusedBody": {
+    "description": "offlineBrowserRefusedBody"
+  },
+  "offlineBrowserRefusedSource": "Change the model source",
+  "@offlineBrowserRefusedSource": {
+    "description": "offlineBrowserRefusedSource"
+  },
+  "offlineErrorBrowserRefused": "Couldn’t download {language}: its original publisher doesn’t let web pages download it. Choose a mirror as the model source, or import the files.",
+  "@offlineErrorBrowserRefused": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsModelSourceDefaultWebNote": "In a browser, only text recognition data comes from them: they don’t let web pages download offline languages, dictionaries or phrasebooks.",
+  "@settingsModelSourceDefaultWebNote": {
+    "description": "settingsModelSourceDefaultWebNote"
+  },
+  "offlineMoreTitle": "About and settings",
+  "@offlineMoreTitle": {
+    "description": "offlineMoreTitle"
+  },
+  "offlineMoreSubtitle": "Wi‑Fi only, model source, import from files and other downloads",
+  "@offlineMoreSubtitle": {
+    "description": "offlineMoreSubtitle"
+  },
+  "phrasebookStarterErrorServer": "The server doesn’t have it (error {status}). Ask its owner to mirror the phrasebooks, or change the model source.",
+  "@phrasebookStarterErrorServer": {
+    "placeholders": {
+      "status": {
+        "type": "int"
+      }
+    }
+  },
+  "phrasebookStarterErrorBrowserRefused": "Your browser can’t download it from GitHub. Choose a mirror as the model source.",
+  "@phrasebookStarterErrorBrowserRefused": {
+    "description": "phrasebookStarterErrorBrowserRefused"
+  },
+  "onboardingLanguagesOfflineOnlyBlocked": "Offline only needs a downloaded language, and this browser can’t download them here. Import files you downloaded elsewhere, or choose another privacy mode.",
+  "@onboardingLanguagesOfflineOnlyBlocked": {
+    "description": "onboardingLanguagesOfflineOnlyBlocked"
+  },
+  "onboardingLanguagesOfflineOnlyNeeded": "Offline only translates with downloaded languages only, so these are downloaded when you tap Next.",
+  "@onboardingLanguagesOfflineOnlyNeeded": {
+    "description": "onboardingLanguagesOfflineOnlyNeeded"
+  },
+  "onboardingChangePrivacy": "Change privacy mode",
+  "@onboardingChangePrivacy": {
+    "description": "onboardingChangePrivacy"
+  },
+  "onboardingServiceOfflineOnlyNoLanguage": "No language is downloaded yet, so Offline only can’t translate anything. Go back and download one, or import files later in Settings › Offline languages.",
+  "@onboardingServiceOfflineOnlyNoLanguage": {
+    "description": "onboardingServiceOfflineOnlyNoLanguage"
+  },
+  "onboardingServicePickLanguages": "Download languages",
+  "@onboardingServicePickLanguages": {
+    "description": "onboardingServicePickLanguages"
+  },
+  "settingsOfflineAppShellFailed": "This browser didn’t keep the app (a private window or blocked site data?). It still works online.",
+  "@settingsOfflineAppShellFailed": {
+    "description": "settingsOfflineAppShellFailed"
+  },
+  "phrasebookListenPhraseIn": "Listen to the phrase ({language})",
+  "@phrasebookListenPhraseIn": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "phrasebookListenTranslationIn": "Listen to the translation ({language})",
+  "@phrasebookListenTranslationIn": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "practiceOverviewNewHeadline": "{count, plural, =1{1 new card to learn} other{{count} new cards to learn}}",
+  "@practiceOverviewNewHeadline": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "practiceNewCardSemantics": "New card",
+  "@practiceNewCardSemantics": {
+    "description": "practiceNewCardSemantics"
+  },
+  "settingsImportChooseFile": "Choose file",
+  "@settingsImportChooseFile": {
+    "description": "settingsImportChooseFile"
+  },
+  "settingsImportHistoryFileSubtitle": "Choose or paste a history file exported from Mozhi",
+  "@settingsImportHistoryFileSubtitle": {
+    "description": "settingsImportHistoryFileSubtitle"
+  },
+  "settingsImportFileHint": "Choose the exported file, or paste its JSON here",
+  "@settingsImportFileHint": {
+    "description": "settingsImportFileHint"
+  },
+  "dictionarySavedEntry": "Saved entry, not looked up again",
+  "@dictionarySavedEntry": {
+    "description": "dictionarySavedEntry"
+  },
+  "dictionaryRefresh": "Refresh",
+  "@dictionaryRefresh": {
+    "description": "dictionaryRefresh"
+  },
+  "dictionaryRefreshTooltip": "Look the word up again with the AI",
+  "@dictionaryRefreshTooltip": {
+    "description": "dictionaryRefreshTooltip"
+  },
+  "dictionaryPickerRecent": "Recent",
+  "@dictionaryPickerRecent": {
+    "description": "dictionaryPickerRecent"
+  },
+  "dictionaryPickerAll": "All languages",
+  "@dictionaryPickerAll": {
+    "description": "dictionaryPickerAll"
+  },
+  "proofreadStaleOptionsNotice": "You changed the options since your text was checked.",
+  "@proofreadStaleOptionsNotice": {
+    "description": "proofreadStaleOptionsNotice"
+  },
+  "proofreadRephrasingsDropped": "{count, plural, =1{The sentence you rephrased changed, so its new wording was removed.} other{{count} sentences you rephrased changed, so their new wording was removed.}}",
+  "@proofreadRephrasingsDropped": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "proofreadErrorTruncated": "The answer was cut off at the model's output limit. Try a shorter text.",
+  "@proofreadErrorTruncated": {
+    "description": "proofreadErrorTruncated"
+  },
+  "proofreadErrorInterrupted": "The connection dropped while the answer was arriving. Try again.",
+  "@proofreadErrorInterrupted": {
+    "description": "proofreadErrorInterrupted"
+  },
+  "proofreadErrorStopped": "The AI model stopped before finishing. Try again or pick another model.",
+  "@proofreadErrorStopped": {
+    "description": "proofreadErrorStopped"
+  },
+  "proofreadErrorProviderFailed": "The AI provider couldn't proofread this text. Try again or pick another model.",
+  "@proofreadErrorProviderFailed": {
+    "description": "proofreadErrorProviderFailed"
+  },
+  "webTranslateErrorBlockedWeb": "Your browser blocked the download: this site does not let other websites read its pages (CORS). Open the page, copy its text and translate it in the Translate tab, or use the Mozhi Android app.",
+  "@webTranslateErrorBlockedWeb": {
+    "description": "webTranslateErrorBlockedWeb"
+  },
+  "proofreadEditsShowMore": "{count, plural, =1{Show 1 more suggestion} other{Show {count} more suggestions}}",
+  "@proofreadEditsShowMore": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsProviderKeyStorageWeb": "Kept only for this browser tab: it is forgotten when you close the tab.",
+  "@settingsProviderKeyStorageWeb": {
+    "description": "settingsProviderKeyStorageWeb"
+  },
+  "settingsProviderLibreKeyHelperWeb": "Only needed if the server requires one (libretranslate.com does). Kept only for this browser tab: it is forgotten when you close the tab.",
+  "@settingsProviderLibreKeyHelperWeb": {
+    "description": "settingsProviderLibreKeyHelperWeb"
+  },
+  "settingsProvidersKeyMissing": "API key missing",
+  "@settingsProvidersKeyMissing": {
+    "description": "settingsProvidersKeyMissing"
+  },
+  "settingsProviderDiscardTitle": "Discard changes?",
+  "@settingsProviderDiscardTitle": {
+    "description": "settingsProviderDiscardTitle"
+  },
+  "settingsProviderDiscardBody": "What you changed here, including any API key you typed, will be lost.",
+  "@settingsProviderDiscardBody": {
+    "description": "settingsProviderDiscardBody"
+  },
+  "settingsProviderDiscard": "Discard",
+  "@settingsProviderDiscard": {
+    "description": "settingsProviderDiscard"
+  },
+  "settingsProviderKeepEditing": "Keep editing",
+  "@settingsProviderKeepEditing": {
+    "description": "settingsProviderKeepEditing"
+  },
+  "settingsSaveHistoryIncognitoSubtitle": "Paused while Incognito is on: only favorites are saved",
+  "@settingsSaveHistoryIncognitoSubtitle": {
+    "description": "settingsSaveHistoryIncognitoSubtitle"
+  },
+  "settingsInstancesContactNote": "In {mode} mode, the app may ask your first instance for its list of engines when it starts. Apart from that, instances are only contacted when you translate with them, load their engines, or check or test them. Check instances asks each one for its engines and measures how fast it answers.",
+  "@settingsInstancesContactNote": {
+    "placeholders": {
+      "mode": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsInstancesCatalogHiddenWeb": "Tor and I2P addresses can't be used in the browser version of the app.",
+  "@settingsInstancesCatalogHiddenWeb": {
+    "description": "settingsInstancesCatalogHiddenWeb"
+  },
+  "settingsInstanceNeedsProxyNoteWeb": "Tor and I2P addresses can't be reached from the browser version of the app. They work in the Android app through a proxy.",
+  "@settingsInstanceNeedsProxyNoteWeb": {
+    "description": "settingsInstanceNeedsProxyNoteWeb"
+  },
+  "settingsProvidersSearchKeywords": "API key, API keys, OpenAI, ChatGPT, Anthropic, Claude, Gemini, Ollama, LM Studio, OpenRouter, LLM, model",
+  "@settingsProvidersSearchKeywords": {
+    "description": "settingsProvidersSearchKeywords"
+  },
+  "settingsMtServicesSearchKeywords": "DeepL, LibreTranslate, API key, API keys, machine translation",
+  "@settingsMtServicesSearchKeywords": {
+    "description": "settingsMtServicesSearchKeywords"
+  },
+  "settingsUsageSearchKeywords": "budget, budgets, cost, costs, spending, limit, tokens, billing",
+  "@settingsUsageSearchKeywords": {
+    "description": "settingsUsageSearchKeywords"
+  },
+  "settingsThemeSearchKeywords": "dark mode, light mode, night mode, appearance",
+  "@settingsThemeSearchKeywords": {
+    "description": "settingsThemeSearchKeywords"
+  },
+  "settingsHttpProxySearchKeywords": "Tor, Orbot, I2P, onion, anonymity",
+  "@settingsHttpProxySearchKeywords": {
+    "description": "settingsHttpProxySearchKeywords"
+  },
+  "speechErrorPlayback": "The audio from the Mozhi server couldn’t be played here. Try again, or install a voice for this language in your device’s text-to-speech settings.",
+  "@speechErrorPlayback": {
+    "description": "speechErrorPlayback"
+  },
+  "speechErrorOwnServerUnavailable": "Your Mozhi server couldn’t read this aloud just now. Check that it’s running and can be reached.",
+  "@speechErrorOwnServerUnavailable": {
+    "description": "speechErrorOwnServerUnavailable"
+  },
+  "speechErrorMozhiFailed": "The Mozhi servers couldn’t read this aloud just now.",
+  "@speechErrorMozhiFailed": {
+    "description": "speechErrorMozhiFailed"
+  },
+  "speechUnavailableNoVoice": "Neither your Mozhi servers nor this device can read this language aloud. Install a voice for it in your device’s text-to-speech settings.",
+  "@speechUnavailableNoVoice": {
+    "description": "speechUnavailableNoVoice"
+  },
+  "voiceErrorPermissionWeb": "Microphone access is blocked for this site. Allow the microphone in your browser’s site settings (the icon next to the address), then try again.",
+  "@voiceErrorPermissionWeb": {
+    "description": "voiceErrorPermissionWeb"
+  },
+  "voiceErrorLanguageWeb": "This browser can’t recognize speech in this language. Choose another language or type instead.",
+  "@voiceErrorLanguageWeb": {
+    "description": "voiceErrorLanguageWeb"
+  },
+  "voiceErrorNetworkWeb": "Speech recognition in this browser needs a network connection. Check your connection and try again.",
+  "@voiceErrorNetworkWeb": {
+    "description": "voiceErrorNetworkWeb"
+  },
+  "voiceInputAssumedLanguage": "This browser can’t detect the spoken language, so voice input listens in {language}. Choose the language you speak to change it.",
+  "@voiceInputAssumedLanguage": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
   }
 }

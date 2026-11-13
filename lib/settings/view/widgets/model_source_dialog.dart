@@ -64,23 +64,22 @@ class ModelSourceTile extends StatelessWidget {
           title: Text(l10n.settingsModelSource),
           subtitle: Text(modelSourceSummary(l10n, source)),
           trailing: const Icon(Icons.chevron_right),
-          onTap: () => unawaited(_pick(context, cubit, source)),
+          onTap: () => unawaited(pickModelSource(context, cubit)),
         );
       },
     );
   }
+}
 
-  Future<void> _pick(
-    BuildContext context,
-    SettingsCubit cubit,
-    ModelSource current,
-  ) async {
-    final chosen = await showDialog<ModelSource>(
-      context: context,
-      builder: (context) => ModelSourceDialog(initial: current),
-    );
-    if (chosen != null && chosen != current) cubit.setModelSource(chosen);
-  }
+/// Lets the user change [cubit]'s model source in a [ModelSourceDialog]
+/// (saved when it changed).
+Future<void> pickModelSource(BuildContext context, SettingsCubit cubit) async {
+  final current = cubit.state.modelSource;
+  final chosen = await showDialog<ModelSource>(
+    context: context,
+    builder: (context) => ModelSourceDialog(initial: current),
+  );
+  if (chosen != null && chosen != current) cubit.setModelSource(chosen);
 }
 
 /// Picks the [ModelSource]: the original publishers, this web server
@@ -220,7 +219,12 @@ class _ModelSourceDialogState extends State<ModelSourceDialog> {
             RadioListTile<ModelSourceKind>(
               value: ModelSourceKind.defaultHosts,
               title: Text(l10n.settingsModelSourceDefault),
-              subtitle: Text(l10n.settingsModelSourceDefaultSubtitle),
+              subtitle: _Subtitle(
+                text: l10n.settingsModelSourceDefaultSubtitle,
+                // In a browser most of their files cannot be downloaded:
+                // said before it is chosen, not after a download fails.
+                webNote: widget.offerThisServer,
+              ),
             ),
             if (widget.offerThisServer ||
                 widget.initial.kind == ModelSourceKind.thisServer)
@@ -308,7 +312,10 @@ class _ModelSourceDialogState extends State<ModelSourceDialog> {
               SwitchListTile(
                 key: ModelSourceDialog.fallbackKey,
                 title: Text(l10n.settingsModelSourceFallback),
-                subtitle: Text(l10n.settingsModelSourceFallbackSubtitle),
+                subtitle: _Subtitle(
+                  text: l10n.settingsModelSourceFallbackSubtitle,
+                  webNote: widget.offerThisServer,
+                ),
                 value: _fallback,
                 onChanged: (value) => setState(() => _fallback = value),
               ),
@@ -325,6 +332,47 @@ class _ModelSourceDialogState extends State<ModelSourceDialog> {
           key: ModelSourceDialog.saveKey,
           onPressed: _save,
           child: Text(l10n.commonSave),
+        ),
+      ],
+    );
+  }
+}
+
+/// A radio's or switch's [text], and with [webNote] the note that a web
+/// app cannot download most files from the original publishers.
+class _Subtitle extends StatelessWidget {
+  const new({required this.text, required this.webNote});
+
+  final String text;
+  final bool webNote;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!webNote) return Text(text);
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(text),
+        Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            spacing: 6,
+            children: [
+              Icon(
+                Icons.public_off_outlined,
+                size: 16,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+              Expanded(
+                child: Text(
+                  context.l10n.settingsModelSourceDefaultWebNote,
+                  style: theme.textTheme.bodySmall,
+                ),
+              ),
+            ],
+          ),
         ),
       ],
     );

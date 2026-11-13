@@ -749,4 +749,289 @@ void main() {
       expect(ComposerLayout.heroMinHeight(0.8), 420);
     });
   });
+
+  group('terminal look', () {
+    final theme = buildAppTheme(
+      appColorScheme(
+        brightness: Brightness.dark,
+        seedColor: const Color(0xFFFFB000),
+      ),
+      look: AppLook.terminal,
+    );
+    const claude = TranslationEngine(
+      id: 'ai:claude',
+      kind: EngineKind.ai,
+      name: 'Claude',
+      subtitle: 'claude-sonnet',
+    );
+
+    Future<void> pumpCard(
+      WidgetTester tester, {
+      bool outlined = true,
+      FocusNode? focusNode,
+      List<Widget> actions = const [],
+    }) => tester.pumpApp(
+      Scaffold(
+        body: Align(
+          alignment: Alignment.bottomCenter,
+          child: SizedBox(
+            width: 360,
+            height: outlined ? null : 500,
+            child: ComposerCard(
+              outlined: outlined,
+              expand: !outlined,
+              actions: actions,
+              bar: const ComposerBar(
+                key: Key('bar'),
+                children: [SizedBox(width: 48, height: 48)],
+              ),
+              child: TextField(key: const Key('field'), focusNode: focusNode),
+            ),
+          ),
+        ),
+      ),
+      theme: theme,
+    );
+
+    testWidgets('the card is a square stdin box with a prompt', (tester) async {
+      await pumpCard(
+        tester,
+        actions: [
+          IconButton(
+            key: const Key('action'),
+            tooltip: 'Clear',
+            icon: const Icon(Icons.close),
+            onPressed: () {},
+          ),
+        ],
+      );
+      final context = tester.element(find.byType(ComposerCard));
+      final palette = AppPalette.of(context);
+      final scheme = Theme.of(context).colorScheme;
+
+      final decoration = cardDecoration(tester);
+      expect(decoration.borderRadius, BorderRadius.zero);
+      expect(
+        decoration.border,
+        Border.fromBorderSide(BorderSide(color: palette.hairline)),
+      );
+      expect(decoration.color, scheme.surfaceContainer);
+      expect(find.text('stdin'), findsOneWidget);
+      expect(find.text('>'), findsOneWidget);
+      // The prompt comes before the field, the label above it.
+      expect(
+        tester.getRect(find.text('>')).right,
+        lessThanOrEqualTo(tester.getRect(find.byKey(const Key('field'))).left),
+      );
+      expect(
+        tester.getRect(find.text('stdin')).bottom,
+        lessThanOrEqualTo(tester.getRect(find.byKey(const Key('field'))).top),
+      );
+      // The actions are framed square tools in the text colour.
+      final style = tester
+          .widget<IconButtonTheme>(
+            find.ancestor(
+              of: find.byKey(const Key('composer_actions')),
+              matching: find.byType(IconButtonTheme),
+            ),
+          )
+          .data
+          .style!;
+      expect(style.shape?.resolve({}), const RoundedRectangleBorder());
+      expect(style.side?.resolve({}), BorderSide(color: palette.hairline));
+      expect(style.foregroundColor?.resolve({}), scheme.onSurface);
+      expect(
+        tester.getSize(find.byKey(const Key('action'))),
+        const Size.square(48),
+      );
+      // The bar is boxed in the hairline too.
+      final bar = tester.widget<DecoratedBox>(
+        find
+            .descendant(
+              of: find.byKey(const Key('bar')),
+              matching: find.byType(DecoratedBox),
+            )
+            .first,
+      );
+      expect(
+        ((bar.decoration as ShapeDecoration).shape as OutlinedBorder).side,
+        BorderSide(color: palette.hairline),
+      );
+    });
+
+    testWidgets('the prompt points the other way right to left', (
+      tester,
+    ) async {
+      await tester.pumpApp(
+        const Directionality(
+          textDirection: TextDirection.rtl,
+          child: Material(child: ComposerCard(child: SizedBox(height: 48))),
+        ),
+        theme: theme,
+      );
+      expect(find.text('<'), findsOneWidget);
+    });
+
+    testWidgets('turns flat and keeps the field, its focus and text', (
+      tester,
+    ) async {
+      final focusNode = FocusNode();
+      addTearDown(focusNode.dispose);
+      await pumpCard(tester, focusNode: focusNode);
+      await tester.enterText(find.byKey(const Key('field')), 'hola');
+      expect(focusNode.hasFocus, isTrue);
+
+      await pumpCard(tester, outlined: false, focusNode: focusNode);
+      await tester.pumpAndSettle();
+      final decoration = cardDecoration(tester);
+      expect(decoration.border, const Border.fromBorderSide(BorderSide.none));
+      expect(decoration.color!.a, 0);
+      expect(find.text('stdin'), findsNothing);
+      expect(find.text('>'), findsOneWidget);
+      expect(focusNode.hasFocus, isTrue);
+      expect(find.text('hola'), findsOneWidget);
+    });
+
+    testWidgets('the options button is a square tool with its dot', (
+      tester,
+    ) async {
+      await tester.pumpApp(
+        Scaffold(
+          body: ComposerOptionsButton(
+            tooltip: 'Options',
+            modified: true,
+            onPressed: () {},
+          ),
+        ),
+        theme: theme,
+      );
+      final button = tester.widget<IconButton>(find.byType(IconButton));
+      final scheme = Theme.of(tester.element(find.byType(IconButton)))
+          .colorScheme;
+      expect(button.color, isNull);
+      expect(button.style?.foregroundColor?.resolve({}), scheme.onSurface);
+      expect(button.style?.shape?.resolve({}), const RoundedRectangleBorder());
+      expect(tester.widget<Badge>(find.byType(Badge)).isLabelVisible, isTrue);
+    });
+
+    testWidgets('the go button is run, named by its label', (tester) async {
+      final semantics = tester.ensureSemantics();
+      var pressed = 0;
+      Future<void> pump({bool busy = false, bool enabled = true}) =>
+          tester.pumpApp(
+            Scaffold(
+              body: Center(
+                child: ComposerGoButton(
+                  label: 'Look up',
+                  tooltip: 'Look up (Enter)',
+                  busy: busy,
+                  onPressed: enabled ? () => pressed++ : null,
+                ),
+              ),
+            ),
+            theme: theme,
+          );
+
+      await pump();
+      final scheme = Theme.of(tester.element(find.byType(ComposerGoButton)))
+          .colorScheme;
+      expect(find.text('run ⏎'), findsOneWidget);
+      expect(find.byIcon(ComposerGoButton.defaultIcon), findsNothing);
+      expect(
+        tester.getSemantics(find.byType(TextButton)),
+        isSemantics(label: 'Look up', isButton: true, isEnabled: true),
+      );
+      expect(
+        tester.widget<Tooltip>(find.byType(Tooltip)).message,
+        'Look up (Enter)',
+      );
+      expect(
+        tester
+            .widget<TextButton>(find.byType(TextButton))
+            .style
+            ?.backgroundColor
+            ?.resolve({}),
+        scheme.primary,
+      );
+      expect(tester.getSize(find.byType(TextButton)).height, 48);
+      await tester.tap(find.text('run ⏎'));
+      expect(pressed, 1);
+      expect(find.byKey(const Key('composer_go_progress')), findsNothing);
+
+      await pump(busy: true);
+      expect(find.byKey(const Key('composer_go_progress')), findsOneWidget);
+      expect(
+        tester
+            .widget<TextButton>(find.byType(TextButton))
+            .style
+            ?.backgroundColor
+            ?.resolve({}),
+        Colors.transparent,
+      );
+
+      await pump(enabled: false);
+      expect(
+        tester.getSemantics(find.byType(TextButton)),
+        isSemantics(label: 'Look up', isButton: true),
+      );
+      expect(
+        tester.widget<TextButton>(find.byType(TextButton)).onPressed,
+        isNull,
+      );
+      semantics.dispose();
+    });
+
+    testWidgets('the engine chip is the dot and the name', (tester) async {
+      final semantics = tester.ensureSemantics();
+      TranslationEngine? picked;
+      await tester.pumpApp(
+        Scaffold(
+          appBar: AppBar(
+            title: ComposerEngineChip(
+              engine: claude,
+              engines: const [
+                claude,
+                TranslationEngine(
+                  id: 'ai:gpt',
+                  kind: EngineKind.ai,
+                  name: 'GPT',
+                ),
+              ],
+              onSelected: (engine) => picked = engine,
+            ),
+          ),
+        ),
+        theme: theme,
+      );
+
+      expect(find.text('●'), findsOneWidget);
+      expect(find.text('Claude'), findsOneWidget);
+      // The model id is in the tooltip, not on the chip; no icon.
+      expect(find.text('claude-sonnet'), findsNothing);
+      expect(find.byIcon(Icons.auto_awesome_outlined), findsNothing);
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is Tooltip &&
+              widget.message == 'Choose the AI model\nclaude-sonnet',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        tester.getSemantics(find.byKey(const Key('composer_engine_chip'))),
+        isSemantics(label: 'AI model: Claude', isButton: true),
+      );
+      expect(
+        tester.getSize(find.byKey(const Key('composer_engine_chip'))).height,
+        greaterThanOrEqualTo(48),
+      );
+
+      await tester.tap(find.byKey(const Key('composer_engine_chip')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('composer_engine:ai:gpt')));
+      await tester.pumpAndSettle();
+      expect(picked?.id, 'ai:gpt');
+      semantics.dispose();
+    });
+  });
 }

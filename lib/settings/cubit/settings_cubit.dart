@@ -279,6 +279,32 @@ class SettingsCubit extends Cubit<AppSettings> {
   void setLanguages({Language? source, Language? target}) =>
       _apply((s) => s.copyWith(source: source, target: target));
 
+  /// Remembers the dictionary's languages ([AppSettings.dictionarySource],
+  /// [AppSettings.dictionaryTarget]); custom languages and an `auto`
+  /// target are ignored.
+  void setDictionaryLanguages({Language? source, Language? target}) {
+    final keepSource = source == null || source.isCustom;
+    final keepTarget = target == null || target.isAuto || target.isCustom;
+    if (keepSource && keepTarget) return;
+    if ((keepSource || source == state.dictionarySource) &&
+        (keepTarget || target == state.dictionaryTarget)) {
+      return;
+    }
+    _apply(
+      (s) => s.copyWith(
+        dictionarySource: keepSource ? null : () => source,
+        dictionaryTarget: keepTarget ? null : () => target,
+      ),
+    );
+  }
+
+  /// Remembers the conversation's language pair and voice options
+  /// ([AppSettings.conversation]).
+  void setConversationPreferences(ConversationPreferences preferences) {
+    if (preferences == state.conversation) return;
+    _apply((s) => s.copyWith(conversation: preferences));
+  }
+
   /// Pushes [language] to the front of recents (dedupe, max 8; `auto`
   /// never stored).
   void addRecentLanguage(Language language) {

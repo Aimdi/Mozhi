@@ -106,12 +106,6 @@ void main() {
           .focusNode
           .hasFocus;
 
-      /// The screen's Back handling.
-      PopScope<Object?> popScope(WidgetTester tester) =>
-          tester.widget<PopScope<Object?>>(
-            find.byWidgetPredicate((widget) => widget is PopScope<Object?>),
-          );
-
       /// Whether the input thread's avatar shows.
       bool avatarShown(WidgetTester tester) => tester
           .widget<TranslateThreadRow>(
@@ -155,44 +149,77 @@ void main() {
         );
       });
 
-      testWidgets('turns into the thread when the field gets the focus, '
-          'keeping the field', (tester) async {
+      testWidgets('keeps the greeting and the composer when the empty field '
+          'gets the focus', (tester) async {
         final harness = TranslateHarness();
+        await harness.pump(tester, size: const Size(400, 800));
+        final editable = tester.state<EditableTextState>(
+          find.byType(EditableText),
+        );
+        final before = tester.getRect(field());
+        await tester.tap(field());
+        await tester.pumpAndSettle();
+        expect(editable.widget.focusNode.hasFocus, isTrue);
+        // Nothing moves: the greeting, the outlined card, the placeholder
+        // with its link, no half-disabled tools.
+        expect(hero(), findsOneWidget);
+        expect(avatarShown(tester), isFalse);
+        expect(toolbar(), findsNothing);
+        expect(tester.widget<ComposerCard>(composer()).outlined, isTrue);
+        expect(link(), findsOneWidget);
+        expect(find.text('Enter text'), findsNothing);
+        expect(tester.getRect(field()), before);
+        expect(
+          tester.state<EditableTextState>(find.byType(EditableText)),
+          same(editable),
+        );
+      });
+
+      testWidgets('the keyboard pushes the composer up, keeping the layout', (
+        tester,
+      ) async {
+        final harness = TranslateHarness();
+        await harness.pump(tester, size: const Size(400, 800));
+        await tester.tap(field());
+        await tester.pumpAndSettle();
+        tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+        addTearDown(tester.view.resetViewInsets);
+        await tester.pumpAndSettle();
+        expect(hero(), findsOneWidget);
+        expect(tester.widget<ComposerCard>(composer()).outlined, isTrue);
+        expect(tester.getRect(composer()).bottom, closeTo(500, 1));
+        expect(tester.takeException(), isNull);
+      });
+
+      testWidgets('turns into the thread once there is text', (tester) async {
+        final states = StreamController<TranslateState>();
+        addTearDown(states.close);
+        final harness = TranslateHarness();
+        whenListen(
+          harness.translate,
+          states.stream,
+          initialState: readyState(),
+        );
         await harness.pump(tester, size: const Size(400, 800));
         final editable = tester.state<EditableTextState>(
           find.byType(EditableText),
         );
         await tester.tap(field());
         await tester.pumpAndSettle();
+        states.add(readyState(input: 'Hi'));
+        await tester.pumpAndSettle();
         expect(hero(), findsNothing);
         expect(avatarShown(tester), isTrue);
         expect(toolbar(), findsOneWidget);
-        // The same field, still focused (the keyboard stays up).
         expect(
           tester.state<EditableTextState>(find.byType(EditableText)),
           same(editable),
         );
         expect(editable.widget.focusNode.hasFocus, isTrue);
-        // The card's outline is gone; the bar docks at the bottom.
         expect(tester.widget<ComposerCard>(composer()).outlined, isFalse);
-        final decoration = cardBox(tester).decoration! as BoxDecoration;
-        expect((decoration.border! as Border).top, BorderSide.none);
-        // The field's own hint replaces the placeholder with the link.
-        expect(link(), findsNothing);
-        expect(find.text('Enter text'), findsOneWidget);
         expect(
           tester.getRect(find.byType(LanguageBar)).bottom,
           closeTo(800 - 8, 1),
-        );
-        expect(tester.getRect(field()).top, lessThan(120));
-
-        // Leaving the empty field brings the greeting back.
-        editable.widget.focusNode.unfocus();
-        await tester.pumpAndSettle();
-        expect(hero(), findsOneWidget);
-        expect(
-          tester.state<EditableTextState>(find.byType(EditableText)),
-          same(editable),
         );
       });
 
@@ -210,7 +237,7 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-        expect(hero(), findsNothing);
+        expect(hero(), findsOneWidget);
         expect(
           tester
               .state<EditableTextState>(find.byType(EditableText))
@@ -235,38 +262,22 @@ void main() {
         await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
         await tester.pumpAndSettle();
         expect(find.byType(LanguagePickerSheet), findsOneWidget);
-        expect(hero(), findsNothing);
+        expect(hero(), findsOneWidget);
         await tester.tap(find.byTooltip('Close'));
         await tester.pumpAndSettle();
-        expect(hero(), findsNothing);
+        expect(hero(), findsOneWidget);
       });
 
-      testWidgets('Back first takes the focus from the empty field', (
-        tester,
-      ) async {
+      testWidgets('Back is left to the screen while the empty field has '
+          'the focus', (tester) async {
         final harness = TranslateHarness();
         await harness.pump(tester, size: const Size(400, 800));
         await tester.tap(field());
         await tester.pumpAndSettle();
-        expect(hero(), findsNothing);
-        expect(popScope(tester).canPop, isFalse);
-        final handled = await tester.binding.handlePopRoute();
-        await tester.pumpAndSettle();
-        expect(handled, isTrue);
-        expect(fieldFocused(tester), isFalse);
-        expect(hero(), findsOneWidget);
-        // Now Back leaves the screen.
-        expect(popScope(tester).canPop, isTrue);
-      });
-
-      testWidgets('Back leaves the screen with text in the field', (
-        tester,
-      ) async {
-        final harness = TranslateHarness(state: readyState(input: 'Hi'));
-        await harness.pump(tester, size: const Size(400, 800));
-        await tester.tap(field());
-        await tester.pumpAndSettle();
-        expect(popScope(tester).canPop, isTrue);
+        expect(
+          find.byWidgetPredicate((widget) => widget is PopScope<Object?>),
+          findsNothing,
+        );
       });
 
       testWidgets('is not shown with input, in compare mode or for errors', (
@@ -563,7 +574,7 @@ void main() {
             dictated: any(named: 'dictated'),
           ),
         );
-        expect(hero(), findsNothing);
+        expect(hero(), findsOneWidget);
         expect(fieldFocused(tester), isTrue);
       });
 
@@ -608,18 +619,8 @@ void main() {
             lessThan(tester.getRect(find.text('Good morning')).top),
           );
 
-          // Active: the toggle is back in the app bar.
+          // Focusing the empty field keeps it there.
           await tester.tap(field());
-          await tester.pumpAndSettle();
-          expect(chip(), findsNothing);
-          expect(appBarToggle(), findsOneWidget);
-
-          // Empty again: back in the greeting.
-          tester
-              .state<EditableTextState>(find.byType(EditableText))
-              .widget
-              .focusNode
-              .unfocus();
           await tester.pumpAndSettle();
           expect(chip(), findsOneWidget);
           expect(appBarToggle(), findsNothing);
@@ -696,6 +697,49 @@ void main() {
           expect(hero(), findsOneWidget);
         });
       });
+    });
+
+    testWidgets('reveals the first lines of a new translation above the '
+        'keyboard while typing', (tester) async {
+      final states = StreamController<TranslateState>();
+      addTearDown(states.close);
+      final typed = readyState(input: 'Hello world');
+      final harness = TranslateHarness(state: typed);
+      whenListen(harness.translate, states.stream, initialState: typed);
+      await harness.pump(tester, size: const Size(360, 640));
+      await tester.pump();
+      tester
+          .state<EditableTextState>(
+            find.descendant(
+              of: find.byKey(const Key('translate_input_field')),
+              matching: find.byType(EditableText),
+            ),
+          )
+          .widget
+          .focusNode
+          .requestFocus();
+      await tester.pumpAndSettle();
+      tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+      addTearDown(tester.view.resetViewInsets);
+      await tester.pumpAndSettle();
+
+      final long = 'Bonjour le monde. ' * 12;
+      states.add(
+        readyState(
+          input: 'Hello world',
+          result: helloResult.copyWith(text: long),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // The language bar docks above the keyboard; the text's first line
+      // shows above it.
+      final bar = tester.getRect(find.byType(LanguageBar));
+      final surface = tester.getRect(
+        find.byKey(const Key('translate_output_surface')),
+      );
+      expect(surface.top + 30, lessThanOrEqualTo(bar.top));
+      expect(tester.takeException(), isNull);
     });
 
     group('swapping', () {

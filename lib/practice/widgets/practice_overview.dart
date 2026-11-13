@@ -150,7 +150,13 @@ class _Summary extends StatelessWidget {
             Semantics(
               header: true,
               child: Text(
-                nothing ? l10n.practiceCaughtUp : l10n.practiceOverviewDue(due),
+                switch ((due, fresh)) {
+                  (0, 0) => l10n.practiceCaughtUp,
+                  // Only new cards are waiting: the headline counts them
+                  // (not "Nothing to review" above a list of new cards).
+                  (0, _) => l10n.practiceOverviewNewHeadline(fresh),
+                  _ => l10n.practiceOverviewDue(due),
+                },
                 style: theme.textTheme.headlineSmall?.copyWith(
                   fontWeight: FontWeight.w800,
                 ),
@@ -162,6 +168,8 @@ class _Summary extends StatelessWidget {
                   ? l10n.practiceNextDue(
                       practiceIntervalText(l10n, next.difference(now)),
                     )
+                  : due == 0 && fresh > 0
+                  ? l10n.practiceOverviewDue(0)
                   : l10n.practiceOverviewNew(fresh),
               style: theme.textTheme.bodyLarge?.copyWith(
                 color: colors.onSurfaceVariant,

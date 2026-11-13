@@ -8,8 +8,8 @@ import 'package:mozhi/settings/view/widgets/delete_local_data.dart'
 
 /// One offline language as a flat row: its avatar, name, native name and
 /// size (or what is happening) and a "follow button" style pill: an inverse
-/// "Download" pill for missing models, an outlined "Downloaded" pill (that
-/// turns into "Delete" on hover/focus and deletes) for downloaded ones, an
+/// "Download" pill for missing models, "Downloaded" (a status) and a
+/// delete button for downloaded ones, an
 /// "Update" pill plus a delete button when a newer model exists, nothing
 /// for built-in languages, and accent progress while an operation runs:
 /// with [onCancel], a running download or update also shows Cancel next to
@@ -202,9 +202,19 @@ class OfflineLanguageTile extends StatelessWidget {
             ),
           ],
         ),
-        (null, true) => _DownloadedPill(
-          tooltip: l10n.offlineDeleteTooltip(name),
-          onPressed: enabled ? onDelete : null,
+        // "Downloaded" only says so; deleting is its own button, named
+        // for what it does.
+        (null, true) => Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const _DownloadedLabel(key: Key('offline_downloaded_pill')),
+            IconButton(
+              key: const Key('offline_delete'),
+              tooltip: l10n.offlineDeleteTooltip(name),
+              icon: const Icon(Icons.delete_outline),
+              onPressed: enabled ? onDelete : null,
+            ),
+          ],
         ),
         (null, false) => _InversePill(
           key: const Key('offline_download_pill'),
@@ -362,47 +372,21 @@ class _Avatar extends StatelessWidget {
   }
 }
 
-/// X's "Following" pill: outlined "Downloaded" that reads "Delete" in the
-/// error colour while hovered or focused, and deletes when pressed.
-class _DownloadedPill extends StatefulWidget {
-  const new({required this.tooltip, required this.onPressed});
-
-  final String tooltip;
-  final VoidCallback? onPressed;
-
-  @override
-  State<_DownloadedPill> createState() => _DownloadedPillState();
-}
-
-class _DownloadedPillState extends State<_DownloadedPill> {
-  bool _hovered = false;
-  bool _focused = false;
+/// "Downloaded" next to a downloaded language's delete button: a status,
+/// not a control (tapping it does nothing).
+class _DownloadedLabel extends StatelessWidget {
+  const new({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final l10n = context.l10n;
     final theme = Theme.of(context);
-    final danger = widget.onPressed != null && (_hovered || _focused);
-    final error = theme.colorScheme.error;
-    return Tooltip(
-      message: widget.tooltip,
-      child: OutlinedButton(
-        key: const Key('offline_downloaded_pill'),
-        onHover: (value) => setState(() => _hovered = value),
-        onFocusChange: (value) => setState(() => _focused = value),
-        style: _pillStyle(
-          OutlinedButton.styleFrom(
-            foregroundColor: danger ? error : theme.colorScheme.onSurface,
-            backgroundColor: danger ? error.withValues(alpha: 0.08) : null,
-            side: BorderSide(
-              color: danger
-                  ? error.withValues(alpha: 0.5)
-                  : theme.colorScheme.outline,
-            ),
-          ),
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(start: 4),
+      child: Text(
+        context.l10n.offlineDownloadedBadge,
+        style: theme.textTheme.labelLarge?.copyWith(
+          color: AppPalette.of(context).secondaryText,
         ),
-        onPressed: widget.onPressed,
-        child: Text(danger ? l10n.commonDelete : l10n.offlineDownloadedBadge),
       ),
     );
   }

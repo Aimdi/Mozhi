@@ -110,10 +110,12 @@ bool detectionIsUncertain(TranslateState state) {
 /// languages above its panes ([LanguagePaneHeader]).
 ///
 /// In the terminal look ([AppLook.isTerminal]) it is one hairline box of
-/// three cells, `--from <source>` | `↔` | `--to <target>` (the source and
-/// target halves of it each, the language by name or code as space
-/// allows); the options and go buttons are in the input box there
-/// (`InputCard`). Same buttons, labels, semantics and motion.
+/// three cells, `--from <source>` | `↔` | `--to <target>`, planned
+/// together ([planTerminalLanguagePair]: flags on both cells or on
+/// neither, names before codes, the target's name given up last, the
+/// room shared out by what each cell needs); the options and go buttons
+/// are in the input box there (`InputCard`). Same buttons, labels,
+/// semantics and motion.
 class LanguageBar extends StatelessWidget {
   const new({super.key});
 
@@ -373,7 +375,51 @@ class _LanguagePairState extends State<_LanguagePair> {
             );
             final anchors = TranslateLanguageAnchors.maybeOf(context);
             if (AppLook.of(context).isTerminal) {
-              // Three cells: the halves and the swap between them.
+              // Both cells planned together: the same flags on both, the
+              // names before the codes, the target's name given up last;
+              // a cell that needs less room gives the rest to the other.
+              final plan = constraints.hasBoundedWidth
+                  ? planTerminalLanguagePair(
+                      width:
+                          constraints.maxWidth -
+                          _SwapButtonState._terminalWidth,
+                      source: _terminalCellWidths(
+                        context,
+                        sourceForms,
+                        target: false,
+                      ),
+                      target: _terminalCellWidths(
+                        context,
+                        targetButton.forms,
+                        target: true,
+                      ),
+                      sourceFlagsFirst: !_LanguageButton.terminalNameFirst(
+                        sourceForms,
+                      ),
+                    )
+                  : null;
+              if (plan != null) {
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SizedBox(
+                      width: plan.sourceWidth,
+                      child: KeyedSubtree(
+                        key: widget.panes ? anchors?.source : null,
+                        child: sourceButton.withTerminalForm(plan.source),
+                      ),
+                    ),
+                    swap,
+                    Expanded(
+                      child: KeyedSubtree(
+                        key: widget.panes ? anchors?.target : null,
+                        child: targetButton.withTerminalForm(plan.target),
+                      ),
+                    ),
+                  ],
+                );
+              }
+              // Nothing fits both: each half picks its own form.
               return Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -416,6 +462,120 @@ class _LanguagePairState extends State<_LanguagePair> {
       },
     );
   }
+}
+
+/// The widths of the forms of a terminal language cell
+/// ([_LanguageButton.forms], in the same order), measured in the cell's
+/// style with its padding: with the `--from` / `--to` flag and without it
+/// (`double.infinity`: never shown that way).
+typedef TerminalCellWidths = List<({double flagged, double plain})>;
+
+/// What a terminal language cell shows: the [LanguageLabelForm] at `form`
+/// of its button's forms, with or without the `--from` / `--to` flag.
+typedef TerminalCellForm = ({int form, bool flagged});
+
+/// The forms and widths of the two terminal language cells
+/// ([planTerminalLanguagePair]).
+typedef TerminalPairPlan = ({
+  TerminalCellForm source,
+  TerminalCellForm target,
+  double sourceWidth,
+  double targetWidth,
+});
+
+/// Plans the terminal look's two language cells sharing [width] (the box
+/// without its swap cell), from their forms' widths ([source], [target]):
+/// both cells show their flags or neither does; the target keeps its name
+/// as long as anything fits, the source gives up its name before (name
+/// with flags, name without, then each shorter form of the source with
+/// flags and without, then the target's next form); names come before
+/// codes. With [sourceFlagsFirst] (the source is no language yet: "Detect
+/// language") every flagged source form comes before the unflagged ones
+/// (`--from ✨ Auto` before `Detect language`). Each cell gets its own
+/// width and they share what is left ([languagePairSplit]), so a short
+/// cell gives room to a long one. Null when no pair fits whole (each half
+/// then picks its own form).
+@visibleForTesting
+TerminalPairPlan? planTerminalLanguagePair({
+  required double width,
+  required TerminalCellWidths source,
+  required TerminalCellWidths target,
+  bool sourceFlagsFirst = false,
+}) {
+  const tolerance = 1e-6;
+  final sourceOrder = sourceFlagsFirst
+      ? [
+          for (final flagged in const [true, false])
+            for (var s = 0; s < source.length; s++) (form: s, flagged: flagged),
+        ]
+      : [
+          for (var s = 0; s < source.length; s++)
+            for (final flagged in const [true, false])
+              (form: s, flagged: flagged),
+        ];
+  for (final (t, targetWidths) in target.indexed) {
+    for (final (:form, :flagged) in sourceOrder) {
+      final sourceWidths = source[form];
+      final start = flagged ? sourceWidths.flagged : sourceWidths.plain;
+      final end = flagged ? targetWidths.flagged : targetWidths.plain;
+      if (start + end > width + tolerance) continue;
+      final (sourceWidth, targetWidth) = languagePairSplit(width, start, end);
+      return (
+        source: (form: form, flagged: flagged),
+        target: (form: t, flagged: flagged),
+        sourceWidth: sourceWidth,
+        targetWidth: targetWidth,
+      );
+    }
+  }
+  return null;
+}
+
+/// The widths of [forms] in a terminal language cell (see
+/// [TerminalCellWidths]), measured with [TextPainter] in the cell's style.
+TerminalCellWidths _terminalCellWidths(
+  BuildContext context,
+  List<LanguageLabelForm> forms, {
+  required bool target,
+}) {
+  final style = _LanguageButton.terminalStyle(context);
+  final scaler = MediaQuery.textScalerOf(context);
+  final direction = Directionality.of(context);
+  double measure(String text, TextDirection textDirection) {
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: style),
+      textDirection: textDirection,
+      textScaler: scaler,
+      maxLines: 1,
+    )..layout();
+    final width = painter.width;
+    painter.dispose();
+    return width;
+  }
+
+  final flag =
+      measure(target ? '--to' : '--from', TextDirection.ltr) +
+      measure(' ', TextDirection.ltr);
+  // The cell's padding, and a pixel of slack for rounding.
+  const padding = 2 * _LanguageButton.terminalPadding + 1;
+  return [
+    for (final (:icon, :text) in forms)
+      () {
+        final shown = _LanguageButton.terminalText(text);
+        if (icon == null && shown == null) {
+          return (flagged: double.infinity, plain: double.infinity);
+        }
+        final content =
+            (icon == null ? 0.0 : _LanguageButton.terminalIconSize) +
+            (icon != null && shown != null
+                ? _LanguageButton.terminalGap
+                : 0.0) +
+            (shown == null ? 0.0 : measure(shown, direction));
+        double cell(double width) =>
+            math.max(kMinInteractiveDimension, width + padding);
+        return (flagged: cell(flag + content), plain: cell(content));
+      }(),
+  ];
 }
 
 /// What a language button of the [LanguageBar] may show: an `icon` and/or
@@ -751,8 +911,52 @@ class _LanguageButton extends StatelessWidget {
     required this.slideFrom,
     this.travel,
     this.target = false,
+    this.terminalForm,
     super.key,
   });
+
+  /// The terminal look's cell padding (each side), icon size and the gap
+  /// between icon and text.
+  static const double terminalPadding = 8;
+  static const double terminalIconSize = 18;
+  static const double terminalGap = 6;
+
+  /// The terminal look's cell text style.
+  static TextStyle? terminalStyle(BuildContext context) =>
+      Theme.of(context).textTheme.titleSmall
+          ?.copyWith(fontSize: 15, fontWeight: FontWeight.w700);
+
+  /// The text a terminal cell shows for a form's [text]: codes ("EN",
+  /// "PT-BR") in lower case, like the command line's.
+  static String? terminalText(String? text) =>
+      text == null || text != text.toUpperCase() ? text : text.toLowerCase();
+
+  /// Whether the short ones of [forms] are codes ("EN"): then the name
+  /// goes without the flag before them ("Detect language" keeps the flag
+  /// before its short form).
+  static bool terminalNameFirst(List<LanguageLabelForm> forms) => forms
+      .skip(1)
+      .every(
+        (form) => form.text == null || form.text == form.text!.toUpperCase(),
+      );
+
+  /// This button showing [form] first in the terminal look (planned with
+  /// the other cell, [planTerminalLanguagePair]).
+  _LanguageButton withTerminalForm(TerminalCellForm form) => _LanguageButton(
+    key: key,
+    forms: forms,
+    semanticLabel: semanticLabel,
+    tooltip: tooltip,
+    onPressed: onPressed,
+    slideFrom: slideFrom,
+    travel: travel,
+    target: target,
+    terminalForm: form,
+  );
+
+  /// The terminal look's planned form, tried before the button's own
+  /// order (which remains the fallback); null: only the button's order.
+  final TerminalCellForm? terminalForm;
 
   /// The side a new label slides in from (in a left-to-right layout).
   final AxisDirection slideFrom;
@@ -840,34 +1044,23 @@ class _LanguageButton extends StatelessWidget {
     );
   }
 
-  /// The terminal look's cell: `--from <language>` (`--to` for the
-  /// target) with the name, else the name alone, else the first short
-  /// form (the code) that fits with the flag, else without it ("Detect
-  /// language": its short forms with the flag before the phrase alone); no
-  /// chevron, language codes in lower case (`en`, `pt-br`). Same tooltip,
+  /// The terminal look's cell: [terminalForm] when it fits (planned with
+  /// the other cell); else `--from <language>` (`--to` for the target)
+  /// with the name, else the name alone, else the first short form (the
+  /// code) that fits with the flag, else without it ("Detect language":
+  /// its short forms with the flag before the phrase alone); no chevron,
+  /// language codes in lower case (`en`, `pt-br`). Same tooltip,
   /// semantics and motion.
   Widget _terminal(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final style = theme.textTheme.titleSmall?.copyWith(
-      fontSize: 15,
-      fontWeight: FontWeight.w700,
-    );
+    final scheme = Theme.of(context).colorScheme;
+    final style = terminalStyle(context);
     final flag = target ? '--to' : '--from';
-    // The short forms are codes ("EN"): the name goes without the flag
-    // before them.
-    final nameFirst = forms
-        .skip(1)
-        .every(
-          (form) => form.text == null || form.text == form.text!.toUpperCase(),
-        );
+    final nameFirst = terminalNameFirst(forms);
 
     Widget content(LanguageLabelForm form, {required bool flagged}) {
       final (:icon, :text) = form;
       // Codes ("EN", "PT-BR") read like the command line's.
-      final shown = text == null || text != text.toUpperCase()
-          ? text
-          : text.toLowerCase();
+      final shown = terminalText(text);
       return Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -877,8 +1070,9 @@ class _LanguageButton extends StatelessWidget {
             TerminalGlyph(flag, style: style),
             TerminalGlyph(' ', style: style),
           ],
-          if (icon != null) Icon(icon, size: 18, color: scheme.primary),
-          if (icon != null && shown != null) const SizedBox(width: 6),
+          if (icon != null)
+            Icon(icon, size: terminalIconSize, color: scheme.primary),
+          if (icon != null && shown != null) const SizedBox(width: terminalGap),
           if (shown != null)
             _SharedAxisSwitcher(
               slideFrom: slideFrom,
@@ -901,7 +1095,7 @@ class _LanguageButton extends StatelessWidget {
       child: TextButton(
         style: TextButton.styleFrom(
           minimumSize: const Size(48, 48),
-          padding: const EdgeInsets.symmetric(horizontal: 8),
+          padding: const EdgeInsets.symmetric(horizontal: terminalPadding),
           shape: const RoundedRectangleBorder(),
           foregroundColor: scheme.onSurface,
           backgroundColor: Colors.transparent,
@@ -916,6 +1110,9 @@ class _LanguageButton extends StatelessWidget {
           // its short form ("--from ✨ auto"), like before.
           child: FirstThatFits(
             children: [
+              if (terminalForm case (:final form, :final flagged)
+                  when form < forms.length)
+                content(forms[form], flagged: flagged),
               for (final form in forms.take(1)) ...[
                 content(form, flagged: true),
                 if (nameFirst) content(form, flagged: false),

@@ -116,7 +116,8 @@ class ListenButton extends StatefulWidget {
   });
 
   /// X action-bar look: a quiet grey icon that takes the accent colour
-  /// while the clip plays (for rows of [XActionButton]s).
+  /// while the clip plays (for rows of [XActionButton]s), in their 48 dp
+  /// square on every platform.
   final bool quiet;
 
   /// Button id passed to [SpeechService.toggle] (`source` / `target`).
@@ -177,6 +178,12 @@ class _ListenButtonState extends State<ListenButton> {
     final accent = Theme.of(context).colorScheme.primary;
     return ButtonStyle(
       iconSize: const WidgetStatePropertyAll(20),
+      // One 48 dp size with the [XActionButton]s beside it, also with a
+      // mouse (whose compact density would shrink it to 40 dp).
+      visualDensity: VisualDensity.standard,
+      minimumSize: const WidgetStatePropertyAll(
+        Size.square(kMinInteractiveDimension),
+      ),
       foregroundColor: WidgetStateProperty.resolveWith(
         (states) => states.contains(WidgetState.disabled)
             ? palette.secondaryText.withValues(alpha: 0.4)

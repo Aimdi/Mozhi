@@ -7,6 +7,8 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/proofread/proofread.dart';
 import 'package:mozhi/proofread/widgets/widgets.dart';
+import 'package:mozhi/settings/cubit/settings_cubit.dart';
+import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -21,6 +23,7 @@ void main() {
     registerFallbackValue(WritingStyle.general);
     registerFallbackValue(CorrectionLevel.standard);
     registerFallbackValue(Formality.automatic);
+    registerFallbackValue((AppSettings settings) => settings);
   });
 
   setUp(() {
@@ -32,6 +35,7 @@ void main() {
     WidgetTester tester, {
     TranslateState state = readyTranslateState,
     Stream<TranslateState>? stream,
+    SettingsCubit? settings,
   }) async {
     setSurface(tester, const Size(800, 2400));
     whenListen(
@@ -43,6 +47,7 @@ void main() {
       const ProofreadPage(),
       translateCubit: translateCubit,
       repository: repository,
+      settings: settings,
     );
   }
 
@@ -50,6 +55,44 @@ void main() {
       tester.element(find.byType(ProofreadView)).read<ProofreadCubit>().state;
 
   group('ProofreadPage', () {
+    testWidgets('starts with the options kept in the settings and keeps '
+        'changed ones', (tester) async {
+      const kept = ProofreadPreferences(
+        writingStyle: WritingStyle.business,
+        tone: WritingTone.diplomatic,
+        variety: ProofreadVariety.enGb,
+      );
+      final settings = MockSettingsCubit();
+      whenListen(
+        settings,
+        const Stream<AppSettings>.empty(),
+        initialState: const AppSettings(proofread: kept),
+      );
+      AppSettings Function(AppSettings)? change;
+      when(() => settings.update(any())).thenAnswer((invocation) {
+        change =
+            invocation.positionalArguments.first
+                as AppSettings Function(AppSettings);
+      });
+      await pumpPage(tester, settings: settings);
+      expect(proofreadState(tester).preferences, kept);
+
+      tester
+          .element(find.byType(ProofreadView))
+          .read<ProofreadCubit>()
+          .setTone(WritingTone.friendly);
+      await tester.pump();
+      expect(change, isNotNull);
+      expect(
+        change!(const AppSettings()).proofread,
+        const ProofreadPreferences(
+          writingStyle: WritingStyle.business,
+          tone: WritingTone.friendly,
+          variety: ProofreadVariety.enGb,
+        ),
+      );
+    });
+
     testWidgets('provides a cubit with the AI engines', (tester) async {
       await pumpPage(
         tester,

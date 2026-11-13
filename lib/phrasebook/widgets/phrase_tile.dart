@@ -38,9 +38,10 @@ String phraseShareText(Phrase phrase) =>
 /// primary colour), the pronunciation when the phrase has one and the
 /// user's note, each text in its own language (direction and locale).
 ///
-/// Under them the everyday actions, 48 dp each: Listen to the phrase,
-/// Listen to the translation (a long press reads slowly), Copy the
-/// translation and Show full screen (the translation in large type, to
+/// Under them the everyday actions, 48 dp each: Listen to the phrase and
+/// Listen to the translation, each followed by the name of the language
+/// it reads (a long press reads slowly), Copy the translation and Show
+/// full screen (the translation in large type, to
 /// show it to someone), then "Phrase actions" with Copy phrase, Share, the
 /// note ([onEditNote]), Copy to / Move to another collection ([onCopyTo],
 /// [onMoveTo]) and Remove ([onRemove], [removeLabel]); the entries without
@@ -271,19 +272,26 @@ class PhraseTile extends StatelessWidget {
           spacing: 4,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            ListenButton(
+            // Two speakers: each names the language it reads (the
+            // translation's in the translation's colour), so they can be
+            // told apart at a glance and by a screen reader.
+            _LabelledListenButton(
               id: _sourceSpeechId,
               text: phrase.text,
               languageCode: source,
-              tooltip: l10n.phrasebookListenPhrase,
-              quiet: true,
+              tooltip: (language) => language == null
+                  ? l10n.phrasebookListenPhrase
+                  : l10n.phrasebookListenPhraseIn(language),
+              labelColor: palette.secondaryText,
             ),
-            ListenButton(
+            _LabelledListenButton(
               id: _targetSpeechId,
               text: phrase.translation,
               languageCode: target,
-              tooltip: l10n.phrasebookListenTranslation,
-              quiet: true,
+              tooltip: (language) => language == null
+                  ? l10n.phrasebookListenTranslation
+                  : l10n.phrasebookListenTranslationIn(language),
+              labelColor: colors.primary,
             ),
             CopyActionButton(
               text: phrase.translation,
@@ -325,4 +333,57 @@ class PhraseTile extends StatelessWidget {
       title: Text(label),
     ),
   );
+}
+
+/// A quiet [ListenButton] followed by the name of the language it reads
+/// (left out for an unknown language). The name is part of the
+/// [tooltip] (and so of the screen-reader label), not read twice.
+class _LabelledListenButton extends StatelessWidget {
+  const new({
+    required this.id,
+    required this.text,
+    required this.languageCode,
+    required this.tooltip,
+    required this.labelColor,
+  });
+
+  final String id;
+  final String text;
+  final String? languageCode;
+  final String Function(String? language) tooltip;
+  final Color labelColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final code = languageCode;
+    final language = code == null ? null : context.languageNameOf(code);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ListenButton(
+          id: id,
+          text: text,
+          languageCode: code,
+          tooltip: tooltip(language),
+          quiet: true,
+        ),
+        if (language != null)
+          ExcludeSemantics(
+            child: Padding(
+              padding: const EdgeInsetsDirectional.only(end: 8),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 120),
+                child: Text(
+                  language,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelMedium
+                      ?.copyWith(color: labelColor),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
 }

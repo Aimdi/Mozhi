@@ -16,6 +16,7 @@ import 'package:mozhi/offline/view/offline_models_page.dart'
 import 'package:mozhi/offline/widgets/mirror_hosting_banner.dart';
 import 'package:mozhi/offline/widgets/offline_language_tile.dart'
     show OfflineCancelDownloadButton;
+import 'package:mozhi/platform/metered_network.dart';
 import 'package:mozhi/settings/view/widgets/delete_local_data.dart'
     show formatStoredSize;
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
@@ -82,6 +83,17 @@ void translateOnDevice(BuildContext context) {
 /// [translateOnDevice], so the pending text is translated on the device).
 /// "Manage languages" opens the offline languages page.
 ///
+/// Before asking about mobile data, it checks that Mozhi can use the
+/// network at all ([MeteredNetwork.networkAccess]: Android also reports a
+/// missing network as metered): without one it says so in place (offline,
+/// or Mozhi's Network permission off) instead of asking.
+///
+/// Where this web server does not host the downloads, only "Manage
+/// languages" is left, with a line that says what it is for.
+///
+/// [prominent] shows the download as a filled button: the main action of
+/// the error it is part of ("Download needed").
+///
 /// The download only starts when the user taps the button. While it runs,
 /// Cancel (when the engine can stop downloads,
 /// [OfflineModelsState.canCancel]) stops it quietly, with the remaining
@@ -101,8 +113,13 @@ class OfflineDownloadAction extends StatefulWidget {
     this.onReady,
     this.onManaged,
     this.details,
+    this.prominent = false,
     super.key,
   });
+
+  /// Shows the download as the main action (a filled button), e.g. when
+  /// the translation cannot work until the languages are there.
+  final bool prominent;
 
   /// Sizes and progress of the downloads; defaults to those of
   /// [translator] (`offlineModelDetailsOf`).
@@ -203,6 +220,14 @@ class _OfflineDownloadActionState extends State<OfflineDownloadAction> {
     if (_cancelled) return false;
     var outcome = models.state.outcome;
     if (outcome != null && outcome.needsMeteredConsent && mounted) {
+      // Android reports no network as metered: say what is wrong instead
+      // of asking about mobile data.
+      final noNetwork = await _noNetworkMessage(download);
+      if (noNetwork != null) {
+        if (mounted) setState(() => _error = noNetwork);
+        return false;
+      }
+      if (!mounted) return false;
       final anyway = await showDialog<bool>(
         context: context,
         builder: (_) => MeteredDownloadDialog(
@@ -222,6 +247,24 @@ class _OfflineDownloadActionState extends State<OfflineDownloadAction> {
     return false;
   }
 
+  /// Why [download] cannot start for lack of network, or null when Mozhi
+  /// can use the network (or Android cannot tell).
+  Future<String?> _noNetworkMessage(OfflineDownload download) async {
+    final NetworkAccess? access;
+    try {
+      access = await MeteredNetwork.instance.networkAccess();
+    } on Object {
+      return null;
+    }
+    if (access == null || access.usable || !mounted) return null;
+    final l10n = context.l10n;
+    return access.denied
+        ? l10n.translateOfflineDownloadNoNetworkAccess
+        : l10n.translateOfflineDownloadOffline(
+            offlineDownloadName(l10n, download),
+          );
+  }
+
   /// Stops the running download (and the languages after it), quietly.
   Future<void> _cancel() async {
     final models = _models;
@@ -238,17 +281,46 @@ class _OfflineDownloadActionState extends State<OfflineDownloadAction> {
 
   /// Where this web server does not host the offline languages
   /// ([MirrorHostingBuilder]), only "Manage languages" is left (its page
-  /// says so and offers to import files): a download would fail.
+  /// says so and offers to import files): a download would fail. A line
+  /// says what it is for.
   @override
   Widget build(BuildContext context) => MirrorHostingBuilder(
     kind: MirrorDataKind.translation,
-    builder: (context, {required blocked}) => blocked && _current == null
-        ? Align(
-            alignment: AlignmentDirectional.centerStart,
-            child: _manageButton(context),
-          )
-        : _content(context),
+    builder: (context, {required blocked}) =>
+        blocked && _current == null ? _notHosted(context) : _content(context),
   );
+
+  Widget _notHosted(BuildContext context) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final names = [
+      for (final download in widget.downloads)
+        offlineDownloadName(l10n, download),
+    ].join(', ');
+    return Column(
+      key: const Key('translate_offline_not_hosted'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Text(
+            MirrorHostingBuilder.blockOf(context) ==
+                    DownloadBlock.browserRefused
+                ? l10n.offlineBrowserRefusedTitle
+                : l10n.translateOfflineNotHostedHint(names),
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+        Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: _manageButton(context),
+        ),
+      ],
+    );
+  }
 
   Widget _manageButton(BuildContext context) => TextButton(
     key: const Key('translate_offline_manage'),
@@ -332,13 +404,22 @@ class _OfflineDownloadActionState extends State<OfflineDownloadAction> {
           runSpacing: 4,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            TextButton.icon(
-              key: const Key('translate_offline_download'),
-              style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
-              onPressed: () => unawaited(_download()),
-              icon: const Icon(Icons.download_for_offline_outlined),
-              label: Text(offlineDownloadLabel(l10n, widget.downloads)),
-            ),
+            if (widget.prominent)
+              FilledButton.tonalIcon(
+                key: const Key('translate_offline_download'),
+                style: FilledButton.styleFrom(minimumSize: const Size(48, 48)),
+                onPressed: () => unawaited(_download()),
+                icon: const Icon(Icons.download_for_offline_outlined),
+                label: Text(offlineDownloadLabel(l10n, widget.downloads)),
+              )
+            else
+              TextButton.icon(
+                key: const Key('translate_offline_download'),
+                style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
+                onPressed: () => unawaited(_download()),
+                icon: const Icon(Icons.download_for_offline_outlined),
+                label: Text(offlineDownloadLabel(l10n, widget.downloads)),
+              ),
             manage,
           ],
         ),

@@ -18,6 +18,7 @@ class DictionaryState extends Equatable {
     this.offlineAnswer,
     this.offlineLanguages = const [],
     this.suggestions = const [],
+    this.saved = false,
   });
 
   /// What the user is about to look up (the search field).
@@ -62,6 +63,12 @@ class DictionaryState extends Equatable {
   /// Words of the offline dictionaries that start like [lookedUp], when
   /// nothing was found (and no AI engine could look it up).
   final List<String> suggestions;
+
+  /// Whether the shown [entry] was not asked for just now: it is the one
+  /// the history kept, or the one the AI wrote for the same look-up a
+  /// little earlier (`DictionaryEntryCache`). "Refresh"
+  /// (`DictionaryCubit.refresh`) asks the AI again.
+  final bool saved;
 
   bool get hasEngine => engine != null;
 
@@ -111,6 +118,7 @@ class DictionaryState extends Equatable {
     OfflineDictionaryAnswer? Function()? offlineAnswer,
     List<String>? offlineLanguages,
     List<String>? suggestions,
+    bool? saved,
   }) => DictionaryState(
     word: word ?? this.word,
     source: source ?? this.source,
@@ -125,6 +133,7 @@ class DictionaryState extends Equatable {
     offlineAnswer: offlineAnswer != null ? offlineAnswer() : this.offlineAnswer,
     offlineLanguages: offlineLanguages ?? this.offlineLanguages,
     suggestions: suggestions ?? this.suggestions,
+    saved: saved ?? this.saved,
   );
 
   @override
@@ -142,5 +151,6 @@ class DictionaryState extends Equatable {
     offlineAnswer,
     offlineLanguages,
     suggestions,
+    saved,
   ];
 }

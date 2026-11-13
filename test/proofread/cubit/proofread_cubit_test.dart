@@ -6,6 +6,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/proofread/cubit/proofread_cubit.dart';
 import 'package:mozhi/proofread/models/proofread_diff.dart';
+import 'package:mozhi/settings/models/proofread_preferences.dart';
 import 'package:mozhi/usage/usage.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -340,6 +341,88 @@ void main() {
       );
     });
 
+    group('preferences', () {
+      test('start as the given ones', () {
+        const preferences = ProofreadPreferences(
+          writingStyle: WritingStyle.email,
+          correctionLevel: CorrectionLevel.light,
+          formality: Formality.less,
+          tone: WritingTone.friendly,
+          readingLevel: ReadingLevel.b2,
+          variety: ProofreadVariety.enGb,
+        );
+        final cubit = ProofreadCubit(
+          repository: repository,
+          engines: const [_openAi],
+          preferences: preferences,
+        );
+        expect(cubit.state.preferences, preferences);
+        expect(cubit.state.tone, WritingTone.friendly);
+        expect(cubit.state.variety, ProofreadVariety.enGb);
+        expect(cubit.state.isStale, isFalse);
+      });
+
+      for (final (name, change) in <(String, void Function(ProofreadCubit))>[
+        ('tone', (c) => c.setTone(WritingTone.confident)),
+        ('style', (c) => c.setStyle(WritingStyle.business)),
+        ('level', (c) => c.setLevel(CorrectionLevel.comprehensive)),
+        ('formality', (c) => c.setFormality(Formality.more)),
+        ('reading level', (c) => c.setReadingLevel(ReadingLevel.a1)),
+        ('region', (c) => c.setVariety(ProofreadVariety.enUs)),
+        ('context', (c) => c.setContext('a cover letter')),
+      ]) {
+        test('changing the $name after a result marks it stale', () async {
+          stubProofread(() async => _result);
+          final cubit = build()..setInput(_input);
+          await cubit.proofread();
+          expect(cubit.state.isStale, isFalse);
+          change(cubit);
+          expect(cubit.state.optionsChanged, isTrue);
+          expect(cubit.state.inputChanged, isFalse);
+          expect(cubit.state.isStale, isTrue);
+          // Proofreading again with them makes the result current.
+          await cubit.proofread();
+          expect(cubit.state.isStale, isFalse);
+          await cubit.close();
+        });
+      }
+
+      test('changing an option back is not stale', () async {
+        stubProofread(() async => _result);
+        final cubit = build()..setInput(_input);
+        await cubit.proofread();
+        cubit
+          ..setTone(WritingTone.confident)
+          ..setTone(WritingTone.automatic)
+          ..setContext('  ');
+        expect(cubit.state.isStale, isFalse);
+        await cubit.close();
+      });
+
+      test('without a result nothing is stale', () {
+        final cubit = build()..setTone(WritingTone.confident);
+        expect(cubit.state.optionsChanged, isFalse);
+        expect(cubit.state.isStale, isFalse);
+      });
+    });
+
+    group('derived values', () {
+      test('are computed once per result and accepted edits', () {
+        final state = success;
+        expect(identical(state.editLocations, state.editLocations), isTrue);
+        expect(state.editLocations, hasLength(3));
+        expect(state.outputText, 'I have an apple and an orange.');
+        final rejected = state.copyWith(acceptedEdits: {1, 2});
+        expect(rejected.outputText, 'I has an apple and an orange.');
+        expect(state.outputText, 'I have an apple and an orange.');
+        expect(
+          state.copyWith(proofreadInput: 'I has a apple.').outputText,
+          isNot(state.outputText),
+        );
+        expect(const ProofreadState().editLocations, isEmpty);
+      });
+    });
+
     group('proofread', () {
       blocTest<ProofreadCubit, ProofreadState>(
         'emits loading then success with every edit accepted',
@@ -365,6 +448,9 @@ void main() {
               status: ProofreadStatus.success,
               result: () => _result,
               proofreadInput: _input,
+              // What the result was computed with (for the stale notice).
+              proofreadPreferences: seeded.preferences,
+              proofreadContext: 'thesis',
               acceptedEdits: {0, 1, 2},
             ),
           ];
@@ -399,6 +485,10 @@ void main() {
             status: ProofreadStatus.success,
             result: () => _result,
             proofreadInput: _input,
+            proofreadPreferences: const ProofreadPreferences(
+              readingLevel: ReadingLevel.a2,
+              variety: ProofreadVariety.deCh,
+            ),
             acceptedEdits: {0, 1, 2},
           ),
         ],

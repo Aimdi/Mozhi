@@ -131,6 +131,22 @@ enum VoiceInputEngine {
 /// from the start, so voice input shows as off before the first tap, and
 /// [listen] says so at once, without the notice.
 ///
+/// The browser's recogniser marks none of its results final: a session's
+/// last words are sent as partial results, and `speech_to_text` repeats
+/// them as the final result only two seconds after [stop] (and not at all
+/// when the browser ends the session itself). So in the web app the last
+/// words are delivered as the session's final result as soon as the
+/// browser ends the session, and [stop] keeps the session listening until
+/// then (at most [browserStopTimeout]), so the final result comes before
+/// [SpeechInputIdle]. Every session delivers at most one final result: a
+/// recogniser's late copy of it is dropped.
+///
+/// The browser cannot detect the spoken language, and it keeps listening
+/// in the language of its last session when it is given none. A session
+/// for "Detect language" (`auto`, or no language) listens in the device
+/// language there (`deviceLocale`, default the platform's) and says so
+/// ([SpeechInputListening.assumedLocaleId]).
+///
 /// `timer` creates the timer of [listen]'s `pause` (default [Timer.new]);
 /// tests pass fake ones.
 class SpeechInputService {
@@ -146,7 +162,9 @@ class SpeechInputService {
     this.queryTimeout = defaultQueryTimeout,
     this.initializeTimeout = defaultInitializeTimeout,
     Timer Function(Duration duration, void Function() callback)? timer,
+    String? Function()? deviceLocale,
   }) : _timer = timer ?? Timer.new,
+       _deviceLocale = deviceLocale ?? _platformLocale,
        _system = _Recognizer(adapter ?? SpeechToTextAdapter()),
        _offline = offlineAdapter == null
            ? null
@@ -174,6 +192,13 @@ class SpeechInputService {
     failure: SpeechInputFailure.recognizerUnavailable,
   );
 
+  static String? _platformLocale() =>
+      PlatformDispatcher.instance.locale.toLanguageTag();
+
+  /// How long [stop] waits for the browser to end its session (see the
+  /// class docs) before it ends it itself.
+  static const browserStopTimeout = Duration(seconds: 2);
+
   /// [KeyValueStore] key of the on-device preference (`'true'`/`'false'`).
   static const preferOnDeviceKey = 'voice.preferOnDevice';
 
@@ -198,6 +223,7 @@ class SpeechInputService {
 
   final KeyValueStore _store;
   final Timer Function(Duration duration, void Function() callback) _timer;
+  final String? Function() _deviceLocale;
   final _Recognizer _system;
   final _Recognizer? _offline;
   final PrivacyMode Function()? _privacyMode;
@@ -251,6 +277,18 @@ class SpeechInputService {
   Duration? _speechPause;
   Timer? _speechPauseTimer;
   String _lastPartial = '';
+
+  /// The last partial result of the current session (its words so far).
+  String _pendingText = '';
+
+  /// The session that delivered its final result: later results of it are
+  /// a recogniser's late copies.
+  int? _finalSession;
+
+  /// The browser session [stop] ended, waiting for the browser to end it
+  /// (see the class docs).
+  int? _stoppingSession;
+  Timer? _browserStopTimer;
   double? _minLevel;
   double? _maxLevel;
 
@@ -666,18 +704,39 @@ class SpeechInputService {
     final detects =
         detectLanguage &&
         recognizer.adapter is LanguageDetectingSpeechRecognizer;
-    final localeId = detects
+    var localeId = detects
         ? null
         : await _localeIdFor(recognizer, languageCode);
     if (session != _session || _disposed) return false;
+    // The browser would listen in its last session's language.
+    String? assumed;
+    if (localeId == null &&
+        !detects &&
+        usesBrowserRecognizer &&
+        recognizer.offline == null &&
+        (languageCode == null || languageCode.trim().toLowerCase() == 'auto')) {
+      final device = _deviceLocale();
+      localeId = assumed = device == null
+          ? null
+          : SpeechLocaleMatcher.normalize(device);
+    }
 
     _activeSession = session;
     _owner = owner;
     _endSpeechPause();
+    _endBrowserStop();
+    _pendingText = '';
+    _finalSession = null;
     _speechPause = recognizer.offline == null ? pause : null;
     _minLevel = null;
     _maxLevel = null;
-    _emit(SpeechInputListening(owner: owner, detectsLanguage: detects));
+    _emit(
+      SpeechInputListening(
+        owner: owner,
+        detectsLanguage: detects,
+        assumedLocaleId: assumed,
+      ),
+    );
     try {
       await recognizer.adapter.listen(
         request: SpeechListenRequest(
@@ -704,16 +763,26 @@ class SpeechInputService {
   }
 
   /// Stops listening; the final result still arrives on [results] (after
-  /// [SpeechInputTranscribing] with an offline engine).
+  /// [SpeechInputTranscribing] with an offline engine; before
+  /// [SpeechInputIdle] with the browser's, see the class docs).
   Future<void> stop() async {
     final session = _activeSession;
-    if (session == null) return;
-    _activeSession = null;
+    if (session == null || _stoppingSession == session) return;
     _endSpeechPause();
     if (_current.offline != null) {
+      _activeSession = null;
       _finishingSession = session;
       _emit(SpeechInputTranscribing(owner: _owner));
+    } else if (usesBrowserRecognizer) {
+      // Its last words and its end follow (_onStatus).
+      _speechPause = null;
+      _stoppingSession = session;
+      _browserStopTimer = _timer(
+        browserStopTimeout,
+        () => _endBrowserSession(session),
+      );
     } else {
+      _activeSession = null;
       _emit(const SpeechInputIdle());
     }
     try {
@@ -732,6 +801,7 @@ class SpeechInputService {
     _finishingSession = null;
     _owner = null;
     _endSpeechPause();
+    _endBrowserStop();
     if (!wasActive) return;
     _emit(const SpeechInputIdle());
     try {
@@ -748,6 +818,7 @@ class SpeechInputService {
     _disposed = true;
     _session++;
     _endSpeechPause();
+    _endBrowserStop();
     _preferOnDevice.dispose();
     _engine.dispose();
     await _states.close();
@@ -756,7 +827,15 @@ class SpeechInputService {
 
   void _onResult(int session, String text, {required bool isFinal}) {
     if (session != _session || _disposed) return;
+    // The session's final result was delivered: a late copy of it.
+    if (_finalSession == session) return;
     _current.heard = true;
+    if (isFinal) {
+      _finalSession = session;
+      _pendingText = '';
+    } else {
+      _pendingText = text;
+    }
     final language = isFinal
         ? switch (_current.adapter) {
             final LanguageDetectingSpeechRecognizer detector =>
@@ -778,6 +857,7 @@ class SpeechInputService {
         _activeSession = null;
         _finishingSession = null;
         _endSpeechPause();
+        _endBrowserStop();
         _emit(const SpeechInputIdle());
       }
     } else if (current is SpeechInputListening) {
@@ -808,6 +888,28 @@ class SpeechInputService {
     _speechPauseTimer?.cancel();
     _speechPauseTimer = null;
     _lastPartial = '';
+  }
+
+  void _endBrowserStop() {
+    _browserStopTimer?.cancel();
+    _browserStopTimer = null;
+    _stoppingSession = null;
+  }
+
+  /// The browser ended [session] (or [stop] gave up waiting for it): its
+  /// last words are its final result, unless it sent one.
+  void _endBrowserSession(int session) {
+    if (_disposed || _activeSession != session) return;
+    _endBrowserStop();
+    _endSpeechPause();
+    final text = _pendingText;
+    _pendingText = '';
+    if (_finalSession != session && text.trim().isNotEmpty) {
+      _finalSession = session;
+      _results.add(SpeechInputResult(text, isFinal: true, owner: _owner));
+    }
+    _activeSession = null;
+    _emit(const SpeechInputIdle());
   }
 
   void _onSoundLevel(int session, double raw) {
@@ -848,6 +950,11 @@ class SpeechInputService {
         _emit(SpeechInputTranscribing(owner: _owner));
       case SpeechRecognizerStatus.notListening:
       case SpeechRecognizerStatus.done:
+        if (_activeSession case final session?
+            when usesBrowserRecognizer && recognizer.offline == null) {
+          _endBrowserSession(session);
+          return;
+        }
         if (_activeSession == null && _finishingSession == null) return;
         // A transcribing engine reports `done` after its final result (or
         // its error); until then it keeps transcribing.
@@ -873,6 +980,7 @@ class SpeechInputService {
     final wasActive = _activeSession != null || _finishingSession != null;
     _activeSession = null;
     _finishingSession = null;
+    _endBrowserStop();
     if (failure == null) {
       if (wasActive && _isUnreachable(recognizer, error.message)) {
         // Nothing answered the session: not an echo of stop or cancel.

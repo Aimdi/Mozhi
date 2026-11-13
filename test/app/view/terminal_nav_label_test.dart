@@ -13,7 +13,6 @@ void main() {
     test('goes from the numbered label to the number', () {
       expect(TerminalNavLabel.forms(1, 'Übersetzen'), [
         '1:übersetzen',
-        'übersetzen',
         '1:übersetze.',
         '1:übersetz.',
         '1:überset.',
@@ -26,11 +25,19 @@ void main() {
       ]);
     });
 
+    test('never drops the number', () {
+      for (final label in const ['Conversation', 'Gespräch', '翻訳', 'x']) {
+        for (final form in TerminalNavLabel.forms(4, label)) {
+          expect(form, startsWith('4'));
+        }
+      }
+    });
+
     test('abbreviates by characters, not code units', () {
-      expect(TerminalNavLabel.forms(2, '翻訳'), ['2:翻訳', '翻訳', '2']);
+      expect(TerminalNavLabel.forms(2, '翻訳'), ['2:翻訳', '2']);
       final tamil = TerminalNavLabel.forms(3, 'அகராதி');
       // அ க ரா தி: four characters (grapheme clusters).
-      expect(tamil, ['3:அகராதி', 'அகராதி', '3:அகரா.', '3:அக.', '3']);
+      expect(tamil, ['3:அகராதி', '3:அகரா.', '3:அக.', '3']);
     });
   });
 
@@ -94,6 +101,10 @@ void main() {
           ];
           final texts = shown(tester);
           expect(texts, hasLength(4));
+          // Every tab keeps its number.
+          for (final (index, text) in texts.indexed) {
+            expect(text, startsWith('${index + 1}'));
+          }
           final slot = width / 4;
           for (final (index, text) in texts.indexed) {
             expect(

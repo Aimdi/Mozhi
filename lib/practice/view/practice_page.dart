@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/view/top_level_actions.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/practice/cubit/practice_cubit.dart';
 import 'package:mozhi/practice/cubit/practice_speech_cubit.dart';
@@ -150,28 +151,33 @@ class PracticeView extends StatelessWidget {
       listener: (context, state) => ScaffoldMessenger.maybeOf(context)
         ?..hideCurrentSnackBar()
         ..showSnackBar(SnackBar(content: Text(l10n.practiceSaveFailed))),
-      child: Scaffold(
-        appBar: AppBar(
-          title: Text(l10n.practiceTitle),
-          actions: [
-            if (reviewing) ...[
-              IconButton(
-                key: const Key('practice_undo'),
-                tooltip: l10n.practiceUndoRating,
-                icon: const Icon(Icons.undo),
-                onPressed: canUndo ? () => unawaited(cubit.undo()) : null,
-              ),
-              IconButton(
-                key: const Key('practice_end'),
-                tooltip: l10n.practiceEndSession,
-                icon: const Icon(Icons.stop_circle_outlined),
-                onPressed: cubit.finish,
-              ),
+      // Opened by a link (the only page), Back and the arrow go to the
+      // first tab instead of leaving the app or showing no way back.
+      child: TopLevelPageScope(
+        child: Scaffold(
+          appBar: AppBar(
+            leading: topLevelBackButton(context),
+            title: Text(l10n.practiceTitle),
+            actions: [
+              if (reviewing) ...[
+                IconButton(
+                  key: const Key('practice_undo'),
+                  tooltip: l10n.practiceUndoRating,
+                  icon: const Icon(Icons.undo),
+                  onPressed: canUndo ? () => unawaited(cubit.undo()) : null,
+                ),
+                IconButton(
+                  key: const Key('practice_end'),
+                  tooltip: l10n.practiceEndSession,
+                  icon: const Icon(Icons.stop_circle_outlined),
+                  onPressed: cubit.finish,
+                ),
+              ],
+              const SizedBox(width: 4),
             ],
-            const SizedBox(width: 4),
-          ],
+          ),
+          body: SafeArea(top: false, bottom: !reviewing, child: body),
         ),
-        body: SafeArea(top: false, bottom: !reviewing, child: body),
       ),
     );
   }

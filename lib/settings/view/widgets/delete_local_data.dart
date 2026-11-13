@@ -318,6 +318,9 @@ class LocalDataEraser {
     if (phrasebook case final phrasebook?) await attempt(phrasebook.deleteAll);
     if (practice case final practice?) await attempt(practice.deleteAll);
     if (deletePairingFiles case final deleteFiles?) await attempt(deleteFiles);
+    // Setup starts again: until it is finished, no server is contacted
+    // on the app's own (before the defaults below reload the engines).
+    translationRepository?.lockMetadataRequests();
     // Back to the defaults (setup starts again): saving them also deletes
     // the API keys of every provider.
     settings.update((_) => const AppSettings());

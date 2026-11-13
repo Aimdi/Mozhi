@@ -1003,6 +1003,23 @@ void main() {
       );
     });
 
+    test('lockMetadataRequests defers them again', () async {
+      when(a().getEngines).thenAnswer((_) async => {'google': 'Google'});
+      await repository.getEngines(refresh: true);
+      expect(repository.metadataDeferred, isFalse);
+      verify(a().getEngines).called(1);
+
+      // E.g. after "Delete all local data": setup starts again.
+      repository
+        ..lockMetadataRequests()
+        ..clearCache();
+      expect(repository.metadataDeferred, isTrue);
+      // Only what is already known is listed: no server is asked.
+      await repository.getEngines();
+      verifyNever(a().getEngines);
+      verifyNever(b().getEngines);
+    });
+
     test('a refresh lets them load', () async {
       when(a().getEngines).thenAnswer((_) async => {'google': 'Google'});
       expect(

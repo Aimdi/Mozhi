@@ -157,7 +157,9 @@ List<SettingsSearchEntry> settingsSearchIndex(
       privacy,
       PrivacyAnchors.saveHistory,
       l10n.settingsSaveHistory,
-      subtitle: l10n.settingsSaveHistorySubtitle,
+      subtitle: settings.incognito
+          ? l10n.settingsSaveHistoryIncognitoSubtitle
+          : l10n.settingsSaveHistorySubtitle,
     ),
     entry(
       privacy,
@@ -179,7 +181,7 @@ List<SettingsSearchEntry> settingsSearchIndex(
       privacy,
       PrivacyAnchors.importHistory,
       l10n.settingsImportHistory,
-      subtitle: l10n.settingsImportHistorySubtitle,
+      subtitle: l10n.settingsImportHistoryFileSubtitle,
     ),
     entry(
       privacy,
@@ -202,12 +204,14 @@ List<SettingsSearchEntry> settingsSearchIndex(
       PrivacyAnchors.consentedProviders,
       l10n.settingsConsentedProviders,
     ),
-    entry(
-      privacy,
-      PrivacyAnchors.httpProxy,
-      l10n.settingsHttpProxy,
-      subtitle: settings.httpProxy ?? l10n.settingsHttpProxyOff,
-    ),
+    if (PrivacySettingsSection.httpProxySupported)
+      entry(
+        privacy,
+        PrivacyAnchors.httpProxy,
+        l10n.settingsHttpProxy,
+        subtitle: settings.httpProxy ?? l10n.settingsHttpProxyOff,
+        keywords: [l10n.settingsHttpProxySearchKeywords],
+      ),
     entry(
       privacy,
       PrivacyAnchors.networkActivity,
@@ -316,7 +320,12 @@ List<SettingsSearchEntry> settingsSearchIndex(
       l10n.settingsFallbackDuckDuckGo,
       subtitle: l10n.settingsFallbackDuckDuckGoOnSubtitle,
     ),
-    entry(engines, EngineAnchors.services, l10n.settingsMtServicesTitle),
+    entry(
+      engines,
+      EngineAnchors.services,
+      l10n.settingsMtServicesTitle,
+      keywords: [l10n.settingsMtServicesSearchKeywords],
+    ),
     entry(
       engines,
       EngineAnchors.quality,
@@ -348,7 +357,12 @@ List<SettingsSearchEntry> settingsSearchIndex(
           : l10n.settingsOnDeviceAiUnavailable,
       keywords: [l10n.settingsOnDeviceAiKeywords],
     ),
-    entry(ai, AiAnchors.providers, l10n.settingsProvidersTitle),
+    entry(
+      ai,
+      AiAnchors.providers,
+      l10n.settingsProvidersTitle,
+      keywords: [l10n.settingsProvidersSearchKeywords],
+    ),
     entry(ai, AiAnchors.assistant, l10n.settingsAssistEngine),
     entry(
       ai,
@@ -367,6 +381,7 @@ List<SettingsSearchEntry> settingsSearchIndex(
       AiAnchors.usage,
       l10n.settingsUsageTitle,
       subtitle: l10n.settingsUsageSubtitle,
+      keywords: [l10n.usageBudgetTitle, l10n.settingsUsageSearchKeywords],
     ),
     entry(
       appearance,
@@ -379,6 +394,14 @@ List<SettingsSearchEntry> settingsSearchIndex(
         l10n.settingsStyleKeywords,
       ],
     ),
+    // The colours, in both styles right below the style.
+    if (dynamicColor)
+      entry(
+        appearance,
+        AppearanceAnchors.dynamicColor,
+        l10n.settingsDynamicColor,
+        subtitle: l10n.settingsDynamicColorSubtitle,
+      ),
     if (terminal)
       entry(
         appearance,
@@ -390,6 +413,12 @@ List<SettingsSearchEntry> settingsSearchIndex(
             option.label(l10n),
         ],
       ),
+    if (!terminal && (!dynamicColor || !settings.dynamicColor))
+      entry(
+        appearance,
+        AppearanceAnchors.accentColor,
+        l10n.settingsAccentColor,
+      ),
     entry(
       appearance,
       AppearanceAnchors.theme,
@@ -399,22 +428,20 @@ List<SettingsSearchEntry> settingsSearchIndex(
         l10n.settingsThemeSystem,
         l10n.settingsThemeLight,
         l10n.settingsThemeDark,
+        l10n.settingsThemeSearchKeywords,
       ],
     ),
-    if (dynamicColor)
-      entry(
-        appearance,
-        AppearanceAnchors.dynamicColor,
-        l10n.settingsDynamicColor,
-        subtitle: l10n.settingsDynamicColorSubtitle,
-      ),
     if (!terminal)
       entry(
         appearance,
         AppearanceAnchors.darkLook,
         l10n.settingsDarkLook,
         subtitle: l10n.settingsDarkLookSubtitle,
-        keywords: [l10n.settingsDarkLookDim, l10n.settingsDarkLookLightsOut],
+        keywords: [
+          l10n.settingsDarkLookDim,
+          l10n.settingsDarkLookLightsOut,
+          l10n.settingsThemeSearchKeywords,
+        ],
       ),
     entry(
       appearance,
@@ -434,12 +461,6 @@ List<SettingsSearchEntry> settingsSearchIndex(
       l10n.settingsHighlightSpokenWord,
       subtitle: l10n.settingsHighlightSpokenWordSubtitle,
     ),
-    if (!terminal && (!dynamicColor || !settings.dynamicColor))
-      entry(
-        appearance,
-        AppearanceAnchors.accentColor,
-        l10n.settingsAccentColor,
-      ),
     if (SpeechCategorySettings.readAloudAvailable(context))
       entry(
         speech,

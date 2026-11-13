@@ -35,10 +35,15 @@ class SentenceRange extends Equatable {
 ///
 /// A full stop (or an ellipsis) does not end a sentence when the next word
 /// starts with a lower-case letter (`e.g. this`, `wait... what`), after a
-/// known abbreviation (`Dr.`, `e.g.`, `etc.` excepted) or a single
-/// capital letter (an initial: `J. Smith`), or after a list number at the
-/// start of a line (`1. First`). Text that is all whitespace yields no
-/// sentence; the whitespace between sentences belongs to none.
+/// known abbreviation (`Dr.`, `e.g.`, `etc.`, `Nr.`, `bzw.`), inside or
+/// after a chain of dotted single letters, spaced or not (`z. B.`,
+/// `d. h.`, `u. a.`, `i. d. R.`, `U.S.A.`), after a single capital letter
+/// (an initial: `J. Smith`), after a list number at the start of a line
+/// (`1. First`), or after an ordinal number (`am 3. Oktober`,
+/// `der 2. Platz`). When in doubt it keeps two sentences together rather
+/// than cut one in two: a fragment is worse to rephrase than a pair. Text
+/// that is all whitespace yields no sentence; the whitespace between
+/// sentences belongs to none.
 abstract final class SentenceSegmenter {
   /// The sentences of [text], in order.
   static List<SentenceRange> split(String text) {
@@ -103,18 +108,117 @@ abstract final class SentenceSegmenter {
     final next = _nextVisible(text, k);
     if (next != null && _isLowerCase(next)) return false;
     if (run != '.') return true;
+    if (_isAbbreviation(text, i)) return false;
     final word = _wordBefore(text, i);
     if (word.isEmpty) return true;
     if (_abbreviations.contains(word.toLowerCase())) return false;
     // An initial (J. Smith).
     if (word.length == 1 && _isUpperCase(word)) return false;
-    // A list number at the start of a line (1. First).
-    if (_digits.hasMatch(word) &&
-        word.length <= 3 &&
-        text.substring(start, i - word.length).trim().isEmpty) {
-      return false;
+    if (_digits.hasMatch(word) && word.length <= 3) {
+      // A list number at the start of a line (1. First).
+      if (text.substring(start, i - word.length).trim().isEmpty) return false;
+      if (_isOrdinal(text, i - word.length, k, word)) return false;
     }
     return true;
+  }
+
+  /// Whether the full stop at [dot] belongs to an abbreviation written as
+  /// a chain of dotted words, with or without a space after each dot:
+  /// `z. B.`, `d. h.`, `u. a.`, `i. d. R.`, `U.S.A.`, `e.g.`, `v. Chr.`.
+  ///
+  /// A chain of two or more single letters is always an abbreviation (or
+  /// initials); other chains only when they are known ones.
+  static bool _isAbbreviation(String text, int dot) {
+    final segments = <String>[];
+    // The words before the dot, back to the start of the chain.
+    var end = dot;
+    while (true) {
+      var s = end;
+      while (s > 0 && _isLetter(text[s - 1])) {
+        s--;
+      }
+      if (s == end || !_chainable(text.substring(s, end), segments)) break;
+      segments.insert(0, text.substring(s, end));
+      var p = s;
+      if (p > 0 && _isInlineSpace(text.codeUnitAt(p - 1))) p--;
+      if (p > 0 && text[p - 1] == '.') {
+        end = p - 1;
+      } else {
+        break;
+      }
+    }
+    if (segments.isEmpty) return false;
+    // The words after the dot, up to the end of the chain.
+    var from = dot + 1;
+    while (true) {
+      var r = from;
+      if (r < text.length && _isInlineSpace(text.codeUnitAt(r))) r++;
+      var e = r;
+      while (e < text.length && _isLetter(text[e])) {
+        e++;
+      }
+      if (e == r || e >= text.length || text[e] != '.') break;
+      if (!_chainable(text.substring(r, e), segments)) break;
+      segments.add(text.substring(r, e));
+      from = e + 1;
+    }
+    if (segments.length < 2) return false;
+    if (segments.every((segment) => segment.length == 1)) return true;
+    return _abbreviations.contains(segments.join('.').toLowerCase());
+  }
+
+  /// Whether [word] can join the chain [segments]: the first word of a
+  /// chain always, a single letter, or a word of a known dotted
+  /// abbreviation (`Chr` of `v. Chr.`).
+  static bool _chainable(String word, List<String> segments) =>
+      segments.isEmpty ||
+      word.length == 1 ||
+      _chainWords.contains(word.toLowerCase());
+
+  /// The words of more than one letter in the known dotted abbreviations.
+  static final Set<String> _chainWords = {
+    for (final abbreviation in _abbreviations)
+      if (abbreviation.contains('.'))
+        for (final word in abbreviation.split('.'))
+          if (word.length > 1) word,
+  };
+
+  /// Whether the number [number] that starts at [numberStart] and is
+  /// followed by a full stop (and closers up to [k]) is an ordinal, as in
+  /// German and other languages that write `3.` for "third":
+  /// `am 3. Oktober`, `der 2. Platz`, `zum 1. Mal`.
+  static bool _isOrdinal(String text, int numberStart, int k, String number) {
+    final next = _wordAfter(text, k).toLowerCase();
+    if (number.length <= 2 && _months.contains(next)) return true;
+    return _ordinalLeads.contains(_wordEndingAt(text, numberStart));
+  }
+
+  /// The letters of the word that starts after the spaces at [from] (on
+  /// the same line), or `''`.
+  static String _wordAfter(String text, int from) {
+    var s = from;
+    while (s < text.length && _isInlineSpace(text.codeUnitAt(s))) {
+      s++;
+    }
+    var e = s;
+    while (e < text.length && _isLetter(text[e])) {
+      e++;
+    }
+    return text.substring(s, e);
+  }
+
+  /// The lower-cased letters of the word that ends before the spaces
+  /// right before [end] (on the same line), or `''`.
+  static String _wordEndingAt(String text, int end) {
+    var e = end;
+    while (e > 0 && _isInlineSpace(text.codeUnitAt(e - 1))) {
+      e--;
+    }
+    var s = e;
+    while (s > 0 && _isLetter(text[s - 1])) {
+      s--;
+    }
+    return text.substring(s, e).toLowerCase();
   }
 
   /// The letters and inner full stops right before [end] (`e.g` for
@@ -158,6 +262,16 @@ abstract final class SentenceSegmenter {
       unit == 0x202F ||
       unit == 0x205F ||
       unit == 0x3000;
+
+  /// Whitespace that does not break a line.
+  static bool _isInlineSpace(int unit) =>
+      _isSpace(unit) &&
+      unit != 0x0A &&
+      unit != 0x0D &&
+      unit != 0x0B &&
+      unit != 0x0C &&
+      unit != 0x2028 &&
+      unit != 0x2029;
 
   static bool _isLetter(String char) => _letter.hasMatch(char);
 
@@ -281,5 +395,114 @@ abstract final class SentenceSegmenter {
     'mlle',
     'sra',
     'srta',
+    'etc',
+    'usf',
+    'evtl',
+    'ggf',
+    'inkl',
+    'exkl',
+    'zzgl',
+    'bzgl',
+    'bspw',
+    'insb',
+    'sog',
+    'abs',
+    'jh',
+    'jhd',
+    'mio',
+    'mrd',
+    'geb',
+    'gest',
+    'hrsg',
+    'str',
+    'tel',
+    'n.chr',
+    'v.chr',
+    'p.ex',
+    'env',
+    'ud',
+    'uds',
+  };
+
+  /// German month names (and their abbreviations) that follow an ordinal
+  /// day (`am 3. Oktober`), lower case.
+  static const _months = {
+    'januar',
+    'jänner',
+    'februar',
+    'feber',
+    'märz',
+    'april',
+    'mai',
+    'juni',
+    'juli',
+    'august',
+    'september',
+    'oktober',
+    'november',
+    'dezember',
+    'jan',
+    'feb',
+    'mär',
+    'apr',
+    'jun',
+    'jul',
+    'aug',
+    'sep',
+    'sept',
+    'okt',
+    'nov',
+    'dez',
+  };
+
+  /// Words that come right before an ordinal number (`der 2. Platz`,
+  /// `zum 1. Mal`, `seit dem 5. Jahr`), lower case. Words that also end a
+  /// sentence before a count are left out (`I am 25.`, `bis 5.`);
+  /// `am 3. Oktober` and `bis 5. Mai` are caught by the month.
+  static const _ordinalLeads = {
+    'der',
+    'die',
+    'das',
+    'den',
+    'dem',
+    'des',
+    'im',
+    'vom',
+    'zum',
+    'zur',
+    'beim',
+    'ins',
+    'ein',
+    'eine',
+    'einem',
+    'einen',
+    'einer',
+    'eines',
+    'jeden',
+    'jedem',
+    'jede',
+    'jeder',
+    'jedes',
+    'mein',
+    'meine',
+    'meinem',
+    'meinen',
+    'sein',
+    'seine',
+    'seinem',
+    'seinen',
+    'ihr',
+    'ihre',
+    'ihrem',
+    'ihren',
+    'unser',
+    'unsere',
+    'unserem',
+    'unseren',
+    'diese',
+    'dieser',
+    'diesem',
+    'diesen',
+    'dieses',
   };
 }

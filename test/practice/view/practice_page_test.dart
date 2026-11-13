@@ -69,6 +69,10 @@ class _Harness {
           builder: (context, state) => const Scaffold(body: Text('phrasebook')),
         ),
         GoRoute(
+          path: '/translate',
+          builder: (context, state) => const Scaffold(body: Text('translate')),
+        ),
+        GoRoute(
           path: '/settings/voice',
           builder: (context, state) => const Scaffold(body: Text('voice')),
         ),
@@ -127,8 +131,10 @@ void main() {
   ) async {
     final harness = _Harness(_fixture());
     await harness.pump(tester);
+    // Only new cards wait: the headline counts them.
+    expect(find.text('2 new cards to learn'), findsOneWidget);
     expect(find.text('Nothing to review'), findsOneWidget);
-    expect(find.text('2 new cards today'), findsOneWidget);
+    expect(find.text('2 new cards today'), findsNothing);
     expect(find.text('Favorites'), findsOneWidget);
     expect(find.text('2 phrases'), findsOneWidget);
 
@@ -137,6 +143,11 @@ void main() {
     expect(find.text('2 cards left'), findsOneWidget);
     expect(find.text('What does it mean?'), findsOneWidget);
     expect(find.text('New'), findsOneWidget);
+    // A label, not an (unchecked) checkbox.
+    expect(
+      tester.getSemantics(find.byKey(const Key('practice_new_card'))),
+      isSemantics(label: 'New card', hasCheckedState: false),
+    );
     expect(find.byKey(const Key('practice_back')), findsNothing);
 
     await tester.tap(find.byKey(const Key('practice_show_answer')));
@@ -205,6 +216,17 @@ void main() {
     await tester.tap(find.byKey(const Key('practice_done')));
     await settle(tester);
     expect(find.text('Nothing to review'), findsOneWidget);
+  });
+
+  testWidgets('opened by a link, the back arrow goes to the first tab', (
+    tester,
+  ) async {
+    final harness = _Harness(_fixture());
+    await harness.pump(tester);
+    expect(find.byKey(const Key('top_level_back')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('top_level_back')));
+    await settle(tester);
+    expect(find.text('translate'), findsOneWidget);
   });
 
   testWidgets('typing practice compares the answer', (tester) async {
@@ -537,7 +559,7 @@ void main() {
       size: const Size(1200, 900),
     );
     expect(find.text('Trip to Lisbon'), findsOneWidget);
-    expect(find.text('1 new card today'), findsOneWidget);
+    expect(find.text('1 new card to learn'), findsOneWidget);
     // No collection picker when practising one.
     expect(find.text('Collections'), findsNothing);
     await tester.tap(find.byKey(const Key('practice_start')));

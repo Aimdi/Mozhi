@@ -10,6 +10,8 @@ import 'package:mozhi/core/widgets/consent_prompt.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/offline/data/bergamot_model_details.dart'
     show offlineModelDetailsOf;
+import 'package:mozhi/platform/metered_network.dart';
+import 'package:mozhi/platform/system_app_settings.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
@@ -102,11 +104,14 @@ TranslateErrorInfo describeTranslateError(
       l10n.translateErrorOfflineUnsupported,
     ),
     // The detection needed the servers, and none of them answered.
-    SourceLanguageRequiredException(cause: AllInstancesFailedException()) =>
-      TranslateErrorInfo(
-        l10n.translateErrorDetectionServersFailed,
-        chooseSourceLanguage: true,
-      ),
+    SourceLanguageRequiredException(
+      cause: AllInstancesFailedException(:final instances),
+    ) =>
+      TranslateErrorInfo(switch (_serversOf(instances)) {
+        _Servers.volunteer => l10n.translateErrorDetectionServersFailed,
+        _Servers.own => l10n.translateErrorDetectionOwnServerFailed,
+        _Servers.mixed => l10n.translateErrorDetectionServersFailedMixed,
+      }, chooseSourceLanguage: true),
     SourceLanguageRequiredException() => TranslateErrorInfo(
       l10n.translateErrorSourceLanguageRequired,
       chooseSourceLanguage: true,
@@ -148,22 +153,44 @@ TranslateErrorInfo describeTranslateError(
     LlmApiException(statusCode: null) => TranslateErrorInfo(
       l10n.translateErrorProviderFailed,
     ),
+    // The provider answered, with a server error: not the connection.
+    LlmApiException(:final int statusCode) when statusCode >= 500 =>
+      TranslateErrorInfo(l10n.translateErrorProviderServer('$statusCode')),
     LlmApiException(:final int statusCode) => TranslateErrorInfo(
       l10n.translateErrorProvider('$statusCode'),
     ),
     // The engine is limiting the servers' requests (Google answering them
     // with 429): say that, in plain words, never the server's own text.
-    AllInstancesFailedException(rateLimited: true, :final engine) =>
-      TranslateErrorInfo(
-        l10n.translateErrorAllServersRateLimited(engine.name),
-        fix: TranslateErrorFix.instances,
-      ),
+    // Only blames volunteers for servers that volunteers run: the user's
+    // own (self-hosted) server is named as theirs.
+    AllInstancesFailedException(
+      rateLimited: true,
+      :final engine,
+      :final instances,
+    ) =>
+      TranslateErrorInfo(switch (_serversOf(instances)) {
+        _Servers.volunteer => l10n.translateErrorAllServersRateLimited(
+          engine.name,
+        ),
+        _Servers.own => l10n.translateErrorOwnServerRateLimited(engine.name),
+        _Servers.mixed => l10n.translateErrorServersRateLimited(engine.name),
+      }, fix: TranslateErrorFix.instances),
     // Every server failed: say so in plain words (never "HTTP 500").
     AllInstancesFailedException(:final instances, :final engine) =>
-      TranslateErrorInfo(
-        l10n.translateErrorAllServersFailed(instances.length, engine.name),
-        fix: TranslateErrorFix.instances,
-      ),
+      TranslateErrorInfo(switch (_serversOf(instances)) {
+        _Servers.volunteer => l10n.translateErrorAllServersFailed(
+          instances.length,
+          engine.name,
+        ),
+        _Servers.own => l10n.translateErrorOwnServerFailed(
+          instances.length,
+          engine.name,
+        ),
+        _Servers.mixed => l10n.translateErrorServersFailed(
+          instances.length,
+          engine.name,
+        ),
+      }, fix: TranslateErrorFix.instances),
     final MozhiApiException mozhi => _describeMozhi(l10n, mozhi),
     TimeoutException() => TranslateErrorInfo(l10n.translateErrorTimeout),
     // The offline engine may wrap the exception (e.g. in a platform error).
@@ -221,22 +248,62 @@ String? _titleOf(
   TranslateErrorInfo info,
 ) {
   if (error
-      case AllInstancesFailedException() ||
+      case AllInstancesFailedException(:final instances) ||
           SourceLanguageRequiredException(
-            cause: AllInstancesFailedException(),
+            cause: AllInstancesFailedException(:final instances),
           )) {
-    return l10n.translateErrorTitleAllServers;
+    return switch (_serversOf(instances)) {
+      _Servers.volunteer => l10n.translateErrorTitleAllServers,
+      _Servers.own => l10n.translateErrorTitleOwnServer,
+      _Servers.mixed => l10n.translateErrorTitleServers,
+    };
   }
   if (info.chooseSourceLanguage) return l10n.translateErrorTitleLanguage;
   if (info.offlineModels) return l10n.translateErrorTitleDownload;
-  if (isNetworkFailure(error)) return l10n.translateErrorTitleConnection;
   return switch (error) {
-    LlmApiException() ||
+    // The server answered (an HTTP status): it is its problem, not the
+    // connection's.
+    LlmApiException(statusCode: _?) ||
     LlmRefusalException() ||
-    MtApiException() => l10n.translateErrorTitleProvider,
+    MtApiException(
+      kind: MtErrorKind.server,
+    ) => l10n.translateErrorTitleProvider,
+    MozhiApiException(statusCode: _?) => l10n.translateErrorTitleInstance,
+    _ when isNetworkFailure(error) => l10n.translateErrorTitleConnection,
+    LlmApiException() || MtApiException() => l10n.translateErrorTitleProvider,
     MozhiApiException() => l10n.translateErrorTitleInstance,
     _ => null,
   };
+}
+
+/// Who runs the servers a request failed on.
+enum _Servers {
+  /// Public servers run by volunteers only.
+  volunteer,
+
+  /// Servers the user added (their own, self-hosted) only.
+  own,
+
+  /// Both.
+  mixed,
+}
+
+/// The URLs of the public (volunteer) servers the app lists or listed.
+final Set<String> _publicUrls = {
+  for (final instance in MozhiInstance.publicInstances) instance.url,
+  for (final order in MozhiInstance.previousDefaultOrders) ...order,
+  ...MozhiInstance.retiredUrls,
+};
+
+/// Who runs [instances]: a server from the bundled public list
+/// ([MozhiInstance.isCustom] false, or one of its addresses added by hand)
+/// is a volunteer's, any other one the user's own.
+_Servers _serversOf(List<MozhiInstance> instances) {
+  final own = instances
+      .where((i) => i.isCustom && !_publicUrls.contains(i.url))
+      .length;
+  if (own == 0) return _Servers.volunteer;
+  return own == instances.length ? _Servers.own : _Servers.mixed;
 }
 
 /// The name of the language [code] in the UI language.
@@ -421,6 +488,50 @@ String _redactUrl(String url) {
 @visibleForTesting
 Future<bool> Function() deviceOfflineCheck = platform.deviceSeemsOffline;
 
+/// What the device says about the network after a request failed on it.
+enum DeviceNetworkState {
+  /// Connected, as far as the device can tell.
+  online,
+
+  /// No connection at all (airplane mode, Wi-Fi and mobile data off).
+  offline,
+
+  /// The device is connected, but Mozhi may not use the network: its
+  /// Network permission is off (GrapheneOS), or the system blocks its
+  /// traffic (a VPN in lockdown mode while the VPN is down).
+  noAccess,
+}
+
+/// Asks the platform how the device is connected ([checkDeviceNetwork]);
+/// nothing is sent. Tests replace it.
+@visibleForTesting
+Future<DeviceNetworkState> Function() deviceNetworkCheck = checkDeviceNetwork;
+
+/// [DeviceNetworkState.noAccess] when Android says Mozhi itself may not
+/// use the network ([MeteredNetwork.networkAccess]: the permission is off
+/// or its traffic is blocked; or the device has interfaces up but Mozhi
+/// has no network with internet), [DeviceNetworkState.offline] when
+/// [deviceOfflineCheck] finds no connection, else
+/// [DeviceNetworkState.online]. Never throws.
+Future<DeviceNetworkState> checkDeviceNetwork() async {
+  NetworkAccess? access;
+  try {
+    access = await MeteredNetwork.instance.networkAccess();
+  } on Object {
+    access = null;
+  }
+  if (access?.denied ?? false) return DeviceNetworkState.noAccess;
+  bool offline;
+  try {
+    offline = await deviceOfflineCheck();
+  } on Object {
+    offline = false;
+  }
+  if (offline) return DeviceNetworkState.offline;
+  if (access != null && !access.usable) return DeviceNetworkState.noAccess;
+  return DeviceNetworkState.online;
+}
+
 /// The engine to offer after the Translate screen's translation with
 /// `state.engine` failed: the first other engine of [state] that the
 /// automatic fallback of `TranslateCubit` could use too, so text never
@@ -474,8 +585,11 @@ String? nextInstanceUrl(String? current, List<MozhiInstance> instances) {
 /// An error with a way forward: a short error-coloured title ("Couldn't
 /// connect", "AI provider problem", [TranslateErrorInfo.title]) above the
 /// message in normal text, then the actions. When the device has no
-/// network ([deviceOfflineCheck], checked for network failures) it says
-/// "You're offline" instead.
+/// network ([deviceNetworkCheck], checked for network failures) it says
+/// "You're offline" instead, and when the device is connected but Mozhi
+/// may not use the network (its Network permission is off on GrapheneOS,
+/// a VPN in lockdown mode is down) "Mozhi can't use the network", with
+/// "Open settings" (App info, [SystemAppSettings]) where there is one.
 ///
 /// A [ConsentRequiredException] is shown as a [ConsentInlinePrompt]
 /// instead (its actions record the consent, then `onRetry` runs); one of
@@ -500,7 +614,9 @@ String? nextInstanceUrl(String? current, List<MozhiInstance> instances) {
 /// When every Mozhi server failed for the chosen engine
 /// ([AllInstancesFailedException]; [describeTranslateError] is shared with
 /// the other features that ask the servers, such as image translation),
-/// the message says the volunteer servers failed (also when they failed to
+/// the message says the servers failed (the volunteer servers, the user's
+/// own server when every one tried is one they added, or both; also when
+/// they failed to
 /// detect the source language: then it asks for the language), or, when
 /// the engine is limiting their requests
 /// ([AllInstancesFailedException.rateLimited]), that it is ("Google is
@@ -518,11 +634,12 @@ String? nextInstanceUrl(String? current, List<MozhiInstance> instances) {
 ///
 /// Missing offline models are offered as "Download German (25 MB)" (the
 /// size when the device's offline engine knows it): for the Translate
-/// screen's own translation it downloads them right there and then
-/// translates on the device ([OfflineDownloadAction], with "Manage
-/// languages"); elsewhere it opens the offline languages. A Mozhi instance
-/// error offers "Switch instance"
-/// instead of "Manage instances" when [onSwitchInstance] is given.
+/// screen's own translation it downloads them right there, as the main
+/// action (Retry is secondary: it fails the same way until they are
+/// there), and then translates on the device ([OfflineDownloadAction],
+/// with "Manage languages"); elsewhere it opens the offline languages. A
+/// Mozhi instance error offers "Switch instance" instead of "Manage
+/// instances" when [onSwitchInstance] is given.
 ///
 /// When the Translate screen's translation failed on the network
 /// ([isNetworkFailure]: no answer, a timeout, a 5xx) with an engine that
@@ -596,11 +713,17 @@ class TranslateErrorView extends StatelessWidget {
           ? OfflineOnlyNotice(consent: consent, fallback: prompt)
           : prompt;
     }
-    if (!isNetworkFailure(error)) return _build(context, offline: false);
-    return _DeviceOffline(key: ObjectKey(error), builder: _build);
+    if (!isNetworkFailure(error)) {
+      return _build(context, network: DeviceNetworkState.online);
+    }
+    return _DeviceNetwork(key: ObjectKey(error), builder: _build);
   }
 
-  Widget _build(BuildContext context, {required bool offline}) {
+  Widget _build(BuildContext context, {required DeviceNetworkState network}) {
+    // No network for Mozhi (none at all, or not allowed): the ways on that
+    // need it are left out.
+    final offline = network != DeviceNetworkState.online;
+    final noAccess = network == DeviceNetworkState.noAccess;
     final l10n = context.l10n;
     final theme = Theme.of(context);
     final info = describeTranslateError(l10n, error);
@@ -676,13 +799,30 @@ class TranslateErrorView extends StatelessWidget {
         null,
       _ => onRetry,
     };
-    final title = offline ? l10n.translateErrorTitleOffline : info.title;
-    final message = offline ? l10n.translateErrorOfflineBody : info.message;
+    final title = switch (network) {
+      DeviceNetworkState.offline => l10n.translateErrorTitleOffline,
+      DeviceNetworkState.noAccess => l10n.translateErrorTitleNoNetworkAccess,
+      DeviceNetworkState.online => info.title,
+    };
+    final message = switch (network) {
+      DeviceNetworkState.offline => l10n.translateErrorOfflineBody,
+      DeviceNetworkState.noAccess => l10n.translateErrorNoNetworkAccess,
+      DeviceNetworkState.online => info.message,
+    };
+    // Mozhi may not use the network: its permission is granted in App info.
+    final openSettings = noAccess && SystemAppSettings.isSupported;
     final details = info.details;
     final offlineOffer = _offlineOffer(context);
+    // The download is the way on when models are missing: Retry would
+    // fail the same way until they are there.
     final retryButton = retry == null
         ? null
-        : chooseSource != null || alternative != null || allFailed
+        : chooseSource != null ||
+              alternative != null ||
+              allFailed ||
+              openSettings ||
+              downloadHere != null ||
+              (showFix && info.offlineModels)
         ? TextButton.icon(
             key: const Key('translate_error_retry'),
             onPressed: retry,
@@ -741,7 +881,10 @@ class TranslateErrorView extends StatelessWidget {
         ),
         // First of the ways on when every server failed.
         if (allFailed) ?offlineOffer,
+        // The main action when the languages must be downloaded first.
+        ?downloadHere,
         if (retry != null ||
+            openSettings ||
             chooseSource != null ||
             alternative != null ||
             useDuckDuckGo != null ||
@@ -750,7 +893,11 @@ class TranslateErrorView extends StatelessWidget {
             showFix ||
             switchInstance != null ||
             details != null) ...[
-          SizedBox(height: allFailed && offlineOffer != null ? 4 : 8),
+          SizedBox(
+            height: (allFailed && offlineOffer != null) || downloadHere != null
+                ? 4
+                : 8,
+          ),
           Wrap(
             spacing: 8,
             runSpacing: 4,
@@ -785,6 +932,20 @@ class TranslateErrorView extends StatelessWidget {
                   icon: Icon(alternative.icon),
                   label: Text(alternative.label),
                 ),
+              if (openSettings)
+                FilledButton.tonalIcon(
+                  key: const Key('translate_error_app_settings'),
+                  onPressed: () => unawaited(SystemAppSettings.open()),
+                  icon: const Icon(Icons.settings_outlined),
+                  label: Text(l10n.commonOpenAppSettings),
+                ),
+              // "Download German": the way on, before Retry.
+              if (showFix && info.offlineModels)
+                FilledButton.tonal(
+                  key: const Key('translate_error_fix'),
+                  onPressed: () => unawaited(context.push<void>(fixRoute)),
+                  child: Text(fixLabel),
+                ),
               if (useDuckDuckGo != null)
                 TextButton.icon(
                   key: const Key('translate_error_use_duckduckgo'),
@@ -815,7 +976,7 @@ class TranslateErrorView extends StatelessWidget {
                   icon: const Icon(Icons.swap_vert),
                   label: Text(l10n.translateSwitchInstance),
                 ),
-              if (showFix)
+              if (showFix && !info.offlineModels)
                 TextButton(
                   key: const Key('translate_error_fix'),
                   onPressed: () => unawaited(context.push<void>(fixRoute)),
@@ -824,7 +985,6 @@ class TranslateErrorView extends StatelessWidget {
             ],
           ),
         ],
-        ?downloadHere,
         if (!allFailed) ?offlineOffer,
         if (details != null) TranslateErrorDetails(details: details),
       ],
@@ -1007,6 +1167,7 @@ class TranslateErrorView extends StatelessWidget {
       key: const Key('translate_error_download'),
       padding: const EdgeInsets.only(top: 4),
       child: OfflineDownloadAction(
+        prominent: true,
         translator: translator,
         downloads: [
           for (final code in codes)
@@ -1043,19 +1204,23 @@ class TranslateErrorView extends StatelessWidget {
   }
 }
 
-/// Builds with whether the device is offline ([deviceOfflineCheck], asked
-/// once when it is first built; false until it answers).
-class _DeviceOffline extends StatefulWidget {
+/// Builds with how the device is connected ([deviceNetworkCheck], asked
+/// once when it is first built; online until it answers).
+class _DeviceNetwork extends StatefulWidget {
   const new({required this.builder, super.key});
 
-  final Widget Function(BuildContext context, {required bool offline}) builder;
+  final Widget Function(
+    BuildContext context, {
+    required DeviceNetworkState network,
+  })
+  builder;
 
   @override
-  State<_DeviceOffline> createState() => _DeviceOfflineState();
+  State<_DeviceNetwork> createState() => _DeviceNetworkState();
 }
 
-class _DeviceOfflineState extends State<_DeviceOffline> {
-  bool _offline = false;
+class _DeviceNetworkState extends State<_DeviceNetwork> {
+  DeviceNetworkState _network = DeviceNetworkState.online;
 
   @override
   void initState() {
@@ -1064,18 +1229,18 @@ class _DeviceOfflineState extends State<_DeviceOffline> {
   }
 
   Future<void> _check() async {
-    bool offline;
+    DeviceNetworkState network;
     try {
-      offline = await deviceOfflineCheck();
+      network = await deviceNetworkCheck();
     } on Object {
-      offline = false;
+      network = DeviceNetworkState.online;
     }
-    if (mounted && offline != _offline) setState(() => _offline = offline);
+    if (mounted && network != _network) setState(() => _network = network);
   }
 
   @override
   Widget build(BuildContext context) =>
-      widget.builder(context, offline: _offline);
+      widget.builder(context, network: _network);
 }
 
 /// "Details" toggle revealing the sanitized technical message.

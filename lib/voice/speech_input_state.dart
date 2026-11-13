@@ -91,6 +91,7 @@ final class SpeechInputListening extends SpeechInputState {
     this.owner,
     this.detectsLanguage = false,
     this.heardSpeech = false,
+    this.assumedLocaleId,
   });
 
   /// Input loudness normalised to `0..1` (0 when the platform does not
@@ -115,6 +116,12 @@ final class SpeechInputListening extends SpeechInputState {
   /// Unlike [level], background noise does not count.
   final bool heardSpeech;
 
+  /// The recogniser locale id (`de-DE`) this session listens in because it
+  /// was asked to detect the language and the recogniser cannot (the
+  /// browser's: it listens in the device language); null otherwise. Tell
+  /// the user, who may want to choose the spoken language.
+  final String? assumedLocaleId;
+
   @override
   bool get isListening => true;
 
@@ -131,6 +138,7 @@ final class SpeechInputListening extends SpeechInputState {
     owner: owner,
     detectsLanguage: detectsLanguage,
     heardSpeech: heardSpeech ?? this.heardSpeech,
+    assumedLocaleId: assumedLocaleId,
   );
 
   @override
@@ -140,6 +148,7 @@ final class SpeechInputListening extends SpeechInputState {
     owner,
     detectsLanguage,
     heardSpeech,
+    assumedLocaleId,
   ];
 }
 

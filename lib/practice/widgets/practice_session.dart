@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/phrasebook/models/phrase.dart';
 import 'package:mozhi/practice/cubit/practice_cubit.dart';
@@ -307,9 +308,32 @@ class _PracticeCardViewState extends State<PracticeCardView> {
                 if (item.card.isNew)
                   Padding(
                     padding: const EdgeInsetsDirectional.only(end: 8),
-                    child: Chip(
-                      label: Text(l10n.practiceNewCard),
-                      visualDensity: VisualDensity.compact,
+                    // A plain label, not a (selectable) chip: screen
+                    // readers announce it as text, not as a checkbox.
+                    child: Semantics(
+                      key: const Key('practice_new_card'),
+                      container: true,
+                      label: l10n.practiceNewCardSemantics,
+                      excludeSemantics: true,
+                      child: DecoratedBox(
+                        decoration: ShapeDecoration(
+                          shape: AppLook.of(context).control.copyWith(
+                            side: BorderSide(color: colors.outline),
+                          ),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          child: Text(
+                            l10n.practiceNewCard,
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              color: colors.onSurface,
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
                   ),
               ],

@@ -112,6 +112,12 @@ abstract final class AppRoutes {
   /// the navigation's `extra`); a link goes to the conversation.
   static const conversationShare = '/conversation/share';
 
+  /// Face-to-face mode of the conversation, full screen above the tabs, so
+  /// that back (the browser's too) closes it. Only the conversation opens
+  /// it (with its cubits as the navigation's `extra`); a link goes to the
+  /// conversation.
+  static const conversationFaceToFace = '/conversation/face-to-face';
+
   /// The location of [tab].
   static String tab(AppTab tab) => switch (tab) {
     AppTab.translate => translate,
@@ -854,6 +860,17 @@ GoRouter createAppRouter({
                           conversation_share.ConversationSharePage.fromExtra(
                             state.extra,
                           ),
+                    ),
+                  ),
+                  GoRoute(
+                    path: 'face-to-face',
+                    parentNavigatorKey: rootKey,
+                    redirect: (context, state) =>
+                        state.extra == null ? AppRoutes.conversation : null,
+                    builder: (context, state) => DeferredPage(
+                      library: DeferredFeatures.conversation,
+                      builder: (context) => conversation_page
+                          .ConversationFaceToFacePage.fromExtra(state.extra),
                     ),
                   ),
                 ],

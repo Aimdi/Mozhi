@@ -168,6 +168,16 @@ void main() {
       expect(bare.offlineModels, 0);
     });
 
+    test('stops the app contacting servers before setup restarts', () async {
+      await eraser().erase();
+
+      // Before the defaults (which reload the engines) are applied.
+      verifyInOrder([
+        translationRepository.lockMetadataRequests,
+        () => settings.update(any()),
+      ]);
+    });
+
     test('counts no models without an offline engine', () async {
       when(() => offline.isAvailable).thenReturn(false);
 

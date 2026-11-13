@@ -77,8 +77,13 @@ class FakeTessdataServer {
   /// Never answers [http.Client.send] (a server that does not respond).
   bool hang = false;
 
+  /// Completes once a request reached the server (it was sent), so a test
+  /// can wait for it whatever the client does first (e.g. file I/O).
+  Completer<void> requested = Completer<void>();
+
   late final http.Client client = MockClient.streaming((request, _) async {
     requests.add(request);
+    if (!requested.isCompleted) requested.complete();
     if (offline) throw const SocketException('Network is unreachable');
     if (hang) return await Completer<http.StreamedResponse>().future;
     final url = request.url.toString();

@@ -32,6 +32,8 @@ import io.flutter.plugin.common.MethodChannel
  *   [MainActivity]'s translate tab (as `ACTION_SEND`, like shared text) and
  *   `openInApp({location})` opens that location there (as the explicit link
  *   `mozhi://<location>`, see [MainActivity.deepLinkRoute]), then finishes.
+ *   [MainActivity] opens in Mozhi's own task ([inAppTask]), not in the
+ *   calling app's task this window belongs to.
  *
  * It runs a Flutter engine of its own (as MainActivity started for a
  * selection always did): one engine cannot be attached to two activities,
@@ -91,10 +93,12 @@ class QuickTranslateActivity : MainActivity() {
 
     /** [text] for [MainActivity]'s translate tab, as plain shared text. */
     private fun textIntent(text: String): Intent =
-        Intent(this, MainActivity::class.java)
-            .setAction(Intent.ACTION_SEND)
-            .setType("text/plain")
-            .putExtra(Intent.EXTRA_TEXT, text)
+        inAppTask(
+            Intent(this, MainActivity::class.java)
+                .setAction(Intent.ACTION_SEND)
+                .setType("text/plain")
+                .putExtra(Intent.EXTRA_TEXT, text),
+        )
 
     /**
      * [location] (`/settings/offline`) in [MainActivity], as the link
@@ -105,10 +109,27 @@ class QuickTranslateActivity : MainActivity() {
         if (!location.startsWith("/") || location.startsWith("//")) return null
         val link = Uri.parse("${MainActivity.DEEP_LINK_SCHEME}:/$location")
         if (MainActivity.deepLinkRoute(link) == null) return null
-        return Intent(this, MainActivity::class.java)
-            .setAction(Intent.ACTION_VIEW)
-            .setData(link)
+        return inAppTask(
+            Intent(this, MainActivity::class.java)
+                .setAction(Intent.ACTION_VIEW)
+                .setData(link),
+        )
     }
+
+    /**
+     * [intent] opening [MainActivity] in Mozhi's own task, never in the
+     * calling app's (where this window runs): a new task, or the one the
+     * app already has, brought to the front with its window reused
+     * (`singleTop`, the intent arriving in `onNewIntent`) and anything
+     * above it closed. So the app shows in recents as Mozhi, apart from
+     * the calling app, whose task keeps only its own screens.
+     */
+    private fun inAppTask(intent: Intent): Intent =
+        intent.addFlags(
+            Intent.FLAG_ACTIVITY_NEW_TASK or
+                Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                Intent.FLAG_ACTIVITY_SINGLE_TOP,
+        )
 
     companion object {
         /** The Flutter route of the window (`AppRoutes.quickTranslate`). */

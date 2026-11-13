@@ -10,7 +10,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/dictionary/data/dictionary_packs.dart';
 import 'package:mozhi/dictionary/view/dictionary_page.dart'
-    show DictionaryLaunch;
+    show DictionaryLookUpRequest;
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/phrasebook/data/phrasebook_repository.dart';
 import 'package:mozhi/platform/clipboard_service.dart';
@@ -27,6 +27,8 @@ import '../helpers.dart';
 class _MockSpeechService extends Mock implements SpeechService;
 
 class _MockGoRouter extends Mock implements GoRouter;
+
+class _MockGoRouterState extends Mock implements GoRouterState;
 
 class _MockSettingsCubit extends MockCubit<AppSettings>
     implements SettingsCubit;
@@ -92,6 +94,9 @@ void main() {
     when(() => settings.state).thenReturn(const AppSettings());
     router = _MockGoRouter();
     when(() => router.go(any(), extra: any(named: 'extra'))).thenReturn(null);
+    final location = _MockGoRouterState();
+    when(() => location.uri).thenReturn(Uri.parse('/translate'));
+    when(() => router.state).thenReturn(location);
     dictionary = FakeOfflineDictionary();
     copied = [];
     final previous = ClipboardService.instance;
@@ -464,12 +469,18 @@ void main() {
       await tester.ensureVisible(find.text('Open in Dictionary'));
       await tester.tap(find.text('Open in Dictionary'));
       await tester.pumpAndSettle();
-      verify(
-        () => router.go(
-          '/dictionary?word=gatos&from=es&to=en',
-          extra: DictionaryLaunch.lookUp,
-        ),
-      ).called(1);
+      final extra =
+          verify(
+                () => router.go(
+                  '/dictionary?word=gatos&from=es&to=en',
+                  extra: captureAny(named: 'extra'),
+                ),
+              ).captured.single
+              as DictionaryLookUpRequest;
+      // Looked up right away, and Back from the entry returns here.
+      expect(extra.returnTo, '/translate');
+      expect(extra.verbosity, isNull);
+      expect(extra.saved, isNull);
       expect(find.byKey(const Key('word_lookup_sheet')), findsNothing);
     });
 

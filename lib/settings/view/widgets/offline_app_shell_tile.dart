@@ -12,7 +12,8 @@ import 'package:mozhi/settings/view/widgets/settings_section.dart';
 /// "Keep the web app for offline use" (the web app only,
 /// `AppSettings.offlineAppShell`): the switch, where the app's copy in
 /// this browser is ([AppShell.status], announced as it changes) and, once
-/// an update is ready, **Reload**.
+/// an update is ready, **Reload**. In a browser that cannot keep the app
+/// ([AppShell.isSupported] false) the switch is off and disabled.
 class OfflineAppShellTile extends StatelessWidget {
   const new({required this.enabled, this.shell, super.key});
 
@@ -32,12 +33,20 @@ class OfflineAppShellTile extends StatelessWidget {
       initialData: app.current,
       builder: (context, snapshot) {
         final status = snapshot.data ?? AppShellStatus.unsupported;
-        final update = enabled && status == AppShellStatus.updateReady;
-        final subtitle = !enabled
+        // A browser that can't keep the app: the switch is off and
+        // disabled, whatever the setting, and says why.
+        final supported = app.isSupported;
+        final on = enabled && supported;
+        final update = on && status == AppShellStatus.updateReady;
+        final subtitle = !supported
+            ? l10n.settingsOfflineAppShellUnavailable
+            : !enabled
             ? l10n.settingsOfflineAppShellOff
             : switch (status) {
+                // The browser refused this time (a private window,
+                // blocked site data).
                 AppShellStatus.unsupported =>
-                  l10n.settingsOfflineAppShellUnavailable,
+                  l10n.settingsOfflineAppShellFailed,
                 AppShellStatus.installing =>
                   l10n.settingsOfflineAppShellInstalling,
                 AppShellStatus.ready => l10n.settingsOfflineAppShellReady,
@@ -59,10 +68,12 @@ class OfflineAppShellTile extends StatelessWidget {
                   style: TextStyle(color: palette.secondaryText),
                 ),
               ),
-              value: enabled,
-              onChanged: (value) => context
-                  .read<SettingsCubit>()
-                  .setOfflineAppShell(enabled: value),
+              value: on,
+              onChanged: supported
+                  ? (value) => context.read<SettingsCubit>().setOfflineAppShell(
+                      enabled: value,
+                    )
+                  : null,
             ),
             if (update)
               Padding(

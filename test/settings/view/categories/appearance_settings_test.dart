@@ -320,6 +320,57 @@ void main() {
       }
     });
 
+    testWidgets('puts the accent right below the style in both styles', (
+      tester,
+    ) async {
+      for (final (state, accent) in [
+        (const AppSettings(), AppearanceAnchors.terminalAccent),
+        (
+          const AppSettings(style: AppStyle.classic, dynamicColor: false),
+          AppearanceAnchors.accentColor,
+        ),
+      ]) {
+        await pump(tester, state: state);
+        double top(String anchor) => tester
+            .getTopLeft(find.byKey(SettingsAnchor.highlightKey(anchor)))
+            .dy;
+        final reason = state.style.name;
+        expect(
+          top(accent),
+          greaterThan(top(AppearanceAnchors.style)),
+          reason: reason,
+        );
+        expect(
+          top(accent),
+          lessThan(top(AppearanceAnchors.theme)),
+          reason: reason,
+        );
+        // The search lists the rows in the same order.
+        final anchors = [
+          for (final e in await index(tester, state))
+            if (e.category == SettingsCategory.appearance) e.anchor,
+        ];
+        expect(
+          anchors.indexOf(accent),
+          greaterThan(anchors.indexOf(AppearanceAnchors.style)),
+          reason: reason,
+        );
+        expect(
+          anchors.indexOf(accent),
+          lessThan(anchors.indexOf(AppearanceAnchors.theme)),
+          reason: reason,
+        );
+      }
+    });
+
+    testWidgets('finds the theme as dark mode', (tester) async {
+      final entries = await index(tester, const AppSettings());
+      expect(
+        entries.where((e) => e.matches('dark mode')).map((e) => e.anchor),
+        contains(AppearanceAnchors.theme),
+      );
+    });
+
     testWidgets('finds the terminal accents by name', (tester) async {
       final entries = await index(tester, const AppSettings());
       expect(entries.where((e) => e.matches('cyan')).map((e) => e.anchor), [

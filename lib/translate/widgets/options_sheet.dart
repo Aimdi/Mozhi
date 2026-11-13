@@ -136,6 +136,9 @@ Future<void> showOptionsSheet(BuildContext context) async {
         )
       : await showModalBottomSheet<OptionsSheetAction>(
           context: context,
+          // Above the bottom navigation bar: it is dimmed and covered, and
+          // the sheet does not stay open in a tab the user left.
+          useRootNavigator: true,
           isScrollControlled: true,
           useSafeArea: true,
           showDragHandle: true,
@@ -305,6 +308,12 @@ class _TranslationOptionsSheetState extends State<TranslationOptionsSheet> {
   );
   final _term = TextEditingController();
   final _termTarget = TextEditingController();
+  final _termFocus = FocusNode();
+  final _termTargetFocus = FocusNode();
+
+  /// "Done" was tapped with only half a glossary pair typed: the empty
+  /// field says so (until either field changes).
+  bool _termIncomplete = false;
   Timer? _contextDebounce;
   Timer? _formalityNotesDebounce;
 
@@ -316,10 +325,15 @@ class _TranslationOptionsSheetState extends State<TranslationOptionsSheet> {
   void dispose() {
     _flushContext();
     _flushFormalityNotes();
+    // A pair typed but not added with "+" is kept too (closed by a swipe,
+    // a tap beside the sheet or Back).
+    _addTerm();
     _context.dispose();
     _formalityNotes.dispose();
     _term.dispose();
     _termTarget.dispose();
+    _termFocus.dispose();
+    _termTargetFocus.dispose();
     super.dispose();
   }
 
@@ -361,7 +375,12 @@ class _TranslationOptionsSheetState extends State<TranslationOptionsSheet> {
   void _addTerm() {
     final term = _term.text.trim();
     final target = _termTarget.text.trim();
-    if (term.isEmpty || target.isEmpty) return;
+    if (term.isEmpty || target.isEmpty || _cubit.isClosed) return;
+    if (_options.glossary[term] == target) {
+      _term.clear();
+      _termTarget.clear();
+      return;
+    }
     _set(_options.copyWith(glossary: {..._options.glossary, term: target}));
     _term.clear();
     _termTarget.clear();
@@ -408,10 +427,24 @@ class _TranslationOptionsSheetState extends State<TranslationOptionsSheet> {
     unawaited(router.push<void>(translateProvidersLocation));
   }
 
-  /// Saves what is still being typed and closes the sheet.
+  void _onTermChanged(String _) {
+    if (_termIncomplete) setState(() => _termIncomplete = false);
+  }
+
+  /// Saves what is still being typed (also a glossary pair not added with
+  /// "+") and closes the sheet. With only half a pair typed it stays open
+  /// and the empty field says what is missing, instead of dropping it.
   void _done() {
     _flushContext();
     _flushFormalityNotes();
+    final termEmpty = _term.text.trim().isEmpty;
+    final targetEmpty = _termTarget.text.trim().isEmpty;
+    if (termEmpty != targetEmpty) {
+      setState(() => _termIncomplete = true);
+      (termEmpty ? _termFocus : _termTargetFocus).requestFocus();
+      return;
+    }
+    _addTerm();
     Navigator.of(context).maybePop();
   }
 
@@ -737,11 +770,17 @@ class _TranslationOptionsSheetState extends State<TranslationOptionsSheet> {
                   child: TextField(
                     key: const Key('translate_glossary_source'),
                     controller: _term,
+                    focusNode: _termFocus,
                     enableIMEPersonalizedLearning: imeLearningAllowed(context),
                     textInputAction: TextInputAction.next,
+                    onChanged: _onTermChanged,
                     decoration: InputDecoration(
                       labelText: l10n.translateGlossarySource,
                       border: const OutlineInputBorder(),
+                      errorText: _termIncomplete && _term.text.trim().isEmpty
+                          ? l10n.translateGlossaryIncomplete
+                          : null,
+                      errorMaxLines: 2,
                     ),
                   ),
                 ),
@@ -753,11 +792,18 @@ class _TranslationOptionsSheetState extends State<TranslationOptionsSheet> {
                   child: TextField(
                     key: const Key('translate_glossary_target'),
                     controller: _termTarget,
+                    focusNode: _termTargetFocus,
                     enableIMEPersonalizedLearning: imeLearningAllowed(context),
+                    onChanged: _onTermChanged,
                     onSubmitted: (_) => _addTerm(),
                     decoration: InputDecoration(
                       labelText: l10n.translateGlossaryTarget,
                       border: const OutlineInputBorder(),
+                      errorText:
+                          _termIncomplete && _termTarget.text.trim().isEmpty
+                          ? l10n.translateGlossaryIncomplete
+                          : null,
+                      errorMaxLines: 2,
                     ),
                   ),
                 ),

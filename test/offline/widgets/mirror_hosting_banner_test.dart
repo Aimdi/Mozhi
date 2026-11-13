@@ -6,10 +6,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/offline/offline.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/settings/view/widgets/link_launcher.dart';
+import 'package:mozhi/settings/view/widgets/model_source_dialog.dart';
 
 import '../../helpers/helpers.dart';
 
@@ -81,10 +83,53 @@ void main() {
       expect(find.text('blocked'), findsOneWidget);
       expect(requests, hasLength(1));
 
-      changes.add(initial.copyWith(modelSource: ModelSource.defaultHosts));
+      changes.add(
+        initial.copyWith(
+          modelSource: const ModelSource(
+            kind: ModelSourceKind.custom,
+            customUrl: 'https://mirror.example.org/',
+          ),
+        ),
+      );
       await tester.pumpAndSettle();
       expect(find.text('open'), findsOneWidget);
       expect(requests, hasLength(1));
+
+      // The original publishers refuse a web page: blocked without asking.
+      changes.add(initial.copyWith(modelSource: ModelSource.defaultHosts));
+      await tester.pumpAndSettle();
+      expect(find.text('blocked'), findsOneWidget);
+      expect(requests, hasLength(1));
+    });
+
+    testWidgets('tells the banner below why', (tester) async {
+      ModelSource.current = ModelSource.defaultHosts;
+      await tester.pumpApp(
+        Scaffold(
+          body: MirrorHostingBuilder(
+            kind: MirrorDataKind.dictionary,
+            probe: _probe([]),
+            builder: (context, {required blocked}) => Column(
+              children: [
+                Text('${MirrorHostingBuilder.blockOf(context)}'),
+                if (blocked) const MirrorNotHostedBanner(),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('${DownloadBlock.browserRefused}'), findsOneWidget);
+      expect(
+        find.text(
+          'Your browser can’t download these from the original publishers',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.text("This web server doesn't host the downloads"),
+        findsNothing,
+      );
     });
 
     testWidgets('uses the shared probe by default', (tester) async {
@@ -135,6 +180,40 @@ void main() {
     testWidgets('without an import, only the help page', (tester) async {
       await tester.pumpApp(const Scaffold(body: MirrorNotHostedBanner()));
       expect(find.byKey(const Key('mirror_not_hosted_import')), findsNothing);
+      expect(find.byKey(const Key('mirror_not_hosted_help')), findsOneWidget);
+    });
+
+    testWidgets('original publishers: offers to change the model source', (
+      tester,
+    ) async {
+      final settings = _MockSettingsCubit();
+      when(() => settings.state).thenReturn(const AppSettings());
+      await tester.pumpApp(
+        BlocProvider<SettingsCubit>.value(
+          value: settings,
+          child: const Scaffold(
+            body: MirrorNotHostedBanner(block: DownloadBlock.browserRefused),
+          ),
+        ),
+      );
+      expect(
+        find.textContaining('don’t let web pages download these files'),
+        findsOneWidget,
+      );
+      await tester.tap(find.byKey(const Key('mirror_not_hosted_source')));
+      await tester.pumpAndSettle();
+      expect(find.byType(ModelSourceDialog), findsOneWidget);
+    });
+
+    testWidgets('original publishers without settings: no source button', (
+      tester,
+    ) async {
+      await tester.pumpApp(
+        const Scaffold(
+          body: MirrorNotHostedBanner(block: DownloadBlock.browserRefused),
+        ),
+      );
+      expect(find.byKey(const Key('mirror_not_hosted_source')), findsNothing);
       expect(find.byKey(const Key('mirror_not_hosted_help')), findsOneWidget);
     });
 

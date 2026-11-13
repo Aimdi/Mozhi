@@ -10,6 +10,8 @@ import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/proofread/cubit/proofread_cubit.dart';
 import 'package:mozhi/proofread/widgets/widgets.dart';
+import 'package:mozhi/settings/cubit/settings_cubit.dart';
+import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/usage/usage.dart';
 import 'package:translation_repository/translation_repository.dart';
@@ -21,6 +23,10 @@ import 'package:translation_repository/translation_repository.dart';
 /// input, cut to [maxLinkTextLength]; it is never proofread without the
 /// user asking. A different [initialText] later (another link while the
 /// tab is alive) replaces the input again.
+///
+/// The options (style, level, formality, tone, reading level, region)
+/// start as last chosen and are kept in the settings
+/// ([AppSettings.proofread]) when they change.
 class ProofreadPage extends StatelessWidget {
   const new({this.initialText, super.key});
 
@@ -43,9 +49,19 @@ class ProofreadPage extends StatelessWidget {
           engine: translate.assistEngine,
           uiLanguage: uiLanguage,
           usageTracker: _usageTracker(context),
+          preferences:
+              _settings(context)?.state.proofread ??
+              const ProofreadPreferences(),
         );
       },
-      child: _LinkedText(text: initialText, child: const ProofreadView()),
+      child: BlocListener<ProofreadCubit, ProofreadState>(
+        listenWhen: (previous, current) =>
+            previous.preferences != current.preferences,
+        listener: (context, state) => _settings(context)?.update(
+          (settings) => settings.copyWith(proofread: state.preferences),
+        ),
+        child: _LinkedText(text: initialText, child: const ProofreadView()),
+      ),
     );
   }
 }
@@ -396,14 +412,22 @@ class _WideRegion extends StatelessWidget {
               width: result,
               child: hero
                   ? null
-                  : const SingleChildScrollView(
+                  // A sliver: the edits are built as they scroll into view.
+                  : const CustomScrollView(
                       key: Key('proofread_result_pane'),
-                      padding: EdgeInsetsDirectional.only(
-                        top: 8,
-                        start: 24,
-                        bottom: 32,
-                      ),
-                      child: ProofreadResultSection(showPlaceholder: true),
+                      slivers: [
+                        SliverPadding(
+                          padding: EdgeInsetsDirectional.only(
+                            top: 8,
+                            start: 24,
+                            bottom: 32,
+                          ),
+                          sliver: ProofreadResultSection(
+                            showPlaceholder: true,
+                            sliver: true,
+                          ),
+                        ),
+                      ],
                     ),
             ),
           ],
@@ -442,12 +466,26 @@ class _FoldLayout extends StatelessWidget {
           ),
         ],
       ),
-      second: const SingleChildScrollView(
+      // A sliver: the edits are built as they scroll into view.
+      second: const CustomScrollView(
         key: Key('proofread_result_pane'),
-        padding: EdgeInsets.fromLTRB(12, 8, 24, 24),
-        child: ProofreadResultSection(showPlaceholder: true),
+        slivers: [
+          SliverPadding(
+            padding: EdgeInsets.fromLTRB(12, 8, 24, 24),
+            sliver: ProofreadResultSection(showPlaceholder: true, sliver: true),
+          ),
+        ],
       ),
     );
+  }
+}
+
+/// The app's settings, or null when none are provided (e.g. in tests).
+SettingsCubit? _settings(BuildContext context) {
+  try {
+    return context.read<SettingsCubit>();
+  } on ProviderNotFoundException {
+    return null;
   }
 }
 

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:bloc/bloc.dart';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/core/network/network_policy.dart';
+import 'package:mozhi/core/runs_in_browser.dart';
 import 'package:mozhi/dictionary/data/dictionary_packs.dart';
 import 'package:mozhi/offline/cubit/dictionary_packs_state.dart';
 import 'package:mozhi/offline/cubit/offline_models_cubit.dart';
@@ -294,8 +295,14 @@ class DictionaryPacksCubit extends Cubit<DictionaryPacksState> {
 
 /// [error] of a dictionary pack operation, classified for the user like
 /// the offline models' ([OfflineModelError.of]); a download from another
-/// host than [catalogUrl]'s names that mirror.
-OfflineModelError dictionaryPackError(Object error, {Uri? catalogUrl}) {
+/// host than [catalogUrl]'s names that mirror. In a browser ([isWeb]) a
+/// failed connection to the catalogue's own host is
+/// [OfflineModelErrorKind.browserRefused].
+OfflineModelError dictionaryPackError(
+  Object error, {
+  Uri? catalogUrl,
+  bool isWeb = runsInBrowser,
+}) {
   String? mirrorOf(Uri? url) {
     if (url == null || catalogUrl == null || url.host == catalogUrl.host) {
       return null;
@@ -317,6 +324,13 @@ OfflineModelError dictionaryPackError(Object error, {Uri? catalogUrl}) {
         statusCode: statusCode,
         mirror: mirrorOf(url),
       ),
+    DictionaryPackDownloadException(:final message, :final url)
+        when isWeb &&
+            url != null &&
+            catalogUrl != null &&
+            url.host == catalogUrl.host =>
+      // GitHub's release downloads send no CORS headers.
+      OfflineModelError.browserRefusedOrNetwork(message, isWeb: isWeb),
     DictionaryPackDownloadException(:final message, :final url) =>
       OfflineModelError(
         OfflineModelErrorKind.network,
@@ -326,7 +340,7 @@ OfflineModelError dictionaryPackError(Object error, {Uri? catalogUrl}) {
     DictionaryPackUnsupportedException() => const OfflineModelError(
       OfflineModelErrorKind.unsupported,
     ),
-    _ => OfflineModelError.of(error),
+    _ => OfflineModelError.of(error, isWeb: isWeb),
   };
 }
 

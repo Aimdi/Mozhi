@@ -314,9 +314,8 @@ void main() {
       expect(find.byKey(const Key('translate_history_tail')), findsNothing);
     });
 
-    testWidgets('brings the stdout box above the keyboard when it appears', (
-      tester,
-    ) async {
+    testWidgets('brings the translation itself above the keyboard when it '
+        'appears', (tester) async {
       // A small phone with the keyboard up: the stdout box would open below
       // it, out of sight.
       tester.view.viewInsets = const FakeViewPadding(bottom: 260);
@@ -336,20 +335,23 @@ void main() {
         theme: terminalTestTheme(),
       );
       await tester.pump();
-      final stdout = find.byKey(const Key('translate_terminal_stdout'));
+      final text = find.byKey(const Key('translate_output_surface'));
 
       final done = translatedState().copyWith(source: english, target: german);
       harness.setState(done);
       states.add(done);
       await tester.pumpAndSettle();
 
+      // Not just the box's label and header: the text's first lines.
       const visibleBottom = 600.0 - 260;
+
       expect(
-        tester.getTopLeft(stdout).dy + 112,
+        tester.getRect(text).bottom,
         lessThanOrEqualTo(visibleBottom + 0.5),
       );
 
-      // Not again while it stays: a later state leaves the scroll alone.
+      // Not again without the focus: a later state leaves the scroll
+      // alone.
       final scrollable = tester.state<ScrollableState>(
         find.byType(Scrollable).first,
       );
@@ -357,6 +359,55 @@ void main() {
       states.add(done.copyWith(input: 'Hello world!'));
       await tester.pumpAndSettle();
       expect(scrollable.position.pixels, offset);
+    });
+
+    testWidgets('reveals each new translation while the input has focus', (
+      tester,
+    ) async {
+      tester.view.viewInsets = const FakeViewPadding(bottom: 260);
+      addTearDown(tester.view.resetViewInsets);
+      final states = StreamController<TranslateState>();
+      addTearDown(states.close);
+      final first = translatedState().copyWith(source: english, target: german);
+      final harness = TranslateHarness(state: first);
+      whenListen(harness.translate, states.stream, initialState: first);
+      await harness.pump(
+        tester,
+        size: const Size(320, 600),
+        theme: terminalTestTheme(),
+      );
+      await tester.pump();
+      tester
+          .state<EditableTextState>(
+            find.descendant(
+              of: find.byKey(const Key('translate_input_field')),
+              matching: find.byType(EditableText),
+            ),
+          )
+          .widget
+          .focusNode
+          .requestFocus();
+      await tester.pumpAndSettle();
+      final scrollable = tester.state<ScrollableState>(
+        find.byType(Scrollable).first,
+      );
+      scrollable.position.jumpTo(0);
+      await tester.pump();
+
+      final next = first.copyWith(
+        input: 'Good morning',
+        result: () => helloResult.copyWith(text: 'Guten Morgen'),
+      );
+      states.add(next);
+      await tester.pumpAndSettle();
+
+      expect(scrollable.position.pixels, greaterThan(0));
+      expect(
+        tester
+            .getRect(find.byKey(const Key('translate_output_surface')))
+            .bottom,
+        lessThanOrEqualTo(600.0 - 260 + 0.5),
+      );
     });
 
     group('history tail', () {
@@ -596,10 +647,17 @@ void main() {
           tester.getCenter(find.byKey(const Key('translate_input_field'))).dx,
         ),
       );
-      // The flag before the language, on the right ("--to <German>"; the
-      // source's name only fits without its flag).
+      // Both names, without their flags (both do not fit with them).
+      expect(glyph('--to'), findsNothing);
       expect(
-        tester.getCenter(glyph('--to')).dx,
+        tester
+            .getCenter(
+              find.descendant(
+                of: find.byKey(const Key('translate_source_button')),
+                matching: find.text('الإنجليزية'),
+              ),
+            )
+            .dx,
         greaterThan(
           tester
               .getCenter(

@@ -603,6 +603,33 @@ void main() {
       expect(find.byType(AppShell), findsNothing);
     });
 
+    testWidgets('contacts no server on its own until setup is finished', (
+      tester,
+    ) async {
+      // A first run, or the defaults after "Delete all local data".
+      await pumpApp(
+        tester,
+        settings: const AppSettings(instances: [testInstance]),
+      );
+      await tester.pump(const Duration(seconds: 1));
+      const instance = MozhiInstance(url: 'http://lan.test:3000');
+      tester
+          .element(find.byType(OnboardingPage))
+          .read<SettingsCubit>()
+          .addInstance(instance);
+      await tester.pump();
+
+      verify(
+        () => env.translationRepository.updateConfiguration(
+          instances: const [testInstance, instance],
+          providers: const [],
+        ),
+      ).called(1);
+      // Only the stored lists are read: no refresh from the servers.
+      verifyNever(() => env.translationRepository.getEngines(refresh: true));
+      verifyNever(env.translationRepository.allowMetadataRequests);
+    });
+
     testWidgets('warns once when API keys are kept in memory', (tester) async {
       final secrets = FallbackKeyValueStore(_BrokenStore());
       await secrets.probe();

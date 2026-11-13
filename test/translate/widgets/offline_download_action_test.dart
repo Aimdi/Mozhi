@@ -2,12 +2,19 @@ import 'dart:async';
 
 import 'package:bergamot_translator/bergamot_translator.dart'
     show MeteredConnectionException;
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/app/router.dart' show AppRoutes;
 import 'package:mozhi/core/key_value_store.dart';
+import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/offline/data/mirror_hosting.dart';
 import 'package:mozhi/offline/data/offline_model_details.dart';
+import 'package:mozhi/platform/metered_network.dart';
+import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/translate/translate.dart';
 import 'package:mozhi/translate/widgets/widgets.dart';
 import 'package:translation_repository/translation_repository.dart';
@@ -72,6 +79,11 @@ void main() {
   setUpAll(registerTranslateFallbacks);
 
   late _Translator translator;
+  late AppLocalizations l10n;
+
+  setUpAll(() async {
+    l10n = await AppLocalizations.delegate.load(const Locale('en'));
+  });
 
   setUp(() => translator = _Translator());
 
@@ -82,10 +94,13 @@ void main() {
     List<OfflineDownload> downloads = const [_french],
     TranslationEngine? engine,
     VoidCallback? onManaged,
+    bool prominent = false,
+    AppSettings settings = const AppSettings(),
   }) async {
     final harness = TranslateHarness(
       state: readyState(engine: engine ?? _offline)
           .copyWith(engines: [deepl, _offline]),
+      settings: settings,
     );
     await harness.pump(
       tester,
@@ -94,6 +109,7 @@ void main() {
         translator: translator,
         store: MemoryStore(),
         onManaged: onManaged,
+        prominent: prominent,
       ),
     );
     return harness;
@@ -189,6 +205,108 @@ void main() {
     await tester.pumpAndSettle();
     expect(translator.downloads, [('fr', true), ('fr', false)]);
     verify(harness.translate.translate).called(1);
+  });
+
+  group('without a network for Mozhi', () {
+    const channel = MethodChannel('io.github.aimdi.mozhi/privacy');
+    late MeteredNetwork saved;
+
+    setUp(() => saved = MeteredNetwork.instance);
+    tearDown(() {
+      MeteredNetwork.instance = saved;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null);
+    });
+
+    void android(Map<String, bool> access) {
+      MeteredNetwork.instance = MeteredNetwork(
+        channel: channel,
+        isAndroid: true,
+      );
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async => access);
+    }
+
+    testWidgets('says the device is offline instead of asking about data', (
+      tester,
+    ) async {
+      // Android reports no network as metered.
+      translator.failures.add(const MeteredConnectionException());
+      android({'internetPermission': true, 'hasNetwork': false});
+      final harness = await pump(tester);
+      await tapDownload(tester);
+      expect(find.text('Download over mobile data?'), findsNothing);
+      expect(
+        find.text(l10n.translateOfflineDownloadOffline('French')),
+        findsOneWidget,
+      );
+      expect(translator.downloads, [('fr', true)]);
+      verifyNever(harness.translate.translate);
+      // The button stays, to try again.
+      expect(find.byKey(const Key('translate_offline_download')), findsOne);
+    });
+
+    testWidgets('says Mozhi may not use the network (GrapheneOS)', (
+      tester,
+    ) async {
+      translator.failures.add(const MeteredConnectionException());
+      android({'internetPermission': false, 'hasNetwork': false});
+      await pump(tester);
+      await tapDownload(tester);
+      expect(find.text('Download over mobile data?'), findsNothing);
+      expect(
+        find.text(l10n.translateOfflineDownloadNoNetworkAccess),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('still asks on real mobile data', (tester) async {
+      translator.failures.add(const MeteredConnectionException());
+      android({'internetPermission': true, 'hasNetwork': true});
+      await pump(tester);
+      await tapDownloadToDialog(tester);
+      expect(find.text('Download over mobile data?'), findsOneWidget);
+    });
+  });
+
+  testWidgets('a prominent download is the filled main action', (tester) async {
+    await pump(tester, prominent: true);
+    expect(
+      tester.widget(find.byKey(const Key('translate_offline_download'))),
+      isA<FilledButton>(),
+    );
+    await pump(tester);
+    expect(
+      tester.widget(find.byKey(const Key('translate_offline_download'))),
+      isA<TextButton>(),
+    );
+  });
+
+  testWidgets('explains "Manage languages" where downloads are not hosted', (
+    tester,
+  ) async {
+    final source = ModelSource.current;
+    final probe = MirrorHostingProbe.instance;
+    addTearDown(() {
+      ModelSource.current = source;
+      MirrorHostingProbe.instance = probe;
+    });
+    const thisServer = ModelSource(kind: ModelSourceKind.thisServer);
+    ModelSource.current = thisServer;
+    MirrorHostingProbe.instance = MirrorHostingProbe(
+      client: MockClient((request) async => http.Response('Not Found', 404)),
+      isWeb: true,
+      appBase: () => Uri.parse('https://translate.example.org/'),
+    );
+    await pump(tester, settings: const AppSettings(modelSource: thisServer));
+    // The probe answers (its request is not real I/O: a mock client).
+    for (var i = 0; i < 5; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+
+    expect(find.byKey(const Key('translate_offline_download')), findsNothing);
+    expect(find.text(l10n.translateOfflineNotHostedHint('French')), findsOne);
+    expect(find.byKey(const Key('translate_offline_manage')), findsOne);
   });
 
   testWidgets('waits for Wi-Fi when the user says no', (tester) async {

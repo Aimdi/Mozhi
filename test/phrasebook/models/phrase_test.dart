@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mozhi/dictionary/data/dictionary_entry_store.dart';
 import 'package:mozhi/history/models/history_entry.dart';
 import 'package:mozhi/phrasebook/models/phrase.dart';
 import 'package:mozhi/phrasebook/models/phrase_collection.dart';
@@ -235,6 +236,89 @@ void main() {
             .origin,
         PhraseOrigin.dictionary,
       );
+    });
+
+    group('fromHistory of a dictionary look-up', () {
+      HistoryEntry lookUp({
+        String text = 'gato',
+        Language source = Language.auto,
+        String? detected,
+        String? json,
+      }) => HistoryEntry(
+        id: 'dictionary:1',
+        kind: HistoryEntryKind.dictionary,
+        text: text,
+        translation: 'noun · A small domesticated feline.',
+        source: source,
+        target: const Language(code: 'en', name: 'English'),
+        engineId: 'ai:claude',
+        engineName: 'Claude',
+        createdAt: _time,
+        detectedSource: detected,
+        dictionaryJson: json,
+      );
+
+      test('is the word with its first translation, in the languages '
+          'the word was found in', () {
+        final draft = PhraseDraft.fromHistory(
+          lookUp(
+            detected: 'es',
+            json: encodeDictionaryEntry(
+              const DictionaryEntry(
+                word: 'gato',
+                senses: [
+                  DictionarySense(
+                    definition: 'A small domesticated feline.',
+                    translations: ['cat'],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+        expect(draft.text, 'gato');
+        expect(draft.translation, 'cat');
+        expect(draft.sourceCode, 'es');
+        expect(draft.targetCode, 'en');
+        expect(draft.origin, PhraseOrigin.dictionary);
+      });
+
+      test('without a kept entry (or translation) it is the summary', () {
+        expect(
+          PhraseDraft.fromHistory(lookUp()).translation,
+          'noun · A small domesticated feline.',
+        );
+        expect(
+          PhraseDraft.fromHistory(
+            lookUp(
+              json: encodeDictionaryEntry(
+                const DictionaryEntry(
+                  word: 'gato',
+                  senses: [DictionarySense(definition: 'A cat.')],
+                ),
+              ),
+            ),
+          ).translation,
+          'noun · A small domesticated feline.',
+        );
+      });
+
+      test("an undetected word's script tells its language when it "
+          'can', () {
+        expect(PhraseDraft.fromHistory(lookUp(text: 'ねこ')).sourceCode, 'ja');
+        expect(
+          PhraseDraft.fromHistory(lookUp()).sourceCode,
+          Phrase.unknownLanguage,
+        );
+        expect(
+          PhraseDraft.fromHistory(
+            lookUp(
+              source: const Language(code: 'es', name: 'Spanish'),
+            ),
+          ).sourceCode,
+          'es',
+        );
+      });
     });
 
     test('unknown and custom languages are und, never auto', () {

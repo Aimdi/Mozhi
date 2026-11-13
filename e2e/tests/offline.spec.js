@@ -67,7 +67,9 @@ test('an unreachable Mozhi instance shows a friendly error', async ({
   await typeSource(page, 'Good evening');
   // Every server failed: a plain explanation, never an HTTP status.
   const error = page.getByRole('group', {
-    name: /^Volunteer servers unavailable\s+The volunteer server couldn.t translate with Google just now\./,
+    // The fixture's instance is the user's own (isCustom), so the message
+    // names their server, not the volunteers'.
+    name: /^Your Mozhi server is unavailable\s+Your Mozhi server couldn.t translate with Google just now\./,
   });
   await expect(error).toBeVisible();
   await expect(error).not.toHaveAccessibleName(/HTTP|\b5\d\d\b/);

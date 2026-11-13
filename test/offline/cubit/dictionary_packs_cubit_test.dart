@@ -282,6 +282,34 @@ void main() {
   group('dictionaryPackError', () {
     final catalog = Uri.parse('https://github.com/r/es.mzd');
 
+    test("in a browser, GitHub's refusal is the browser's", () {
+      final error = DictionaryPackDownloadException(
+        'es',
+        'ClientException: Failed to fetch',
+        url: catalog,
+      );
+      expect(
+        dictionaryPackError(error, catalogUrl: catalog, isWeb: true),
+        const OfflineModelError(OfflineModelErrorKind.browserRefused),
+      );
+      expect(
+        dictionaryPackError(error, catalogUrl: catalog, isWeb: false).kind,
+        OfflineModelErrorKind.network,
+      );
+      expect(
+        dictionaryPackError(
+          DictionaryPackDownloadException(
+            'es',
+            'ClientException: Failed to fetch',
+            url: Uri.parse('https://mirror.example/es.mzd'),
+          ),
+          catalogUrl: catalog,
+          isWeb: true,
+        ).kind,
+        OfflineModelErrorKind.network,
+      );
+    });
+
     test('classifies the pack errors', () {
       expect(
         dictionaryPackError(const DictionaryPackMeteredException('es')).kind,

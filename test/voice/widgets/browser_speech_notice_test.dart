@@ -137,8 +137,11 @@ void main() {
       expect(browser.requests, hasLength(1));
       expect(tester.widget<IconButton>(mic()).isSelected, isTrue);
 
-      // Stop, and the next session starts right away.
+      // Stop (the browser then ends the session), and the next session
+      // starts right away.
       await tapMic(tester);
+      browser.emitStatus(SpeechRecognizerStatus.notListening);
+      await tester.pump();
       await tapMic(tester);
       expect(find.byType(BrowserSpeechNoticeDialog), findsNothing);
       expect(browser.requests, hasLength(2));

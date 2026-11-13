@@ -724,7 +724,12 @@ class _InputThread extends StatelessWidget {
 /// output card's "Check meaning" button (the "More" toggle while the area
 /// is closed).
 class _OutputSection extends StatefulWidget {
-  const new({this.memory = true, this.separated = true, this.avatar = true});
+  const new({
+    this.memory = true,
+    this.separated = true,
+    this.avatar = true,
+    this.revealWhileFocused,
+  });
 
   /// Whether the memory match is shown here (the narrow layout shows it
   /// under the input instead).
@@ -736,12 +741,20 @@ class _OutputSection extends StatefulWidget {
   /// Whether the translation has its language's avatar beside it.
   final bool avatar;
 
+  /// The input's focus node, for [OutputCard.revealWhileFocused] (phones:
+  /// the keyboard would hide a new translation).
+  final FocusNode? revealWhileFocused;
+
   @override
   State<_OutputSection> createState() => _OutputSectionState();
 }
 
 class _OutputSectionState extends State<_OutputSection> {
   final _meaningButton = FocusNode(debugLabel: 'translate_meaning_button');
+
+  /// Keeps the card's state when it moves into the thread (its first
+  /// translation), so it notices that it has something new to reveal.
+  final GlobalKey _card = GlobalKey(debugLabel: 'translate_output_card');
 
   @override
   void dispose() {
@@ -778,7 +791,11 @@ class _OutputSectionState extends State<_OutputSection> {
     );
     final more = TranslateMoreScope.maybeOf(context);
     final expanded = hasOutput && (more?.expanded ?? false);
-    final card = OutputCard(meaningButtonFocusNode: _meaningButton);
+    final card = OutputCard(
+      key: _card,
+      meaningButtonFocusNode: _meaningButton,
+      revealWhileFocused: widget.revealWhileFocused,
+    );
     // The terminal look's `stdout` box, while there is something in it.
     final output = terminal
         ? TerminalPanel(
@@ -826,7 +843,7 @@ class _OutputSectionState extends State<_OutputSection> {
 }
 
 /// Whether the screen shows nothing but the greeting and the composer
-/// for [state] (as long as the input has no focus): no input, not
+/// for [state] (whether the input has focus or not): no input, not
 /// comparing, and nothing in the output (no translation, prompt or
 /// error).
 bool translateComposerIsIdle(TranslateState state) =>
@@ -866,25 +883,24 @@ Widget _ordered(double order, Widget child) => FocusTraversalOrder(
 
 /// The translate screen below the app bar.
 ///
-/// Phones and narrow windows, empty ([translateComposerIsIdle] and the
-/// field without focus), like Kagi Translate: the greeting
+/// Phones and narrow windows, empty ([translateComposerIsIdle], whether
+/// the field has focus or not), like Kagi Translate: the greeting
 /// ([TranslateHero]) in the middle and the composer docked at the bottom,
 /// a hairline-outlined card around the text field (with the microphone at
 /// its top end, and "Type or paste text" as its placeholder) and the
-/// language bar. A window too low for both ([heroMinHeight]) skips this.
+/// language bar. A window too low for both ([heroMinHeight], measured
+/// without the keyboard, which pushes the composer up) skips this.
 /// The greeting holds the quality chip when there is room for it too
 /// ([heroChipMinHeight]); otherwise the toggle stays in the app bar.
-/// Active (the field has focus or text): the thread layout, the input
-/// with its language avatar and the translation below it joined by the
-/// connector, with the language bar docked at the bottom of the screen:
-/// above the navigation bar, or above the keyboard while it is open. It is
-/// one tree in both: the greeting's slot collapses, the composer's slot
-/// fills the screen, the card's outline and fill fade and the avatar fades
-/// in, so the text field keeps its focus, text and keyboard. A sheet or
-/// dialog that takes the focus for a while (the language picker) does not
-/// switch back. Back (the system gesture) while the empty field has the
-/// focus takes it away, bringing the greeting back, before it leaves the
-/// screen.
+/// Active (the input has text, or there is something to show): the
+/// thread layout, the input with its language avatar and the translation
+/// below it joined by the connector, with the language bar docked at the
+/// bottom of the screen: above the navigation bar, or above the keyboard
+/// while it is open. It is one tree in both: the greeting's slot
+/// collapses, the composer's slot fills the screen, the card's outline and
+/// fill fade and the avatar fades in, so the text field keeps its focus,
+/// text and keyboard. Focusing the empty field changes nothing but the
+/// keyboard.
 ///
 /// From [TranslateLayout.wideBreakpoint]: two panes from the first frame
 /// on, which focusing the input never rearranges ([_PanesLayout]).
@@ -932,28 +948,13 @@ class _TranslateBody extends StatefulWidget {
 }
 
 class _TranslateBodyState extends State<_TranslateBody> {
-  /// Whether the field had focus last time the screen counted it.
-  late bool _focused = widget.focusNode.hasFocus;
-
-  @override
-  void initState() {
-    super.initState();
-    widget.focusNode.addListener(_onFocusChanged);
-  }
-
-  @override
-  void dispose() {
-    widget.focusNode.removeListener(_onFocusChanged);
-    super.dispose();
-  }
-
-  void _onFocusChanged() {
-    final focused = widget.focusNode.hasFocus;
-    if (focused == _focused) return;
-    // A sheet or dialog over the screen holds the focus for a while: keep
-    // the layout under it (the focus comes back when it closes).
-    if (!focused && !(ModalRoute.of(context)?.isCurrent ?? true)) return;
-    setState(() => _focused = focused);
+  /// The content height without the keyboard: [_TranslateBody.height] is
+  /// what the keyboard leaves, so the keyboard alone never switches the
+  /// layout (it pushes the docked composer up instead).
+  double _heightWithoutKeyboard(BuildContext context) {
+    final view = View.maybeOf(context);
+    if (view == null) return widget.height;
+    return widget.height + MediaQueryData.fromView(view).viewInsets.bottom;
   }
 
   @override
@@ -979,86 +980,21 @@ class _TranslateBodyState extends State<_TranslateBody> {
         (cubit) => translateComposerIsIdle(cubit.state),
       );
       final textScale = MediaQuery.textScalerOf(context).scale(1);
-      final roomy = widget.height >= _TranslateBody.heroMinHeight(textScale);
-      final hero = idle && !_focused && roomy;
+      final height = _heightWithoutKeyboard(context);
+      // Focusing the empty field keeps this layout: the field stays where
+      // it was tapped, with its placeholder and the greeting above it.
+      final hero = idle && height >= _TranslateBody.heroMinHeight(textScale);
       final chip =
-          hero && widget.height >= _TranslateBody.heroChipMinHeight(textScale);
+          hero && height >= _TranslateBody.heroChipMinHeight(textScale);
       widget.onChipInHeroChanged(chip);
-      // Back first takes the focus from the empty field: the greeting
-      // comes back (on Android a touch outside the field keeps its focus).
-      final backToHero = idle && _focused && roomy;
-      body = PopScope<Object?>(
-        canPop: !backToHero,
-        onPopInvokedWithResult: (didPop, _) {
-          if (!didPop) widget.focusNode.unfocus();
-        },
-        child: _ComposerLayout(
-          hero: hero,
-          qualityChip: chip,
-          focusNode: widget.focusNode,
-        ),
+      body = _ComposerLayout(
+        hero: hero,
+        qualityChip: chip,
+        focusNode: widget.focusNode,
       );
     }
     return FocusTraversalGroup(policy: OrderedTraversalPolicy(), child: body);
   }
-}
-
-/// Scrolls the first lines of [child] into view when it appears ([shown]
-/// turns true): in the terminal look the `stdout` box sits under the tall
-/// `stdin` box, where on a small phone the keyboard hides what the
-/// translation offers or asks ("Download French", "Send it once?"). Only
-/// when it appears, never while a translation streams in, and at once
-/// with reduced motion.
-class _RevealOnArrival extends StatefulWidget {
-  const new({required this.shown, required this.child});
-
-  final bool shown;
-  final Widget child;
-
-  /// How much of the box is brought into view: its label and a line or
-  /// two of what it says.
-  static const double peek = 112;
-
-  @override
-  State<_RevealOnArrival> createState() => _RevealOnArrivalState();
-}
-
-class _RevealOnArrivalState extends State<_RevealOnArrival> {
-  final GlobalKey<State<StatefulWidget>> _peek = GlobalKey(
-    debugLabel: 'translate_terminal_stdout_peek',
-  );
-
-  @override
-  void didUpdateWidget(_RevealOnArrival oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.shown || !widget.shown) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final target = _peek.currentContext;
-      if (!mounted || target == null) return;
-      Scrollable.ensureVisible(
-        target,
-        duration: TranslateLayout.motion(context),
-        curve: Curves.easeOutCubic,
-        alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtEnd,
-      );
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) => Stack(
-    clipBehavior: Clip.none,
-    children: [
-      widget.child,
-      PositionedDirectional(
-        top: 0,
-        start: 0,
-        end: 0,
-        child: IgnorePointer(
-          child: SizedBox(key: _peek, height: _RevealOnArrival.peek),
-        ),
-      ),
-    ],
-  );
 }
 
 /// [_TranslateBody] in the terminal look ([AppLook.isTerminal]) without a
@@ -1125,7 +1061,14 @@ class _TerminalLayout extends StatelessWidget {
     final output = _ordered(
       _FocusOrder.output,
       _SwapFade(
-        child: _OutputSection(memory: wide, separated: false, avatar: false),
+        child: _OutputSection(
+          memory: wide,
+          separated: false,
+          avatar: false,
+          // Phones: the `stdout` box sits under the tall `stdin` box, where
+          // the keyboard would hide a new translation.
+          revealWhileFocused: wide ? null : focusNode,
+        ),
       ),
     );
     final Widget panes;
@@ -1164,7 +1107,7 @@ class _TerminalLayout extends StatelessWidget {
           input,
           const TranslationMemoryCard(),
           SizedBox(height: outputEmpty ? 0 : boxGap),
-          _RevealOnArrival(shown: !outputEmpty, child: output),
+          output,
           ...empty,
         ],
       );
@@ -1345,7 +1288,10 @@ class _NarrowRegion extends StatelessWidget {
                 if (!hero)
                   _ordered(
                     _FocusOrder.output,
-                    const _OutputSection(memory: false),
+                    _OutputSection(
+                      memory: false,
+                      revealWhileFocused: focusNode,
+                    ),
                   ),
               ],
             ),

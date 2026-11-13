@@ -59,7 +59,9 @@ void main() {
         ],
       );
       final input = tester.getRect(find.byType(ProofreadInputCard));
-      final result = tester.getRect(find.byType(ProofreadResultSection));
+      final result = tester.getRect(
+        find.byKey(const Key('proofread_result_pane')),
+      );
       expect(input.right, lessThanOrEqualTo(540));
       expect(result.left, greaterThanOrEqualTo(574));
     });
@@ -81,7 +83,9 @@ void main() {
       // The wide layout's placeholder.
       expect(find.text(placeholder), findsOneWidget);
       final input = tester.getRect(find.byType(ProofreadInputCard));
-      final result = tester.getRect(find.byType(ProofreadResultSection));
+      final result = tester.getRect(
+        find.byKey(const Key('proofread_result_pane')),
+      );
       expect(input.right, lessThanOrEqualTo(345));
       expect(result.left, greaterThanOrEqualTo(345));
     });

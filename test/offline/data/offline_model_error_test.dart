@@ -75,6 +75,44 @@ void main() {
       }
     });
 
+    test('in a browser, a failed connection to Mozilla is the browser', () {
+      expect(
+        OfflineModelError.of(
+          const ModelDownloadException('en-de', 'ClientException: Failed'),
+          isWeb: true,
+        ),
+        const OfflineModelError(OfflineModelErrorKind.browserRefused),
+      );
+      // A mirror's connection stays the connection.
+      expect(
+        OfflineModelError.of(
+          ModelDownloadException(
+            'en-de',
+            'ClientException: Failed',
+            mirror: Uri.parse('https://mirror.example/models/'),
+          ),
+          isWeb: true,
+        ).kind,
+        OfflineModelErrorKind.network,
+      );
+      // Outside a browser too.
+      expect(
+        OfflineModelError.of(
+          const ModelDownloadException('en-de', 'ClientException: Failed'),
+          isWeb: false,
+        ).kind,
+        OfflineModelErrorKind.network,
+      );
+      // Text recognition data (GitHub sends CORS headers) is unaffected.
+      expect(
+        OfflineModelError.of(
+          const TessdataDownloadException('deu', 'ClientException: Failed'),
+          isWeb: true,
+        ).kind,
+        OfflineModelErrorKind.network,
+      );
+    });
+
     test('recognises downloads the network policy refused', () {
       final error = OfflineModelError.of(
         const ModelDownloadException(
