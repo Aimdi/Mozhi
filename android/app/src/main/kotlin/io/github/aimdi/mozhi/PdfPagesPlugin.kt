@@ -90,6 +90,8 @@ class PdfPagesPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
     // Only used on [executor].
     private var descriptor: ParcelFileDescriptor? = null
     private var renderer: PdfRenderer? = null
+    private var preVDescriptor: ParcelFileDescriptor? = null
+    private var preVRenderer: Any? = null
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         context = binding.applicationContext
@@ -181,6 +183,23 @@ class PdfPagesPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                 throw PdfError("damaged", e.message ?: "Not a PDF")
             }
             renderer = pdf
+            // Android 12–14 with SDK Extension >= 13: open PdfRendererPreV
+            // on a duplicated descriptor so text-layer extraction works
+            // before Android 15 (best effort; falls back to OCR when absent).
+            if (Build.VERSION.SDK_INT in TextLayer.PRE_V_MIN_SDK until TextLayer.SDK) {
+                try {
+                    val dup = opened.dup()
+                    val preV = TextLayer.openPreV(dup)
+                    if (preV != null) {
+                        preVDescriptor = dup
+                        preVRenderer = preV
+                    } else {
+                        dup.close()
+                    }
+                } catch (e: Exception) {
+                    // No SDK extension or unsupported PDF feature; OCR fallback.
+                }
+            }
             val count = pdf.pageCount
             if (count <= 0) throw PdfError("damaged", "No pages")
             if (count > MAX_PAGES) throw PdfError("too_large", "Over $MAX_PAGES pages")
@@ -237,19 +256,23 @@ class PdfPagesPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
         }
     }
 
-    /** The text layer of page [index] (`text`), null before Android 15. */
+    /** The text layer of page [index] (`text`), null when unavailable. */
     private fun text(index: Int?): Map<String, Any>? {
         val pdf = renderer ?: throw PdfError("not_open", "No PDF is open")
         if (index == null || index < 0 || index >= pdf.pageCount) {
             throw PdfError("invalid_argument", "No page $index")
         }
-        if (Build.VERSION.SDK_INT < TextLayer.SDK) return null
-        val page = pdf.openPage(index)
-        try {
-            return mapOf("lines" to TextLayer.lines(page))
-        } finally {
-            page.close()
+        if (Build.VERSION.SDK_INT >= TextLayer.SDK) {
+            val page = pdf.openPage(index)
+            try {
+                return mapOf("lines" to TextLayer.lines(page))
+            } finally {
+                page.close()
+            }
         }
+        val preV = preVRenderer ?: return null
+        val preVLines = TextLayer.preVLines(preV, index) ?: return null
+        return mapOf("lines" to preVLines)
     }
 
     private fun write(context: Context?, path: String?, pages: List<Any?>?) {
@@ -384,8 +407,22 @@ class PdfPagesPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
     private fun closeDocument() {
         val pdf = renderer
         val opened = descriptor
+        val preV = preVRenderer
+        val preVOpened = preVDescriptor
         renderer = null
         descriptor = null
+        preVRenderer = null
+        preVDescriptor = null
+        try {
+            TextLayer.closePreV(preV)
+        } catch (e: RuntimeException) {
+            // Closed already.
+        }
+        try {
+            preVOpened?.close()
+        } catch (e: IOException) {
+            // Closed already.
+        }
         try {
             pdf?.close()
         } catch (e: RuntimeException) {
@@ -435,6 +472,7 @@ class PdfPagesPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
      */
     private object TextLayer {
         const val SDK = 35
+        const val PRE_V_MIN_SDK = 31
 
         private fun method(owner: String, name: String, vararg types: Class<*>) = try {
             Class.forName(owner).getMethod(name, *types)
@@ -447,6 +485,41 @@ class PdfPagesPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
         private const val CONTENT = "android.graphics.pdf.content.PdfPageTextContent"
         private const val BOUNDARY = "android.graphics.pdf.models.selection.SelectionBoundary"
         private const val SELECTION = "android.graphics.pdf.models.selection.PageSelection"
+        private const val PRE_V = "android.graphics.pdf.PdfRendererPreV"
+        private const val PRE_V_PAGE = "android.graphics.pdf.PdfRendererPreV\$Page"
+
+        private val preVConstructor by lazy {
+            try {
+                Class.forName(PRE_V).getConstructor(ParcelFileDescriptor::class.java)
+            } catch (e: ReflectiveOperationException) {
+                null
+            } catch (e: LinkageError) {
+                null
+            }
+        }
+        private val preVOpenPage by lazy { method(PRE_V, "openPage", Int::class.javaPrimitiveType!!) }
+        private val preVClose by lazy { method(PRE_V, "close") }
+        private val preVPageClose by lazy { method(PRE_V_PAGE, "close") }
+        private val preVGetTextContents by lazy { method(PRE_V_PAGE, "getTextContents") }
+        private val preVSelectContent by lazy {
+            val boundary = boundaryClass ?: return@lazy null
+            method(PRE_V_PAGE, "selectContent", boundary, boundary)
+        }
+
+        fun openPreV(pfd: ParcelFileDescriptor): Any? = call { preVConstructor?.newInstance(pfd) }
+
+        fun closePreV(preV: Any?) {
+            if (preV != null) call { preVClose?.invoke(preV) }
+        }
+
+        fun preVLines(preV: Any, index: Int): List<Map<String, Any>>? {
+            val page = call { preVOpenPage?.invoke(preV, index) } ?: return null
+            return try {
+                linesFrom(page, preVGetTextContents, preVSelectContent)
+            } finally {
+                call { preVPageClose?.invoke(page) }
+            }
+        }
 
         private val getTextContents by lazy {
             try {
@@ -482,10 +555,17 @@ class PdfPagesPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
         }
 
         /** The lines of [page]'s text layer with their boxes (points). */
-        fun lines(page: PdfRenderer.Page): List<Map<String, Any>> {
+        fun lines(page: PdfRenderer.Page): List<Map<String, Any>> =
+            linesFrom(page, getTextContents, selectContent)
+
+        private fun linesFrom(
+            page: Any,
+            getContentsMethod: java.lang.reflect.Method?,
+            selectMethod: java.lang.reflect.Method?,
+        ): List<Map<String, Any>> {
             val out = ArrayList<Map<String, Any>>()
             val contents = try {
-                getTextContents?.invoke(page) as? List<*>
+                getContentsMethod?.invoke(page) as? List<*>
             } catch (e: Exception) {
                 null
             } ?: return out
@@ -502,7 +582,7 @@ class PdfPagesPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                 } else {
                     for (line in lines) {
                         if (out.size >= MAX_TEXT_LINES) break
-                        val box = selectionBox(page, offset + line.start, offset + line.end)
+                        val box = selectionBox(page, selectMethod, offset + line.start, offset + line.end)
                         if (box != null) add(out, line.text, box)
                     }
                 }
@@ -512,8 +592,13 @@ class PdfPagesPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
         }
 
         /** The union of the bounds of characters [start] until [stop]. */
-        private fun selectionBox(page: PdfRenderer.Page, start: Int, stop: Int): RectF? {
-            val select = selectContent ?: return null
+        private fun selectionBox(
+            page: Any,
+            select: java.lang.reflect.Method?,
+            start: Int,
+            stop: Int,
+        ): RectF? {
+            select ?: return null
             val boundary = boundaryAt ?: return null
             val selection = call {
                 select.invoke(page, boundary.newInstance(start), boundary.newInstance(stop))

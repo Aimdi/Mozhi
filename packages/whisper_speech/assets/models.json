@@ -7,7 +7,7 @@
     "sha256: the SHA-256 Hugging Face reports for the files (X-Linked-Etag); the app checks it as well as sha1 (a download from a mirror must match both), and CI compares it with what Hugging Face serves on every run.",
     "Weights: MIT License, Copyright (c) 2022 OpenAI (https://github.com/openai/whisper/blob/main/LICENSE). The files are F16 and multilingual (99 languages).",
     "silero-vad (kind vad): Silero VAD v6.2.0 (MIT License, Copyright (c) 2020-present Silero Team, https://github.com/snakers4/silero-vad) converted to ggml by whisper.cpp (models/convert-silero-vad-to-ggml.py), published at https://huggingface.co/ggml-org/whisper-vad (whisper.cpp's models/download-vad-model.sh). size, sha1 and sha256 are those of the copy whisper.cpp v1.9.5 ships for its tests (native/third_party/whisper.cpp/models/for-tests-silero-v6.2.0-ggml.bin, the real model: 864.35 KiB as in whisper.cpp's README download log); CI compares size and sha256 with what Hugging Face serves (tool/check_model_downloads.py).",
-    "Quantized models (base-q5_1, small-q5_1, large-v3-turbo-q5_0): whisper.cpp's quantization of the same OpenAI weights (q5_1, q5_0), published in the same repository; url pinned to commit 5359861c739e955e79d9a303bcbc70fb988958b1, size and sha256 from Hugging Face's API (the Git LFS object) and checked against the downloaded file, sha1 computed from it (tool/whisper_catalog.py resolve, in the CI job 'Check model downloads'; whisper.cpp's models/README.md SHA-1 compared where listed). minRamMb: the RAM below which the app does not offer the model (small: 4 GB phones, large-v3-turbo: 8 GB)."
+    "Quantized models (base-q5_1, base-q8_0, small-q5_1, small-q8_0, large-v3-turbo-q5_0): whisper.cpp's quantization of the same OpenAI weights (q5_1, q8_0, q5_0), published in the same repository; url pinned to commit 5359861c739e955e79d9a303bcbc70fb988958b1, size and sha256 from Hugging Face's API (the Git LFS object) and checked against the downloaded file, sha1 computed from it (tool/whisper_catalog.py resolve, in the CI job 'Check model downloads'; whisper.cpp's models/README.md SHA-1 compared where listed). minRamMb: the RAM below which the app does not offer the model (small: 4 GB phones, large-v3-turbo: 8 GB)."
   ],
   "source": "https://huggingface.co/ggerganov/whisper.cpp",
   "license": "OpenAI Whisper model weights: MIT License (Copyright (c) 2022 OpenAI)",
@@ -33,6 +33,16 @@
       "parameters": 74000000
     },
     {
+      "id": "base-q8_0",
+      "name": "ggml-base-q8_0.bin",
+      "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-base-q8_0.bin",
+      "size": 81768585,
+      "sha1": "7bb89bb49ed6955013b166f1b6a6c04584a20fbe",
+      "sha256": "c577b9a86e7e048a0b7eada054f4dd79a56bbfa911fbdacf900ac5b567cbb7d9",
+      "multilingual": true,
+      "parameters": 74000000
+    },
+    {
       "id": "base",
       "name": "ggml-base.bin",
       "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin",
@@ -52,6 +62,17 @@
       "multilingual": true,
       "parameters": 244000000,
       "minRamMb": 3000
+    },
+    {
+      "id": "small-q8_0",
+      "name": "ggml-small-q8_0.bin",
+      "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-small-q8_0.bin",
+      "size": 264464607,
+      "sha1": "bcad8a2083f4e53d648d586b7dbc0cd673d8afad",
+      "sha256": "49c8fb02b65e6049d5fa6c04f81f53b867b5ec9540406812c643f177317f779f",
+      "multilingual": true,
+      "parameters": 244000000,
+      "minRamMb": 3500
     },
     {
       "id": "large-v3-turbo-q5_0",

@@ -13,6 +13,7 @@ import 'package:mozhi/image_translate/widgets/image_language_bar.dart';
 import 'package:mozhi/image_translate/widgets/image_translate_links.dart';
 import 'package:mozhi/image_translate/widgets/overlay_export.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/platform/web_share.dart';
 import 'package:mozhi/translate/cubit/translate_cubit.dart';
 import 'package:mozhi/translate/widgets/personal_data_kept_note.dart';
 import 'package:mozhi/translate/widgets/translate_layout.dart'
@@ -424,18 +425,19 @@ class _ResultActionsState extends State<_ResultActions> {
               onPressed: () => unawaited(_copy(text)),
             ),
           if (widget.state.showsOverlay) ...[
-            Builder(
-              builder: (buttonContext) => XActionButton(
-                key: const Key('image_translate_share_image_button'),
-                tooltip: l10n.imageTranslateShareImage,
-                icon: Icons.share_outlined,
-                onPressed: _exporting
-                    ? null
-                    : () => unawaited(
-                        _export(buttonContext, OverlayExportAction.share),
-                      ),
+            if (OverlayExport.canShare)
+              Builder(
+                builder: (buttonContext) => XActionButton(
+                  key: const Key('image_translate_share_image_button'),
+                  tooltip: l10n.imageTranslateShareImage,
+                  icon: Icons.share_outlined,
+                  onPressed: _exporting
+                      ? null
+                      : () => unawaited(
+                          _export(buttonContext, OverlayExportAction.share),
+                        ),
+                ),
               ),
-            ),
             Builder(
               builder: (buttonContext) => XActionButton(
                 key: const Key('image_translate_save_image_button'),
@@ -448,7 +450,7 @@ class _ResultActionsState extends State<_ResultActions> {
                       ),
               ),
             ),
-          ] else if (text.isNotEmpty || result.hasImage)
+          ] else if ((text.isNotEmpty || result.hasImage) && canShareText)
             Builder(
               builder: (buttonContext) => XActionButton(
                 key: const Key('image_translate_share_button'),

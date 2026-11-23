@@ -38,6 +38,7 @@ import re
 import struct
 import sys
 import unicodedata
+import xml.etree.ElementTree as ET
 
 MAGIC = b'MOZHIDCT'
 FORMAT = 1
@@ -74,6 +75,10 @@ KAIKKI_NAMES = {
 }
 KAIKKI_URL = ('https://kaikki.org/dictionary/{name}/'
               'kaikki.org-dictionary-{file}.jsonl')
+KAIKKI_EDITION_URL = ('https://kaikki.org/{edition}wiktionary/{name}/'
+                      'kaikki.org-dictionary-{file}.jsonl')
+KAIKKI_EDITIONS = {'de', 'el', 'es', 'fr', 'id', 'it', 'ja', 'ko', 'nl',
+                   'pl', 'pt', 'ru', 'tr', 'vi', 'zh'}
 
 # Languages English entries keep translations into (the app's offline
 # languages and a few more), as app language codes.
@@ -411,6 +416,196 @@ def collect(raw_entries, options, language_codes=None):
                 continue
         kept.append((entry, forms))
     return kept
+
+
+# --- WikDict translations & Tatoeba example sentences -----------------------
+
+
+def read_wikdict(path, default_target=None):
+    """Reads bilingual translations from a WikDict TEI XML (`.tei`/`.xml`[`.gz`])
+    or JSONL (`.jsonl`[`.gz`]) file.
+
+    Returns `{folded_word: [(target_code, translation), ...]}`.
+    """
+    opener = gzip.open if path.endswith('.gz') else open
+    lower = path[:-3] if path.endswith('.gz') else path
+    result = {}
+
+    def add(word, target, translation):
+        word = _clean(word, 100)
+        translation = _clean(translation, 80)
+        if not word or not translation or not _valid(word + translation):
+            return
+        code = CODE_ALIASES.get(target or '', target or '')
+        if not code:
+            return
+        items = result.setdefault(fold(word), [])
+        pair = (code, translation)
+        if pair not in items:
+            items.append(pair)
+
+    if lower.endswith('.tei') or lower.endswith('.xml'):
+        with opener(path, 'rb') as f:
+            tree = ET.parse(f)
+        root = tree.getroot()
+        target = default_target
+        if not target:
+            # Infer from filename like `deu-eng.tei` or `de-en.tei`.
+            base = os.path.basename(lower).rsplit('.', 1)[0]
+            if '-' in base:
+                target = base.split('-')[-1].lower()
+        for elem in root.iter():
+            tag = elem.tag.split('}')[-1]
+            if tag != 'entry':
+                continue
+            headwords = []
+            translations = []
+            for child in elem.iter():
+                ctag = child.tag.split('}')[-1]
+                if ctag == 'orth' and child.text:
+                    headwords.append(child.text)
+                elif ctag == 'cit' and child.attrib.get('type') == 'trans':
+                    cit_lang = (child.attrib.get('{http://www.w3.org/XML/1998/namespace}lang')
+                                or child.attrib.get('lang') or target)
+                    for q in child.iter():
+                        if q.tag.split('}')[-1] == 'quote' and q.text:
+                            translations.append((cit_lang, q.text))
+            for hw in headwords:
+                for t_code, tr in translations:
+                    add(hw, t_code, tr)
+        return result
+
+    with opener(path, 'rt', encoding='utf-8', errors='replace') as lines:
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                obj = json.loads(line)
+            except ValueError:
+                continue
+            if not isinstance(obj, dict):
+                continue
+            word = obj.get('word') or obj.get('written_rep')
+            target = obj.get('target') or obj.get('code') or default_target
+            tr = obj.get('translation') or obj.get('trans')
+            if isinstance(tr, list):
+                for item in tr:
+                    if isinstance(item, str):
+                        add(word, target, item)
+            elif isinstance(tr, str):
+                add(word, target, tr)
+    return result
+
+
+def merge_wikdict(collected, wikdict_map, options):
+    """Appends WikDict bilingual translations into matching [collected] entries,
+    respecting [options.targets] and [options.max_translations]."""
+    added_count = 0
+    for entry, _ in collected:
+        hits = wikdict_map.get(fold(entry['w']))
+        if not hits:
+            continue
+        trans = entry.setdefault('t', {})
+        for code, rendering in hits:
+            if code not in options.targets:
+                continue
+            items = trans.setdefault(code, [])
+            if any(w == rendering for w, _ in items):
+                continue
+            if sum(1 for _, idx in items if idx == -1) >= options.max_translations:
+                continue
+            items.append([rendering, -1])
+            added_count += 1
+        if trans:
+            entry['t'] = {c: trans[c] for c in sorted(trans)}
+        else:
+            entry.pop('t', None)
+    return added_count
+
+
+_WORD_TOKEN = re.compile(r'[^\W\d_]+', re.UNICODE)
+
+
+def read_tatoeba(path):
+    """Reads example sentence pairs from a Tatoeba TSV (`.tsv`[`.gz`]).
+
+    Accepted column formats:
+      - 2 columns: `sentence\\ttranslation`
+      - 3 columns: `word\\tsentence\\ttranslation`
+      - 4+ columns (Tatoeba sentences/links export):
+        `src_id\\tsentence\\ttgt_id\\ttranslation` (or 6 cols with lang codes)
+
+    Returns `(by_word, pairs)` where `by_word` maps folded word -> `[(s, t)]`
+    and `pairs` is a list of `(sentence, translation)` indexed by tokens.
+    """
+    opener = gzip.open if path.endswith('.gz') else open
+    by_word = {}
+    pairs = []
+    with opener(path, 'rt', encoding='utf-8', errors='replace') as lines:
+        for line in lines:
+            line = line.rstrip('\r\n')
+            if not line or line.startswith('#'):
+                continue
+            cols = line.split('\t')
+            if len(cols) == 2:
+                sentence, translation = cols
+                pairs.append((sentence, translation))
+            elif len(cols) == 3:
+                word, sentence, translation = cols
+                by_word.setdefault(fold(word), []).append((sentence, translation))
+            elif len(cols) == 4:
+                _, sentence, _, translation = cols
+                pairs.append((sentence, translation))
+            elif len(cols) >= 6:
+                _, _, sentence, _, _, translation = cols[:6]
+                pairs.append((sentence, translation))
+    return by_word, pairs
+
+
+def merge_tatoeba(collected, tatoeba_data, options):
+    """Attaches short Tatoeba example sentences to senses that still have room
+    (`< options.max_examples`)."""
+    by_word, pairs = tatoeba_data
+    token_index = {}
+    for sentence, translation in pairs:
+        clean_s = _clean(sentence, options.max_example_chars)
+        clean_t = _clean(translation, options.max_example_chars)
+        if not clean_s or len(clean_s) > options.max_example_chars:
+            continue
+        if not _valid(clean_s + clean_t):
+            continue
+        for token in {fold(m.group(0)) for m in _WORD_TOKEN.finditer(clean_s)}:
+            if token:
+                bucket = token_index.setdefault(token, [])
+                if len(bucket) < options.max_examples * 3:
+                    bucket.append((clean_s, clean_t))
+
+    added_count = 0
+    for entry, _ in collected:
+        senses = entry.get('s') or []
+        if not senses:
+            continue
+        first = senses[0]
+        existing = first.setdefault('x', [])
+        if len(existing) >= options.max_examples:
+            continue
+        key = fold(entry['w'])
+        candidates = list(by_word.get(key, ())) + list(token_index.get(key, ()))
+        seen_texts = {item[0] for item in existing}
+        for sentence, translation in candidates:
+            if len(existing) >= options.max_examples:
+                break
+            clean_s = _clean(sentence, options.max_example_chars)
+            clean_t = _clean(translation, options.max_example_chars)
+            if not clean_s or clean_s in seen_texts or not _valid(clean_s + clean_t):
+                continue
+            existing.append([clean_s, clean_t] if clean_t else [clean_s])
+            seen_texts.add(clean_s)
+            added_count += 1
+        if not existing:
+            first.pop('x', None)
+    return added_count
 
 
 # --- Writing packs -----------------------------------------------------------
@@ -824,6 +1019,12 @@ def main(argv=None):
     build.add_argument('--max-examples', type=int, default=2)
     build.add_argument('--max-translations', type=int, default=4)
     build.add_argument('--max-forms', type=int, default=64)
+    build.add_argument('--wikdict', action='append', default=[],
+                       help='WikDict TEI/JSONL file(s) to merge translations from')
+    build.add_argument('--wikdict-target', default='',
+                       help='default target language code for --wikdict files')
+    build.add_argument('--tatoeba', action='append', default=[],
+                       help='Tatoeba TSV file(s) to merge example sentences from')
     build.add_argument('--stats', help='also write the statistics as JSON')
 
     cat = commands.add_parser('catalog', help='packs -> dictionary_catalog.json')
@@ -837,6 +1038,8 @@ def main(argv=None):
 
     url = commands.add_parser('kaikki-url', help="kaikki.org's JSONL URL")
     url.add_argument('language')
+    url.add_argument('--edition', default='en',
+                     help='Wiktionary edition for gloss language (default: en)')
 
     dump = commands.add_parser('dump', help='print a pack')
     dump.add_argument('pack')
@@ -863,6 +1066,11 @@ def main(argv=None):
         if not collected:
             print(f'{args.input}: no entries', file=sys.stderr)
             return 1
+        for wikdict_path in args.wikdict:
+            wd = read_wikdict(wikdict_path, default_target=args.wikdict_target or None)
+            merge_wikdict(collected, wd, options)
+        for tatoeba_path in args.tatoeba:
+            merge_tatoeba(collected, read_tatoeba(tatoeba_path), options)
         used = sorted({code for entry, _ in collected
                        for code in entry.get('t', {})})
         pack, stats = write_pack(
@@ -890,8 +1098,17 @@ def main(argv=None):
         if not name:
             print(f'No kaikki.org name for {args.language}', file=sys.stderr)
             return 1
-        print(KAIKKI_URL.format(name=name.replace(' ', '%20'),
-                                file=name.replace(' ', '')))
+        edition = (args.edition or 'en').lower()
+        if edition != 'en':
+            if edition not in KAIKKI_EDITIONS:
+                print(f'No kaikki.org edition for {edition}', file=sys.stderr)
+                return 1
+            print(KAIKKI_EDITION_URL.format(edition=edition,
+                                            name=name.replace(' ', '%20'),
+                                            file=name.replace(' ', '')))
+        else:
+            print(KAIKKI_URL.format(name=name.replace(' ', '%20'),
+                                    file=name.replace(' ', '')))
         return 0
     with open(args.pack, 'rb') as f:
         pack = Pack(f.read())

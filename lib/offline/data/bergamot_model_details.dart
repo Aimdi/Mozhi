@@ -6,6 +6,7 @@ import 'package:mozhi/offline/data/offline_model_details.dart';
 import 'package:mozhi/offline/data/offline_model_error.dart';
 import 'package:mozhi/offline/data/offline_model_import.dart';
 import 'package:mozhi/offline/data/picked_import_file.dart';
+import 'package:mozhi/platform/download_foreground_service.dart';
 import 'package:mozhi/settings/models/model_source.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -102,14 +103,23 @@ class BergamotModelDetails
       ..fallbackToDefault = source.fallsBackToDefault;
     // Registered in `downloads` before the call returns.
     final running = translator.downloadLanguage(code, wifiOnly: wifiOnly);
-    final subscription = onProgress == null
-        ? null
-        : translator.downloads[code]?.progressChanges.listen(onProgress);
-    try {
-      await running;
-    } finally {
-      await subscription?.cancel();
-    }
+    await DownloadForegroundCoordinator.instance.track(
+      label: code,
+      onCancel: () => translator.cancelDownload(code),
+      run: (reportForeground) async {
+        final subscription = translator.downloads[code]?.progressChanges.listen(
+          (fraction) {
+            onProgress?.call(fraction);
+            reportForeground(fraction);
+          },
+        );
+        try {
+          await running;
+        } finally {
+          await subscription?.cancel();
+        }
+      },
+    );
   }
 
   /// The translator's running downloads ([BergamotTranslator.downloads]).

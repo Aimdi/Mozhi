@@ -9,6 +9,7 @@ import 'package:mozhi/phrasebook/models/phrase_collection.dart';
 import 'package:mozhi/practice/cubit/practice_cubit.dart';
 import 'package:mozhi/practice/cubit/practice_speech_cubit.dart';
 import 'package:mozhi/practice/data/fsrs.dart';
+import 'package:mozhi/practice/data/fsrs_optimizer.dart';
 import 'package:mozhi/practice/data/practice_repository.dart';
 import 'package:mozhi/practice/models/practice_card.dart';
 import 'package:mozhi/practice/models/practice_settings.dart';
@@ -307,6 +308,7 @@ class _Options extends StatelessWidget {
           subtitle: Text(l10n.practiceTypeAnswersSubtitle),
           onChanged: (value) => update(settings.copyWith(typeAnswers: value)),
         ),
+        const _PersonalizeScheduleTile(),
         const _SpeakingTile(),
         const Divider(height: 24),
         ListTile(
@@ -492,6 +494,112 @@ class _SpeakingTile extends StatelessWidget {
               child: Text(l10n.practiceVoiceSettings),
             )
           : null,
+    );
+  }
+}
+
+/// Personalizes FSRS weights from the device's review history, or resets them
+/// back to defaults.
+class _PersonalizeScheduleTile extends StatefulWidget {
+  const new();
+
+  @override
+  State<_PersonalizeScheduleTile> createState() =>
+      _PersonalizeScheduleTileState();
+}
+
+class _PersonalizeScheduleTileState extends State<_PersonalizeScheduleTile> {
+  bool _running = false;
+  FsrsOptimizationResult? _lastResult;
+
+  Future<void> _optimize() async {
+    if (_running) return;
+    setState(() => _running = true);
+    FsrsOptimizationResult? result;
+    await context.read<PracticeCubit>().optimizeSchedule(
+      onResult: (value) => result = value,
+    );
+    if (!mounted) return;
+    setState(() {
+      _running = false;
+      _lastResult = result;
+    });
+  }
+
+  Future<void> _reset() async {
+    if (_running) return;
+    await context.read<PracticeCubit>().resetCustomWeights();
+    if (!mounted) return;
+    setState(() => _lastResult = null);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final state = context.watch<PracticeCubit>().state;
+    final deck = state.deck;
+    final hasCustom = state.settings.hasCustomWeights;
+    final evaluable = deck?.optimizableReviewCount ?? 0;
+    final canOptimize = evaluable >= FsrsOptimizer.minReviews;
+    final remaining = (FsrsOptimizer.minReviews - evaluable).clamp(
+      0,
+      FsrsOptimizer.minReviews,
+    );
+
+    final String subtitle;
+    if (hasCustom) {
+      final result = _lastResult;
+      if (result != null && result.improved) {
+        final percent = NumberFormat.percentPattern(l10n.localeName)
+            .format(result.relativeImprovement);
+        subtitle = l10n.practicePersonalizeImproved(percent);
+      } else {
+        subtitle = l10n.practicePersonalizeActive;
+      }
+    } else if (!canOptimize) {
+      subtitle = l10n.practicePersonalizeNeedMore(
+        remaining,
+        evaluable,
+        FsrsOptimizer.minReviews,
+      );
+    } else if (_lastResult case final result? when !result.improved) {
+      subtitle = l10n.practicePersonalizeAlreadyOptimal;
+    } else {
+      subtitle = l10n.practicePersonalizeReady(evaluable);
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ListTile(
+          key: const Key('practice_personalize_schedule'),
+          leading: const Icon(Icons.tune_outlined),
+          title: Text(l10n.practicePersonalizeTitle),
+          subtitle: Text(subtitle),
+          isThreeLine: true,
+          trailing: canOptimize
+              ? _running
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : TextButton(
+                        key: const Key('practice_personalize_run'),
+                        onPressed: () => unawaited(_optimize()),
+                        child: Text(l10n.practicePersonalizeAction),
+                      )
+              : null,
+        ),
+        if (hasCustom)
+          ListTile(
+            key: const Key('practice_reset_weights'),
+            leading: const Icon(Icons.restart_alt_outlined),
+            title: Text(l10n.practiceResetWeights),
+            subtitle: Text(l10n.practiceResetWeightsSubtitle),
+            onTap: _running ? null : () => unawaited(_reset()),
+          ),
+      ],
     );
   }
 }

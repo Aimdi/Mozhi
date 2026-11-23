@@ -48,8 +48,13 @@ class ImageTranslateMethod extends Equatable {
   bool get rendersImage => kind == ImageTranslateMethodKind.mozhiLens;
 
   /// Whether the photo itself is sent off the device (Mozhi via Google
-  /// Translate, AI vision): only on the user's explicit Translate.
-  bool get uploadsImage => kind != ImageTranslateMethodKind.onDevice;
+  /// Translate, cloud/remote AI vision): only on the user's explicit
+  /// Translate. On-device OCR and on-device AI vision models keep the photo
+  /// on this device.
+  bool get uploadsImage =>
+      kind != ImageTranslateMethodKind.onDevice &&
+      !(kind == ImageTranslateMethodKind.aiVision &&
+          (engine?.isOnDevice ?? false));
 
   /// The methods available for [engines], recommended first:
   ///

@@ -3,12 +3,15 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/core/widgets/consent_prompt.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/phrasebook/models/phrase.dart';
+import 'package:mozhi/phrasebook/models/phrase_draft.dart';
+import 'package:mozhi/phrasebook/widgets/add_to_phrasebook.dart';
 import 'package:mozhi/transcribe/cubit/transcribe_cubit.dart';
 import 'package:mozhi/transcribe/data/transcriber.dart';
 import 'package:mozhi/transcribe/models/transcript_entry.dart';
 import 'package:mozhi/voice/offline/phrase_transcriber.dart';
 import 'package:translation_repository/translation_repository.dart'
-    show ConsentRequiredException;
+    show ConsentRequiredException, Language;
 
 /// The rolling transcript: one paragraph per phrase with its time and,
 /// with translation on, its translation (side by side from [wideBreakpoint]
@@ -76,6 +79,12 @@ class _TranscriptListState extends State<TranscriptList> {
     final waitingForConsent = context.select<TranscribeCubit, int>(
       (cubit) => cubit.state.awaitingConsent.length,
     );
+    final source = context.select<TranscribeCubit, Language>(
+      (cubit) => cubit.state.source,
+    );
+    final target = context.select<TranscribeCubit, Language>(
+      (cubit) => cubit.state.target,
+    );
     final wide =
         MediaQuery.sizeOf(context).width >= TranscriptList.wideBreakpoint;
     return BlocListener<TranscribeCubit, TranscribeState>(
@@ -94,6 +103,8 @@ class _TranscriptListState extends State<TranscriptList> {
           return TranscriptParagraph(
             key: ValueKey('transcribe_entry_${entry.id}'),
             entry: entry,
+            source: source,
+            target: target,
             wide: wide,
             showConsent: entry.id == consentId,
             consentRequests: waitingForConsent,
@@ -108,6 +119,8 @@ class _TranscriptListState extends State<TranscriptList> {
 class TranscriptParagraph extends StatelessWidget {
   const new({
     required this.entry,
+    this.source = Language.auto,
+    this.target,
     this.wide = false,
     this.showConsent = false,
     this.consentRequests = 1,
@@ -115,6 +128,12 @@ class TranscriptParagraph extends StatelessWidget {
   });
 
   final TranscriptEntry entry;
+
+  /// The spoken source language chosen on the Transcribe screen.
+  final Language source;
+
+  /// The target translation language chosen on the Transcribe screen.
+  final Language? target;
 
   /// The translation beside the words instead of below.
   final bool wide;
@@ -124,6 +143,22 @@ class TranscriptParagraph extends StatelessWidget {
 
   /// How many entries the consent lets through.
   final int consentRequests;
+
+  PhraseDraft? get _phraseDraft {
+    if (!entry.hasText || !entry.isTranslated) return null;
+    final translation = entry.translation.trim();
+    final text = entry.text.trim();
+    if (text.isEmpty || translation.isEmpty) return null;
+    return PhraseDraft(
+      text: text,
+      translation: translation,
+      sourceCode: phraseLanguageOf(source, detected: entry.language),
+      targetCode: target == null
+          ? Phrase.unknownLanguage
+          : phraseLanguageOf(target!),
+      origin: PhraseOrigin.history,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -173,21 +208,32 @@ class TranscriptParagraph extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [original, const SizedBox(height: 6), translation],
           );
+    final draft = _phraseDraft;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Semantics(
-            label: l10n.transcribeTimeLabel(time),
-            excludeSemantics: true,
-            child: Text(
-              time,
-              style: theme.textTheme.labelMedium?.copyWith(
-                color: palette.secondaryText,
-                fontFeatures: const [FontFeature.tabularFigures()],
+          Row(
+            children: [
+              Semantics(
+                label: l10n.transcribeTimeLabel(time),
+                excludeSemantics: true,
+                child: Text(
+                  time,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: palette.secondaryText,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
               ),
-            ),
+              const Spacer(),
+              if (draft != null)
+                AddToPhrasebookButton(
+                  key: ValueKey('transcribe_add_phrasebook_${entry.id}'),
+                  draft: draft,
+                ),
+            ],
           ),
           const SizedBox(height: 4),
           body,

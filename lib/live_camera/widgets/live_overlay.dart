@@ -66,6 +66,7 @@ class _LiveOverlayState extends State<LiveOverlay> {
       if (existing != null &&
           existing.translation == translation &&
           existing.box == block.box &&
+          existing.angle == block.paragraph.angle &&
           existing.frame == frame &&
           existing.direction == direction) {
         kept[block.id] = existing;
@@ -89,6 +90,7 @@ class _LiveOverlayState extends State<LiveOverlay> {
         label: laidOut.first,
         translation: translation,
         box: block.box,
+        angle: block.paragraph.angle,
         frame: frame,
         direction: direction,
       );
@@ -134,6 +136,7 @@ class _Label {
     required this.label,
     required this.translation,
     required this.box,
+    required this.angle,
     required this.frame,
     required this.direction,
   });
@@ -141,6 +144,7 @@ class _Label {
   final OverlayLabel label;
   final String translation;
   final Rect box;
+  final double angle;
   final Size frame;
   final TextDirection direction;
 }

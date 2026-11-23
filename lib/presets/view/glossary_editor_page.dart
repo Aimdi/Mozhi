@@ -6,6 +6,7 @@ import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/undo_snack_bar.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/platform/web_share.dart';
 import 'package:mozhi/presets/cubit/glossary_cubit.dart';
 import 'package:mozhi/presets/data/glossary_repository.dart';
 import 'package:mozhi/presets/models/glossary.dart';
@@ -239,21 +240,23 @@ class _GlossaryEditorViewState extends State<GlossaryEditorView> {
                 Icons.copy_outlined,
                 l10n.glossaryEditorCopyCsv,
               ),
-              _menuItem(
-                _ExportAction.shareCsv,
-                Icons.table_chart_outlined,
-                l10n.glossaryEditorShareCsv,
-              ),
-              _menuItem(
-                _ExportAction.shareTsv,
-                Icons.table_rows_outlined,
-                l10n.glossaryEditorShareTsv,
-              ),
-              _menuItem(
-                _ExportAction.shareJson,
-                Icons.data_object,
-                l10n.glossaryEditorShareJson,
-              ),
+              if (canShareText) ...[
+                _menuItem(
+                  _ExportAction.shareCsv,
+                  Icons.table_chart_outlined,
+                  l10n.glossaryEditorShareCsv,
+                ),
+                _menuItem(
+                  _ExportAction.shareTsv,
+                  Icons.table_rows_outlined,
+                  l10n.glossaryEditorShareTsv,
+                ),
+                _menuItem(
+                  _ExportAction.shareJson,
+                  Icons.data_object,
+                  l10n.glossaryEditorShareJson,
+                ),
+              ],
             ],
           ),
           PopupMenuButton<_MoreAction>(

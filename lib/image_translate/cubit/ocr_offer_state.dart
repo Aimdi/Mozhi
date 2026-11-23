@@ -23,6 +23,8 @@ class OcrOfferState extends Equatable {
     this.progress,
     this.error,
     this.importReport,
+    this.canCancel = false,
+    this.cancelling = false,
   });
 
   final OcrOfferStatus status;
@@ -37,22 +39,44 @@ class OcrOfferState extends Equatable {
   /// The last import, when it did not install the offered language.
   final OcrImportReport? importReport;
 
+  /// Whether a running download can be cancelled
+  /// (see `CancellableOcrDownloads`).
+  final bool canCancel;
+
+  /// Whether a cancel request is in flight for the current download.
+  final bool cancelling;
+
   bool get isBusy =>
       status == OcrOfferStatus.downloading ||
       status == OcrOfferStatus.importing;
+
+  /// Whether the running download can be cancelled right now.
+  bool get canCancelDownload =>
+      canCancel && status == OcrOfferStatus.downloading && !cancelling;
 
   OcrOfferState copyWith({
     OcrOfferStatus? status,
     ValueGetter<double?>? progress,
     ValueGetter<OfflineModelError?>? error,
     ValueGetter<OcrImportReport?>? importReport,
+    bool? canCancel,
+    bool? cancelling,
   }) => OcrOfferState(
     status: status ?? this.status,
     progress: progress != null ? progress() : this.progress,
     error: error != null ? error() : this.error,
     importReport: importReport != null ? importReport() : this.importReport,
+    canCancel: canCancel ?? this.canCancel,
+    cancelling: cancelling ?? this.cancelling,
   );
 
   @override
-  List<Object?> get props => [status, progress, error, importReport];
+  List<Object?> get props => [
+    status,
+    progress,
+    error,
+    importReport,
+    canCancel,
+    cancelling,
+  ];
 }

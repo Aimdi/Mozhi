@@ -297,6 +297,10 @@ open class MainActivity : FlutterActivity() {
         flutterEngine.plugins.add(LiveCameraPlugin())
         // PDF documents: pages rendered and the translation written (PdfPagesPlugin.kt).
         flutterEngine.plugins.add(PdfPagesPlugin())
+        // Foreground service keeping large model downloads alive (ModelDownloadPlugin.kt).
+        flutterEngine.plugins.add(ModelDownloadPlugin())
+        // Opt-in offline notification translation (NotificationTranslatePlugin.kt).
+        flutterEngine.plugins.add(NotificationTranslatePlugin())
 
         EventChannel(messenger, EVENT_CHANNEL).setStreamHandler(
             object : EventChannel.StreamHandler {

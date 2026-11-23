@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:mozhi/backup/sections/settings_backup_section.dart'
+    show SettingsBackupSection;
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/core/network/url_credentials.dart';
 import 'package:mozhi/settings/data/provider_identity.dart';
@@ -90,6 +92,10 @@ class SettingsRepository {
 
   /// At most this many removed providers are remembered (the latest).
   static const maxRemovedProviders = 200;
+
+  /// Clock used when stamping changed synced preferences (replaceable in
+  /// tests).
+  static DateTime Function() clock = DateTime.now;
 
   final KeyValueStore prefs;
   final KeyValueStore secrets;
@@ -283,6 +289,32 @@ class SettingsRepository {
     });
   }
 
+  /// Stamps any synced preference field that changed compared to [previous]
+  /// (unless [settings] already carries a newer timestamp for that field,
+  /// e.g. from a sync merge or restore).
+  static AppSettings _withTimestamps(
+    AppSettings? previous,
+    AppSettings settings,
+  ) {
+    if (previous == null) return settings;
+    final prevJson = previous.toJson();
+    final nextJson = settings.toJson();
+    final timestamps = <String, int>{...settings.settingTimestamps};
+    var changed = false;
+    final now = clock().toUtc().millisecondsSinceEpoch;
+    for (final field in SettingsBackupSection.syncedPreferenceFields) {
+      if (jsonEncode(prevJson[field]) == jsonEncode(nextJson[field])) continue;
+      final prevTs = previous.settingTimestamps[field];
+      final nextTs = settings.settingTimestamps[field];
+      if (nextTs != null && nextTs != prevTs) continue;
+      timestamps[field] = now;
+      changed = true;
+    }
+    return changed
+        ? settings.copyWith(settingTimestamps: Map.unmodifiable(timestamps))
+        : settings;
+  }
+
   /// Runs [action] after the saves and updates called before it.
   Future<T> _queued<T>(Future<T> Function() action) {
     final result = _pendingSave.then((_) => action());
@@ -324,7 +356,8 @@ class SettingsRepository {
       await _writeSecret(instanceCredentialsKey, encodedCredentials);
     }
 
-    await prefs.write(settingsKey, jsonEncode(settings.toJson()));
+    final stamped = _withTimestamps(previous, settings);
+    await prefs.write(settingsKey, jsonEncode(stamped.toJson()));
 
     if (encodedCredentials == null) {
       await _writeSecret(instanceCredentialsKey, null);

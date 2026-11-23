@@ -55,6 +55,146 @@ void main() {
       expect(answerKeys('two'), ['two']);
     });
 
+    test('parses multi-word compound numbers across supported languages', () {
+      // English
+      expect(answerKeys('twenty one', languageCode: 'en'), ['21']);
+      expect(answerKeys('twenty-one', languageCode: 'en'), ['21']);
+      expect(answerKeys('one hundred twenty three', languageCode: 'en'), [
+        '123',
+      ]);
+      expect(answerKeys('one hundred and five', languageCode: 'en'), ['105']);
+      expect(answerKeys('two thousand twenty six', languageCode: 'en'), [
+        '2026',
+      ]);
+      expect(answerKeys('two thousand and twenty-six', languageCode: 'en-US'), [
+        '2026',
+      ]);
+      expect(answerKeys('one hundred thousand', languageCode: 'en'), [
+        '100000',
+      ]);
+
+      // Spanish
+      expect(answerKeys('treinta y cinco', languageCode: 'es'), ['35']);
+      expect(answerKeys('veintiuno', languageCode: 'es'), ['21']);
+      expect(answerKeys('ciento veinte', languageCode: 'es'), ['120']);
+      expect(answerKeys('doscientos tres', languageCode: 'es'), ['203']);
+      expect(answerKeys('dos mil veintiséis', languageCode: 'es'), ['2026']);
+      expect(
+        answerKeys('mil novecientos noventa y nueve', languageCode: 'es'),
+        ['1999'],
+      );
+
+      // French
+      expect(answerKeys('vingt et un', languageCode: 'fr'), ['21']);
+      expect(answerKeys('quatre-vingt-dix-neuf', languageCode: 'fr'), ['99']);
+      expect(answerKeys('soixante-dix', languageCode: 'fr'), ['70']);
+      expect(answerKeys('soixante et onze', languageCode: 'fr'), ['71']);
+      expect(answerKeys('dix-sept', languageCode: 'fr'), ['17']);
+      expect(answerKeys('deux cent cinquante', languageCode: 'fr'), ['250']);
+      expect(answerKeys('deux mille vingt-six', languageCode: 'fr'), ['2026']);
+
+      // German
+      expect(answerKeys('einundzwanzig', languageCode: 'de'), ['21']);
+      expect(answerKeys('ein und zwanzig', languageCode: 'de'), ['21']);
+      expect(answerKeys('zweihundert drei', languageCode: 'de'), ['203']);
+      expect(answerKeys('dreiundvierzig', languageCode: 'de'), ['43']);
+      expect(answerKeys('zweitausendsechsundzwanzig', languageCode: 'de'), [
+        '2026',
+      ]);
+
+      // Italian
+      expect(answerKeys('ventuno', languageCode: 'it'), ['21']);
+      expect(answerKeys('ventidue', languageCode: 'it'), ['22']);
+      expect(answerKeys('cento venti', languageCode: 'it'), ['120']);
+      expect(answerKeys('trecento cinque', languageCode: 'it'), ['305']);
+      expect(answerKeys('trecentocinque', languageCode: 'it'), ['305']);
+      expect(answerKeys('duemila ventisei', languageCode: 'it'), ['2026']);
+      expect(answerKeys('centottanta', languageCode: 'it'), ['180']);
+
+      // Portuguese
+      expect(answerKeys('vinte e um', languageCode: 'pt'), ['21']);
+      expect(answerKeys('trinta e dois', languageCode: 'pt-BR'), ['32']);
+      expect(answerKeys('cento e vinte', languageCode: 'pt'), ['120']);
+      expect(answerKeys('duzentos e três', languageCode: 'pt'), ['203']);
+      expect(answerKeys('dois mil e vinte e seis', languageCode: 'pt'), [
+        '2026',
+      ]);
+
+      // Dutch
+      expect(answerKeys('eenentwintig', languageCode: 'nl'), ['21']);
+      expect(answerKeys('tweeëntwintig', languageCode: 'nl'), ['22']);
+      expect(answerKeys('twee en dertig', languageCode: 'nl'), ['32']);
+      expect(answerKeys('honderd vijf', languageCode: 'nl'), ['105']);
+      expect(answerKeys('tweehonderd vijf', languageCode: 'nl'), ['205']);
+    });
+
+    test('does not collapse non-numbers, separate numbers, or pauses', () {
+      // Non-number words like "a", "in", conjunctions, and ordinary words.
+      expect(answerKeys('a cat in a hat', languageCode: 'en'), [
+        'a',
+        'cat',
+        'in',
+        'a',
+        'hat',
+      ]);
+      expect(answerKeys('one and a half', languageCode: 'en'), [
+        '1',
+        'and',
+        'a',
+        'half',
+      ]);
+      expect(answerKeys('two and three', languageCode: 'en'), [
+        '2',
+        'and',
+        '3',
+      ]);
+      expect(answerKeys('one hundred and', languageCode: 'en'), ['100', 'and']);
+      expect(answerKeys('einkaufen und reden', languageCode: 'de'), [
+        'einkaufen',
+        'und',
+        'reden',
+      ]);
+      expect(answerKeys('zwei und drei', languageCode: 'de'), [
+        '2',
+        'und',
+        '3',
+      ]);
+      expect(answerKeys('eenheid en brood', languageCode: 'nl'), [
+        'eenheid',
+        'en',
+        'brood',
+      ]);
+      expect(answerKeys('twee en drie', languageCode: 'nl'), ['2', 'en', '3']);
+      expect(answerKeys('ventre ottobre', languageCode: 'it'), [
+        'ventre',
+        'ottobre',
+      ]);
+      expect(answerKeys('un et deux', languageCode: 'fr'), ['1', 'et', '2']);
+
+      // Adjacent separate numbers stay separate.
+      expect(answerKeys('one two three', languageCode: 'en'), ['1', '2', '3']);
+      expect(answerKeys('twenty one twenty two', languageCode: 'en'), [
+        '21',
+        '22',
+      ]);
+      expect(answerKeys('one hundred two hundred', languageCode: 'en'), [
+        '100',
+        '200',
+      ]);
+
+      // Clause punctuation stops compounding; surrounding punctuation does not.
+      expect(answerKeys('twenty, one', languageCode: 'en'), ['20', '1']);
+      expect(answerKeys('(twenty one) apples.', languageCode: 'en'), [
+        '21',
+        'apples',
+      ]);
+      expect(answerKeys('It costs twenty one.', languageCode: 'en'), [
+        'it',
+        'costs',
+        '21',
+      ]);
+    });
+
     test('splits Chinese, Japanese and Thai into characters', () {
       expect(answerKeys('谢谢你'), ['谢', '谢', '你']);
       expect(answerKeys('ありがとう。'), ['あ', 'り', 'が', 'と', 'う']);
@@ -84,6 +224,51 @@ void main() {
         languageCode: 'en',
       );
       expect(check.isExact, isTrue);
+    });
+
+    test('compound numbers match digits and highlight every display word', () {
+      final wordsToDigits = checkAnswer(
+        expected: 'I need one hundred and five euros.',
+        answer: 'I need 105 euros',
+        languageCode: 'en',
+      );
+      expect(wordsToDigits.isExact, isTrue);
+      expect(
+        [for (final w in wordsToDigits.words) w.text],
+        ['I', 'need', 'one', 'hundred', 'and', 'five', 'euros.'],
+      );
+      expect(_statuses(wordsToDigits), List.filled(7, _matched));
+
+      final digitsToWords = checkAnswer(
+        expected: 'It costs 99 euros',
+        answer: 'It costs quatre-vingt-dix-neuf euros',
+        languageCode: 'fr',
+      );
+      expect(digitsToWords.isExact, isTrue);
+      expect(digitsToWords.extra, isEmpty);
+
+      final frDixSept = checkAnswer(
+        expected: 'dix-sept euros',
+        answer: '17 euros',
+        languageCode: 'fr',
+      );
+      expect(frDixSept.isExact, isTrue);
+
+      final wrongCompound = checkAnswer(
+        expected: 'twenty one apples',
+        answer: 'thirty apples',
+        languageCode: 'en',
+      );
+      expect(_statuses(wrongCompound), [_missed, _missed, _matched]);
+      expect(wrongCompound.extra, ['thirty']);
+
+      final extraCompound = checkAnswer(
+        expected: 'apples',
+        answer: 'twenty one apples',
+        languageCode: 'en',
+      );
+      expect(_statuses(extraCompound), [_matched]);
+      expect(extraCompound.extra, ['twenty', 'one']);
     });
 
     test('marks missed words and suggests Hard or Again', () {
@@ -157,8 +342,8 @@ void main() {
 
     test('a word split by punctuation is close when half of it came out', () {
       final check = checkAnswer(
-        expected: 'dix-sept euros',
-        answer: 'dix euros',
+        expected: 'rendez-vous demain',
+        answer: 'rendez demain',
         languageCode: 'fr',
       );
       expect(_statuses(check), [_close, _matched]);

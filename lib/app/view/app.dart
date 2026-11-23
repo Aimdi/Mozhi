@@ -22,6 +22,7 @@ import 'package:mozhi/history/view/widgets/history_retention_listener.dart';
 import 'package:mozhi/image_translate/data/lost_image_recovery.dart'
     deferred as lost_image;
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/notification_translate/notification_translate.dart';
 import 'package:mozhi/offline/widgets/offline_download_failure_listener.dart';
 import 'package:mozhi/on_device_ai/data/on_device_ai.dart';
 import 'package:mozhi/on_device_ai/data/on_device_models.dart';
@@ -108,6 +109,7 @@ class _AppState extends State<App> {
   /// background (main window only, see [_keepsDraft]).
   late final TranslateDraftKeeper _draft;
   late final SharedTextHandler _sharedText;
+  NotificationTranslateRunner? _notificationTranslate;
   final _navigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
   final _messengerKey = GlobalKey<ScaffoldMessengerState>();
 
@@ -243,6 +245,16 @@ class _AppState extends State<App> {
       untilUnlocked: _appLock.untilUnlocked,
     );
     unawaited(_sharedText.start());
+    if (_keepsDraft &&
+        MethodChannelNotificationTranslateControls.instance.isSupported) {
+      // coverage:ignore-start
+      _notificationTranslate = NotificationTranslateRunner(
+        controls: MethodChannelNotificationTranslateControls.instance,
+        offline: _deps.offlineTranslator,
+        targetLanguage: () => _translateCubit.state.target.code,
+      )..start();
+      // coverage:ignore-end
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadAfterFirstFrame();
       _warnSecretsInMemory();
@@ -319,6 +331,7 @@ class _AppState extends State<App> {
     _translateLifecycle.dispose();
     _draft.dispose();
     unawaited(_sharedText.dispose());
+    unawaited(_notificationTranslate?.dispose());
     _router.routeInformationProvider.removeListener(_keepRouteLinks);
     unawaited(_linkHold.dispose());
     _router.dispose();

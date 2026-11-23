@@ -14787,5 +14787,119 @@
         "type": "String"
       }
     }
+  },
+  "voiceModelBetterBalanced": "Better (8-bit)",
+  "@voiceModelBetterBalanced": {
+    "description": "voiceModelBetterBalanced"
+  },
+  "voiceModelBetterBalancedDescription": "Higher accuracy than compact, smaller than full",
+  "@voiceModelBetterBalancedDescription": {
+    "description": "voiceModelBetterBalancedDescription"
+  },
+  "voiceModelBestBalanced": "Best (8-bit)",
+  "@voiceModelBestBalanced": {
+    "description": "voiceModelBestBalanced"
+  },
+  "voiceModelBestBalancedDescription": "Higher accuracy for small model",
+  "@voiceModelBestBalancedDescription": {
+    "description": "voiceModelBestBalancedDescription"
+  },
+  "practicePersonalizeTitle": "Personalize schedule",
+  "@practicePersonalizeTitle": {
+    "description": "practicePersonalizeTitle"
+  },
+  "practicePersonalizeNeedMore": "{remaining, plural, =1{Complete 1 more review to tune intervals to your memory ({done} of {total}).} other{Complete {remaining} more reviews to tune intervals to your memory ({done} of {total}).}}",
+  "@practicePersonalizeNeedMore": {
+    "placeholders": {
+      "remaining": {
+        "type": "int"
+      },
+      "done": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "practicePersonalizeReady": "Tune review intervals to your {count} reviews on this device.",
+  "@practicePersonalizeReady": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "practicePersonalizeAction": "Personalize",
+  "@practicePersonalizeAction": {
+    "description": "practicePersonalizeAction"
+  },
+  "practicePersonalizeActive": "Personalized intervals are active on this device.",
+  "@practicePersonalizeActive": {
+    "description": "practicePersonalizeActive"
+  },
+  "practicePersonalizeImproved": "Personalized intervals active ({improvement} better fit to your history).",
+  "@practicePersonalizeImproved": {
+    "placeholders": {
+      "improvement": {
+        "type": "String"
+      }
+    }
+  },
+  "practicePersonalizeAlreadyOptimal": "The default schedule already fits your review history well.",
+  "@practicePersonalizeAlreadyOptimal": {
+    "description": "practicePersonalizeAlreadyOptimal"
+  },
+  "practiceResetWeights": "Reset schedule weights",
+  "@practiceResetWeights": {
+    "description": "practiceResetWeights"
+  },
+  "practiceResetWeightsSubtitle": "Return to the default spaced-repetition schedule",
+  "@practiceResetWeightsSubtitle": {
+    "description": "practiceResetWeightsSubtitle"
+  },
+  "settingsNotificationTranslate": "Translate notifications offline",
+  "@settingsNotificationTranslate": {
+    "description": "settingsNotificationTranslate"
+  },
+  "settingsNotificationTranslateSubtitle": "Translate incoming notifications from other apps on this device only (never sent online)",
+  "@settingsNotificationTranslateSubtitle": {
+    "description": "settingsNotificationTranslateSubtitle"
+  },
+  "settingsNotificationTranslateUnavailable": "Notification translation is only available in the Android app.",
+  "@settingsNotificationTranslateUnavailable": {
+    "description": "settingsNotificationTranslateUnavailable"
+  },
+  "settingsNotificationTranslatePermissionTitle": "Allow notification access",
+  "@settingsNotificationTranslatePermissionTitle": {
+    "description": "settingsNotificationTranslatePermissionTitle"
+  },
+  "settingsNotificationTranslatePermissionBody": "Mozhi reads incoming notifications only to translate them on this device with your downloaded offline languages. Notification text never leaves your phone.",
+  "@settingsNotificationTranslatePermissionBody": {
+    "description": "settingsNotificationTranslatePermissionBody"
+  },
+  "settingsNotificationTranslatePermissionAction": "Open notification access",
+  "@settingsNotificationTranslatePermissionAction": {
+    "description": "settingsNotificationTranslatePermissionAction"
+  },
+  "settingsNotificationTranslateNoOfflineHint": "Download an offline language in Settings > Offline languages first.",
+  "@settingsNotificationTranslateNoOfflineHint": {
+    "description": "settingsNotificationTranslateNoOfflineHint"
+  },
+  "pairingScanQr": "Scan QR code",
+  "@pairingScanQr": {
+    "description": "pairingScanQr"
+  },
+  "pairingScanQrTitle": "Scan pairing QR code",
+  "@pairingScanQrTitle": {
+    "description": "pairingScanQrTitle"
+  },
+  "pairingScanQrHint": "Point the camera at the QR code shown on the receiving phone.",
+  "@pairingScanQrHint": {
+    "description": "pairingScanQrHint"
+  },
+  "pairingScanQrPermissionDenied": "Camera permission is needed to scan QR codes. You can still type or paste the code.",
+  "@pairingScanQrPermissionDenied": {
+    "description": "pairingScanQrPermissionDenied"
   }
 }

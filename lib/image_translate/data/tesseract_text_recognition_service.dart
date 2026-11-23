@@ -268,12 +268,17 @@ class TesseractTextRecognitionService
       width: layout.width,
       height: layout.height,
       paragraphs: [
-        for (final paragraph in layout.paragraphs) ?_paragraphOf(paragraph),
+        for (final block in layout.blocks)
+          for (final paragraph in block.paragraphs)
+            ?_paragraphOf(paragraph, deskewAngle: block.deskewAngle),
       ],
     );
   }
 
-  static TextParagraph? _paragraphOf(OcrParagraph paragraph) {
+  static TextParagraph? _paragraphOf(
+    OcrParagraph paragraph, {
+    double deskewAngle = 0,
+  }) {
     final text = TextParagraph.joinLines([
       for (final line in paragraph.lines) line.text,
     ]);
@@ -302,8 +307,50 @@ class TesseractTextRecognitionService
       background: colour(paragraph.background),
       foreground: colour(paragraph.foreground),
       confidence: paragraph.confidence,
+      angle: _paragraphAngle(paragraph, deskewAngle: deskewAngle),
     );
   }
+
+  /// Clockwise tilt in degrees for [paragraph]: the median baseline angle of
+  /// lines with a non-trivial baseline, falling back to `-deskewAngle`
+  /// (Tesseract's block deskew is anti-clockwise). Small angles (< 1.5°) are
+  /// snapped to 0 so horizontal text stays crisp; extreme angles are clamped
+  /// to ±45°.
+  static double _paragraphAngle(
+    OcrParagraph paragraph, {
+    required double deskewAngle,
+  }) {
+    final angles = <double>[];
+    for (final line in paragraph.lines) {
+      final baseline = line.baseline;
+      if (baseline == null) continue;
+      final dx = baseline.x2 - baseline.x1;
+      final dy = baseline.y2 - baseline.y1;
+      if (dx * dx + dy * dy < _minBaselineSquared) continue;
+      final angle = line.angle;
+      if (angle.isFinite && angle.abs() <= _maxTiltDegrees) {
+        angles.add(angle);
+      }
+    }
+    double raw;
+    if (angles.isNotEmpty) {
+      angles.sort();
+      final mid = angles.length ~/ 2;
+      raw = angles.length.isOdd
+          ? angles[mid]
+          : (angles[mid - 1] + angles[mid]) / 2;
+    } else if (deskewAngle.isFinite && deskewAngle != 0) {
+      raw = -deskewAngle;
+    } else {
+      return 0;
+    }
+    if (raw.abs() < _minTiltDegrees) return 0;
+    return raw.clamp(-_maxTiltDegrees, _maxTiltDegrees);
+  }
+
+  static const _minBaselineSquared = 16;
+  static const _minTiltDegrees = 1.5;
+  static const _maxTiltDegrees = 45.0;
 
   static final _letterOrDigit = RegExp(r'[\p{L}\p{N}]', unicode: true);
 

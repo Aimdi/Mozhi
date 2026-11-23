@@ -51,4 +51,15 @@
     <string name="tile_live_captions_label">الترجمة المباشرة</string>
     <string name="tile_live_captions_description">تشغيل الترجمة المباشرة في Mozhi أو إيقافها</string>
     <string name="live_captions_locked">Mozhi مقفل</string>
+    <!-- Model downloads foreground service (ModelDownloadService). -->
+    <string name="notification_channel_downloads">Model downloads</string>
+    <string name="notification_channel_downloads_description">Shown while Mozhi downloads offline languages, voice or AI models</string>
+    <string name="notification_downloads_title">Downloading model</string>
+    <string name="notification_downloads_cancel">Cancel</string>
+
+    <!-- Opt-in offline notification translation (NotificationTranslateService). -->
+    <string name="notification_translate_service_label">Mozhi offline notification translation</string>
+    <string name="notification_channel_translate_notifications">Translated notifications</string>
+    <string name="notification_channel_translate_notifications_description">Offline translations of incoming notifications from other apps</string>
+    <string name="notification_translated_title">Translated notification</string>
 </resources>

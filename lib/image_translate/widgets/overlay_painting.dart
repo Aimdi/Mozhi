@@ -18,6 +18,7 @@ class OverlayLabel {
     required this.foreground,
     required this.blur,
     required this.painter,
+    this.angle = 0,
   });
 
   /// The paragraph's index in [TextLayout.paragraphs].
@@ -39,10 +40,22 @@ class OverlayLabel {
   final double blur;
   final TextPainter painter;
 
+  /// Clockwise tilt in degrees around the centre of [fill] (0 when level).
+  final double angle;
+
   /// Paints the label on [canvas], whose units are image pixels: [fill]
   /// with soft edges, and [textArea] (which covers the original text)
   /// solid, so no edge of the original shows through the blur.
   void paint(Canvas canvas) {
+    final rotated = angle != 0;
+    if (rotated) {
+      final center = fill.center;
+      canvas
+        ..save()
+        ..translate(center.dx, center.dy)
+        ..rotate(angle * math.pi / 180)
+        ..translate(-center.dx, -center.dy);
+    }
     final soft = Paint()..color = background;
     if (blur > 0) soft.maskFilter = MaskFilter.blur(BlurStyle.normal, blur);
     canvas
@@ -61,6 +74,7 @@ class OverlayLabel {
       ),
     );
     canvas.restore();
+    if (rotated) canvas.restore();
   }
 
   void dispose() => painter.dispose();
@@ -145,6 +159,7 @@ OverlayLabel _label(
     background: background,
     foreground: foreground,
     blur: pad * 0.6,
+    angle: paragraph.angle,
     painter: fitOverlayText(
       translation,
       style.copyWith(color: foreground),

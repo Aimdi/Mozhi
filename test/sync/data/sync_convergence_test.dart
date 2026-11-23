@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart' show ThemeMode;
 import 'package:mozhi/backup/data/backup_codec.dart';
 import 'package:mozhi/backup/data/backup_registry.dart';
 import 'package:mozhi/backup/sections/app_backup_sections.dart';
@@ -728,5 +729,80 @@ void main() {
       expect(onA.map((p) => p.baseUrl), [local.baseUrl]);
       expect(onA.single.id, isNot('p1'));
     });
+  });
+
+  group('settings sync convergence', () {
+    int putCount(FakeWebDavServer server) =>
+        server.requests.where((r) => r.method == 'PUT').length;
+
+    test(
+      'devices with differing local settings stop writing after converging',
+      () async {
+        final server = _server();
+        final a = _Device();
+        final b = _Device();
+        await a.settings.save(
+          const AppSettings(
+            privacyMode: PrivacyMode.offlineOnly,
+            engineId: 'offline:mlkit',
+            historyRetention: HistoryRetention.day,
+          ),
+        );
+        await b.settings.save(
+          const AppSettings(
+            privacyMode: PrivacyMode.online,
+            engineId: 'mozhi:google',
+            historyRetention: HistoryRetention.month,
+          ),
+        );
+
+        // Initial sync on A uploads; B merges and converges without ping-pong.
+        await a.sync(server, key);
+        final afterA = putCount(server);
+        await b.sync(server, key);
+        await a.sync(server, key);
+        final settled = putCount(server);
+        // Further rounds on both devices must perform zero PUTs.
+        await b.sync(server, key);
+        await a.sync(server, key);
+        expect(putCount(server), settled);
+        expect(settled, lessThanOrEqualTo(afterA + 1));
+
+        // Each device kept its own device-local privacy & engine choices.
+        expect((await a.settings.read()).privacyMode, PrivacyMode.offlineOnly);
+        expect((await b.settings.read()).privacyMode, PrivacyMode.online);
+      },
+    );
+
+    test(
+      'newer per-field synced preference wins and converges across devices',
+      () async {
+        final server = _server();
+        final a = _Device();
+        final b = _Device();
+        addTearDown(() => SettingsRepository.clock = DateTime.now);
+
+        SettingsRepository.clock = () => DateTime.utc(2026, 11, 20, 10);
+        await a.settings.save(const AppSettings(themeMode: ThemeMode.dark));
+        await a.settings.save(const AppSettings(themeMode: ThemeMode.light));
+        await b.settings.save(const AppSettings(themeMode: ThemeMode.dark));
+
+        await _rounds([a, b], server, key, rounds: 1);
+        expect((await b.settings.read()).themeMode, ThemeMode.light);
+
+        // B reloads after sync (as BackupRestoreListener does) and makes a
+        // newer edit: A adopts it and both stop writing.
+        SettingsRepository.clock = () => DateTime.utc(2026, 11, 20, 11);
+        await b.settings.save(
+          (await b.settings.load()).copyWith(themeMode: ThemeMode.dark),
+        );
+        await _rounds([b, a], server, key, rounds: 1);
+        expect((await a.settings.read()).themeMode, ThemeMode.dark);
+        final puts = putCount(server);
+        await b.sync(server, key);
+        await a.sync(server, key);
+        expect(putCount(server), puts);
+      },
+    );
   });
 }

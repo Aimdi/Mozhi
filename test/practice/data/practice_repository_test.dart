@@ -7,6 +7,7 @@ import 'package:mozhi/phrasebook/data/phrasebook_repository.dart';
 import 'package:mozhi/practice/data/fsrs.dart';
 import 'package:mozhi/practice/data/practice_repository.dart';
 import 'package:mozhi/practice/models/practice_card.dart';
+import 'package:mozhi/practice/models/practice_review_log.dart';
 import 'package:mozhi/practice/models/practice_settings.dart';
 
 import '../helpers.dart';
@@ -588,6 +589,106 @@ void main() {
       await fixture.practice.dispose();
       fixture.favorites.set([favorite('1')]);
       await Future<void>.delayed(const Duration(milliseconds: 400));
+    });
+
+    group('review logs', () {
+      test(
+        'persists review logs, undoes them, and caps to maxReviewLogs',
+        () async {
+          final fixture = PracticeFixture(favorites: [favorite('1')]);
+          final practice = PracticeRepository(
+            phrasebook: fixture.phrasebook,
+            store: fixture.store,
+            keyStore: fixture.keyStore,
+            clock: fixture.clock.call,
+            maxReviewLogs: 3,
+          );
+          final deck = await practice.deck(appLanguage: 'en');
+          var card = deck.items.first.card;
+
+          final logs = <PracticeReviewLog>[];
+          for (var i = 0; i < 4; i++) {
+            final now = fixture.clock.now.toUtc();
+            final log = PracticeReviewLog(
+              cardKey: card.id,
+              rating: FsrsRating.good,
+              elapsedDays: i == 0 ? 0 : 2,
+              state: i == 0 ? FsrsState.newCard : FsrsState.review,
+              reviewedAt: now,
+            );
+            logs.add(log);
+            card = _reviewed(card, now);
+            await practice.review(card, log);
+            fixture.clock.advance(const Duration(days: 2));
+          }
+
+          // Capped to the 3 most recent logs.
+          final stored = await fixture.newPractice().reviewLogs();
+          expect(stored, logs.sublist(1));
+          expect(await practice.reviewLogCount(), 3);
+
+          // Undo removes the undone review log.
+          await practice.undoReview(card, logs.last);
+          expect(await practice.reviewLogs(), logs.sublist(1, 3));
+          final reloadedDeck = await practice.deck(appLanguage: 'en');
+          expect(reloadedDeck.reviewLogCount, 2);
+        },
+      );
+
+      test(
+        'backward-compatible with documents without reviews and merges backups',
+        () async {
+          final fixture = PracticeFixture(favorites: [favorite('1')]);
+          // Restore a v1 backup with no 'reviews' key at all.
+          await fixture.practice.restoreBackup(
+            const {'version': 1, 'cards': <Object?>[]},
+            version: 1,
+            merge: false,
+          );
+          expect(await fixture.practice.reviewLogs(), isEmpty);
+
+          final t1 = fixture.clock.now.toUtc();
+          final t2 = t1.add(const Duration(days: 2));
+          final log1 = PracticeReviewLog(
+            cardKey: 'h:1#r',
+            rating: FsrsRating.good,
+            elapsedDays: 0,
+            state: FsrsState.newCard,
+            reviewedAt: t1,
+          );
+          final log2 = PracticeReviewLog(
+            cardKey: 'h:1#r',
+            rating: FsrsRating.good,
+            elapsedDays: 2,
+            state: FsrsState.review,
+            reviewedAt: t2,
+          );
+          final card = _reviewed(
+            PracticeCard.fresh('h:1', CardDirection.recognize, t1),
+            t1,
+          );
+          await fixture.practice.review(card, log1);
+          final exported = await fixture.practice.exportBackup();
+          expect(exported['reviews'], [log1.toJson()]);
+
+          // Merge with another backup containing log1 (duplicate), log2,
+          // and invalid entries.
+          await fixture.practice.restoreBackup(
+            {
+              'version': 1,
+              'reviews': [
+                log1.toJson(),
+                log2.toJson(),
+                'junk',
+                {'cardKey': ''},
+              ],
+            },
+            version: 1,
+            merge: true,
+          );
+          expect(await fixture.practice.reviewLogs(), [log1, log2]);
+        },
+      );
     });
   });
 }

@@ -117,6 +117,7 @@ class BlockTracker {
             background: old.background ?? found.background,
             foreground: old.foreground ?? found.foreground,
             confidence: old.confidence,
+            angle: old.angle != 0 ? old.angle : found.angle,
           )
         : TextParagraph(
             text: found.text,
@@ -127,6 +128,7 @@ class BlockTracker {
             background: found.background ?? old.background,
             foreground: found.foreground ?? old.foreground,
             confidence: found.confidence,
+            angle: found.angle != 0 ? found.angle : old.angle,
           );
     return block.copyWith(
       paragraph: paragraph,

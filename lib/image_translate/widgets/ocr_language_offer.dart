@@ -14,6 +14,8 @@ import 'package:mozhi/offline/data/offline_model_error.dart';
 import 'package:mozhi/offline/data/offline_model_file_picker.dart';
 import 'package:mozhi/offline/view/offline_models_page.dart'
     show MeteredDownloadDialog, offlineOutcomeMessage;
+import 'package:mozhi/offline/widgets/offline_language_tile.dart'
+    show OfflineCancelDownloadButton;
 import 'package:mozhi/platform/clipboard_service.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/view/widgets/delete_local_data.dart'
@@ -229,8 +231,17 @@ class OcrLanguageOfferView extends StatelessWidget {
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   if (offlineOnly) importButton else downloadButton,
+                  if (state.status == OcrOfferStatus.downloading &&
+                      state.canCancel)
+                    OfflineCancelDownloadButton(
+                      language: name,
+                      onPressed: state.cancelling
+                          ? null
+                          : () => unawaited(cubit.cancelDownload()),
+                    ),
                   if (offlineOnly) downloadButton else importButton,
                   if (url != null)
                     TextButton.icon(

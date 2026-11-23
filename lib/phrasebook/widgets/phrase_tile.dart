@@ -6,6 +6,7 @@ import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/phrasebook/models/phrase.dart';
 import 'package:mozhi/phrasebook/widgets/phrasebook_labels.dart';
+import 'package:mozhi/platform/web_share.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/view/widgets/search_highlight.dart';
 import 'package:mozhi/speech/widgets/spoken_range_builder.dart';
@@ -167,7 +168,8 @@ class PhraseTile extends StatelessWidget {
           Icons.copy_rounded,
           l10n.phrasebookCopyPhrase,
         ),
-        _item(_PhraseAction.share, Icons.ios_share_rounded, l10n.commonShare),
+        if (canShareText)
+          _item(_PhraseAction.share, Icons.ios_share_rounded, l10n.commonShare),
         if (onEditNote != null)
           _item(
             _PhraseAction.note,

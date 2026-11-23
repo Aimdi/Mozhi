@@ -258,6 +258,24 @@ void main() {
         ).hashCode,
       );
     });
+
+    test('TextParagraph preserves angle through withText and equality', () {
+      const tilted = TextParagraph(
+        text: 'Exit',
+        box: Rect.fromLTWH(10, 20, 100, 30),
+        angle: 12.5,
+      );
+      expect(tilted.withText('Ausgang').angle, 12.5);
+      expect(
+        tilted,
+        isNot(
+          const TextParagraph(
+            text: 'Exit',
+            box: Rect.fromLTWH(10, 20, 100, 30),
+          ),
+        ),
+      );
+    });
   });
 
   test('TextWithConfidence compares the layout too', () {

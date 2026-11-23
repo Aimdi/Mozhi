@@ -265,6 +265,7 @@ class OnDeviceAi {
         provider: LlmProvider.onDevice,
         baseUrl: '',
         model: model.id,
+        supportsVision: model.supportsVision,
         promptProfile:
             PromptProfile.tryParse(model.promptProfile) ?? PromptProfile.auto,
       );

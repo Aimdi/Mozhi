@@ -8,6 +8,7 @@ import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/live_captions/widgets/live_captions_widgets.dart'
     show LiveCaptionsEntryButton;
 import 'package:mozhi/platform/clipboard_service.dart';
+import 'package:mozhi/platform/web_share.dart';
 import 'package:mozhi/transcribe/cubit/transcribe_cubit.dart';
 import 'package:mozhi/transcribe/data/screen_awake.dart';
 import 'package:mozhi/transcribe/data/transcriber.dart';
@@ -380,12 +381,13 @@ class TranscribeMenuButton extends StatelessWidget {
         }
       },
       itemBuilder: (context) => [
-        _item(
-          _MenuAction.share,
-          Icons.share_outlined,
-          l10n.transcribeShare,
-          enabled: has,
-        ),
+        if (canShareText)
+          _item(
+            _MenuAction.share,
+            Icons.share_outlined,
+            l10n.transcribeShare,
+            enabled: has,
+          ),
         _item(
           _MenuAction.saveText,
           Icons.description_outlined,

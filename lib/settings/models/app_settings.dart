@@ -151,6 +151,7 @@ class AppSettings extends Equatable {
     this.terminalAccent = kTerminalAmber,
     this.dictionarySource,
     this.dictionaryTarget,
+    this.settingTimestamps = const {},
   });
 
   /// Tolerant counterpart of [toJson]: missing or invalid fields fall back to
@@ -266,6 +267,7 @@ class AppSettings extends Equatable {
       },
       dictionarySource: _object(json['dictionarySource'], Language.fromJson),
       dictionaryTarget: _object(json['dictionaryTarget'], Language.fromJson),
+      settingTimestamps: _timestamps(json['settingTimestamps']),
     );
   }
 
@@ -507,6 +509,11 @@ class AppSettings extends Equatable {
   /// it; null until then (see [dictionarySource]).
   final Language? dictionaryTarget;
 
+  /// Per-field UTC epoch-millisecond timestamps for synced preferences
+  /// (`SettingsBackupSection`), so multi-device sync converges without
+  /// rewriting unchanged settings on every run.
+  final Map<String, int> settingTimestamps;
+
   /// The theme mode the app uses: [themeMode], except that the terminal
   /// look is dark when it follows the system (it has a light, paper
   /// variant for an explicit "Light").
@@ -584,6 +591,7 @@ class AppSettings extends Equatable {
     int? terminalAccent,
     Language? Function()? dictionarySource,
     Language? Function()? dictionaryTarget,
+    Map<String, int>? settingTimestamps,
   }) {
     return AppSettings(
       themeMode: themeMode ?? this.themeMode,
@@ -644,6 +652,7 @@ class AppSettings extends Equatable {
       dictionaryTarget: dictionaryTarget != null
           ? dictionaryTarget()
           : this.dictionaryTarget,
+      settingTimestamps: settingTimestamps ?? this.settingTimestamps,
     );
   }
 
@@ -721,6 +730,7 @@ class AppSettings extends Equatable {
         'dictionarySource': language.toJson(),
       if (dictionaryTarget case final language?)
         'dictionaryTarget': language.toJson(),
+      if (settingTimestamps.isNotEmpty) 'settingTimestamps': settingTimestamps,
     };
   }
 
@@ -778,6 +788,7 @@ class AppSettings extends Equatable {
     terminalAccent,
     dictionarySource,
     dictionaryTarget,
+    settingTimestamps,
   ];
 }
 
@@ -820,6 +831,17 @@ T? _object<T>(Object? value, T Function(Map<String, dynamic> json) parse) {
 
 /// Parses a JSON list element by element, skipping invalid elements. Returns
 /// null when [value] is not a list at all.
+Map<String, int> _timestamps(Object? value) {
+  if (value is! Map) return const {};
+  final out = <String, int>{};
+  for (final MapEntry(:key, :value) in value.entries) {
+    if (key is String && key.isNotEmpty && value is num && value >= 0) {
+      out[key] = value.toInt();
+    }
+  }
+  return out.isEmpty ? const {} : Map.unmodifiable(out);
+}
+
 List<T>? _list<T>(Object? value, T Function(Map<String, dynamic> json) parse) {
   if (value is! List) return null;
   return List.unmodifiable([

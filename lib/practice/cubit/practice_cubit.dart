@@ -1,12 +1,15 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:bloc/bloc.dart';
 import 'package:mozhi/practice/cubit/practice_state.dart';
 import 'package:mozhi/practice/data/answer_check.dart';
 import 'package:mozhi/practice/data/fsrs.dart';
+import 'package:mozhi/practice/data/fsrs_optimizer.dart';
 import 'package:mozhi/practice/data/practice_repository.dart';
 import 'package:mozhi/practice/models/practice_card.dart';
 import 'package:mozhi/practice/models/practice_item.dart';
+import 'package:mozhi/practice/models/practice_review_log.dart';
 import 'package:mozhi/practice/models/practice_settings.dart';
 
 export 'practice_state.dart';
@@ -69,7 +72,10 @@ class PracticeCubit extends Cubit<PracticeState> {
   StreamSubscription<void>? _phrasebookChanges;
 
   static FsrsScheduler _defaultScheduler(PracticeSettings settings) =>
-      FsrsScheduler(desiredRetention: settings.desiredRetention);
+      FsrsScheduler(
+        weights: settings.effectiveWeights,
+        desiredRetention: settings.desiredRetention,
+      );
 
   FsrsScheduler get _scheduler => _schedulerOf(state.settings);
 
@@ -122,6 +128,31 @@ class PracticeCubit extends Cubit<PracticeState> {
       addError(error, stackTrace);
     }
     await _reload();
+  }
+
+  /// Fits personalized FSRS weights to the stored review logs and persists
+  /// them when they improve on the defaults.
+  Future<void> optimizeSchedule({
+    void Function(FsrsOptimizationResult result)? onResult,
+  }) async {
+    try {
+      final logs = await _repository.reviewLogs();
+      final result = const FsrsOptimizer().optimize(logs);
+      if (result.improved) {
+        await updateSettings(
+          state.settings.copyWith(customWeights: () => result.weights),
+        );
+      }
+      onResult?.call(result);
+    } on Object catch (error, stackTrace) {
+      addError(error, stackTrace);
+    }
+  }
+
+  /// Restores the default FSRS weights.
+  Future<void> resetCustomWeights() async {
+    if (!state.settings.hasCustomWeights) return;
+    await updateSettings(state.settings.copyWith(customWeights: () => null));
   }
 
   /// Sets the unreadable progress aside and starts over.
@@ -214,13 +245,31 @@ class PracticeCubit extends Cubit<PracticeState> {
     final item = state.current;
     if (state.status != PracticeStatus.reviewing || item == null) return;
     final now = _clock();
+    final nowUtc = now.toUtc();
+    final lastReview = item.card.fsrs.lastReview;
+    final elapsedDays = lastReview == null
+        ? 0.0
+        : math.max<double>(
+            0,
+            nowUtc.difference(lastReview).inMicroseconds /
+                Duration.microsecondsPerDay,
+          );
+    final log = PracticeReviewLog(
+      cardKey: item.card.id,
+      rating: rating,
+      elapsedDays: elapsedDays,
+      state: item.card.fsrs.state,
+      reviewedAt: nowUtc,
+    );
     final next = _scheduler.preview(
       item.card.fsrs,
       now,
       seed: _seedOf(item.card),
     )[rating]!;
     final card = item.card.reviewed(rating, next, now);
-    _undo.add(_Undo(item: item, queue: state.queue, stats: state.stats));
+    _undo.add(
+      _Undo(item: item, queue: state.queue, stats: state.stats, log: log),
+    );
     final rest = [...state.queue.skip(1)];
     if (!next.due.isAfter(now.add(learnAhead))) rest.add(item.withCard(card));
     _show(
@@ -228,7 +277,7 @@ class PracticeCubit extends Cubit<PracticeState> {
       status: rest.isEmpty ? PracticeStatus.finished : PracticeStatus.reviewing,
       stats: state.stats.add(rating, wasNew: item.card.isNew),
     );
-    await _save(card);
+    await _saveReview(card, log);
     // The summary tells when the next cards are due.
     if (rest.isEmpty) await _reload();
   }
@@ -239,7 +288,10 @@ class PracticeCubit extends Cubit<PracticeState> {
     final last = _undo.removeLast();
     _show(last.queue, status: PracticeStatus.reviewing, stats: last.stats);
     final previous = last.item.card;
-    await _save(previous.isNew ? previous : previous.touched(_clock()));
+    await _undoReview(
+      previous.isNew ? previous : previous.touched(_clock()),
+      last.log,
+    );
   }
 
   /// Ends the session early (its reviews are kept).
@@ -296,9 +348,20 @@ class PracticeCubit extends Cubit<PracticeState> {
     };
   }
 
-  Future<void> _save(PracticeCard card) async {
+  Future<void> _saveReview(PracticeCard card, PracticeReviewLog log) async {
     try {
-      await _repository.saveCard(card);
+      await _repository.review(card, log);
+    } on Object catch (error, stackTrace) {
+      if (!isClosed && !state.saveFailed) {
+        emit(state.copyWith(saveFailed: true));
+      }
+      addError(error, stackTrace);
+    }
+  }
+
+  Future<void> _undoReview(PracticeCard card, PracticeReviewLog log) async {
+    try {
+      await _repository.undoReview(card, log);
     } on Object catch (error, stackTrace) {
       if (!isClosed && !state.saveFailed) {
         emit(state.copyWith(saveFailed: true));
@@ -327,10 +390,16 @@ class PracticeCubit extends Cubit<PracticeState> {
 
 /// What [PracticeCubit.undo] puts back.
 final class _Undo {
-  const new({required this.item, required this.queue, required this.stats});
+  const new({
+    required this.item,
+    required this.queue,
+    required this.stats,
+    required this.log,
+  });
 
   /// The card as it was before the rating.
   final PracticeItem item;
   final List<PracticeItem> queue;
   final PracticeStats stats;
+  final PracticeReviewLog log;
 }

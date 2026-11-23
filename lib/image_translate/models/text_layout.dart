@@ -18,6 +18,7 @@ class TextParagraph {
     this.background,
     this.foreground,
     this.confidence,
+    this.angle = 0,
   });
 
   /// The paragraph's text with its lines joined (see [joinLines]): what is
@@ -43,6 +44,9 @@ class TextParagraph {
   /// 0 to 100, null when unknown.
   final int? confidence;
 
+  /// Clockwise tilt of the text baseline in degrees (0 when horizontal).
+  final double angle;
+
   /// The distance between two lines (the height of one line for a single
   /// line), in image pixels.
   double get linePitch => box.height / (lineCount < 1 ? 1 : lineCount);
@@ -56,6 +60,7 @@ class TextParagraph {
     background: background,
     foreground: foreground,
     confidence: confidence,
+    angle: angle,
   );
 
   /// Joins the [lines] of a paragraph into running text, so a sentence that
@@ -122,7 +127,8 @@ class TextParagraph {
       other.isRightToLeft == isRightToLeft &&
       other.background == background &&
       other.foreground == foreground &&
-      other.confidence == confidence;
+      other.confidence == confidence &&
+      other.angle == angle;
 
   @override
   int get hashCode => Object.hash(
@@ -134,6 +140,7 @@ class TextParagraph {
     background,
     foreground,
     confidence,
+    angle,
   );
 
   @override

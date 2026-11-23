@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart' show immutable;
 import 'package:http/http.dart' as http;
 import 'package:mozhi/dictionary/data/dictionary_pack_storage.dart';
 import 'package:mozhi/offline/data/picked_import_file.dart';
+import 'package:mozhi/platform/download_foreground_service.dart';
 import 'package:mozhi/platform/free_space.dart';
 import 'package:translation_repository/translation_repository.dart';
 
@@ -186,7 +187,14 @@ class DictionaryPacks implements OfflineDictionary {
     // write).
     final install = _PackInstall(
       pack.id,
-      (install) => _install(pack, wifiOnly, install.report, install.cancel),
+      (install) => DownloadForegroundCoordinator.instance.track(
+        label: pack.name,
+        onCancel: () => cancelInstall(pack.id),
+        run: (reportForeground) => _install(pack, wifiOnly, (fraction) {
+          install.report(fraction);
+          reportForeground(fraction);
+        }, install.cancel),
+      ),
       onProgress: onProgress,
       after: running?.settled,
     );

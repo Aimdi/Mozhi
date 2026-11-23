@@ -104,6 +104,66 @@ final class LlamaCatalogSampling {
   int get hashCode => Object.hash(temperature, topP, topK, minP, repeatPenalty);
 }
 
+/// Optional companion multimodal projector (`.gguf` mmproj) shipped beside a
+/// vision-capable [LlamaCatalogModel].
+@immutable
+final class LlamaProjectorFile {
+  const new({
+    required this.name,
+    required this.url,
+    required this.size,
+    required this.sha256,
+  });
+
+  factory fromJson(Map<String, Object?> json) {
+    final name = LlamaCatalogModel._string(json, 'name');
+    if (!LlamaCatalogModel._safeName.hasMatch(name) ||
+        name.startsWith('.') ||
+        !name.toLowerCase().endsWith('.gguf')) {
+      throw FormatException('Unsafe projector file name (a .gguf file)', name);
+    }
+    final url = LlamaCatalogModel._https(json, 'url');
+    if (url.hasQuery ||
+        url.hasFragment ||
+        url.pathSegments.isEmpty ||
+        url.pathSegments.last != name) {
+      throw FormatException('The projector URL must end in its file name', url);
+    }
+    final size = json['size'];
+    if (size is! int || size <= 0) {
+      throw FormatException('Invalid projector size', size);
+    }
+    final sha256 = LlamaCatalogModel._string(json, 'sha256');
+    if (!LlamaCatalogModel._sha256Pattern.hasMatch(sha256)) {
+      throw FormatException('Invalid projector SHA-256', sha256);
+    }
+    return LlamaProjectorFile(name: name, url: url, size: size, sha256: sha256);
+  }
+
+  final String name;
+  final Uri url;
+  final int size;
+  final String sha256;
+
+  Map<String, Object?> toJson() => {
+    'name': name,
+    'url': url.toString(),
+    'size': size,
+    'sha256': sha256,
+  };
+
+  @override
+  bool operator ==(Object other) =>
+      other is LlamaProjectorFile &&
+      other.name == name &&
+      other.url == url &&
+      other.size == size &&
+      other.sha256 == sha256;
+
+  @override
+  int get hashCode => Object.hash(name, url, size, sha256);
+}
+
 /// One downloadable on-device model: a llama.cpp GGUF file pinned by size
 /// and SHA-256, with what the app needs to offer and run it.
 @immutable
@@ -128,6 +188,7 @@ final class LlamaCatalogModel {
     this.recommendedRamMb = 0,
     this.languages = const [],
     this.sampling = const LlamaCatalogSampling(),
+    this.mmproj,
   });
 
   /// Reads one entry of `models.json`. Throws [FormatException] for
@@ -208,6 +269,11 @@ final class LlamaCatalogModel {
       final Map<String, Object?> map => LlamaCatalogSampling.fromJson(map),
       final other => throw FormatException('Invalid sampling', other),
     };
+    final mmproj = switch (json['mmproj']) {
+      null => null,
+      final Map<String, Object?> map => LlamaProjectorFile.fromJson(map),
+      final other => throw FormatException('Invalid mmproj', other),
+    };
     return LlamaCatalogModel(
       id: id,
       name: name,
@@ -228,6 +294,7 @@ final class LlamaCatalogModel {
       licenseUrl: _https(json, 'licenseUrl'),
       sourceUrl: _https(json, 'sourceUrl'),
       sampling: sampling,
+      mmproj: mmproj,
     );
   }
 
@@ -296,6 +363,15 @@ final class LlamaCatalogModel {
 
   /// Recommended sampling.
   final LlamaCatalogSampling sampling;
+
+  /// Optional multimodal projector file for vision-capable models.
+  final LlamaProjectorFile? mmproj;
+
+  /// Whether this model ships a vision projector and can read images on device.
+  bool get supportsVision => mmproj != null;
+
+  /// Combined download size in bytes (main weights plus optional [mmproj]).
+  int get totalSize => size + (mmproj?.size ?? 0);
 
   /// Model families the app knows (llama.cpp architectures).
   static const families = {'hunyuan-dense', 'gemma4', 'qwen3'};
@@ -377,7 +453,8 @@ final class LlamaCatalogModel {
       other.license == license &&
       other.licenseUrl == licenseUrl &&
       other.sourceUrl == sourceUrl &&
-      other.sampling == sampling;
+      other.sampling == sampling &&
+      other.mmproj == mmproj;
 
   @override
   int get hashCode => Object.hash(
@@ -400,6 +477,7 @@ final class LlamaCatalogModel {
     licenseUrl,
     sourceUrl,
     sampling,
+    mmproj,
   );
 
   static bool _sameList(List<String> a, List<String> b) {

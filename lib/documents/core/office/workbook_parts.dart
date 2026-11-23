@@ -165,6 +165,11 @@ final class SheetNames implements ElementSites {
   Map<String, String> renames(PartRenderer renderer) =>
       _renames[renderer] ??= _compute(renderer);
 
+  /// The new name of [oldName] for [renderer]'s translations, or null when
+  /// the sheet keeps its name.
+  String? renamed(PartRenderer renderer, String oldName) =>
+      renames(renderer)[oldName.toLowerCase()];
+
   Map<String, String> _compute(PartRenderer renderer) {
     final taken = <String>{};
     final wanted = <(WorkbookSheet, String)>[];
@@ -305,6 +310,91 @@ final class SheetNames implements ElementSites {
 /// [PartBuilder.sites].
 final class WorkbookPartBuilder extends PartBuilder {
   new(super.document, super.table);
+}
+
+const _extendedPropertiesNs = {
+  'http://schemas.openxmlformats.org/officeDocument/2006/extended-properties',
+  'http://purl.oclc.org/ooxml/officeDocument/extendedProperties',
+};
+
+const _vTypesNs = {
+  'http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes',
+  'http://purl.oclc.org/ooxml/officeDocument/docPropsVTypes',
+};
+
+/// The extended properties part (`docProps/app.xml`) of a workbook whose
+/// sheets may be renamed: updates only the worksheet entries of
+/// `<TitlesOfParts>` (located via the `Worksheets` pair in `<HeadingPairs>`)
+/// while leaving named ranges and other entries untouched.
+final class AppPropertiesPartBuilder extends PartBuilder {
+  new(super.document, super.table, this._sheetNames)
+    : _worksheetTitles = _findWorksheetTitles(document.root);
+
+  final SheetNames _sheetNames;
+  final Set<SourceElement> _worksheetTitles;
+
+  static Set<SourceElement> _findWorksheetTitles(SourceElement root) {
+    final result = Set<SourceElement>.identity();
+    if (!root.isA(_extendedPropertiesNs, 'Properties')) return result;
+    final headingPairs = root.child(_extendedPropertiesNs, 'HeadingPairs');
+    final titlesOfParts = root.child(_extendedPropertiesNs, 'TitlesOfParts');
+    if (headingPairs == null || titlesOfParts == null) return result;
+
+    final pairVector = headingPairs.child(_vTypesNs, 'vector');
+    final titleVector = titlesOfParts.child(_vTypesNs, 'vector');
+    if (pairVector == null || titleVector == null) return result;
+
+    final variants = [
+      for (final child in pairVector.elements)
+        if (child.isA(_vTypesNs, 'variant')) child,
+    ];
+    final ranges = <(int, int)>[];
+    var offset = 0;
+    for (var i = 0; i + 1 < variants.length; i += 2) {
+      final label = variants[i].child(_vTypesNs, 'lpstr')?.text.trim();
+      final countText = variants[i + 1].child(_vTypesNs, 'i4')?.text.trim();
+      final count = countText == null ? null : int.tryParse(countText);
+      if (label == null || count == null || count < 0) return result;
+      if (label == 'Worksheets' && count > 0) {
+        ranges.add((offset, offset + count));
+      }
+      offset += count;
+    }
+    if (ranges.isEmpty) return result;
+
+    final titles = [
+      for (final child in titleVector.elements)
+        if (child.isA(_vTypesNs, 'lpstr')) child,
+    ];
+    for (final (start, end) in ranges) {
+      for (var i = start; i < end && i < titles.length; i++) {
+        result.add(titles[i]);
+      }
+    }
+    return result;
+  }
+
+  @override
+  List<PartNode>? node(SourceElement element) {
+    if (_worksheetTitles.contains(element) && !element.isSelfClosing) {
+      final oldName = element.text;
+      final sheet = _sheetNames._renamable(oldName);
+      if (sheet == null) return null;
+      _sheetNames._register(table, sheet);
+      return [
+        RawXml(source.substring(element.start, element.startTagEnd)),
+        ComputedXml(
+          source.substring(element.startTagEnd, element.endTagStart),
+          (renderer) {
+            final renamed = _sheetNames.renamed(renderer, oldName);
+            return renamed == null ? null : escapeXmlText(renamed);
+          },
+        ),
+        RawXml(source.substring(element.endTagStart, element.end)),
+      ];
+    }
+    return plain(element);
+  }
 }
 
 /// Whether [element] holds a formula whose sheet references are

@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/theme.dart';
@@ -89,16 +88,10 @@ class _FileInput extends StatelessWidget {
         child: TabHero(
           icon: Icons.description_outlined,
           title: l10n.documentsHeroTitle,
-          // PDFs are read in the Android app only.
-          body: kIsWeb
-              ? l10n.documentsPickHintFormats(
-                  documentSizeLabel(context, cubit.maxPackageBytes),
-                  documentSizeLabel(context, cubit.maxBytes),
-                )
-              : l10n.documentsPickHintFormatsPdf(
-                  documentSizeLabel(context, cubit.maxPackageBytes),
-                  documentSizeLabel(context, cubit.maxBytes),
-                ),
+          body: l10n.documentsPickHintFormatsPdf(
+            documentSizeLabel(context, cubit.maxPackageBytes),
+            documentSizeLabel(context, cubit.maxBytes),
+          ),
           child: FilledButton.icon(
             key: const Key('documents_pick_file'),
             onPressed: loading ? null : () => unawaited(cubit.pickFile()),

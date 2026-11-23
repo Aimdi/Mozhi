@@ -6,6 +6,7 @@ import 'package:llama_engine/llama_engine.dart';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/offline/cubit/offline_models_cubit.dart'
     show OfflineModelsCubit;
+import 'package:mozhi/platform/download_foreground_service.dart';
 import 'package:mozhi/platform/native_memory.dart';
 import 'package:mozhi/settings/models/model_source.dart';
 
@@ -297,9 +298,18 @@ class OnDeviceModels {
     manager
       ..mirror = source.mirror()
       ..fallbackToDefault = source.fallsBackToDefault;
-    await manager.install(
-      model,
-      onProgress: (progress) => download.report(progress.receivedBytes),
+    await DownloadForegroundCoordinator.instance.track(
+      label: model.displayName,
+      onCancel: () async => cancelDownload(model.id),
+      run: (reportForeground) => manager.install(
+        model,
+        onProgress: (progress) {
+          download.report(progress.receivedBytes);
+          reportForeground(
+            model.size == 0 ? 1 : progress.receivedBytes / model.size,
+          );
+        },
+      ),
     );
     await _choose(model);
     await _refresh(notify: true);

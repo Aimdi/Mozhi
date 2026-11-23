@@ -10,6 +10,7 @@ final class PracticeSettings extends Equatable {
     this.newCardsPerDay = defaultNewCardsPerDay,
     this.desiredRetention = FsrsScheduler.defaultDesiredRetention,
     this.typeAnswers = false,
+    this.customWeights,
     this.updatedAt,
   });
 
@@ -43,11 +44,27 @@ final class PracticeSettings extends Equatable {
             )
           : FsrsScheduler.defaultDesiredRetention,
       typeAnswers: json['typeAnswers'] == true,
+      customWeights: _parseWeights(json['fsrsWeights']),
       updatedAt: switch (json['updatedAt']) {
         final String value => DateTime.tryParse(value)?.toUtc(),
         _ => null,
       },
     );
+  }
+
+  static List<double>? _parseWeights(Object? value) {
+    if (value is! List<Object?> ||
+        value.length != FsrsScheduler.defaultWeights.length) {
+      return null;
+    }
+    final weights = <double>[];
+    for (final item in value) {
+      if (item is! num) return null;
+      final number = item.toDouble();
+      if (!number.isFinite) return null;
+      weights.add(number);
+    }
+    return List.unmodifiable(weights);
   }
 
   static const defaultNewCardsPerDay = 10;
@@ -68,8 +85,27 @@ final class PracticeSettings extends Equatable {
   /// Whether produce cards offer an answer field.
   final bool typeAnswers;
 
+  /// Personalized 19-element FSRS-5 weights; null uses
+  /// [FsrsScheduler.defaultWeights].
+  final List<double>? customWeights;
+
   /// When the settings last changed (the newer copy wins in a merge).
   final DateTime? updatedAt;
+
+  /// Whether personalized FSRS weights are active.
+  bool get hasCustomWeights => customWeights != null;
+
+  /// The weights passed to [FsrsScheduler]: [customWeights] when valid, else
+  /// [FsrsScheduler.defaultWeights].
+  List<double> get effectiveWeights {
+    final weights = customWeights;
+    if (weights == null ||
+        weights.length != FsrsScheduler.defaultWeights.length ||
+        weights.any((value) => !value.isFinite)) {
+      return FsrsScheduler.defaultWeights;
+    }
+    return weights;
+  }
 
   /// Whether the collection [id] is practised.
   bool includes(String id) => collectionIds?.contains(id) ?? true;
@@ -80,6 +116,7 @@ final class PracticeSettings extends Equatable {
     int? newCardsPerDay,
     double? desiredRetention,
     bool? typeAnswers,
+    List<double>? Function()? customWeights,
     DateTime? updatedAt,
   }) => PracticeSettings(
     collectionIds: collectionIds != null ? collectionIds() : this.collectionIds,
@@ -87,6 +124,12 @@ final class PracticeSettings extends Equatable {
     newCardsPerDay: newCardsPerDay ?? this.newCardsPerDay,
     desiredRetention: desiredRetention ?? this.desiredRetention,
     typeAnswers: typeAnswers ?? this.typeAnswers,
+    customWeights: customWeights != null
+        ? switch (customWeights()) {
+            final List<double> next => List.unmodifiable(next),
+            null => null,
+          }
+        : this.customWeights,
     updatedAt: updatedAt ?? this.updatedAt,
   );
 
@@ -96,6 +139,7 @@ final class PracticeSettings extends Equatable {
     'newPerDay': newCardsPerDay,
     'retention': desiredRetention,
     if (typeAnswers) 'typeAnswers': true,
+    if (customWeights != null) 'fsrsWeights': [...customWeights!],
     if (updatedAt != null) 'updatedAt': updatedAt!.toUtc().toIso8601String(),
   };
 
@@ -106,6 +150,7 @@ final class PracticeSettings extends Equatable {
     newCardsPerDay,
     desiredRetention,
     typeAnswers,
+    customWeights,
     updatedAt,
   ];
 }

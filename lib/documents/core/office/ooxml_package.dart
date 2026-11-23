@@ -20,6 +20,10 @@ const _spreadsheet = '${_officeDocument}spreadsheetml.';
 /// text in the shared strings), so large ones are skipped.
 const _worksheet = '${_spreadsheet}worksheet+xml';
 
+/// Extended properties (`docProps/app.xml`), whose `<TitlesOfParts>` lists
+/// worksheet names that stay in sync with renamed sheets.
+const _extendedProperties = '${_officeDocument}extended-properties+xml';
+
 /// Main parts that make a package a document of each format.
 const Map<DocumentFormat, Set<String>> _mainParts = {
   DocumentFormat.docx: {
@@ -158,6 +162,10 @@ List<PartTemplate? Function()> ooxmlParts(
       texts.remove(entry.name) ?? zip.readText(entry);
 
   PartBuilderFactory? builderFor(ArchiveFile entry, String type) {
+    if (sheetNames != null && type == _extendedProperties) {
+      return (document, table) =>
+          AppPropertiesPartBuilder(document, table, sheetNames);
+    }
     final builder = sheetNames != null && identical(entry, mainEntry)
         ? WorkbookPartBuilder.new
         : _translated[type] ?? _languageOnly[type];

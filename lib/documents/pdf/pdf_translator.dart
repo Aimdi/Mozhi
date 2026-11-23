@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:mozhi/documents/core/chunker.dart';
 import 'package:mozhi/documents/core/document_format.dart';
 import 'package:mozhi/documents/core/document_translator.dart';
+import 'package:mozhi/documents/pdf/dart_pdf_pages.dart';
 import 'package:mozhi/documents/pdf/method_channel_pdf_pages.dart';
 import 'package:mozhi/documents/pdf/pdf_document.dart';
 import 'package:mozhi/documents/pdf/pdf_page_reader.dart';
@@ -19,12 +20,15 @@ import 'package:mozhi/platform/device_conditions.dart';
 import 'package:mozhi/platform/text_recognition.dart';
 import 'package:translation_repository/translation_repository.dart';
 
-/// The platform's [PdfPages]: the Android plugin, or [UnsupportedPdfPages]
-/// on the web and elsewhere.
-PdfPages defaultPdfPages() =>
-    !kIsWeb && defaultTargetPlatform == TargetPlatform.android
-    ? MethodChannelPdfPages()
-    : const UnsupportedPdfPages();
+/// The platform's [PdfPages]: [DartPdfPages] on the web, the Android plugin
+/// on Android, or [UnsupportedPdfPages] elsewhere.
+PdfPages defaultPdfPages() {
+  if (kIsWeb) return DartPdfPages();
+  if (defaultTargetPlatform == TargetPlatform.android) {
+    return MethodChannelPdfPages();
+  }
+  return const UnsupportedPdfPages();
+}
 
 /// Snapshot of a PDF translation ([PdfTranslator.translate]).
 @immutable
@@ -207,6 +211,9 @@ class PdfTranslator {
         throw const PdfOpenException(kind: PdfOpenErrorKind.tooLarge);
       }
       _pageCount = info.pageCount;
+      if (!_canRecognize && _pages is DartPdfPages) {
+        await _probeTextLayer();
+      }
       return info;
     } finally {
       await _scratch.delete(path);
