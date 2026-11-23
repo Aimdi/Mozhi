@@ -3,7 +3,9 @@ import 'dart:io' show gzip;
 import 'dart:typed_data';
 
 import 'package:cryptography/cryptography.dart';
+import 'package:cryptography/dart.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mozhi/backup/data/argon2_worker.dart';
 import 'package:mozhi/backup/data/backup_codec.dart';
 import 'package:mozhi/backup/data/backup_files.dart';
 import 'package:mozhi/backup/models/backup_snapshot.dart';
@@ -507,6 +509,91 @@ void main() {
         expect(
           key.key.map((b) => b.toRadixString(16).padLeft(2, '0')).join(),
           '9dfeb910e80bad0311fee20f9c0e2b12c17987b4cac90c2ef54d5b3021c68bfe',
+        );
+      });
+
+      test('Argon2id matches web/backup/argon2_worker.js vectors', () async {
+        // Exact same vectors verified in tool/argon2_worker_test.mjs.
+        final vectors = [
+          (
+            passphrase: 'correct horse battery staple',
+            salt: '0123456789abcdef',
+            memory: 64,
+            iterations: 1,
+            parallelism: 1,
+            hashLength: 32,
+            hex:
+                '6aae361c12fe20f022b47b290a1c3ff2'
+                '6c792515f68c50e44e696c06c9301ffd',
+          ),
+          (
+            passphrase: 'வணக்கம் Vi\u1EC7t nam 🔐',
+            salt: 'mozhi-backup-salt-16b',
+            memory: 1024,
+            iterations: 3,
+            parallelism: 2,
+            hashLength: 32,
+            hex:
+                'a039a0698117dda07ee25dc188314257'
+                '3f5398b96c658b487c67e23b7e77cb7c',
+          ),
+          (
+            passphrase: '',
+            salt: 'browser-kdf-salt',
+            memory: 19456,
+            iterations: 2,
+            parallelism: 1,
+            hashLength: 32,
+            hex:
+                'feccd24fc733108fdbe26c1d13fe543d'
+                '0e8a241fc69125b2a5d6b774ca9ede25',
+          ),
+          (
+            passphrase: 'multi-lane-passphrase',
+            salt: 'four-lanes-salt!',
+            memory: 128,
+            iterations: 2,
+            parallelism: 4,
+            hashLength: 64,
+            hex:
+                'ded38a84837946fc963ee944d6190fd2'
+                'bc4afaae54094d3800165a5df38c48a2'
+                '584cf6f0b4f5384dc375138395b6c8f4'
+                'f3d60db4688e4bad60d197fd560ee35c',
+          ),
+        ];
+
+        for (final v in vectors) {
+          final algorithm = DartArgon2id(
+            memory: v.memory,
+            iterations: v.iterations,
+            parallelism: v.parallelism,
+            hashLength: v.hashLength,
+            maxIsolates: 0,
+          );
+          final secret = await algorithm.deriveKey(
+            secretKey: SecretKey(utf8.encode(v.passphrase)),
+            nonce: utf8.encode(v.salt),
+          );
+          final bytes = await secret.extractBytes();
+          expect(
+            bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join(),
+            v.hex,
+            reason: 'm=${v.memory}, t=${v.iterations}, p=${v.parallelism}',
+          );
+        }
+
+        // Stub returns null outside a browser so BackupCodec uses DartArgon2id.
+        expect(
+          await deriveArgon2idInWorker(
+            passphraseBytes: utf8.encode('password'),
+            saltBytes: Uint8List.fromList(utf8.encode('somesalt')),
+            memoryKiB: 64,
+            iterations: 1,
+            parallelism: 1,
+            hashLength: 32,
+          ),
+          isNull,
         );
       });
 

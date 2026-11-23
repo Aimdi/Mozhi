@@ -81,23 +81,35 @@ final class OfficePackage implements PackagedDocument {
     );
   }
 
-  /// Like [OfficePackage.parse], but lets the event loop run between parts
-  /// (for the web app, which parses on the UI thread: the page keeps
-  /// painting while a book with many chapters is read). One large part
-  /// still takes as long as it does.
+  /// Like [OfficePackage.parse], but lets the event loop run during ZIP
+  /// reading and between parts (for the web app, which parses on the UI
+  /// thread: the page keeps painting while large packages are read).
   static Future<OfficePackage> parseAsync(
     Uint8List bytes,
     DocumentFormat format, {
     String? targetLanguage,
     PackageLimits limits = const PackageLimits(),
   }) async {
-    await _yield();
-    final (zip, table, readers) = _readers(bytes, format, limits);
-    final parts = <PartTemplate>[];
-    for (final read in readers) {
-      await _yield();
-      if (read() case final part?) parts.add(part);
+    // PDFs are binary but not packages (lib/documents/pdf/).
+    if (!format.isBinary || format == DocumentFormat.pdf) {
+      throw ArgumentError.value(format, 'format', 'not a packaged format');
     }
+    await _yield();
+    final zip = ZipPackage.read(bytes, limits: limits);
+    await _yield();
+    final table = SegmentTable();
+    final readers = _partReaders(zip, format, table);
+    final parts = <PartTemplate>[];
+    final watch = Stopwatch()..start();
+    for (var i = 0; i < readers.length; i++) {
+      if (i % _parsePartYieldBatch == 0 ||
+          watch.elapsedMilliseconds >= _frameBudgetMs) {
+        await _yield();
+        watch.reset();
+      }
+      if (readers[i]() case final part?) parts.add(part);
+    }
+    await _yield();
     return OfficePackage._(
       format: format,
       bytes: bytes,
@@ -108,6 +120,10 @@ final class OfficePackage implements PackagedDocument {
       limits: limits,
     );
   }
+
+  static const int _frameBudgetMs = 16;
+  static const int _parsePartYieldBatch = 4;
+  static const int _renderNodeBatch = 256;
 
   static Future<void> _yield() => Future<void>.delayed(Duration.zero);
 
@@ -122,17 +138,22 @@ final class OfficePackage implements PackagedDocument {
     }
     final zip = ZipPackage.read(bytes, limits: limits);
     final table = SegmentTable();
-    final readers = switch (format) {
-      DocumentFormat.docx ||
-      DocumentFormat.pptx ||
-      DocumentFormat.xlsx => ooxmlParts(zip, format, table),
-      DocumentFormat.odt ||
-      DocumentFormat.odp ||
-      DocumentFormat.ods => odfParts(zip, table),
-      _ => epubParts(zip, table),
-    };
-    return (zip, table, readers);
+    return (zip, table, _partReaders(zip, format, table));
   }
+
+  static List<PartTemplate? Function()> _partReaders(
+    ZipPackage zip,
+    DocumentFormat format,
+    SegmentTable table,
+  ) => switch (format) {
+    DocumentFormat.docx ||
+    DocumentFormat.pptx ||
+    DocumentFormat.xlsx => ooxmlParts(zip, format, table),
+    DocumentFormat.odt ||
+    DocumentFormat.odp ||
+    DocumentFormat.ods => odfParts(zip, table),
+    _ => epubParts(zip, table),
+  };
 
   /// Whether the entry [name] holds macros or ActiveX controls: a VBA
   /// project (`word/vbaProject.bin`), ActiveX controls (`word/activeX/`),
@@ -196,8 +217,8 @@ final class OfficePackage implements PackagedDocument {
     return _write(replaced);
   }
 
-  /// Like [render], but lets the event loop run between parts (see
-  /// [parseAsync]).
+  /// Like [render], but lets the event loop run between parts and inside
+  /// large parts (see [parseAsync]).
   Future<Uint8List> renderAsync([List<String?> translations = const []]) async {
     final renderer = PartRenderer(
       translations: translations,
@@ -206,12 +227,48 @@ final class OfficePackage implements PackagedDocument {
     );
     if (!renderer.documentTranslated) return Uint8List.fromList(_bytes);
     final replaced = <String, Uint8List>{};
+    final watch = Stopwatch()..start();
     for (final part in _parts) {
       await _yield();
-      _renderPart(renderer, part, replaced);
+      watch.reset();
+      await _renderPartAsync(renderer, part, replaced, watch);
     }
     await _yield();
     return _write(replaced);
+  }
+
+  Future<void> _renderPartAsync(
+    PartRenderer renderer,
+    PartTemplate part,
+    Map<String, Uint8List> replaced,
+    Stopwatch watch,
+  ) async {
+    final changed =
+        (part.hasLanguageMarks && language != null) ||
+        part.segments.any((index) => renderer.translationOf(index) != null);
+    if (!changed) return;
+    final nodes = part.nodes;
+    if (nodes.length <= _renderNodeBatch) {
+      replaced[part.name] = encodePart(
+        renderer.renderPart(nodes),
+        part.encoding,
+      );
+      return;
+    }
+    final out = StringBuffer();
+    for (var start = 0; start < nodes.length; start += _renderNodeBatch) {
+      if (start > 0 && watch.elapsedMilliseconds >= _frameBudgetMs) {
+        await _yield();
+        watch.reset();
+      }
+      final end = start + _renderNodeBatch;
+      renderer.write(
+        out,
+        nodes.sublist(start, end > nodes.length ? nodes.length : end),
+        translated: renderer.documentTranslated,
+      );
+    }
+    replaced[part.name] = encodePart(out.toString(), part.encoding);
   }
 
   void _renderPart(

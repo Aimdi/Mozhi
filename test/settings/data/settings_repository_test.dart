@@ -541,11 +541,13 @@ void main() {
         prefs.gate.complete();
         await Future.wait(saves);
 
-        expect(prefs.writes, [
-          jsonEncode(first.toJson()),
-          jsonEncode(second.toJson()),
-        ]);
-        expect(await repository.load(), equals(second));
+        final written = [
+          for (final raw in prefs.writes)
+            AppSettings.fromJson(jsonDecode(raw) as Map<String, Object?>),
+        ];
+        expect(written.map((s) => s.seedColor), [1, 2]);
+        final loaded = await repository.load();
+        expect(loaded.copyWith(settingTimestamps: const {}), equals(second));
       });
 
       test('keeps saving after a failed save', () async {

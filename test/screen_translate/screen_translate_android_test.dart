@@ -329,7 +329,7 @@ void main() {
               name.startsWith('bubble_'),
         )
         .toList();
-    expect(names, hasLength(17));
+    expect(names, hasLength(25));
     final folders = Directory('$_main/res')
         .listSync()
         .whereType<Directory>()

@@ -313,6 +313,68 @@ void main() {
       expect(SheetNames.sheetNameFrom('${'a' * 30}😀'), 'a' * 30);
       expect(SheetNames.sheetNameFrom('${'a' * 29}😀'), '${'a' * 29}😀');
     });
+
+    test('syncs renamed worksheets in docProps/app.xml without touching named ranges', () {
+      const appType =
+          'application/vnd.openxmlformats-officedocument.extended-properties+xml';
+      const epNs =
+          'http://schemas.openxmlformats.org/officeDocument/2006/extended-properties';
+      const vtNs =
+          'http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes';
+      const appXml =
+          '$declaration<Properties xmlns="$epNs" xmlns:vt="$vtNs">'
+          '<Application>Microsoft Excel</Application>'
+          '<HeadingPairs><vt:vector size="4" baseType="variant">'
+          '<vt:variant><vt:lpstr>Named Ranges</vt:lpstr></vt:variant>'
+          '<vt:variant><vt:i4>2</vt:i4></vt:variant>'
+          '<vt:variant><vt:lpstr>Worksheets</vt:lpstr></vt:variant>'
+          '<vt:variant><vt:i4>3</vt:i4></vt:variant>'
+          '</vt:vector></HeadingPairs>'
+          '<TitlesOfParts><vt:vector size="5" baseType="lpstr">'
+          '<vt:lpstr>Summary</vt:lpstr>'
+          '<vt:lpstr>PrintArea</vt:lpstr>'
+          '<vt:lpstr>Summary</vt:lpstr>'
+          '<vt:lpstr>Tax &amp; fees</vt:lpstr>'
+          '<vt:lpstr>Budget</vt:lpstr>'
+          '</vt:vector></TitlesOfParts>'
+          '</Properties>';
+      final bytes = _workbook(
+        ['Summary', 'Tax & fees', 'Budget'],
+        worksheets: {
+          // Block "Budget" from renaming via INDIRECT.
+          0: '<sheetData><row r="1"><c r="A1"><f>INDIRECT("Budget!A1")</f></c></row></sheetData>',
+        },
+        extra: {'docProps/app.xml': (appType, appXml)},
+      );
+      final document = _parse(bytes);
+      expectRoundTrip(document, bytes, targetLanguage: 'es');
+
+      // Translating only a shared string leaves docProps/app.xml untouched.
+      final onlyCells = renderWith(document, {'Hello': 'Hola'});
+      _expectUntouched(bytes, onlyCells, {'xl/sharedStrings.xml'});
+
+      // Translating sheet names updates ONLY the Worksheets slice in TitlesOfParts.
+      final output = renderWith(document, {
+        'Summary': 'Resumen',
+        'Tax & fees': 'Impuestos & tasas',
+      });
+      final renderedApp = entryText(output, 'docProps/app.xml');
+      expect(
+        renderedApp,
+        contains(
+          '<TitlesOfParts><vt:vector size="5" baseType="lpstr">'
+          // Named Ranges (indices 0..1) untouched — even though index 0 is "Summary"!
+          '<vt:lpstr>Summary</vt:lpstr>'
+          '<vt:lpstr>PrintArea</vt:lpstr>'
+          // Worksheets (indices 2..4): renamable ones updated, blocked "Budget" kept.
+          '<vt:lpstr>Resumen</vt:lpstr>'
+          '<vt:lpstr>Impuestos &amp; tasas</vt:lpstr>'
+          '<vt:lpstr>Budget</vt:lpstr>'
+          '</vt:vector></TitlesOfParts>',
+        ),
+      );
+      _expectUntouched(bytes, output, {'xl/workbook.xml', 'docProps/app.xml'});
+    });
   });
 
   group('formula references', () {

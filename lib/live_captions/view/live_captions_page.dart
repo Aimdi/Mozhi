@@ -17,6 +17,7 @@ import 'package:mozhi/live_captions/widgets/live_captions_widgets.dart';
 import 'package:mozhi/platform/clipboard_service.dart';
 import 'package:mozhi/platform/device_conditions.dart';
 import 'package:mozhi/platform/system_app_settings.dart';
+import 'package:mozhi/platform/web_share.dart';
 import 'package:mozhi/screen_translate/data/screen_translate_controls.dart';
 import 'package:mozhi/transcribe/data/transcript_export.dart';
 import 'package:mozhi/transcribe/view/transcribe_page.dart'
@@ -523,12 +524,13 @@ class _MenuButton extends StatelessWidget {
         }
       },
       itemBuilder: (context) => [
-        _item(
-          _MenuAction.share,
-          Icons.share_outlined,
-          l10n.transcribeShare,
-          enabled: has,
-        ),
+        if (canShareText)
+          _item(
+            _MenuAction.share,
+            Icons.share_outlined,
+            l10n.transcribeShare,
+            enabled: has,
+          ),
         _item(
           _MenuAction.saveText,
           Icons.description_outlined,

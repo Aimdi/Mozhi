@@ -1,5 +1,8 @@
+import 'dart:convert';
+
 import 'package:equatable/equatable.dart';
 import 'package:mozhi/backup/data/backup_registry.dart';
+import 'package:mozhi/backup/models/backup_section.dart';
 import 'package:mozhi/core/network/url_credentials.dart';
 import 'package:mozhi/settings/data/provider_identity.dart';
 import 'package:mozhi/settings/data/settings_repository.dart';
@@ -53,7 +56,7 @@ import 'package:translation_repository/translation_repository.dart';
 ///
 /// [additions] tells what a restore adds, for the review before it and
 /// its result.
-class SettingsBackupSection implements BackupSection {
+class SettingsBackupSection implements BackupSection, BackupSyncSection {
   const new(this._repository);
 
   /// The section's [id].
@@ -71,6 +74,29 @@ class SettingsBackupSection implements BackupSection {
   /// for offline use ([AppSettings.offlineAppShell]) is up to each
   /// browser.
   static const deviceOnlyFields = {'appLock', 'offlineAppShell'};
+
+  /// Non-security user preference fields that merge by per-field timestamp
+  /// ([AppSettings.settingTimestamps]) during [BackupRestoreMode.merge] and
+  /// sync. Security, server, privacy and engine fields stay device-local.
+  static const syncedPreferenceFields = {
+    'themeMode',
+    'dynamicColor',
+    'pureBlack',
+    'seedColor',
+    'style',
+    'terminalAccent',
+    'instantTranslate',
+    'instantTranslateAi',
+    'showTransliteration',
+    'hapticFeedback',
+    'tabOrder',
+    'rememberQuality',
+    'multilineInput',
+    'tapToLookUp',
+    'highlightSpokenWord',
+    'appLocale',
+    'options',
+  };
 
   @override
   String get id => sectionId;
@@ -105,6 +131,255 @@ class SettingsBackupSection implements BackupSection {
       if (secrets != null && secrets.isNotEmpty) 'secrets': secrets,
     };
   }
+
+  @override
+  Future<Object?> syncData(
+    Object? local, {
+    required Object? remote,
+    required int? remoteVersion,
+  }) async {
+    if (local is! Map || local['settings'] is! Map) return local;
+    final localMap = Map<String, dynamic>.from(local['settings'] as Map);
+    final localSecrets = local['secrets'] is Map
+        ? Map<String, dynamic>.from(local['secrets'] as Map)
+        : null;
+
+    if (remote == null ||
+        remoteVersion == null ||
+        remoteVersion > _version ||
+        remote is! Map ||
+        remote['settings'] is! Map) {
+      return _canonicalSyncPayload(localMap, localSecrets);
+    }
+
+    final remoteMap = Map<String, dynamic>.from(remote['settings'] as Map);
+    final remoteSecrets = remote['secrets'] is Map
+        ? Map<String, dynamic>.from(remote['secrets'] as Map)
+        : null;
+
+    // Keep non-synced device-local fields from [remoteMap] so devices with
+    // differing local choices (engineId, privacyMode, instances, last pair…)
+    // converge on the same sync file and stop writing it.
+    final out = Map<String, dynamic>.from(remoteMap)
+      ..removeWhere((key, _) => deviceOnlyFields.contains(key));
+
+    // Merge synced preference fields by per-field timestamp (LWW +
+    // deterministic tie-breaker).
+    final localTs = _readTimestamps(localMap['settingTimestamps']);
+    final remoteTs = _readTimestamps(remoteMap['settingTimestamps']);
+    final mergedTs = <String, int>{...remoteTs};
+    for (final field in syncedPreferenceFields) {
+      final lTs = localTs[field];
+      final rTs = remoteTs[field];
+      if (lTs == null) continue;
+      if (rTs == null ||
+          lTs > rTs ||
+          (lTs == rTs && _winsTie(localMap[field], remoteMap[field]))) {
+        out[field] = localMap[field];
+        mergedTs[field] = lTs;
+      }
+    }
+    if (mergedTs.isNotEmpty) {
+      final sortedTs = Map<String, int>.fromEntries(
+        mergedTs.entries.toList()..sort((a, b) => a.key.compareTo(b.key)),
+      );
+      out['settingTimestamps'] = sortedTs;
+    } else {
+      out.remove('settingTimestamps');
+    }
+
+    // Converge providers (union by id, preserving remote order/canonical sort;
+    // providers this device explicitly removed stay out of local, while
+    // keeping providers from remote that were removed only locally does not
+    // resurrect them here thanks to removedProviders).
+    out['providers'] = _mergeProviderMaps(
+      remoteMap['providers'],
+      localMap['providers'],
+    );
+
+    // Converge pinned languages (union by code, sorted deterministically).
+    out['pinnedLanguages'] = _mergePinnedMaps(
+      remoteMap['pinnedLanguages'],
+      localMap['pinnedLanguages'],
+    );
+
+    final mergedSecrets = _mergeSecretsMaps(remoteSecrets, localSecrets);
+    return _canonicalSyncPayload(out, mergedSecrets);
+  }
+
+  static Map<String, Object?> _canonicalSyncPayload(
+    Map<String, dynamic> settings,
+    Map<String, dynamic>? secrets,
+  ) {
+    final normalized = Map<String, dynamic>.from(settings)
+      ..removeWhere((key, _) => deviceOnlyFields.contains(key));
+    if (normalized['providers'] is List) {
+      normalized['providers'] = _sortByStringKey(
+        normalized['providers'] as List,
+        'id',
+      );
+    }
+    if (normalized['pinnedLanguages'] is List) {
+      normalized['pinnedLanguages'] = _sortByStringKey(
+        normalized['pinnedLanguages'] as List,
+        'code',
+      );
+    }
+    return {
+      'settings': normalized,
+      if (secrets != null && secrets.isNotEmpty) 'secrets': secrets,
+    };
+  }
+
+  static List<Map<String, dynamic>> _mergeProviderMaps(
+    Object? remoteRaw,
+    Object? localRaw,
+  ) {
+    final byId = <String, Map<String, dynamic>>{};
+    final seenByBaseAndServer = <String>{};
+
+    String baseId(String id, String serverHash) {
+      final at = id.lastIndexOf('~');
+      if (at > 0 && renamedId(id.substring(0, at), serverHash) == id) {
+        return id.substring(0, at);
+      }
+      return id;
+    }
+
+    String? serverKey(Map<String, dynamic> raw) {
+      try {
+        final cfg = AiProviderConfig.fromJson(raw);
+        return ProviderIdentity.serverHash(cfg);
+      } on Object {
+        return null;
+      }
+    }
+
+    // Keep remote entries first (canonical ids & flags so differing local
+    // enabled flags don't ping-pong).
+    if (remoteRaw is List) {
+      for (final item in remoteRaw) {
+        if (item is! Map) continue;
+        final map = Map<String, dynamic>.from(item);
+        final id = map['id'];
+        if (id is! String || id.isEmpty) continue;
+        final hash = serverKey(map);
+        if (hash != null) {
+          seenByBaseAndServer.add('${baseId(id, hash)}|$hash');
+        }
+        byId.putIfAbsent(id, () => map);
+      }
+    }
+    // Add any local provider whose (baseId, serverHash) isn't already in remote
+    // — if its id collides with a remote provider on another server, store it
+    // under renamedId(id, serverHash) so both devices receive both providers.
+    if (localRaw is List) {
+      for (final item in localRaw) {
+        if (item is! Map) continue;
+        final map = Map<String, dynamic>.from(item);
+        final id = map['id'];
+        if (id is! String || id.isEmpty) continue;
+        final hash = serverKey(map);
+        if (hash != null &&
+            seenByBaseAndServer.contains('${baseId(id, hash)}|$hash')) {
+          continue;
+        }
+        var targetId = id;
+        if (byId.containsKey(targetId)) {
+          if (hash == null) continue;
+          targetId = renamedId(baseId(id, hash), hash);
+          if (byId.containsKey(targetId)) continue;
+          map['id'] = targetId;
+        }
+        if (hash != null) {
+          seenByBaseAndServer.add('${baseId(targetId, hash)}|$hash');
+        }
+        byId[targetId] = map;
+      }
+    }
+    final ids = byId.keys.toList()..sort();
+    return [for (final id in ids) byId[id]!];
+  }
+
+  static List<Map<String, dynamic>> _mergePinnedMaps(
+    Object? remoteRaw,
+    Object? localRaw,
+  ) {
+    final byCode = <String, Map<String, dynamic>>{};
+    void addAll(Object? raw) {
+      if (raw is! List) return;
+      for (final item in raw) {
+        if (item is! Map) continue;
+        final code = item['code'];
+        if (code is String && code.isNotEmpty) {
+          byCode.putIfAbsent(code, () => Map<String, dynamic>.from(item));
+        }
+      }
+    }
+
+    addAll(remoteRaw);
+    addAll(localRaw);
+    final codes = byCode.keys.toList()..sort();
+    return [for (final code in codes) byCode[code]!];
+  }
+
+  static List<Map<String, dynamic>> _sortByStringKey(
+    List<dynamic> list,
+    String key,
+  ) {
+    final items = [
+      for (final item in list)
+        if (item is Map) Map<String, dynamic>.from(item),
+    ]..sort((a, b) => '${a[key] ?? ''}'.compareTo('${b[key] ?? ''}'));
+    return items;
+  }
+
+  static Map<String, dynamic>? _mergeSecretsMaps(
+    Map<String, dynamic>? remote,
+    Map<String, dynamic>? local,
+  ) {
+    if (remote == null && local == null) return null;
+    Map<String, dynamic> mergeSub(String key) {
+      final merged = <String, dynamic>{};
+      if (remote?[key] is Map) {
+        merged.addAll(Map<String, dynamic>.from(remote![key] as Map));
+      }
+      if (local?[key] is Map) {
+        for (final MapEntry(:key, :value) in Map<String, dynamic>.from(
+          local![key] as Map,
+        ).entries) {
+          merged.putIfAbsent(key, () => value);
+        }
+      }
+      final sortedKeys = merged.keys.toList()..sort();
+      return {for (final k in sortedKeys) k: merged[k]};
+    }
+
+    final apiKeys = mergeSub('apiKeys');
+    final headers = mergeSub('headers');
+    final instanceCredentials = mergeSub('instanceCredentials');
+    final out = <String, dynamic>{
+      if (apiKeys.isNotEmpty) 'apiKeys': apiKeys,
+      if (headers.isNotEmpty) 'headers': headers,
+      if (instanceCredentials.isNotEmpty)
+        'instanceCredentials': instanceCredentials,
+    };
+    return out.isEmpty ? null : out;
+  }
+
+  static Map<String, int> _readTimestamps(Object? raw) {
+    if (raw is! Map) return const {};
+    final out = <String, int>{};
+    for (final MapEntry(:key, :value) in raw.entries) {
+      if (key is String && value is num && value >= 0) {
+        out[key] = value.toInt();
+      }
+    }
+    return out;
+  }
+
+  static bool _winsTie(Object? candidate, Object? existing) =>
+      jsonEncode(candidate).compareTo(jsonEncode(existing)) > 0;
 
   @override
   Future<void> restore(
@@ -283,7 +558,7 @@ class SettingsBackupSection implements BackupSection {
     final pinned = {
       for (final language in local.pinnedLanguages) language.code,
     };
-    return local.copyWith(
+    final mergedBase = local.copyWith(
       providers: List.unmodifiable([
         for (final provider in local.providers)
           if (theirs[provider.id] case final copy?
@@ -313,6 +588,41 @@ class SettingsBackupSection implements BackupSection {
       compareEngineIds: List.unmodifiable(
         local.compareEngineIds.where((id) => !stale(id)),
       ),
+    );
+    return _mergeSyncedPreferences(mergedBase, backup);
+  }
+
+  static AppSettings _mergeSyncedPreferences(
+    AppSettings local,
+    AppSettings backup,
+  ) {
+    if (backup.settingTimestamps.isEmpty) return local;
+    final localJson = local.toJson();
+    final backupJson = backup.toJson();
+    final mergedTimestamps = <String, int>{...local.settingTimestamps};
+    var changed = false;
+    for (final field in syncedPreferenceFields) {
+      final bTs = backup.settingTimestamps[field];
+      if (bTs == null) continue;
+      final lTs = local.settingTimestamps[field];
+      final adopt =
+          lTs == null ||
+          bTs > lTs ||
+          (bTs == lTs && _winsTie(backupJson[field], localJson[field]));
+      if (adopt) {
+        localJson[field] = backupJson[field];
+        mergedTimestamps[field] = bTs;
+        changed = true;
+      }
+    }
+    if (!changed) return local;
+    localJson['settingTimestamps'] = mergedTimestamps;
+    // Re-parse merged preference fields while keeping in-memory secrets on
+    // providers and instances intact.
+    final parsed = AppSettings.fromJson(localJson);
+    return parsed.copyWith(
+      providers: local.providers,
+      instances: local.instances,
     );
   }
 

@@ -6,11 +6,13 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/backup/view/backup_section_labels.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/live_camera/data/method_channel_live_camera_controller.dart';
 import 'package:mozhi/pairing/cubit/pairing_send_cubit.dart';
 import 'package:mozhi/pairing/data/pairing_environment.dart';
 import 'package:mozhi/pairing/data/pairing_packs.dart';
 import 'package:mozhi/pairing/models/pairing_item.dart';
 import 'package:mozhi/pairing/view/pairing_environment_of.dart';
+import 'package:mozhi/pairing/view/pairing_qr_scanner_page.dart';
 import 'package:mozhi/pairing/view/pairing_unavailable.dart';
 import 'package:mozhi/pairing/widgets/pairing_labels.dart';
 import 'package:mozhi/pairing/widgets/pairing_widgets.dart';
@@ -256,6 +258,15 @@ class _EnterCodeState extends State<_EnterCode> {
     context.read<PairingSendCubit>().setInput(text);
   }
 
+  Future<void> _scanQr() async {
+    final scanned = await Navigator.of(context).push<String>(
+      MaterialPageRoute(builder: (_) => const PairingQrScannerPage()),
+    );
+    if (scanned == null || scanned.isEmpty || !mounted) return;
+    _controller.text = scanned;
+    context.read<PairingSendCubit>().setInput(scanned);
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
@@ -264,6 +275,7 @@ class _EnterCodeState extends State<_EnterCode> {
     final invalid = context.select<PairingSendCubit, bool>(
       (cubit) => cubit.state.invalidCode,
     );
+    final canScanQr = defaultLiveCameraController().isSupported;
     return PairingBody(
       children: [
         Text(
@@ -297,6 +309,13 @@ class _EnterCodeState extends State<_EnterCode> {
         ),
         PairingActions(
           children: [
+            if (canScanQr)
+              OutlinedButton.icon(
+                key: const Key('pairing_scan_qr'),
+                onPressed: () => unawaited(_scanQr()),
+                icon: const Icon(Icons.qr_code_scanner),
+                label: Text(l10n.pairingScanQr),
+              ),
             FilledButton(
               key: const Key('pairing_connect'),
               onPressed: () => unawaited(cubit.connect()),

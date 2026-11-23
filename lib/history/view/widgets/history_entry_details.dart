@@ -6,6 +6,7 @@ import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/history/models/history_entry.dart';
 import 'package:mozhi/history/view/widgets/history_entry_tile.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/platform/web_share.dart';
 import 'package:mozhi/translate/widgets/output_card.dart' show copyToClipboard;
 
 /// Everything about one history entry: the language pair, the engine and
@@ -133,14 +134,15 @@ class HistoryEntryDetails extends StatelessWidget {
               onPressed: () =>
                   unawaited(copyToClipboard(context, historyCopyText(entry))),
             ),
-            Builder(
-              builder: (buttonContext) => XActionButton(
-                icon: Icons.ios_share_rounded,
-                tooltip: l10n.commonShare,
-                onPressed: () =>
-                    unawaited(shareHistoryEntry(buttonContext, entry)),
+            if (canShareText)
+              Builder(
+                builder: (buttonContext) => XActionButton(
+                  icon: Icons.ios_share_rounded,
+                  tooltip: l10n.commonShare,
+                  onPressed: () =>
+                      unawaited(shareHistoryEntry(buttonContext, entry)),
+                ),
               ),
-            ),
             XActionButton(
               icon: entry.isFavorite
                   ? Icons.favorite_rounded

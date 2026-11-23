@@ -43,6 +43,7 @@
          - POST_NOTIFICATIONS (Android 13+): asked only when the bubble is
            turned on, for its notification with Stop. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
@@ -368,6 +369,24 @@
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="A floating button the user turned on, shown over other apps until they stop it: a tap translates the screen (after the system's screen-capture consent), a long press the clipboard." />
+        </service>
+        <!-- Keeps large on-device model downloads running in the background
+             with a progress notification and Cancel action. Not exported. -->
+        <service
+            android:name=".ModelDownloadService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+        <!-- Opt-in offline translation of incoming notifications from other
+             apps (NotificationTranslateService.kt). Off by default; requires
+             Android Notification Access and translates strictly on-device. -->
+        <service
+            android:name=".NotificationTranslateService"
+            android:exported="true"
+            android:label="@string/notification_translate_service_label"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
         </service>
         <!-- Quick Settings tile "Translate screen" (TranslateScreenTileService):
              opens ScreenTranslateActivity. -->

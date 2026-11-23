@@ -244,6 +244,33 @@ void main() {
     await download;
     expect(cubit.state.status, OcrOfferStatus.installed);
   });
+
+  test(
+    'cancels a running download cleanly when data supports cancel',
+    () async {
+      final cancellable = CancellableOcrData()..installed.clear();
+      final cubit = OcrOfferCubit(
+        data: cancellable,
+        language: deuOcr,
+        store: store,
+        picker: stubOfflineModelFilePicker(paths: const []),
+      );
+      addTearDown(cubit.close);
+      expect(cubit.state.canCancel, isTrue);
+
+      cancellable.downloadGate = Completer<void>();
+      final running = cubit.download();
+      await pumpEventQueue();
+      expect(cubit.state.status, OcrOfferStatus.downloading);
+      expect(cubit.state.canCancelDownload, isTrue);
+
+      await cubit.cancelDownload();
+      await running;
+      expect(cubit.state.status, OcrOfferStatus.idle);
+      expect(cubit.state.error, isNull);
+      expect(cubit.state.cancelling, isFalse);
+    },
+  );
 }
 
 class _FailingStore implements KeyValueStore {

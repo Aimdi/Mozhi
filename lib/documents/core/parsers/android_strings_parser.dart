@@ -9,6 +9,8 @@ import 'package:mozhi/documents/core/parsers/markup_lexer.dart';
 import 'package:mozhi/documents/core/parsers/xliff_parser.dart'
     show utf8Declaration;
 import 'package:mozhi/documents/core/parsers/xml_tree.dart';
+import 'package:translation_repository/translation_repository.dart'
+    show ProtectedPatterns;
 
 /// Parses Android string resources ([DocumentFormat.androidStrings]).
 ///
@@ -43,7 +45,13 @@ ParsedDocument parseAndroidStrings(String text, {String? targetLanguage}) {
       'not <resources>',
     );
   }
-  return _AndroidParser(tree, pluralCategories(targetLanguage)).parse();
+  final forms = PluralForms.parse(gettextPluralForms(targetLanguage));
+  final oneIsOnlyOne = forms == null || forms.isOnlyOne(forms.formFor(1));
+  return _AndroidParser(
+    tree,
+    pluralCategories(targetLanguage),
+    oneIsOnlyOne: oneIsOnlyOne,
+  ).parse();
 }
 
 /// Styling tags of string resources, translated with their content.
@@ -73,7 +81,8 @@ const _styleTags = {
 final _reference = RegExp(r'^[@?][\w.:+-]*(?:/[\w.$]+|[\w.]|\$[\w.$]*)$');
 
 class _AndroidParser {
-  new(this.tree, this.quantities) : source = tree.source;
+  new(this.tree, this.quantities, {required this.oneIsOnlyOne})
+    : source = tree.source;
 
   final XmlTree tree;
   final String source;
@@ -81,8 +90,18 @@ class _AndroidParser {
   /// The plural quantities of the target language (null: keep the
   /// source's).
   final List<String>? quantities;
+
+  /// Whether the target language's `one` category covers only `n = 1`
+  /// (English, German, Polish, Arabic), not numbers such as 21, 31 or 0
+  /// (Russian, Ukrainian, Serbian, French).
+  final bool oneIsOnlyOne;
   final DocumentBuilder builder = DocumentBuilder();
   int _pairs = 0;
+
+  static final RegExp _formatPlaceholder = ProtectedPatterns.combine([
+    LocalisationPatterns.braces,
+    LocalisationPatterns.printf,
+  ]);
 
   ParsedDocument parse() {
     final root = tree.root;
@@ -181,12 +200,23 @@ class _AndroidParser {
       if (quantity == null || item.end == null) return null;
       byQuantity.putIfAbsent(quantity, () => item);
     }
-    if (byQuantity.length == target.length &&
+    final oneItem = byQuantity['one'];
+    final otherItem = byQuantity['other'];
+    // "One file" / "%d files": a `one` category that also counts 21, 31 or 0
+    // needs the placeholders from `other` so format arguments are not lost.
+    final useOtherForOne =
+        !oneIsOnlyOne &&
+        oneItem != null &&
+        otherItem != null &&
+        target.contains('one') &&
+        _placeholders(otherItem).difference(_placeholders(oneItem)).isNotEmpty;
+    if (!useOtherForOne &&
+        byQuantity.length == target.length &&
         target.every(byQuantity.containsKey)) {
       return null;
     }
     final items = values.keys.toList();
-    final fallback = byQuantity['other'] ?? items.last;
+    final fallback = otherItem ?? items.last;
 
     // The layout of the source: the text up to the first item, between
     // items, and after the last one; comments between items move up.
@@ -208,7 +238,9 @@ class _AndroidParser {
       }
     }
     for (final (i, quantity) in target.indexed) {
-      final item = byQuantity[quantity] ?? fallback;
+      final item = quantity == 'one' && useOtherForOne
+          ? otherItem
+          : (byQuantity[quantity] ?? fallback);
       final value = values[item]!;
       nodes
         ..text(i == 0 ? '' : indentation)
@@ -221,6 +253,35 @@ class _AndroidParser {
     return [
       EncodedNode(raw: outer, children: nodes.nodes, encode: (xml) => xml),
     ];
+  }
+
+  /// Format placeholders (`%d`, `%1$s`, `{0}`, ...) in [item]'s text/CDATA
+  /// content (including inside `<xliff:g>` and styling tags, excluding `%%`).
+  Set<String> _placeholders(XmlElement item) {
+    final buffer = StringBuffer();
+    void collect(XmlElement element) {
+      for (final child in element.children) {
+        switch (child) {
+          case MarkupToken(kind: MarkupKind.text):
+            buffer.write(child.raw(source));
+          case MarkupToken(kind: MarkupKind.cdata):
+            final raw = child.raw(source);
+            if (raw.length >= 12) {
+              buffer.write(raw.substring(9, raw.length - 3));
+            }
+          case XmlElement():
+            collect(child);
+          case MarkupToken():
+            break;
+        }
+      }
+    }
+
+    collect(item);
+    return {
+      for (final match in _formatPlaceholder.allMatches(buffer.toString()))
+        if (match.group(0)! != '%%') match.group(0)!,
+    };
   }
 
   /// Nodes for a string value element.

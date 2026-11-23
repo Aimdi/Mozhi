@@ -3,6 +3,7 @@ import 'package:mozhi/phrasebook/models/phrase.dart';
 import 'package:mozhi/practice/data/fsrs.dart';
 import 'package:mozhi/practice/models/practice_card.dart';
 import 'package:mozhi/practice/models/practice_item.dart';
+import 'package:mozhi/practice/models/practice_review_log.dart';
 import 'package:mozhi/practice/models/practice_settings.dart';
 
 final _now = DateTime.utc(2026, 10, 22, 9);
@@ -117,6 +118,93 @@ void main() {
       final empty = PracticeSettings.fromJson(const {'newPerDay': 'x'});
       expect(empty.newCardsPerDay, PracticeSettings.defaultNewCardsPerDay);
       expect(empty.desiredRetention, FsrsScheduler.defaultDesiredRetention);
+      expect(empty.customWeights, isNull);
+      expect(empty.hasCustomWeights, isFalse);
+      expect(empty.effectiveWeights, FsrsScheduler.defaultWeights);
+    });
+
+    test('round-trips valid custom FSRS weights and rejects invalid ones', () {
+      final weights = [for (var i = 0; i < 19; i++) (i + 1) * 0.25];
+      final settings = PracticeSettings(customWeights: weights);
+      expect(settings.hasCustomWeights, isTrue);
+      expect(settings.effectiveWeights, weights);
+      final json = settings.toJson();
+      expect(json['fsrsWeights'], weights);
+      expect(PracticeSettings.fromJson(json), settings);
+
+      final cleared = settings.copyWith(customWeights: () => null);
+      expect(cleared.customWeights, isNull);
+      expect(cleared.hasCustomWeights, isFalse);
+      expect(cleared.toJson().containsKey('fsrsWeights'), isFalse);
+
+      // Wrong length, non-numeric, or non-finite values are ignored.
+      expect(
+        PracticeSettings.fromJson(const {
+          'fsrsWeights': [1.0, 2.0],
+        }).customWeights,
+        isNull,
+      );
+      expect(
+        PracticeSettings.fromJson({
+          'fsrsWeights': List<Object?>.filled(19, 'bad'),
+        }).customWeights,
+        isNull,
+      );
+      expect(
+        PracticeSettings.fromJson({
+          'fsrsWeights': [double.nan, ...List.filled(18, 1)],
+        }).customWeights,
+        isNull,
+      );
+      expect(
+        PracticeSettings.fromJson({
+          'fsrsWeights': [double.infinity, ...List.filled(18, 1)],
+        }).customWeights,
+        isNull,
+      );
+    });
+  });
+
+  group(PracticeReviewLog, () {
+    test('round-trips JSON and enforces required fields', () {
+      final log = PracticeReviewLog(
+        cardKey: 'h:1#r',
+        rating: FsrsRating.good,
+        elapsedDays: 4.5,
+        state: FsrsState.review,
+        reviewedAt: _now,
+      );
+      expect(PracticeReviewLog.fromJson(log.toJson()), log);
+      expect(
+        () => PracticeReviewLog.fromJson(const {'cardKey': ''}),
+        throwsFormatException,
+      );
+      expect(
+        () => PracticeReviewLog.fromJson({...log.toJson(), 'rating': 9}),
+        throwsFormatException,
+      );
+      expect(
+        () => PracticeReviewLog.fromJson({...log.toJson(), 'elapsedDays': -1}),
+        throwsFormatException,
+      );
+      expect(
+        () => PracticeReviewLog.fromJson({
+          ...log.toJson(),
+          'elapsedDays': double.nan,
+        }),
+        throwsFormatException,
+      );
+      expect(
+        () => PracticeReviewLog.fromJson({...log.toJson(), 'state': 'unknown'}),
+        throwsFormatException,
+      );
+      expect(
+        () => PracticeReviewLog.fromJson({
+          ...log.toJson(),
+          'reviewedAt': 'not-a-date',
+        }),
+        throwsFormatException,
+      );
     });
   });
 

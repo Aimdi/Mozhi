@@ -63,7 +63,7 @@ EXCLUDED_FILES = {WORKER, MANIFEST, "flutter_service_worker.js"}
 EXCLUDED_SUFFIXES = (".map", ".symbols")
 # Model mirrors next to the app (tool/mirror_models.py's `models/`).
 EXCLUDED_DIRS = ("models/",)
-ENGINE_DIR = "bergamot/"
+ENGINE_DIRS = ("bergamot/", "llama/")
 
 LAZY_DIRS = ("fallback_fonts/", "canvaskit/webparagraph/", "canvaskit/chromium/")
 # CanvasKit's full variant (browsers without the Chromium variant's needs).
@@ -104,10 +104,11 @@ def listed(path: str) -> bool:
         return False
     if path.startswith(EXCLUDED_DIRS):
         return False
-    # The engine's files sit directly in bergamot/; anything in a folder
-    # below it is a model (the "This web server" mirror layout).
-    if path.startswith(ENGINE_DIR) and "/" in path[len(ENGINE_DIR) :]:
-        return False
+    # The engines' files sit directly in bergamot/ or llama/; anything in a
+    # folder below them is a model (the "This web server" mirror layout).
+    for engine_dir in ENGINE_DIRS:
+        if path.startswith(engine_dir) and "/" in path[len(engine_dir) :]:
+            return False
     return True
 
 

@@ -2,6 +2,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:mozhi/platform/clipboard_service.dart';
+import 'package:mozhi/platform/web_share.dart';
 import 'package:share_plus/share_plus.dart';
 
 /// A file chosen by the user.
@@ -127,7 +128,7 @@ class PlatformDocumentFileService implements DocumentFileService {
 
   @override
   bool get canShareFiles =>
-      kIsWeb || defaultTargetPlatform != TargetPlatform.linux;
+      kIsWeb ? canShareText : defaultTargetPlatform != TargetPlatform.linux;
 
   @override
   Future<void> shareFile({

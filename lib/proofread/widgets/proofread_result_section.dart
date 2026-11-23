@@ -11,6 +11,7 @@ import 'package:mozhi/core/widgets/consent_prompt.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/platform/clipboard_service.dart';
+import 'package:mozhi/platform/web_share.dart';
 import 'package:mozhi/proofread/cubit/proofread_cubit.dart';
 import 'package:mozhi/proofread/models/proofread_diff.dart';
 import 'package:mozhi/proofread/models/proofread_rephrasing.dart';
@@ -493,15 +494,16 @@ class _ProofreadResultCardState extends State<ProofreadResultCard> {
                   clean ? l10n.proofreadCopyText : l10n.proofreadCopyCorrected,
                 ),
               ),
-              Builder(
-                builder: (buttonContext) => XActionButton(
-                  icon: Icons.ios_share_rounded,
-                  tooltip: l10n.commonShare,
-                  onPressed: output.isEmpty
-                      ? null
-                      : () => unawaited(_share(buttonContext, output)),
+              if (canShareText)
+                Builder(
+                  builder: (buttonContext) => XActionButton(
+                    icon: Icons.ios_share_rounded,
+                    tooltip: l10n.commonShare,
+                    onPressed: output.isEmpty
+                        ? null
+                        : () => unawaited(_share(buttonContext, output)),
+                  ),
                 ),
-              ),
               OutlinedButton.icon(
                 // Replacing newer input with an older result would silently
                 // discard what the user typed since.

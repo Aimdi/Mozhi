@@ -349,8 +349,45 @@ class CommandLineTest(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(out.strip(), 'https://kaikki.org/dictionary/Spanish/'
                          'kaikki.org-dictionary-Spanish.jsonl')
+        code, out, _ = self.run_main('kaikki-url', 'de', '--edition', 'de')
+        self.assertEqual(code, 0)
+        self.assertEqual(out.strip(), 'https://kaikki.org/dewiktionary/German/'
+                         'kaikki.org-dictionary-German.jsonl')
         code, _, err = self.run_main('kaikki-url', 'xx')
         self.assertEqual(code, 1)
+
+    def test_wikdict_and_tatoeba_merge(self):
+        with tempfile.TemporaryDirectory() as directory:
+            wikdict_tei = os.path.join(directory, 'en-fr.tei')
+            with open(wikdict_tei, 'w', encoding='utf-8') as f:
+                f.write(
+                    '<?xml version="1.0" encoding="UTF-8"?>'
+                    '<TEI><text><body><entry>'
+                    '<form><orth>bank</orth></form>'
+                    '<sense><cit type="trans" xml:lang="fr">'
+                    '<quote>banque</quote></cit></sense>'
+                    '</entry></body></text></TEI>'
+                )
+            tatoeba_tsv = os.path.join(directory, 'tatoeba.tsv')
+            with open(tatoeba_tsv, 'w', encoding='utf-8') as f:
+                f.write('bank\tI walked to the bank.\tJe suis allé à la banque.\n')
+            out_path = os.path.join(directory, 'en.mzd')
+            code, _, err = self.run_main(
+                'build', os.path.join(FIXTURES, 'kaikki_en.jsonl'),
+                '--language', 'en', '--output', out_path,
+                '--wikdict', wikdict_tei, '--tatoeba', tatoeba_tsv)
+            self.assertEqual(code, 0, err)
+            with open(out_path, 'rb') as f:
+                pack = packs.Pack(f.read())
+            hits = pack.look_up('bank')
+            self.assertTrue(hits)
+            entry = hits[0][0]
+            self.assertIn(['banque', -1], entry.get('t', {}).get('fr', []))
+            examples = [ex for s in entry['s'] for ex in s.get('x', [])]
+            self.assertTrue(
+                any(ex[0] == 'I walked to the bank.' for ex in examples),
+                examples,
+            )
 
 
 class DartFixtureTest(unittest.TestCase):

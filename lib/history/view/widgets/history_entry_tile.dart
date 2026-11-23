@@ -10,6 +10,7 @@ import 'package:mozhi/core/haptics.dart';
 import 'package:mozhi/core/widgets/x_ui.dart';
 import 'package:mozhi/history/models/history_entry.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/platform/web_share.dart';
 import 'package:mozhi/settings/view/widgets/search_highlight.dart';
 import 'package:mozhi/translate/widgets/output_card.dart' show copyToClipboard;
 import 'package:share_plus/share_plus.dart';
@@ -274,11 +275,12 @@ class _HistoryEntryTileState extends State<HistoryEntryTile> {
       onSelected: _onAction,
       itemBuilder: (context) => [
         _menuItem(_EntryAction.copy, Icons.copy_rounded, l10n.commonCopy),
-        _menuItem(
-          _EntryAction.share,
-          Icons.ios_share_rounded,
-          l10n.commonShare,
-        ),
+        if (canShareText)
+          _menuItem(
+            _EntryAction.share,
+            Icons.ios_share_rounded,
+            l10n.commonShare,
+          ),
         if (widget.onShowDetails != null)
           _menuItem(
             _EntryAction.details,
@@ -333,14 +335,15 @@ class _HistoryEntryTileState extends State<HistoryEntryTile> {
               activeColor: palette.success,
               onPressed: _copy,
             ),
-            Builder(
-              builder: (buttonContext) => XActionButton(
-                icon: Icons.ios_share_rounded,
-                tooltip: l10n.commonShare,
-                onPressed: () =>
-                    unawaited(shareHistoryEntry(buttonContext, entry)),
+            if (canShareText)
+              Builder(
+                builder: (buttonContext) => XActionButton(
+                  icon: Icons.ios_share_rounded,
+                  tooltip: l10n.commonShare,
+                  onPressed: () =>
+                      unawaited(shareHistoryEntry(buttonContext, entry)),
+                ),
               ),
-            ),
             XActionButton(
               icon: Icons.delete_outline,
               tooltip: l10n.commonDelete,
@@ -435,8 +438,9 @@ class _HistoryEntryTileState extends State<HistoryEntryTile> {
                       CustomSemanticsAction(label: favoriteLabel):
                           widget.onToggleFavorite,
                       CustomSemanticsAction(label: l10n.commonCopy): _copy,
-                      CustomSemanticsAction(label: l10n.commonShare): () =>
-                          unawaited(shareHistoryEntry(context, entry)),
+                      if (canShareText)
+                        CustomSemanticsAction(label: l10n.commonShare): () =>
+                            unawaited(shareHistoryEntry(context, entry)),
                       CustomSemanticsAction(label: l10n.phrasebookAdd):
                           ?widget.onAddToPhrasebook,
                     },

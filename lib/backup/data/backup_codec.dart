@@ -6,6 +6,7 @@ import 'package:cryptography/cryptography.dart';
 import 'package:cryptography/dart.dart';
 import 'package:equatable/equatable.dart';
 import 'package:flutter/foundation.dart';
+import 'package:mozhi/backup/data/argon2_worker.dart';
 import 'package:mozhi/backup/data/gzip/backup_gzip.dart';
 import 'package:mozhi/backup/data/passphrase_nfc.dart';
 import 'package:mozhi/backup/models/backup_snapshot.dart';
@@ -80,11 +81,12 @@ class BackupKdf extends Equatable {
   );
 
   /// What new backups use in the web app: 19 MiB, 2 passes, one lane
-  /// (OWASP's minimum for Argon2id). Argon2id runs as JavaScript there,
-  /// in the page (the web build has no worker for it), about five times
-  /// slower than on Android: [standard] would take over ten seconds on a
-  /// mid-range phone's browser, this about two (docs/backup.md). Every
-  /// file records its parameters, so files of either open everywhere.
+  /// (OWASP's minimum for Argon2id). Argon2id runs as JavaScript in a
+  /// Web Worker there (falling back to the page when workers cannot start),
+  /// about five times slower than on Android: [standard] would take over
+  /// ten seconds on a mid-range phone's browser, this about two
+  /// (docs/backup.md). Every file records its parameters, so files of
+  /// either open everywhere.
   static const browser = BackupKdf(
     memory: 19456,
     iterations: 2,
@@ -267,8 +269,8 @@ class BackupHeader extends Equatable {
 ///
 /// The slow parts (Argon2id, gzip, AES) run in a background isolate on
 /// Android ([useIsolate]); in the web app, where there are no isolates,
-/// Argon2id gives the page time between blocks and AES-GCM is the
-/// browser's (Web Crypto).
+/// Argon2id runs in a dedicated Web Worker (falling back to chunked inline
+/// execution) and AES-GCM is the browser's (Web Crypto).
 class BackupCodec {
   const new({this._kdf, this._useIsolate});
 
@@ -361,14 +363,26 @@ class BackupCodec {
     bool asTyped = false,
   }) async {
     final used = parameters ?? kdf;
-    final message = (
-      utf8.encode(asTyped ? passphrase : passphraseNfc(passphrase)),
-      salt,
-      used,
+    final passphraseBytes = utf8.encode(
+      asTyped ? passphrase : passphraseNfc(passphrase),
     );
-    final key = useIsolate
-        ? await compute(_derive, message)
-        : await _derive(message);
+    final Uint8List key;
+    if (kIsWeb) {
+      key =
+          await deriveArgon2idInWorker(
+            passphraseBytes: passphraseBytes,
+            saltBytes: salt,
+            memoryKiB: used.memory,
+            iterations: used.iterations,
+            parallelism: used.parallelism,
+            hashLength: keyLength,
+          ) ??
+          await _derive((passphraseBytes, salt, used));
+    } else if (useIsolate) {
+      key = await compute(_derive, (passphraseBytes, salt, used));
+    } else {
+      key = await _derive((passphraseBytes, salt, used));
+    }
     return BackupKey(key: key, salt: salt, kdf: used);
   }
 

@@ -118,6 +118,9 @@ abstract final class OverlayExport {
   @visibleForTesting
   static OverlayImageRenderer renderer = const UiOverlayImageRenderer();
 
+  /// Whether sharing overlay image files is supported on this platform.
+  static bool get canShare => files.canShareFiles;
+
   /// Name of the saved or shared file.
   static const fileName = 'translated-photo.png';
 }

@@ -12,6 +12,7 @@ import 'package:mozhi/conversation/widgets/conversation_turn_bubble.dart';
 import 'package:mozhi/conversation/widgets/conversation_voice_options.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/platform/clipboard_service.dart';
+import 'package:mozhi/platform/web_share.dart';
 import 'package:share_plus/share_plus.dart';
 
 /// Hands the formatted transcript to the platform share sheet. [origin] is
@@ -213,15 +214,16 @@ class ConversationMenuButton extends StatelessWidget {
             title: Text(l10n.conversationCopyTranscript),
           ),
         ),
-        PopupMenuItem(
-          key: const Key('conversation_menu_share'),
-          value: _MenuAction.share,
-          enabled: !empty,
-          child: ListTile(
-            leading: const Icon(Icons.share_outlined),
-            title: Text(l10n.conversationShareTranscript),
+        if (canShareText)
+          PopupMenuItem(
+            key: const Key('conversation_menu_share'),
+            value: _MenuAction.share,
+            enabled: !empty,
+            child: ListTile(
+              leading: const Icon(Icons.share_outlined),
+              title: Text(l10n.conversationShareTranscript),
+            ),
           ),
-        ),
         PopupMenuItem(
           key: const Key('conversation_menu_clear'),
           value: _MenuAction.clear,

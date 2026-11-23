@@ -8,8 +8,10 @@ import 'package:mozhi/history/data/history_cipher.dart';
 import 'package:mozhi/history/data/history_repository.dart'
     show HistoryRepository;
 import 'package:mozhi/phrasebook/data/phrasebook_repository.dart';
+import 'package:mozhi/practice/data/fsrs_optimizer.dart';
 import 'package:mozhi/practice/models/practice_card.dart';
 import 'package:mozhi/practice/models/practice_item.dart';
+import 'package:mozhi/practice/models/practice_review_log.dart';
 import 'package:mozhi/practice/models/practice_settings.dart';
 
 /// The stored practice progress exists but cannot be decrypted: its key is
@@ -49,6 +51,8 @@ class PracticeDeck {
     required Map<String, int> collectionSizes,
     required this.introducedToday,
     required this.userLanguage,
+    this.reviewLogCount = 0,
+    this.optimizableReviewCount = 0,
   }) : collections = List.unmodifiable(collections),
        items = List.unmodifiable(items),
        collectionSizes = Map.unmodifiable(collectionSizes);
@@ -69,6 +73,12 @@ class PracticeDeck {
 
   /// The user's language ([userLanguageOf]).
   final String userLanguage;
+
+  /// Total review logs stored on this device.
+  final int reviewLogCount;
+
+  /// How many stored review logs are evaluable by [FsrsOptimizer].
+  final int optimizableReviewCount;
 
   /// How many new cards may still be introduced today.
   int get newAllowance =>
@@ -153,6 +163,7 @@ class PracticeRepository {
     DateTime Function()? clock,
     this.maxTombstones = 5000,
     this.tombstoneMaxAge = const Duration(days: 180),
+    this.maxReviewLogs = defaultMaxReviewLogs,
   }) : store = store ?? PreferencesStore(),
        cipher = cipher ?? const HistoryCipher(),
        _clock = clock ?? DateTime.now {
@@ -176,6 +187,9 @@ class PracticeRepository {
   /// The version of the stored document and of [exportBackup]'s data.
   static const backupVersion = 1;
 
+  /// Review logs kept at most (newest first when pruned).
+  static const defaultMaxReviewLogs = 5000;
+
   final PhrasebookRepository phrasebook;
   final KeyValueStore store;
 
@@ -190,6 +204,9 @@ class PracticeRepository {
 
   /// How long tombstones are kept.
   final Duration tombstoneMaxAge;
+
+  /// Review logs kept at most.
+  final int maxReviewLogs;
 
   final DateTime Function() _clock;
   final StreamController<void> _changes = StreamController.broadcast();
@@ -256,7 +273,8 @@ class PracticeRepository {
       }
     }
     await _removeOrphans(collections, everything);
-    final cards = (await _synchronized(_current)).cards;
+    final current = await _synchronized(_current);
+    final cards = current.cards;
     final user = userLanguageOf(memberships.values, appLanguage);
     final items = <PracticeItem>[
       for (final phrase in memberships.values)
@@ -277,6 +295,10 @@ class PracticeRepository {
       collectionSizes: sizes,
       introducedToday: _introducedOn(cards.values, now),
       userLanguage: user,
+      reviewLogCount: current.reviews.length,
+      optimizableReviewCount: FsrsOptimizer.countEvaluableReviews(
+        current.reviews,
+      ),
     );
     if (onlyCollection == null && settings == null) {
       _setDueCount(deck.due(now).length);
@@ -321,6 +343,45 @@ class PracticeRepository {
     }
     progress.tombstones.remove(card.id);
   }, refresh: true);
+
+  /// Stores a reviewed [card] and appends its [log] (capped at
+  /// [maxReviewLogs]).
+  Future<void> review(PracticeCard card, PracticeReviewLog log) =>
+      _mutate((progress) {
+        if (card.isNew) {
+          progress.cards.remove(card.id);
+        } else {
+          progress.cards[card.id] = card;
+        }
+        progress.tombstones.remove(card.id);
+        progress.reviews.add(log);
+      }, refresh: true);
+
+  /// Restores [card] after undoing a review and removes [undone] from the
+  /// stored review logs when present.
+  Future<void> undoReview(PracticeCard card, PracticeReviewLog undone) =>
+      _mutate((progress) {
+        if (card.isNew) {
+          progress.cards.remove(card.id);
+        } else {
+          progress.cards[card.id] = card;
+        }
+        progress.tombstones.remove(card.id);
+        for (var i = progress.reviews.length - 1; i >= 0; i--) {
+          if (progress.reviews[i] == undone) {
+            progress.reviews.removeAt(i);
+            break;
+          }
+        }
+      }, refresh: true);
+
+  /// The stored review logs, oldest first.
+  Future<List<PracticeReviewLog>> reviewLogs() async =>
+      List.unmodifiable((await _synchronized(_current)).reviews);
+
+  /// How many review logs are stored.
+  Future<int> reviewLogCount() async =>
+      (await _synchronized(_current)).reviews.length;
 
   /// The stored (reviewed) cards, by id.
   Future<Map<String, PracticeCard>> cards() async =>
@@ -403,7 +464,9 @@ class PracticeRepository {
         ..cards.clear()
         ..cards.addAll(next.cards)
         ..tombstones.clear()
-        ..tombstones.addAll(next.tombstones);
+        ..tombstones.addAll(next.tombstones)
+        ..reviews.clear()
+        ..reviews.addAll(next.reviews);
     }, refresh: true);
   }
 
@@ -550,7 +613,12 @@ class PracticeRepository {
       final current = await _current();
       final next = current.copy();
       change(next);
-      next.prune(_clock().toUtc(), tombstoneMaxAge, maxTombstones);
+      next.prune(
+        _clock().toUtc(),
+        tombstoneMaxAge,
+        maxTombstones,
+        maxReviewLogs,
+      );
       final key = await _writeKey();
       await store.write(
         storageKey,
@@ -573,14 +641,16 @@ class PracticeRepository {
   }
 }
 
-/// The stored document: settings, reviewed cards and tombstones.
+/// The stored document: settings, reviewed cards, tombstones and review logs.
 final class _Progress {
   new({
     this.settings = const PracticeSettings(),
     Map<String, PracticeCard>? cards,
     Map<String, DateTime>? tombstones,
+    List<PracticeReviewLog>? reviews,
   }) : cards = cards ?? {},
-       tombstones = tombstones ?? {};
+       tombstones = tombstones ?? {},
+       reviews = reviews ?? [];
 
   factory fromJson(Map<String, Object?> json) {
     final settings = json['settings'];
@@ -603,12 +673,26 @@ final class _Progress {
         if (key is String && time != null) tombstones[key] = time.toUtc();
       }
     }
+    final reviews = <PracticeReviewLog>[];
+    if (json['reviews'] case final List<Object?> list) {
+      for (final item in list) {
+        if (item is! Map) continue;
+        try {
+          reviews.add(
+            PracticeReviewLog.fromJson(Map<String, Object?>.from(item)),
+          );
+        } on Object {
+          // An invalid review log is skipped.
+        }
+      }
+    }
     return _Progress(
       settings: settings is Map
           ? PracticeSettings.fromJson(Map<String, Object?>.from(settings))
           : const PracticeSettings(),
       cards: cards,
       tombstones: tombstones,
+      reviews: reviews,
     );
   }
 
@@ -638,30 +722,48 @@ final class _Progress {
     final settings = theirs != null && (mine == null || theirs.isAfter(mine))
         ? incoming.settings
         : local.settings;
-    return _Progress(settings: settings, cards: cards, tombstones: tombstones);
+    final reviews = <PracticeReviewLog>[...local.reviews];
+    final seen = local.reviews.toSet();
+    for (final log in incoming.reviews) {
+      if (seen.add(log)) reviews.add(log);
+    }
+    reviews.sort((a, b) => a.reviewedAt.compareTo(b.reviewedAt));
+    return _Progress(
+      settings: settings,
+      cards: cards,
+      tombstones: tombstones,
+      reviews: reviews,
+    );
   }
 
   PracticeSettings settings;
   final Map<String, PracticeCard> cards;
   final Map<String, DateTime> tombstones;
+  final List<PracticeReviewLog> reviews;
 
   _Progress copy() => _Progress(
     settings: settings,
     cards: {...cards},
     tombstones: {...tombstones},
+    reviews: [...reviews],
   );
 
-  /// Drops tombstones older than [maxAge] at [now], and the oldest beyond
-  /// [max].
-  void prune(DateTime now, Duration maxAge, int max) {
+  /// Drops tombstones older than [maxAge] at [now], keeps at most
+  /// [maxTombstones] newest tombstones, and caps [reviews] to the most recent
+  /// [maxReviews].
+  void prune(DateTime now, Duration maxAge, int maxTombstones, int maxReviews) {
     final cutoff = now.subtract(maxAge);
     tombstones.removeWhere((_, time) => time.isBefore(cutoff));
-    if (tombstones.length <= max) return;
-    final sorted = tombstones.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-    tombstones
-      ..clear()
-      ..addEntries(sorted.take(max));
+    if (tombstones.length > maxTombstones) {
+      final sorted = tombstones.entries.toList()
+        ..sort((a, b) => b.value.compareTo(a.value));
+      tombstones
+        ..clear()
+        ..addEntries(sorted.take(maxTombstones));
+    }
+    if (reviews.length > maxReviews) {
+      reviews.removeRange(0, reviews.length - maxReviews);
+    }
   }
 
   Map<String, Object?> toJson() => {
@@ -672,5 +774,7 @@ final class _Progress {
       for (final MapEntry(:key, :value) in tombstones.entries)
         key: value.toUtc().toIso8601String(),
     },
+    if (reviews.isNotEmpty)
+      'reviews': [for (final log in reviews) log.toJson()],
   };
 }

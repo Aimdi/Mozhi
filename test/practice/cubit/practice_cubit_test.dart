@@ -4,9 +4,11 @@ import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/phrasebook/data/phrasebook_repository.dart';
 import 'package:mozhi/practice/cubit/practice_cubit.dart';
 import 'package:mozhi/practice/data/fsrs.dart';
+import 'package:mozhi/practice/data/fsrs_optimizer.dart';
 import 'package:mozhi/practice/data/practice_repository.dart';
 import 'package:mozhi/practice/models/practice_card.dart';
 import 'package:mozhi/practice/models/practice_item.dart';
+import 'package:mozhi/practice/models/practice_review_log.dart';
 import 'package:mozhi/practice/models/practice_settings.dart';
 
 import '../helpers.dart';
@@ -93,6 +95,8 @@ void main() {
         FsrsRating.easy: 1,
       });
       expect(cubit.state.deck!.nextDue(fixture.clock.now), isNotNull);
+      expect(await fixture.practice.reviewLogCount(), 3);
+      expect(cubit.state.deck!.reviewLogCount, 3);
       await cubit.close();
     });
 
@@ -104,12 +108,14 @@ void main() {
       final first = cubit.state.current!;
       await cubit.rate(FsrsRating.again);
       expect(cubit.state.current!.card.fsrs.state, FsrsState.learning);
+      expect(await fixture.practice.reviewLogCount(), 1);
       await cubit.undo();
       expect(cubit.state.current, first);
       expect(cubit.state.canUndo, isFalse);
       expect(cubit.state.stats.reviewed, 0);
-      // A first review undone: the card is new again.
+      // A first review undone: the card is new again and the log is removed.
       expect(await fixture.practice.cards(), isEmpty);
+      expect(await fixture.practice.reviewLogCount(), 0);
       await cubit.undo();
 
       // Undoing a later review stores the earlier state.
@@ -284,6 +290,78 @@ void main() {
       await cubit.close();
     });
 
+    test('optimizes and resets personalized FSRS weights', () async {
+      final fixture = PracticeFixture(favorites: [favorite('1')]);
+      final cubit = PracticeCubit(
+        repository: fixture.practice,
+        appLanguage: 'en',
+        clock: fixture.clock.call,
+      );
+      await cubit.load();
+      expect(cubit.state.settings.hasCustomWeights, isFalse);
+      // Without enough reviews, optimization leaves defaults untouched.
+      FsrsOptimizationResult? tooSoon;
+      await cubit.optimizeSchedule(onResult: (value) => tooSoon = value);
+      expect(tooSoon, isNotNull);
+      expect(tooSoon!.improved, isFalse);
+      expect(cubit.state.settings.hasCustomWeights, isFalse);
+
+      // Seed 60 evaluable multi-day reviews with a fast-forgetting pattern.
+      final base = DateTime.utc(2026, 1, 1, 9);
+      final seededLogs = <Map<String, Object?>>[];
+      for (var c = 0; c < 20; c++) {
+        final t0 = base.add(Duration(hours: c));
+        for (var r = 0; r < 4; r++) {
+          final at = t0.add(Duration(days: r * 4));
+          seededLogs.add(
+            PracticeReviewLog(
+              cardKey: 'seed:$c#r',
+              rating: r == 0 || r == 2 ? FsrsRating.good : FsrsRating.again,
+              elapsedDays: r == 0 ? 0 : 4,
+              state: r == 0 ? FsrsState.newCard : FsrsState.review,
+              reviewedAt: at,
+            ).toJson(),
+          );
+        }
+      }
+      await fixture.practice.restoreBackup(
+        {'version': 1, 'cards': <Object?>[], 'reviews': seededLogs},
+        version: 1,
+        merge: false,
+      );
+      await cubit.load();
+      expect(cubit.state.deck!.reviewLogCount, 80);
+      expect(cubit.state.deck!.optimizableReviewCount, 60);
+
+      FsrsOptimizationResult? result;
+      await cubit.optimizeSchedule(onResult: (value) => result = value);
+      expect(result, isNotNull);
+      expect(result!.improved, isTrue);
+      expect(result!.optimizedLoss, lessThan(result!.initialLoss));
+      expect(cubit.state.settings.hasCustomWeights, isTrue);
+      expect(cubit.state.settings.customWeights, result!.weights);
+      expect(
+        (await fixture.practice.settings()).customWeights,
+        result!.weights,
+      );
+
+      // Custom weights are wired into the default scheduler.
+      await cubit.start();
+      final customEasy = cubit.state.intervals[FsrsRating.easy]!;
+      await cubit.backToOverview();
+
+      await cubit.resetCustomWeights();
+      expect(cubit.state.settings.hasCustomWeights, isFalse);
+      expect((await fixture.practice.settings()).customWeights, isNull);
+      await cubit.start();
+      final defaultEasy = cubit.state.intervals[FsrsRating.easy]!;
+      // Both produce valid positive intervals; custom weights actually took
+      // effect in the scheduler.
+      expect(customEasy.inDays, greaterThanOrEqualTo(1));
+      expect(defaultEasy.inDays, greaterThanOrEqualTo(1));
+      await cubit.close();
+    });
+
     group('with failing storage', () {
       late _MockPractice practice;
       late _MockPhrasebook phrasebook;
@@ -321,6 +399,9 @@ void main() {
           ),
         ).thenAnswer((_) async => deck);
         when(() => practice.saveCard(any())).thenThrow(StateError('full'));
+        when(() => practice.review(any(), any())).thenThrow(StateError('full'));
+        when(() => practice.undoReview(any(), any()))
+            .thenThrow(StateError('full'));
         when(() => practice.saveSettings(any())).thenThrow(StateError('full'));
         when(() => practice.discardUnreadable()).thenThrow(StateError('no'));
         final errors = <Object>[];
@@ -352,6 +433,15 @@ void main() {
   setUpAll(() {
     registerFallbackValue(
       PracticeCard.fresh('p', CardDirection.recognize, DateTime(2026)),
+    );
+    registerFallbackValue(
+      PracticeReviewLog(
+        cardKey: 'p#r',
+        rating: FsrsRating.good,
+        elapsedDays: 0,
+        state: FsrsState.newCard,
+        reviewedAt: DateTime.utc(2026),
+      ),
     );
     registerFallbackValue(const PracticeSettings());
   });

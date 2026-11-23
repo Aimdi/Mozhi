@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app_lock/view/app_lock_settings_tile.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/notification_translate/view/notification_translate_settings.dart';
 import 'package:mozhi/pairing/view/pairing_entries.dart' show PairingAnchors;
 import 'package:mozhi/pairing/view/pairing_unavailable.dart'
     show isPairingSupported;
@@ -110,6 +111,15 @@ List<SettingsSearchEntry> settingsSearchIndex(
           l10n.settingsScreenTranslateKeywords,
         ],
       ),
+    entry(
+      general,
+      NotificationTranslateAnchors.translateNotifications,
+      l10n.settingsNotificationTranslate,
+      subtitle: NotificationTranslateSettingsSection.supported()
+          ? l10n.settingsNotificationTranslateSubtitle
+          : l10n.settingsNotificationTranslateUnavailable,
+      keywords: [l10n.settingsAndroidIntegration],
+    ),
     entry(
       privacy,
       PrivacyAnchors.privacyMode,

@@ -7,6 +7,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/app/router.dart' show AppRoutes;
 import 'package:mozhi/app/view/app_shell.dart' show AppDestination;
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/notification_translate/view/notification_translate_settings.dart';
 import 'package:mozhi/screen_translate/view/screen_translate_settings.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
 import 'package:mozhi/settings/models/app_languages.dart';
@@ -95,7 +96,11 @@ class GeneralSettings extends StatelessWidget {
     );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [general, const ScreenTranslateSettingsSection()],
+      children: [
+        general,
+        const ScreenTranslateSettingsSection(),
+        const NotificationTranslateSettingsSection(),
+      ],
     );
   }
 }

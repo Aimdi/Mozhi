@@ -368,6 +368,7 @@ void main() {
         // foreground service) and the opt-in bubble (Display over other
         // apps, a specialUse foreground service, its notification).
         'android.permission.FOREGROUND_SERVICE',
+        'android.permission.FOREGROUND_SERVICE_DATA_SYNC',
         'android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION',
         'android.permission.FOREGROUND_SERVICE_SPECIAL_USE',
         'android.permission.SYSTEM_ALERT_WINDOW',

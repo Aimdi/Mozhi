@@ -55,8 +55,10 @@ void main() {
       expect(parsed.models.map((m) => m.id), [
         'tiny',
         'base-q5_1',
+        'base-q8_0',
         'base',
         'small-q5_1',
+        'small-q8_0',
         'large-v3-turbo-q5_0',
       ]);
       // whisper.cpp v1.9.5 models/README.md lists the turbo q5_0 SHA-1.
@@ -64,6 +66,7 @@ void main() {
       expect(turbo.sha1, 'e050f7970618a659205450ad97eb95a18d69c9ee');
       expect(turbo.minRamMb, 7000);
       expect(parsed.model('small-q5_1')!.minRamMb, 3000);
+      expect(parsed.model('small-q8_0')!.minRamMb, 3500);
       // The quantized files are pinned to a commit of the repository.
       expect(
         parsed.model('base-q5_1')!.url.path,
@@ -140,7 +143,7 @@ void main() {
       final loaded = await loadBundledWhisperCatalog(
         bundle: _StringBundle({WhisperModelCatalog.assetKey: source}),
       );
-      expect(loaded.models, hasLength(5));
+      expect(loaded.models, hasLength(7));
     });
 
     test('parses optional fields', () {

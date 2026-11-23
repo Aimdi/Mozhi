@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/platform/clipboard_service.dart';
+import 'package:mozhi/platform/web_share.dart';
 import 'package:share_plus/share_plus.dart';
 
 /// Signature of [PresetsShare.share].
@@ -74,12 +75,13 @@ Future<void> showExportSheet(
             title: Text(l10n.presetsCopyJson),
             onTap: () => Navigator.of(context).pop(_ExportChoice.copy),
           ),
-          ListTile(
-            key: const Key('presets_export_share'),
-            leading: const Icon(Icons.share_outlined),
-            title: Text(l10n.presetsShareFile),
-            onTap: () => Navigator.of(context).pop(_ExportChoice.share),
-          ),
+          if (canShareText)
+            ListTile(
+              key: const Key('presets_export_share'),
+              leading: const Icon(Icons.share_outlined),
+              title: Text(l10n.presetsShareFile),
+              onTap: () => Navigator.of(context).pop(_ExportChoice.share),
+            ),
           const SizedBox(height: 8),
         ],
       ),

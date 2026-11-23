@@ -11,6 +11,7 @@ import 'package:mozhi/history/cubit/history_cubit.dart';
 import 'package:mozhi/history/data/history_repository.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/platform/clipboard_service.dart';
+import 'package:mozhi/platform/web_share.dart';
 import 'package:mozhi/settings/models/settings_category.dart';
 import 'package:mozhi/settings/view/categories/backup_settings.dart'
     show BackupAnchors;
@@ -73,11 +74,12 @@ Future<void> showExportHistorySheet(BuildContext context) async {
             title: Text(l10n.settingsExportCopy),
             onTap: () => Navigator.of(context).pop(_ExportChoice.copy),
           ),
-          ListTile(
-            leading: const Icon(Icons.share_outlined),
-            title: Text(l10n.settingsExportShare),
-            onTap: () => Navigator.of(context).pop(_ExportChoice.share),
-          ),
+          if (canShareText)
+            ListTile(
+              leading: const Icon(Icons.share_outlined),
+              title: Text(l10n.settingsExportShare),
+              onTap: () => Navigator.of(context).pop(_ExportChoice.share),
+            ),
           ListTile(
             key: const Key('settings_export_use_backup'),
             leading: const Icon(Icons.lock_outline),

@@ -14,6 +14,7 @@ import 'package:mozhi/practice/data/fsrs.dart';
 import 'package:mozhi/practice/data/practice_repository.dart';
 import 'package:mozhi/practice/data/practice_speech.dart';
 import 'package:mozhi/practice/models/practice_card.dart';
+import 'package:mozhi/practice/models/practice_review_log.dart';
 import 'package:mozhi/practice/models/practice_settings.dart';
 import 'package:mozhi/practice/view/practice_page.dart';
 import 'package:mozhi/practice/widgets/anki_export_sheet.dart';
@@ -850,6 +851,70 @@ void main() {
     await tester.pumpAndSettle();
     expect(opened, 'c:2');
     expect(PracticePage.locationFor(), '/practice');
+  });
+
+  testWidgets('personalize schedule explains progress, fits and resets', (
+    tester,
+  ) async {
+    final fixture = _fixture(favorites: 1);
+    final harness = _Harness(fixture);
+    await harness.pump(tester);
+    final tile = find.byKey(const Key('practice_personalize_schedule'));
+    await bringIntoView(tester, tile);
+    expect(find.text('Personalize schedule'), findsOneWidget);
+    expect(find.textContaining('Complete 50 more reviews'), findsOneWidget);
+    expect(find.byKey(const Key('practice_personalize_run')), findsNothing);
+    expect(find.byKey(const Key('practice_reset_weights')), findsNothing);
+
+    // Seed 60 evaluable reviews with a faster-forgetting pattern.
+    final base = DateTime.utc(2026, 1, 1, 9);
+    final seededLogs = <Map<String, Object?>>[];
+    for (var c = 0; c < 20; c++) {
+      final t0 = base.add(Duration(hours: c));
+      for (var r = 0; r < 4; r++) {
+        seededLogs.add(
+          PracticeReviewLog(
+            cardKey: 'seed:$c#r',
+            rating: r == 0 || r == 2 ? FsrsRating.good : FsrsRating.again,
+            elapsedDays: r == 0 ? 0 : 4,
+            state: r == 0 ? FsrsState.newCard : FsrsState.review,
+            reviewedAt: t0.add(Duration(days: r * 4)),
+          ).toJson(),
+        );
+      }
+    }
+    await tester.runAsync(
+      () => fixture.practice.restoreBackup(
+        {'version': 1, 'cards': <Object?>[], 'reviews': seededLogs},
+        version: 1,
+        merge: false,
+      ),
+    );
+    await _Harness(fixture).pump(tester);
+    await bringIntoView(
+      tester,
+      find.byKey(const Key('practice_personalize_run')),
+    );
+    expect(find.textContaining('60 reviews'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('practice_personalize_run')));
+    await settle(tester);
+    expect(find.textContaining('better fit'), findsOneWidget);
+    final resetTile = find.byKey(const Key('practice_reset_weights'));
+    await bringIntoView(tester, resetTile);
+    expect(resetTile, findsOneWidget);
+    expect(
+      (await tester.runAsync(fixture.practice.settings))!.hasCustomWeights,
+      isTrue,
+    );
+
+    await tester.tap(resetTile);
+    await settle(tester);
+    expect(find.byKey(const Key('practice_reset_weights')), findsNothing);
+    expect(
+      (await tester.runAsync(fixture.practice.settings))!.hasCustomWeights,
+      isFalse,
+    );
   });
 }
 

@@ -263,9 +263,18 @@ void main() {
         constant('MAX_TEXT_LINE_CHARS').replaceAll('_', ''),
         '${PdfLimits.maxTextLineLength}',
       );
-      // The text layer only on Android 15 and later.
+      // The text layer on Android 15+ and via PdfRendererPreV on Android 12–14.
       expect(constant('SDK'), '35');
-      expect(kotlin, contains('Build.VERSION.SDK_INT < TextLayer.SDK'));
+      expect(constant('PRE_V_MIN_SDK'), '31');
+      expect(kotlin, contains('Build.VERSION.SDK_INT >= TextLayer.SDK'));
+      expect(
+        kotlin,
+        contains(
+          'Build.VERSION.SDK_INT in '
+          'TextLayer.PRE_V_MIN_SDK until TextLayer.SDK',
+        ),
+      );
+      expect(kotlin, contains('android.graphics.pdf.PdfRendererPreV'));
       // Password-protected files are refused, not opened.
       expect(kotlin, contains('catch (e: SecurityException)'));
       expect(kotlin, contains('"encrypted"'));

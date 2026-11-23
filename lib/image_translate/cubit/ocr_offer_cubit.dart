@@ -9,6 +9,8 @@ import 'package:mozhi/offline/cubit/offline_models_cubit.dart'
     show OfflineModelsCubit;
 import 'package:mozhi/offline/data/offline_model_error.dart';
 import 'package:mozhi/offline/data/offline_model_file_picker.dart';
+import 'package:translation_repository/translation_repository.dart'
+    show OfflineDownloadCancelledException;
 
 export 'ocr_offer_state.dart';
 
@@ -25,7 +27,7 @@ class OcrOfferCubit extends Cubit<OcrOfferState> {
     required this.language,
     required this._store,
     this._picker = const OfflineModelFilePicker(),
-  }) : super(const OcrOfferState()) {
+  }) : super(OcrOfferState(canCancel: _data is CancellableOcrDownloads)) {
     _changes = _data.ocrLanguagesChanged.listen((_) => unawaited(_refresh()));
   }
 
@@ -51,6 +53,7 @@ class OcrOfferCubit extends Cubit<OcrOfferState> {
         progress: () => null,
         error: () => null,
         importReport: () => null,
+        cancelling: false,
       ),
     );
     final wifiOnly = !overMeteredNetwork && await _readWifiOnly();
@@ -60,25 +63,67 @@ class OcrOfferCubit extends Cubit<OcrOfferState> {
         wifiOnly: wifiOnly,
         onProgress: _reportProgress,
       );
+    } on OfflineDownloadCancelledException {
+      if (isClosed) return;
+      emit(
+        state.copyWith(
+          status: OcrOfferStatus.idle,
+          progress: () => null,
+          error: () => null,
+          cancelling: false,
+        ),
+      );
+      return;
     } on Object catch (error, stackTrace) {
-      final failure = OfflineModelError.of(error);
-      if (failure.kind != OfflineModelErrorKind.metered) {
-        addError(error, stackTrace);
+      final wasCancelling = state.cancelling;
+      if (!wasCancelling) {
+        final failure = OfflineModelError.of(error);
+        if (failure.kind != OfflineModelErrorKind.metered) {
+          addError(error, stackTrace);
+        }
+        if (isClosed) return;
+        emit(
+          state.copyWith(
+            status: OcrOfferStatus.idle,
+            progress: () => null,
+            error: () => failure,
+            cancelling: false,
+          ),
+        );
+        return;
       }
       if (isClosed) return;
       emit(
         state.copyWith(
           status: OcrOfferStatus.idle,
           progress: () => null,
-          error: () => failure,
+          error: () => null,
+          cancelling: false,
         ),
       );
       return;
     }
     if (isClosed) return;
     emit(
-      state.copyWith(status: OcrOfferStatus.installed, progress: () => null),
+      state.copyWith(
+        status: OcrOfferStatus.installed,
+        progress: () => null,
+        cancelling: false,
+      ),
     );
+  }
+
+  /// Cancels the running download, keeping the partial file so a later
+  /// download can resume from where it stopped.
+  Future<void> cancelDownload() async {
+    final data = _data;
+    if (data is! CancellableOcrDownloads || !state.canCancelDownload) return;
+    emit(state.copyWith(cancelling: true));
+    try {
+      await data.cancelOcrDownload(language.code);
+    } on Object catch (error, stackTrace) {
+      addError(error, stackTrace);
+    }
   }
 
   /// Lets the user pick files (e.g. `deu.traineddata` downloaded on

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mozhi/l10n/l10n.dart';
+import 'package:mozhi/platform/web_share.dart';
 import 'package:mozhi/settings/view/widgets/link_launcher.dart';
 import 'package:mozhi/translate/widgets/output_card.dart';
 import 'package:mozhi/web_translate/core/readable_extractor.dart';
@@ -281,31 +282,32 @@ class WebTranslateActions extends StatelessWidget {
             copyToClipboard(context, state.plainText(translated: translated)),
           ),
         ),
-        Builder(
-          builder: (buttonContext) => IconButton(
-            key: const Key('web_translate_share_button'),
-            tooltip: l10n.commonShare,
-            icon: const Icon(Icons.share_outlined),
-            onPressed: () {
-              final box = buttonContext.findRenderObject() as RenderBox?;
-              final origin = box == null || !box.hasSize
-                  ? null
-                  : box.localToGlobal(Offset.zero) & box.size;
-              final text = state.plainText(translated: translated);
-              unawaited(
-                WebTranslateShare.share(
-                  ShareParams(
-                    text: uri == null ? text : '$text\n\n$uri',
-                    subject: translated
-                        ? state.displayTitle
-                        : state.page?.title,
-                    sharePositionOrigin: origin,
+        if (canShareText)
+          Builder(
+            builder: (buttonContext) => IconButton(
+              key: const Key('web_translate_share_button'),
+              tooltip: l10n.commonShare,
+              icon: const Icon(Icons.share_outlined),
+              onPressed: () {
+                final box = buttonContext.findRenderObject() as RenderBox?;
+                final origin = box == null || !box.hasSize
+                    ? null
+                    : box.localToGlobal(Offset.zero) & box.size;
+                final text = state.plainText(translated: translated);
+                unawaited(
+                  WebTranslateShare.share(
+                    ShareParams(
+                      text: uri == null ? text : '$text\n\n$uri',
+                      subject: translated
+                          ? state.displayTitle
+                          : state.page?.title,
+                      sharePositionOrigin: origin,
+                    ),
                   ),
-                ),
-              );
-            },
+                );
+              },
+            ),
           ),
-        ),
       ],
     );
   }

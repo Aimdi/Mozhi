@@ -63,11 +63,24 @@ SOURCES: list[dict] = [
         "parameters": 74000000,
     },
     {
+        "id": "base-q8_0",
+        "file": "ggml-base-q8_0.bin",
+        "multilingual": True,
+        "parameters": 74000000,
+    },
+    {
         "id": "small-q5_1",
         "file": "ggml-small-q5_1.bin",
         "multilingual": True,
         "parameters": 244000000,
         "minRamMb": 3000,
+    },
+    {
+        "id": "small-q8_0",
+        "file": "ggml-small-q8_0.bin",
+        "multilingual": True,
+        "parameters": 244000000,
+        "minRamMb": 3500,
     },
     {
         "id": "large-v3-turbo-q5_0",
@@ -82,11 +95,19 @@ SOURCES: list[dict] = [
 # Speech models in catalogue order (fastest first, most accurate last: the
 # app uses the last installed one by default); others keep their places
 # after these, the voice activity model last.
-ORDER = ["tiny", "base-q5_1", "base", "small-q5_1", "large-v3-turbo-q5_0"]
+ORDER = [
+    "tiny",
+    "base-q5_1",
+    "base-q8_0",
+    "base",
+    "small-q5_1",
+    "small-q8_0",
+    "large-v3-turbo-q5_0",
+]
 
 PROVENANCE = (
     "Quantized models ({ids}): whisper.cpp's quantization of the same "
-    "OpenAI weights (q5_1, q5_0), published in the same repository; url "
+    "OpenAI weights (q5_1, q8_0, q5_0), published in the same repository; url "
     "pinned to commit {commit}, size and sha256 from Hugging Face's API (the "
     "Git LFS object) and checked against the downloaded file, sha1 computed "
     "from it (tool/whisper_catalog.py resolve, in the CI job 'Check model "

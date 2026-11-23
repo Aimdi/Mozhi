@@ -185,4 +185,130 @@ void main() {
       );
     });
   });
+
+  group('Android plurals placeholder safety', () {
+    const missingPlaceholder = r'''
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <plurals name="files">
+        <item quantity="one">One file</item>
+        <item quantity="other">%d files</item>
+    </plurals>
+    <plurals name="braces">
+        <item quantity="one">One item</item>
+        <item quantity="other">{0} items</item>
+    </plurals>
+    <plurals name="xliff_arg">
+        <item quantity="one">One song</item>
+        <item quantity="other"><xliff:g id="count">%1$d</xliff:g> songs</item>
+    </plurals>
+    <plurals name="literal_percent">
+        <item quantity="one">One item (100%%)</item>
+        <item quantity="other">Many items (100%%)</item>
+    </plurals>
+</resources>
+''';
+
+    test(
+      'maps one from other when target one covers >1 and lacks placeholders',
+      () {
+        for (final lang in ['ru', 'uk', 'sr', 'fr', 'is']) {
+          final doc = parseAndroidStrings(
+            missingPlaceholder,
+            targetLanguage: lang,
+          );
+          expectRoundTrip(doc, missingPlaceholder);
+          final out = doc.render([
+            '[one-file]',
+            '[other-files] ⟨1⟩',
+            '[one-item]',
+            '[other-items] ⟨1⟩',
+            '[one-song]',
+            '[other-songs] ⟨1⟩',
+            '[one-pct] 100⟨1⟩',
+            '[other-pct] 100⟨1⟩',
+          ]);
+          expect(
+            out,
+            contains('<item quantity="one">[other-files] %d</item>'),
+            reason: '$lang files',
+          );
+          expect(
+            out,
+            contains('<item quantity="one">[other-items] {0}</item>'),
+            reason: '$lang braces',
+          );
+          expect(
+            out,
+            contains(
+              '<item quantity="one">[other-songs] '
+              r'<xliff:g id="count">%1$d</xliff:g></item>',
+            ),
+            reason: '$lang xliff_arg',
+          );
+          // Literal %% is not a placeholder, so one keeps its own translation.
+          expect(
+            out,
+            contains('<item quantity="one">[one-pct] 100%%</item>'),
+            reason: '$lang literal_percent',
+          );
+          expect(XmlDocument.parse(out), isNotNull);
+        }
+      },
+    );
+
+    test('keeps one when target one covers only 1 (de, pl, ar)', () {
+      for (final lang in ['de', 'pl', 'ar']) {
+        final doc = parseAndroidStrings(
+          missingPlaceholder,
+          targetLanguage: lang,
+        );
+        final out = doc.render([
+          '[one-file]',
+          '[other-files] ⟨1⟩',
+          '[one-item]',
+          '[other-items] ⟨1⟩',
+          '[one-song]',
+          '[other-songs] ⟨1⟩',
+          '[one-pct] 100⟨1⟩',
+          '[other-pct] 100⟨1⟩',
+        ]);
+        expect(
+          out,
+          contains('<item quantity="one">[one-file]</item>'),
+          reason: lang,
+        );
+        expect(
+          out,
+          contains('<item quantity="one">[one-item]</item>'),
+          reason: lang,
+        );
+        expect(
+          out,
+          contains('<item quantity="one">[one-song]</item>'),
+          reason: lang,
+        );
+      }
+    });
+
+    test(
+      'keeps one for Russian when both one and other have the placeholder',
+      () {
+        const bothHave = '''
+<resources>
+    <plurals name="files">
+        <item quantity="one">%d file</item>
+        <item quantity="other">%d files</item>
+    </plurals>
+</resources>
+''';
+        final doc = parseAndroidStrings(bothHave, targetLanguage: 'ru');
+        final out = doc.render(['⟨1⟩ файл', '⟨1⟩ файлов']);
+        expect(out, contains('<item quantity="one">%d файл</item>'));
+        expect(out, contains('<item quantity="few">%d файлов</item>'));
+        expect(out, contains('<item quantity="many">%d файлов</item>'));
+        expect(out, contains('<item quantity="other">%d файлов</item>'));
+      },
+    );
+  });
 }

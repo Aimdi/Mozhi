@@ -16,7 +16,10 @@ import 'package:mozhi/dictionary/view/dictionary_page.dart'
 import 'package:mozhi/dictionary/widgets/dictionary_attribution.dart'
     show DictionaryAttributionLink;
 import 'package:mozhi/dictionary/widgets/dictionary_offline.dart'
-    show DictionaryGetPacksButton, DictionaryOfflineNotice;
+    show
+        DictionaryGetPacksButton,
+        DictionaryOfflineNotice,
+        dictionaryGlossLanguage;
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/phrasebook/models/phrase.dart' show PhraseOrigin;
 import 'package:mozhi/phrasebook/models/phrase_draft.dart';
@@ -310,6 +313,7 @@ class WordLookupView extends StatelessWidget {
                       alignment: AlignmentDirectional.centerStart,
                       child: DictionaryAttributionLink(
                         attribution: answer.attribution,
+                        glossLanguage: dictionaryGlossLanguage(packs, answer),
                       ),
                     ),
                   Wrap(

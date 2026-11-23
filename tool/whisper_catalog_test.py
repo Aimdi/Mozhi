@@ -29,7 +29,9 @@ REPOSITORY = catalog.REPOSITORY
 COMMIT = "0123456789abcdef0123456789abcdef01234567"
 FILES = {
     "ggml-base-q5_1.bin": b"base q5_1 " * 300,
+    "ggml-base-q8_0.bin": b"base q8_0 " * 350,
     "ggml-small-q5_1.bin": b"small q5_1 " * 500,
+    "ggml-small-q8_0.bin": b"small q8_0 " * 550,
     "ggml-large-v3-turbo-q5_0.bin": b"turbo q5_0 " * 700,
 }
 
@@ -133,7 +135,7 @@ class WhisperCatalogTest(unittest.TestCase):
         self.sources = catalog.SOURCES
         # The fixture files, with the README SHA-1 of the fixture.
         catalog.SOURCES = [dict(source) for source in self.sources]
-        catalog.SOURCES[2]["readmeSha1"] = _sha1(FILES["ggml-large-v3-turbo-q5_0.bin"])
+        catalog.SOURCES[4]["readmeSha1"] = _sha1(FILES["ggml-large-v3-turbo-q5_0.bin"])
         self.addCleanup(setattr, catalog, "SOURCES", self.sources)
         self.server = _HuggingFace(FILES)
         self.addCleanup(self.server.close)
@@ -146,9 +148,15 @@ class WhisperCatalogTest(unittest.TestCase):
         entries = printed["models"]
         self.assertEqual(
             [entry["id"] for entry in entries],
-            ["base-q5_1", "small-q5_1", "large-v3-turbo-q5_0"],
+            [
+                "base-q5_1",
+                "base-q8_0",
+                "small-q5_1",
+                "small-q8_0",
+                "large-v3-turbo-q5_0",
+            ],
         )
-        small = entries[1]
+        small = entries[2]
         data = FILES["ggml-small-q5_1.bin"]
         self.assertEqual(
             small,
@@ -167,7 +175,7 @@ class WhisperCatalogTest(unittest.TestCase):
             },
         )
         self.assertNotIn("minRamMb", entries[0])
-        self.assertEqual(entries[2]["minRamMb"], 7000)
+        self.assertEqual(entries[4]["minRamMb"], 7000)
         self.assertIn("OK           ggml-base-q5_1.bin", err)
 
     def test_the_real_sources_are_the_documented_ones(self) -> None:
@@ -175,13 +183,15 @@ class WhisperCatalogTest(unittest.TestCase):
             [source["file"] for source in self.sources],
             [
                 "ggml-base-q5_1.bin",
+                "ggml-base-q8_0.bin",
                 "ggml-small-q5_1.bin",
+                "ggml-small-q8_0.bin",
                 "ggml-large-v3-turbo-q5_0.bin",
             ],
         )
         # whisper.cpp v1.9.5 models/README.md.
         self.assertEqual(
-            self.sources[2]["readmeSha1"],
+            self.sources[4]["readmeSha1"],
             "e050f7970618a659205450ad97eb95a18d69c9ee",
         )
         for source in self.sources:
@@ -215,7 +225,7 @@ class WhisperCatalogTest(unittest.TestCase):
         self.assertIn(f"lists sha256 {_sha256(data)}", err)
 
     def test_a_readme_sha1_that_differs_fails(self) -> None:
-        catalog.SOURCES[2]["readmeSha1"] = "0" * 40
+        catalog.SOURCES[4]["readmeSha1"] = "0" * 40
         status, _, err = _run("resolve", "--base-url", self.server.base)
         self.assertEqual(status, 1)
         self.assertIn("models/README.md lists sha1 " + "0" * 40, err)
@@ -241,7 +251,7 @@ class WhisperCatalogTest(unittest.TestCase):
         self.server.fail["/cdn/ggml-base-q5_1.bin"] = 500
         status, out, err = _run("resolve", "--base-url", self.server.base)
         self.assertEqual(status, 0, err)
-        self.assertEqual(len(json.loads(out)["models"]), 3)
+        self.assertEqual(len(json.loads(out)["models"]), 5)
 
     def test_unreachable(self) -> None:
         self.server.close()
@@ -271,8 +281,10 @@ class WhisperCatalogTest(unittest.TestCase):
             [
                 "tiny",
                 "base-q5_1",
+                "base-q8_0",
                 "base",
                 "small-q5_1",
+                "small-q8_0",
                 "large-v3-turbo-q5_0",
                 "silero-vad",
             ],

@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/offline/cubit/offline_models_cubit.dart'
     show OfflineModelsCubit;
+import 'package:mozhi/platform/download_foreground_service.dart';
 import 'package:mozhi/platform/native_memory.dart';
 import 'package:mozhi/settings/models/model_source.dart';
 import 'package:whisper_speech/whisper_speech.dart';
@@ -185,12 +186,23 @@ class OfflineSpeech {
     }
     final vad = await _vadToInstall();
     final total = model.size + (vad?.size ?? 0);
-    void report(int done) => onProgress?.call(total == 0 ? 1 : done / total);
-    if (vad != null) {
-      await _install(vad, report, abort);
-    }
-    final before = vad?.size ?? 0;
-    await _install(model, (received) => report(before + received), abort);
+    await DownloadForegroundCoordinator.instance.track(
+      label: model.name,
+      onCancel: () async => cancelDownload(id),
+      run: (reportForeground) async {
+        void report(int done) {
+          final fraction = total == 0 ? 1.0 : done / total;
+          onProgress?.call(fraction);
+          reportForeground(fraction);
+        }
+
+        if (vad != null) {
+          await _install(vad, report, abort);
+        }
+        final before = vad?.size ?? 0;
+        await _install(model, (received) => report(before + received), abort);
+      },
+    );
     await select(id);
   }
 

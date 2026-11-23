@@ -26,8 +26,10 @@ void main() {
       expect(parsed.models.map((m) => m.id), [
         'tiny',
         'base-q5_1',
+        'base-q8_0',
         'base',
         'small-q5_1',
+        'small-q8_0',
         'large-v3-turbo-q5_0',
       ]);
       final vad = parsed.vad!;
