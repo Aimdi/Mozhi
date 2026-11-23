@@ -9,7 +9,7 @@ environment:
 
 dependencies:
   # Office documents and e-books are ZIP packages of XML parts.
-  archive: ^4.6.0
+  archive: ^4.7.1
   audioplayers: ^6.8.1
   bergamot_translator:
     path: packages/bergamot_translator
@@ -25,7 +25,7 @@ dependencies:
     sdk: flutter
   flutter_secure_storage: ^11.2.0
   flutter_tts: ^4.2.5
-  go_router: ^18.1.0
+  go_router: ^18.1.4
   http: ^1.6.0
   image_picker: ^1.2.4
   intl: ^0.20.2
