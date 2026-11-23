@@ -69,17 +69,22 @@ test('a translation appears in History and can be liked', async ({
   );
 
   // The engine and the time are in the entry's details (its menu also
-  // has the row's other actions).
+  // has the row's other actions; Share is omitted when the browser lacks
+  // the Web Share API).
+  const hasWebShare = await page.evaluate(() => 'share' in navigator);
   await item.getByRole('button', { name: 'More actions' }).click();
   const menu = page.getByRole('menu');
   for (const name of [
     'Copy',
-    'Share',
+    ...(hasWebShare ? ['Share'] : []),
     'Details',
     'Add to favorites',
     'Delete',
   ]) {
     await expect(menu.getByRole('menuitem', { name })).toBeVisible();
+  }
+  if (!hasWebShare) {
+    await expect(menu.getByRole('menuitem', { name: 'Share' })).toHaveCount(0);
   }
   await menu.getByRole('menuitem', { name: 'Details' }).click();
   const details = page.getByRole('group').filter({
@@ -110,11 +115,14 @@ test('a translation appears in History and can be liked', async ({
   await expect(item).toBeHidden();
   await page.getByRole('tab', { name: 'All' }).click();
 
-  // With a mouse on the row, Copy, Share and Delete take the pair's place;
-  // Copy shows a check for a moment.
+  // With a mouse on the row, Copy and Delete (and Share when the browser
+  // supports Web Share) take the pair's place; Copy shows a check for a moment.
   await item.hover();
-  for (const name of [/^Share/, /^Delete/]) {
+  for (const name of [...(hasWebShare ? [/^Share/] : []), /^Delete/]) {
     await expect(item.getByRole('button', { name })).toBeVisible();
+  }
+  if (!hasWebShare) {
+    await expect(item.getByRole('button', { name: /^Share/ })).toHaveCount(0);
   }
   await clearClipboard(page);
   await item.getByRole('button', { name: /^Copy( Copy)?$/ }).click();

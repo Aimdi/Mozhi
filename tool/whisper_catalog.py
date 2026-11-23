@@ -185,6 +185,12 @@ def hash_download(url: str) -> tuple[int, str, str]:
         sha256 = hashlib.sha256()
         size = 0
         with _open(url, timeout=120) as response:
+            expected_header = response.headers.get("Content-Length")
+            expected = (
+                int(expected_header)
+                if expected_header and expected_header.isdigit()
+                else None
+            )
             while True:
                 chunk = response.read(CHUNK)
                 if not chunk:
@@ -192,6 +198,8 @@ def hash_download(url: str) -> tuple[int, str, str]:
                 size += len(chunk)
                 sha1.update(chunk)
                 sha256.update(chunk)
+            if expected is not None and size != expected:
+                raise OSError(f"incomplete download: {size} of {expected} bytes")
         return size, sha1.hexdigest(), sha256.hexdigest()
 
     return _retrying(url, fetch)

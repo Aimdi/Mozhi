@@ -125,13 +125,17 @@ test('the corrected text reads as one group with its actions', async ({
     'Corrected text Tap a sentence for other ways to say it. ' +
       'Two grammar fixes; the tone is neutral.',
   );
+  const hasWebShare = await page.evaluate(() => 'share' in navigator);
   for (const name of [
     /^Hide changes/,
     /^Copy corrected text/,
-    /^Share/,
+    ...(hasWebShare ? [/^Share/] : []),
     /^Use as input/,
   ]) {
     await expect(result.getByRole('button', { name })).toBeVisible();
+  }
+  if (!hasWebShare) {
+    await expect(result.getByRole('button', { name: /^Share/ })).toHaveCount(0);
   }
   expect(await corrected(page)).toBe(CORRECTED);
 });
