@@ -21,6 +21,16 @@ Future<void> _settle(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+Future<void> _waitForOptimization(WidgetTester tester) async {
+  for (var i = 0; i < 300; i++) {
+    await tester.pump();
+    if (find.textContaining('better fit').evaluate().isNotEmpty) return;
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 50)),
+    );
+  }
+}
+
 Future<void> _pumpOverview(
   WidgetTester tester,
   PracticeCubit cubit,
@@ -107,6 +117,7 @@ void main() {
     expect(find.textContaining('60 reviews'), findsOneWidget);
 
     await tester.tap(runButton);
+    await _waitForOptimization(tester);
     await _settle(tester);
     expect(find.textContaining('better fit'), findsOneWidget);
     expect(cubit.state.settings.hasCustomWeights, isTrue);
