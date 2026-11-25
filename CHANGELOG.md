@@ -3,6 +3,25 @@
 All notable changes to Mozhi, by release tag on GitHub (pre-releases end
 in `-rc.N`).
 
+## Unreleased (Wave 21)
+
+### Added & Improved
+
+- **Cooperative web parsing for YAML**: extended `parseTextCooperatively`
+  to chunk large `.yaml`/`.yml` files safely at 0-indent mapping keys and
+  `---` document boundaries outside block scalars (`|`/`>`), multiline
+  quoted strings, and flow collections (8 text formats total: `.txt`,
+  `.md`, `.srt`, `.vtt`, `.properties`, `.strings`, `.toml`, `.yaml`/`.yml`,
+  plus multi-part Office & EPUB).
+- **`mozhi repl` `/compare` command**: added `/compare` (alias `/cmp`) to
+  compare translations side-by-side across selected or all Mozhi engines
+  in interactive REPL sessions, either for new text or the last
+  translation.
+- **Playwright Web E2E coverage**: added Chromium/Firefox/WebKit end-to-end
+  tests for TOML (`.toml`), Java `.properties`, and pure-Dart Web PDF
+  (`.pdf`) upload, translation, and file download in
+  `e2e/tests/documents_formats.spec.js`.
+
 ## Unreleased (Wave 20)
 
 ### Added & Improved

@@ -258,5 +258,60 @@ void main() {
       expect(out, contains('Meaning check: Same meaning'));
       expect(out, contains('Back-translation: Hello'));
     });
+
+    test(
+      'supports /compare with explicit engines, last text and errors',
+      () async {
+        when(() => h.repository.getEngines())
+            .thenAnswer((_) async => [googleEngine, deeplEngine]);
+        when(() => h.repository.compare(any(), any())).thenAnswer((inv) {
+          final engines = inv.positionalArguments[0] as List<TranslationEngine>;
+          final req = inv.positionalArguments[1] as TranslationRequest;
+          return Stream.fromIterable([
+            for (final eng in engines)
+              if (eng.id == 'mozhi:deepl')
+                CompareEntry.failure(
+                  engineId: eng.id,
+                  engineName: eng.name,
+                  error: const MozhiApiException('quota exceeded'),
+                )
+              else
+                CompareEntry.success(
+                  TranslationResult(
+                    text: '${eng.name}:${req.text}',
+                    engineId: eng.id,
+                    engineName: eng.name,
+                  ),
+                ),
+          ]);
+        });
+
+        final buffer = StringBuffer();
+        final session = ReplSession(
+          repository: h.repository,
+          config: const CliConfig(),
+          providers: const [ollamaProvider],
+          engine: googleEngine,
+          source: english,
+          target: french,
+          output: buffer,
+        );
+
+        await session.run(
+          Stream.fromIterable([
+            '/compare',
+            '/compare google,deepl Good morning',
+            '/cmp',
+          ]),
+        );
+
+        final out = buffer.toString();
+        expect(out, contains('Translate something first or pass text'));
+        expect(out, contains('Google: Google:Good morning'));
+        expect(out, contains('✗ DeepL:'));
+        expect(out, contains('quota exceeded'));
+        verify(() => h.repository.compare(any(), any())).called(2);
+      },
+    );
   });
 }

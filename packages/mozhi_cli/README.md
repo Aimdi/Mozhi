@@ -160,7 +160,7 @@ mozhi web https://example.com/article --dry-run --json
 Start a persistent terminal translation session with slash commands
 (`/from`, `/to`, `/swap`, `/engine`, `/formality`, `/style`, `/context`,
 `/glossary`, `/alt`, `/explain`, `/insights`, `/romanize`, `/check`,
-`/proofread`, `/dict`, `/status`, `/help`, `/quit`):
+`/compare`, `/proofread`, `/dict`, `/status`, `/help`, `/quit`):
 
 ```sh
 mozhi repl --to de --style natural --context "Release notes"
