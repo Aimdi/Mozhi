@@ -132,13 +132,14 @@ Translate structured text, subtitle, and localization files while keeping
 keys, comments, timestamps, placeholders, and formatting intact. Supported
 formats: `.txt`, `.md`, `.html`/`.htm`, `.json`, `.arb`, `.srt`, `.vtt`,
 `.po`, `.properties`, `.yml`/`.yaml`, `.toml`, `.xml` (Android `strings.xml`),
-`.strings` (Apple), `.xliff`/`.xlf`, `.tmx`, `.csv`, `.tsv`.
+`.strings` (Apple), `.xcstrings` (Xcode), `.xliff`/`.xlf`, `.tmx`, `.csv`,
+`.tsv`.
 
 ```sh
 mozhi document locales/en.yaml -f en -t de -o locales/de.yaml
-mozhi document subtitles.srt -t fr --in-place
+mozhi document subtitles.srt -t fr --in-place -j 4
 mozhi document strings.toml -t es --dry-run --json
-mozhi document memory.tmx -t de -o memory.de.tmx
+mozhi document Localizable.xcstrings -e ai -t de --formality less -i
 mozhi document app.xliff strings.xml index.html -t fr --output-dir out/fr
 ```
 

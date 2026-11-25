@@ -221,5 +221,45 @@ void main() {
         ExitCode.usage.code,
       );
     });
+
+    test('passes AI options and supports --concurrency (-j)', () async {
+      h.writeConfig(
+        const CliConfig(providers: [ProviderEntry(ollamaProvider)]),
+      );
+      final code = await h.run([
+        'document',
+        '-e',
+        'ai',
+        '-t',
+        'de',
+        '-j',
+        '4',
+        '--formality',
+        'more',
+        '--style',
+        'literal',
+        '--reading-level',
+        'b1',
+        '--context',
+        'Release notes',
+        jsonFile.path,
+      ]);
+      expect(code, ExitCode.success.code);
+      expect(h.written.toString(), contains('"hello": "[de] Hello"'));
+      expect(h.written.toString(), contains('"bye": "[de] Goodbye"'));
+      final captured = verify(() => h.repository.translate(any(), captureAny()))
+          .captured
+          .cast<TranslationRequest>();
+      expect(captured, hasLength(2));
+      expect(captured.first.options.formality, Formality.more);
+      expect(captured.first.options.style, TranslationStyle.literal);
+      expect(captured.first.options.readingLevel, ReadingLevel.b1);
+      expect(captured.first.options.context, 'Release notes');
+
+      expect(
+        await h.run(['document', '-j', '0', '-t', 'de', jsonFile.path]),
+        ExitCode.usage.code,
+      );
+    });
   });
 }

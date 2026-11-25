@@ -23,13 +23,18 @@ in `-rc.N`).
   code, math, HTML comments, raw HTML, indented code, and list state),
   `.srt`, `.vtt`, and Java `.properties` files without altering parse
   results.
-- **`mozhi_cli` full format parity, batch mode & richer REPL**: added
-  pure-Dart `.toml`, `.tmx`, `.html`/`.htm`, Android `strings.xml`,
-  Apple `.strings`, and `.xliff`/`.xlf` handlers plus multi-file batch
-  translation (`--output-dir` / `--in-place`) to `mozhi document`; added
-  `/glossary`, `/style`, and `/context` commands (plus `--style` /
-  `--context` flags) to `mozhi repl`; synced `README.md`,
-  `docs/features.md`, and `packages/mozhi_cli/README.md`.
+- **`mozhi_cli` full format parity, batch mode, concurrency & richer REPL**:
+  added pure-Dart `.toml`, `.tmx`, `.html`/`.htm`, Android `strings.xml`,
+  Apple `.strings`, Xcode `.xcstrings`, and `.xliff`/`.xlf` handlers
+  (matching all 18 text/localization formats in the app), multi-file batch
+  translation (`--output-dir` / `--in-place`), parallel segment translation
+  (`--concurrency` / `-j 1..8`), and AI options (`--formality`, `--style`,
+  `--reading-level`, `--context`, `--instructions`) to `mozhi document`;
+  added `/glossary`, `/style`, and `/context` commands (plus `--style` /
+  `--context` flags) to `mozhi repl`; added `e2e/unit/argon2_worker.test.js`,
+  `e2e/unit/web_llama_worker.test.js`, and Playwright E2E specs for YAML,
+  TMX, and Translate Regenerate; synced `README.md`, `docs/features.md`, and
+  `packages/mozhi_cli/README.md`.
 
 ## Unreleased (Wave 17)
 

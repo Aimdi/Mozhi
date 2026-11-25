@@ -24,8 +24,8 @@ class ParsedDocument {
   });
 
   /// Canonical format name (`txt`, `md`, `html`, `json`, `arb`, `srt`, `vtt`,
-  /// `po`, `properties`, `yaml`, `toml`, `xml`, `strings`, `xliff`, `tmx`,
-  /// `csv`, `tsv`).
+  /// `po`, `properties`, `yaml`, `toml`, `xml`, `strings`, `xcstrings`,
+  /// `xliff`, `tmx`, `csv`, `tsv`).
   final String format;
 
   /// Translatable segments in document order.
@@ -54,6 +54,7 @@ abstract final class DocumentHandlers {
     '.toml',
     '.xml',
     '.strings',
+    '.xcstrings',
     '.xliff',
     '.xlf',
     '.tmx',
@@ -63,7 +64,8 @@ abstract final class DocumentHandlers {
 
   /// Parses [content] according to the extension of [filePath] (or explicit
   /// [formatOverride]). [targetLanguage] is used by bilingual or
-  /// language-tagged formats such as `.tmx`, `.xliff`, and `.html`.
+  /// language-tagged formats such as `.tmx`, `.xliff`, `.xcstrings`, and
+  /// `.html`.
   static ParsedDocument parse(
     String filePath,
     String content, {
@@ -88,6 +90,7 @@ abstract final class DocumentHandlers {
       'toml' => _parseToml(content),
       'xml' => _parseAndroidXml(content),
       'strings' => _parseAppleStrings(content),
+      'xcstrings' => _parseXcstrings(content, targetLanguage: targetLanguage),
       'xliff' || 'xlf' => _parseXliff(content, targetLanguage: targetLanguage),
       'tmx' => _parseTmx(content, targetLanguage: targetLanguage),
       'csv' => _parseDelimited(content, delimiter: ',', format: 'csv'),
@@ -2106,6 +2109,154 @@ abstract final class DocumentHandlers {
         }
         out.write(content.substring(cursor));
         return out.toString();
+      },
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Xcode String Catalog (.xcstrings)
+  // ---------------------------------------------------------------------------
+
+  static ParsedDocument _parseXcstrings(
+    String content, {
+    String? targetLanguage,
+  }) {
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(content);
+    } on FormatException catch (error) {
+      throw CliException.usage(
+        'Invalid Xcode string catalog (.xcstrings): ${error.message}',
+      );
+    }
+    if (decoded is! Map<String, dynamic> ||
+        decoded['strings'] is! Map<String, dynamic>) {
+      throw const CliException.usage(
+        'Invalid Xcode string catalog: missing top-level "strings" object.',
+      );
+    }
+
+    final indent = _detectJsonIndent(content);
+    final trailingNewline = content.endsWith('\n');
+    final eol = _eolOf(content);
+    final sourceLang = (decoded['sourceLanguage'] as String?)?.trim() ?? 'en';
+    final targetLang = targetLanguage?.trim();
+    final hasTarget =
+        targetLang != null &&
+        targetLang.isNotEmpty &&
+        targetLang.toLowerCase() != sourceLang.toLowerCase();
+
+    final strings = decoded['strings'] as Map<String, dynamic>;
+    final segments = <DocumentSegment>[];
+    final targets = <({String key, String? pluralCase, int segmentIndex})>[];
+
+    if (hasTarget) {
+      for (final MapEntry(:key, :value) in strings.entries) {
+        if (value is! Map<String, dynamic>) continue;
+        if (value['shouldTranslate'] == false) continue;
+
+        final localizations = value['localizations'];
+        final locMap = localizations is Map<String, dynamic>
+            ? localizations
+            : null;
+        final existingTarget = locMap?[targetLang];
+        if (existingTarget is Map<String, dynamic>) {
+          final unit = existingTarget['stringUnit'];
+          if (unit is Map<String, dynamic>) {
+            final state = unit['state'] as String?;
+            final val = unit['value'] as String?;
+            if (state != 'new' && val != null && val.trim().isNotEmpty) {
+              continue;
+            }
+          } else if (existingTarget['variations'] is Map<String, dynamic>) {
+            continue;
+          }
+        }
+
+        final sourceLoc = locMap?[sourceLang];
+        if (sourceLoc is Map<String, dynamic>) {
+          final variations = sourceLoc['variations'];
+          if (variations is Map<String, dynamic> &&
+              variations['plural'] is Map<String, dynamic>) {
+            final plural = variations['plural'] as Map<String, dynamic>;
+            for (final MapEntry(key: pluralCase, value: caseVal)
+                in plural.entries) {
+              if (caseVal is! Map<String, dynamic>) continue;
+              final unit = caseVal['stringUnit'];
+              final text = unit is Map<String, dynamic>
+                  ? unit['value'] as String?
+                  : null;
+              if (text == null || text.trim().isEmpty) continue;
+              final idx = segments.length;
+              segments.add(DocumentSegment(id: '$key:$pluralCase', text: text));
+              targets.add((
+                key: key,
+                pluralCase: pluralCase,
+                segmentIndex: idx,
+              ));
+            }
+            continue;
+          }
+          final unit = sourceLoc['stringUnit'];
+          final text = unit is Map<String, dynamic>
+              ? unit['value'] as String?
+              : null;
+          if (text != null && text.trim().isNotEmpty) {
+            final idx = segments.length;
+            segments.add(DocumentSegment(id: key, text: text));
+            targets.add((key: key, pluralCase: null, segmentIndex: idx));
+            continue;
+          }
+        }
+
+        if (key.trim().isNotEmpty) {
+          final idx = segments.length;
+          segments.add(DocumentSegment(id: key, text: key));
+          targets.add((key: key, pluralCase: null, segmentIndex: idx));
+        }
+      }
+    }
+
+    return ParsedDocument(
+      format: 'xcstrings',
+      segments: segments,
+      rebuild: (translations) {
+        final copy = jsonDecode(jsonEncode(decoded)) as Map<String, dynamic>;
+        final copyStrings = copy['strings'] as Map<String, dynamic>;
+        if (hasTarget) {
+          for (final target in targets) {
+            final entry = copyStrings[target.key] as Map<String, dynamic>;
+            final locs =
+                (entry['localizations'] as Map<String, dynamic>?) ??
+                <String, dynamic>{};
+            entry['localizations'] = locs;
+            final tr = translations[target.segmentIndex];
+            if (target.pluralCase case final pluralCase?) {
+              final langObj =
+                  (locs[targetLang] as Map<String, dynamic>?) ??
+                  <String, dynamic>{};
+              locs[targetLang] = langObj;
+              final vars =
+                  (langObj['variations'] as Map<String, dynamic>?) ??
+                  <String, dynamic>{};
+              langObj['variations'] = vars;
+              final plural =
+                  (vars['plural'] as Map<String, dynamic>?) ??
+                  <String, dynamic>{};
+              vars['plural'] = plural;
+              plural[pluralCase] = {
+                'stringUnit': {'state': 'needs_review', 'value': tr},
+              };
+            } else {
+              locs[targetLang] = {
+                'stringUnit': {'state': 'needs_review', 'value': tr},
+              };
+            }
+          }
+        }
+        var encoded = JsonEncoder.withIndent(indent).convert(copy);
+        if (eol == '\r\n') encoded = encoded.replaceAll('\n', '\r\n');
+        return trailingNewline ? '$encoded$eol' : encoded;
       },
     );
   }

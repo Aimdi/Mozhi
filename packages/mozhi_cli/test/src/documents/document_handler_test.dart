@@ -405,6 +405,64 @@ void main() {
       expect(out, contains('<source>Keep verbatim</source>'));
     });
 
+    test('.xcstrings translates missing/new entries and plurals while skipping '
+        'shouldTranslate=false and existing translations', () {
+      const input = '''
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "Hello": {},
+    "BrandName": {
+      "shouldTranslate": false
+    },
+    "AlreadyDone": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fertig"
+          }
+        }
+      }
+    },
+    "FilesCount": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": { "state": "translated", "value": "%lld file" }
+              },
+              "other": {
+                "stringUnit": { "state": "translated", "value": "%lld files" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+''';
+      final doc = DocumentHandlers.parse(
+        'Localizable.xcstrings',
+        input,
+        targetLanguage: 'de',
+      );
+      expect(doc.format, 'xcstrings');
+      expect(doc.segments.map((s) => (s.id, s.text)), [
+        ('Hello', 'Hello'),
+        ('FilesCount:one', '%lld file'),
+        ('FilesCount:other', '%lld files'),
+      ]);
+      final out = doc.rebuild(['Hallo', '%lld Datei', '%lld Dateien']);
+      expect(out, contains('"value": "Hallo"'));
+      expect(out, contains('"state": "needs_review"'));
+      expect(out, contains('"value": "Fertig"'));
+      expect(out, contains('"value": "%lld Datei"'));
+      expect(out, contains('"value": "%lld Dateien"'));
+    });
+
     test('rejects unsupported extensions', () {
       expect(
         () => DocumentHandlers.parse('file.bin', 'abc'),

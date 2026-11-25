@@ -75,7 +75,44 @@ class DocumentCommand extends MozhiCommand {
         help:
             'Override the format inferred from the file extension '
             '(txt, md, html, json, arb, srt, vtt, po, properties, yaml, toml, '
-            'xml, strings, xliff, tmx, csv, tsv).',
+            'xml, strings, xcstrings, xliff, tmx, csv, tsv).',
+      )
+      ..addOption(
+        'concurrency',
+        abbr: 'j',
+        valueHelp: 'n',
+        defaultsTo: '1',
+        help: 'Maximum segments to translate in parallel (1–8).',
+      )
+      ..addSeparator('AI options (ignored by Mozhi engines):')
+      ..addOption(
+        'formality',
+        valueHelp: 'level',
+        allowed: [for (final value in Formality.values) kebabCase(value.name)],
+        help: 'How formal the translation should be.',
+      )
+      ..addOption(
+        'style',
+        allowed: [
+          for (final value in TranslationStyle.values) kebabCase(value.name),
+        ],
+        help: 'Natural (fluent) or literal (close to the source) translation.',
+      )
+      ..addOption(
+        'reading-level',
+        valueHelp: 'level',
+        allowed: [for (final value in ReadingLevel.values) value.name],
+        help: 'CEFR reading level of the output (a1 = simplest).',
+      )
+      ..addOption(
+        'context',
+        valueHelp: 'text',
+        help: 'What the document is about or who it is for.',
+      )
+      ..addOption(
+        'instructions',
+        valueHelp: 'text',
+        help: 'Extra instruction for the AI model.',
       );
     addJsonFlag();
   }
@@ -90,8 +127,8 @@ class DocumentCommand extends MozhiCommand {
   String get description =>
       'Translate structured text and localization files '
       '(.txt, .md, .html, .json, .arb, .srt, .vtt, .po, .properties, '
-      '.yml/.yaml, .toml, .xml, .strings, .xliff, .tmx, .csv/.tsv) while '
-      'preserving keys, timestamps and structure.';
+      '.yml/.yaml, .toml, .xml, .strings, .xcstrings, .xliff, .tmx, '
+      '.csv/.tsv) while preserving keys, timestamps and structure.';
 
   @override
   String get invocation => 'mozhi document [arguments] <file>...';
@@ -153,6 +190,15 @@ class DocumentCommand extends MozhiCommand {
       destinations.add(outputPath);
     }
 
+    final concurrencyRaw = option('concurrency') ?? '1';
+    final concurrency = int.tryParse(concurrencyRaw);
+    if (concurrency == null || concurrency < 1 || concurrency > 8) {
+      throw CliException.usage(
+        'Invalid --concurrency "$concurrencyRaw". Expected an integer from '
+        '1 to 8.',
+      );
+    }
+
     final engine = selectedEngine();
     final sourceInput = option('from') ?? config.source ?? 'auto';
     final targetInput =
@@ -162,6 +208,7 @@ class DocumentCommand extends MozhiCommand {
       ..._glossaryFile(),
       ...parseGlossary(multiOption('glossary')),
     };
+    final options = _options(engine, glossary);
 
     var source = resolveLanguage(sourceInput, allowAuto: true);
     var target = resolveLanguage(targetInput, allowCustom: engine.isAi);
@@ -261,11 +308,9 @@ class DocumentCommand extends MozhiCommand {
       return ExitCode.success.code;
     }
 
-    final options = glossary.isEmpty
-        ? const TranslationOptions()
-        : TranslationOptions(glossary: glossary);
     final allTranslations = <List<String>>[
-      for (var i = 0; i < parsedFiles.length; i++) <String>[],
+      for (final entry in parsedFiles)
+        List<String>.filled(entry.doc.segments.length, ''),
     ];
     final totalSegments = parsedFiles.fold<int>(
       0,
@@ -284,17 +329,28 @@ class DocumentCommand extends MozhiCommand {
       final progress = interactive && !jsonOutput && totalSegments > 0
           ? logger.progress('Translating 0/$totalSegments segments')
           : null;
+      final jobs = <({int fileIdx, int segIdx, DocumentSegment segment})>[
+        for (var fileIdx = 0; fileIdx < parsedFiles.length; fileIdx++)
+          for (
+            var segIdx = 0;
+            segIdx < parsedFiles[fileIdx].doc.segments.length;
+            segIdx++
+          )
+            (
+              fileIdx: fileIdx,
+              segIdx: segIdx,
+              segment: parsedFiles[fileIdx].doc.segments[segIdx],
+            ),
+      ];
+      var nextJob = 0;
       var completed = 0;
       try {
-        for (var fileIdx = 0; fileIdx < parsedFiles.length; fileIdx++) {
-          final doc = parsedFiles[fileIdx].doc;
-          final out = allTranslations[fileIdx];
-          for (final segment in doc.segments) {
-            progress?.update(
-              'Translating ${++completed}/$totalSegments segments',
-            );
+        Future<void> worker() async {
+          while (true) {
+            if (nextJob >= jobs.length) return;
+            final job = jobs[nextJob++];
             final request = TranslationRequest(
-              text: segment.text,
+              text: job.segment.text,
               source: source,
               target: target,
               options: options,
@@ -302,9 +358,17 @@ class DocumentCommand extends MozhiCommand {
             final result = await repository
                 .translate(engine, request)
                 .lastWhere((r) => r.isComplete);
-            out.add(result.text);
+            allTranslations[job.fileIdx][job.segIdx] = result.text;
+            progress?.update(
+              'Translating ${++completed}/$totalSegments segments',
+            );
           }
         }
+
+        final workerCount = concurrency < jobs.length
+            ? concurrency
+            : jobs.length;
+        await Future.wait([for (var w = 0; w < workerCount; w++) worker()]);
         progress?.complete('Translated $totalSegments segments');
       } on Object {
         progress?.fail();
@@ -401,6 +465,31 @@ class DocumentCommand extends MozhiCommand {
   static String _basenameOf(String path) {
     final slash = path.lastIndexOf(RegExp(r'[/\\]'));
     return slash < 0 ? path : path.substring(slash + 1);
+  }
+
+  TranslationOptions _options(
+    TranslationEngine engine,
+    Map<String, String> glossary,
+  ) {
+    T? choice<T extends Enum>(String name, List<T> values) {
+      final value = option(name);
+      return value == null ? null : parseChoice(name, value, values);
+    }
+
+    final full = TranslationOptions(
+      style:
+          choice('style', TranslationStyle.values) ?? TranslationStyle.natural,
+      formality: choice('formality', Formality.values) ?? Formality.automatic,
+      readingLevel:
+          choice('reading-level', ReadingLevel.values) ?? ReadingLevel.standard,
+      context: option('context') ?? '',
+      instructions: option('instructions') ?? '',
+      glossary: glossary,
+    );
+    if (engine.isAi || engine.isMt) return full;
+    return glossary.isEmpty
+        ? const TranslationOptions()
+        : TranslationOptions(glossary: glossary);
   }
 
   Future<Language> _supported(
