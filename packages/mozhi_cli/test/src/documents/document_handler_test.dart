@@ -255,6 +255,156 @@ void main() {
       expect(out, isNot(contains('<seg>Old</seg>')));
     });
 
+    test('.html skips script/style/code/pre and updates html lang', () {
+      const input =
+          '<!doctype html>\n'
+          '<html lang="en">\n'
+          '<head><title>Hello &amp; Hi</title> '
+          '<style>.a { color: red; }</style></head>\n'
+          '<body>\n'
+          '  <!-- Ignore comment -->\n'
+          '  <h1>Welcome</h1>\n'
+          '  <p>Use <code>mozhi doc</code> now.</p>\n'
+          '  <script>console.log("keep");</script>\n'
+          '</body>\n'
+          '</html>\n';
+      final doc = DocumentHandlers.parse(
+        'index.html',
+        input,
+        targetLanguage: 'fr',
+      );
+      expect(doc.format, 'html');
+      expect(doc.segments.map((s) => s.text), [
+        'Hello & Hi',
+        'Welcome',
+        'Use',
+        'now.',
+      ]);
+      final out = doc.rebuild([
+        for (final s in doc.segments) _translate(s.text),
+      ]);
+      expect(out, contains('<html lang="fr">'));
+      expect(out, contains('<title>TR[Hello &amp; Hi]</title>'));
+      expect(out, contains('<style>.a { color: red; }</style>'));
+      expect(out, contains('<!-- Ignore comment -->'));
+      expect(out, contains('<h1>TR[Welcome]</h1>'));
+      expect(out, contains('<p>TR[Use] <code>mozhi doc</code> TR[now.]</p>'));
+      expect(out, contains('console.log("keep");'));
+    });
+
+    test('.xml handles Android strings, string-array, plurals, CDATA and '
+        'translatable="false"', () {
+      const input =
+          '<?xml version="1.0" encoding="utf-8"?>\n'
+          '<resources>\n'
+          '  <!-- <string name="commented">Skip me</string> -->\n'
+          '  <string name="app_name" translatable="false">Mozhi</string>\n'
+          '  <string name="greeting">It\\\'s ready &amp; fast</string>\n'
+          '  <string name="html_note"><![CDATA[<b>Bold</b> text]]></string>\n'
+          '  <string-array name="days">\n'
+          '    <item>Monday</item>\n'
+          '    <item>Tuesday</item>\n'
+          '  </string-array>\n'
+          '  <plurals name="items">\n'
+          '    <item quantity="one">%d item</item>\n'
+          '    <item quantity="other">%d items</item>\n'
+          '  </plurals>\n'
+          '</resources>\n';
+      final doc = DocumentHandlers.parse('strings.xml', input);
+      expect(doc.format, 'xml');
+      expect(doc.segments.map((s) => (s.id, s.text)), [
+        ('greeting', "It's ready & fast"),
+        ('html_note', '<b>Bold</b> text'),
+        ('days[0]', 'Monday'),
+        ('days[1]', 'Tuesday'),
+        ('items:one', '%d item'),
+        ('items:other', '%d items'),
+      ]);
+      final out = _roundTrip('strings.xml', input);
+      expect(
+        out,
+        contains('<!-- <string name="commented">Skip me</string> -->'),
+      );
+      expect(
+        out,
+        contains('<string name="app_name" translatable="false">Mozhi</string>'),
+      );
+      expect(
+        out,
+        contains(
+          '<string name="greeting">TR[It\\\'s ready &amp; fast]</string>',
+        ),
+      );
+      expect(out, contains('<![CDATA[TR[<b>Bold</b> text]]]>'));
+      expect(out, contains('<item>TR[Monday]</item>'));
+      expect(out, contains('<item quantity="other">TR[%d items]</item>'));
+    });
+
+    test('.strings preserves Apple Localizable.strings comments and keys', () {
+      const input =
+          '/* Header comment */\n'
+          '"welcome_title" = "Hello \\"world\\"";\n'
+          '// Single line note\n'
+          '"multiline" = "Line 1\\nLine 2";\n';
+      final doc = DocumentHandlers.parse('Localizable.strings', input);
+      expect(doc.format, 'strings');
+      expect(doc.segments.map((s) => (s.id, s.text)), [
+        ('welcome_title', 'Hello "world"'),
+        ('multiline', 'Line 1\nLine 2'),
+      ]);
+      final out = _roundTrip('Localizable.strings', input);
+      expect(out, contains('/* Header comment */'));
+      expect(out, contains('// Single line note'));
+      expect(out, contains(r'"welcome_title" = "TR[Hello \"world\"]";'));
+      expect(out, contains(r'"multiline" = "TR[Line 1\nLine 2]";'));
+    });
+
+    test('.xliff updates or inserts <target>, target-language and skips '
+        'translate="no"', () {
+      const input =
+          '<?xml version="1.0" encoding="UTF-8"?>\n'
+          '<xliff version="1.2">\n'
+          '  <file source-language="en" target-language="fr">\n'
+          '    <body>\n'
+          '      <trans-unit id="u1">\n'
+          '        <source>Hello &amp; welcome</source>\n'
+          '      </trans-unit>\n'
+          '      <trans-unit id="u2">\n'
+          '        <source>Goodbye</source>\n'
+          '        <target state="needs-translation">Old</target>\n'
+          '      </trans-unit>\n'
+          '      <trans-unit id="u3" translate="no">\n'
+          '        <source>Keep verbatim</source>\n'
+          '      </trans-unit>\n'
+          '    </body>\n'
+          '  </file>\n'
+          '</xliff>\n';
+      final doc = DocumentHandlers.parse(
+        'app.xliff',
+        input,
+        targetLanguage: 'de',
+      );
+      expect(doc.format, 'xliff');
+      expect(doc.segments.map((s) => (s.id, s.text)), [
+        ('u1', 'Hello & welcome'),
+        ('u2', 'Goodbye'),
+      ]);
+      final out = doc.rebuild(['Hallo & willkommen', 'Tschüss']);
+      expect(out, contains('target-language="de"'));
+      expect(
+        out,
+        contains(
+          '<source>Hello &amp; welcome</source>\n'
+          '        <target>Hallo &amp; willkommen</target>',
+        ),
+      );
+      expect(
+        out,
+        contains('<target state="needs-translation">Tschüss</target>'),
+      );
+      expect(out, contains('<source>Keep verbatim</source>'));
+    });
+
     test('rejects unsupported extensions', () {
       expect(
         () => DocumentHandlers.parse('file.bin', 'abc'),

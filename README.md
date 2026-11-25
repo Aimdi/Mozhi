@@ -96,8 +96,9 @@ history anywhere.
   month, with optional monthly budgets and warnings.
 - **Android**: *Translate with Mozhi* in the text-selection menu of any app
   opens a quick-translate sheet (with *Replace* for editable fields and
-  *Open in app*), plus a share target for text, images and subtitle, text or
-  JSON files.
+  *Open in app*), opt-in offline notification translation (with target
+  language and muted-app controls), plus a share target for text, images,
+  PDFs and structured document files.
 - Links like `/translate?text=hola&from=es&to=en` open pre-filled (same
   parameters as Kagi Translate, including style, formality, reading level
   and `quality`; `q`, `sl` and `tl` work too; free-text context from links
@@ -162,8 +163,8 @@ of every tab):
 | Screen | Where | What it does |
 | --- | --- | --- |
 | Onboarding | first start | Privacy mode and your languages with offline downloads (Android), and a public or your own Mozhi instance |
-| Image | Translate: the Camera chip or the text box's camera button | Photos and screenshots: on-device text recognition (Tesseract, the default on Android; ML Kit in the Play variant), AI vision, or Mozhi via Google Translate (experimental) |
-| Documents | Translate: the Document chip or More tools | Word, PowerPoint, Excel, OpenDocument and EPUB files with their formatting; `.txt`, Markdown, SRT/VTT subtitles, HTML, JSON/ARB, XLIFF, PO, Android and Apple strings, `.xcstrings`, CSV/TSV; saved or shared in the same format |
+| Image | Translate: the Camera chip or the text box's camera button | Photos and screenshots: on-device text recognition (Tesseract, the default on Android; ML Kit in the Play variant, both with in-place overlay), AI vision, or Mozhi via Google Translate (experimental) |
+| Documents | Translate: the Document chip or More tools | Word, PowerPoint, Excel, OpenDocument, EPUB and PDF files (Android & Web) with their layout; `.txt`, Markdown, SRT/VTT subtitles, HTML, JSON/ARB, YAML, TOML, Java `.properties`, XLIFF, TMX, PO, Android and Apple strings, `.xcstrings`, CSV/TSV; saved or shared in the same format |
 | Web page | Translate > More tools | Reader view of a page, translated block by block |
 | Voice input | microphone buttons | Dictation, optionally on-device only |
 | Offline languages | Settings > Translation engines | Firefox Translations models for translating without a network (Android) |
@@ -329,7 +330,7 @@ A layered Flutter app with pure Dart packages:
 | `packages/mt_api` | Clients for machine translation services (DeepL, LibreTranslate). |
 | `packages/bergamot_translator` | Offline translation (Android) behind `OfflineTranslator`: Mozilla's Bergamot engine over `dart:ffi`, the Firefox Translations model catalogue, verified downloads. See [Offline engine](docs/offline-engine.md). |
 | `packages/mlkit_translator` | ML Kit translation, kept for reference; no build uses it. |
-| `packages/mozhi_cli` | Command-line client. |
+| `packages/mozhi_cli` | Companion CLI (`translate`, `dictionary`, `document`, `proofread`, `detect`, `repl`, `config`, `instances`). |
 | `lib/app` | Bootstrap wiring, router (`go_router`), adaptive shell, theme, shared-text and link handling. |
 | `lib/translate`, `lib/dictionary`, `lib/proofread`, `lib/conversation`, `lib/history`, `lib/settings` | Features (the four tabs, History and Settings): Cubits (`flutter_bloc`) and views. |
 | `lib/image_translate`, `lib/documents`, `lib/web_translate`, `lib/quick_translate` | Other translators (full-screen routes and the quick-translate sheet). |

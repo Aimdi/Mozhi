@@ -17,15 +17,19 @@ in `-rc.N`).
   rotates tilted paragraphs with `Transform.rotate` (avoiding double
   rotation in `OverlayLabel.paint`) so pointer hit-testing and
   screen-reader bounds match the visual rotated box.
-- **Cooperative web parsing for subtitles & `.properties`**: extended
-  `parseTextCooperatively` beyond plain text to yield between safe
-  chunks on large `.srt`, `.vtt`, and Java `.properties` files without
-  breaking cue numbering or backslash continuations.
-- **`mozhi_cli` `.toml` & `.tmx` support + v2 docs**: added `.toml` and
-  `.tmx` handlers to `mozhi document` (with target `<tuv>` insertion and
-  updating) and updated `packages/mozhi_cli/README.md` with full v2
-  command documentation (`dictionary`, `document`, `repl`, `config glossary`,
-  direct MT providers, and AI extra flags).
+- **Cooperative web parsing for Markdown, subtitles & `.properties`**:
+  extended `parseTextCooperatively` beyond plain text to yield between
+  safe structural chunks on large `.md` (preserving frontmatter, fenced
+  code, math, HTML comments, raw HTML, indented code, and list state),
+  `.srt`, `.vtt`, and Java `.properties` files without altering parse
+  results.
+- **`mozhi_cli` full format parity, batch mode & richer REPL**: added
+  pure-Dart `.toml`, `.tmx`, `.html`/`.htm`, Android `strings.xml`,
+  Apple `.strings`, and `.xliff`/`.xlf` handlers plus multi-file batch
+  translation (`--output-dir` / `--in-place`) to `mozhi document`; added
+  `/glossary`, `/style`, and `/context` commands (plus `--style` /
+  `--context` flags) to `mozhi repl`; synced `README.md`,
+  `docs/features.md`, and `packages/mozhi_cli/README.md`.
 
 ## Unreleased (Wave 17)
 

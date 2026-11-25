@@ -43,8 +43,8 @@ Future<ParsedDocument> parseTextInBackground(
 
 /// Cooperatively parses [text] on the current isolate, yielding to the event
 /// loop before parsing and between safe structural chunks for large text,
-/// subtitle (`.srt`, `.vtt`) and `.properties` files (> [chunkThreshold])
-/// without changing the parse result.
+/// Markdown (`.md`), subtitle (`.srt`, `.vtt`) and `.properties` files
+/// (> [chunkThreshold]) without changing the parse result.
 Future<ParsedDocument> parseTextCooperatively(
   TextDocumentParser parser,
   String text,
@@ -72,6 +72,7 @@ Future<ParsedDocument> parseTextCooperatively(
     DocumentFormat.plainText ||
     DocumentFormat.srt ||
     DocumentFormat.vtt => _splitPlainTextChunks(text, chunkSize),
+    DocumentFormat.markdown => _splitMarkdownChunks(text, chunkSize),
     DocumentFormat.properties => _splitPropertiesChunks(text, chunkSize),
     _ => [text],
   };
@@ -109,9 +110,218 @@ Future<ParsedDocument> parseTextCooperatively(
 
 bool _supportsCooperativeChunking(DocumentFormat format) =>
     format == DocumentFormat.plainText ||
+    format == DocumentFormat.markdown ||
     format == DocumentFormat.srt ||
     format == DocumentFormat.vtt ||
     format == DocumentFormat.properties;
+
+final _mdQuotePrefix = RegExp(r'^(?:[ \t]*>[ \t]?)+');
+final _mdFenceOpen = RegExp(r'^[ \t]*(?:(`{3,})[^`]*|(~{3,}).*)$');
+final _mdMathOpen = RegExp(r'^[ \t]*\$\$');
+final _mdRawHtmlOpen = RegExp(
+  r'^[ \t]*<(pre|script|style|textarea)(?:[\s>]|$)',
+  caseSensitive: false,
+);
+final _mdFrontMatterOpen = RegExp(r'^---[ \t]*$');
+final _mdFrontMatterClose = RegExp(r'^(?:---|\.\.\.)[ \t]*$');
+final _mdThematicBreak = RegExp(r'^[ \t]{0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$');
+final _mdSetextUnderline = RegExp(r'^[ \t]{0,3}(?:=+|-+)[ \t]*$');
+final _mdListMarker = RegExp(
+  r'^[ \t]*(?:[-+*]|\d{1,9}[.)])(?:[ \t]+\[[ xX]\])?[ \t]+',
+);
+final _mdHeadingMarker = RegExp(r'^[ \t]*#{1,6}(?:[ \t]+|$)');
+
+int _mdIndentWidth(String content) {
+  var width = 0;
+  for (var i = 0; i < content.length; i++) {
+    final c = content.codeUnitAt(i);
+    if (c == 0x20) {
+      width++;
+    } else if (c == 0x09) {
+      width += 4 - width % 4;
+    } else {
+      break;
+    }
+  }
+  return width;
+}
+
+/// Splits a Markdown document into chunks of about [targetSize] characters,
+/// cutting only at top-level blank-line boundaries where `parseMarkdown`
+/// produces the exact same AST and segments as parsing the whole document.
+List<String> _splitMarkdownChunks(String text, int targetSize) {
+  final hasCrlf = text.contains('\r\n');
+  final lineStarts = <int>[];
+  final lineEnds = <int>[];
+  final contents = <String>[];
+  final isBlanks = <bool>[];
+
+  var pos = 0;
+  final length = text.length;
+  while (pos < length) {
+    final nl = text.indexOf('\n', pos);
+    final lineEnd = nl < 0 ? length : nl + 1;
+    final contentEnd = nl < 0
+        ? length
+        : (nl > pos && text.codeUnitAt(nl - 1) == 0x0D ? nl - 1 : nl);
+    final content = text.substring(pos, contentEnd);
+    lineStarts.add(pos);
+    lineEnds.add(lineEnd);
+    contents.add(content);
+    isBlanks.add(content.trim().isEmpty);
+    pos = lineEnd;
+  }
+  if (contents.isEmpty) return [text];
+
+  final chunks = <String>[];
+  var chunkStart = 0;
+  var inList = false;
+  var i = 0;
+
+  while (i < contents.length) {
+    final content = contents[i];
+    if (isBlanks[i]) {
+      final cutPos = lineEnds[i];
+      i++;
+      if (i < contents.length &&
+          !isBlanks[i] &&
+          cutPos - chunkStart >= targetSize &&
+          (!hasCrlf || text.indexOf('\n', cutPos) != -1)) {
+        final next = contents[i];
+        final nextIndent = _mdIndentWidth(next);
+        final nextTrimmed = next.trimLeft();
+        final safeNext =
+            nextIndent == 0 &&
+            !nextTrimmed.startsWith('>') &&
+            !_mdFrontMatterOpen.hasMatch(next) &&
+            (!inList ||
+                _mdListMarker.hasMatch(next) ||
+                _mdHeadingMarker.hasMatch(next));
+        if (safeNext) {
+          chunks.add(text.substring(chunkStart, cutPos));
+          chunkStart = cutPos;
+          inList = false;
+        }
+      }
+      continue;
+    }
+
+    if (i == 0 && _mdFrontMatterOpen.hasMatch(content)) {
+      var end = -1;
+      for (var j = 1; j < contents.length; j++) {
+        if (_mdFrontMatterClose.hasMatch(contents[j])) {
+          end = j;
+          break;
+        }
+      }
+      if (end != -1) {
+        i = end + 1;
+        continue;
+      }
+    }
+
+    final unquoted = content.replaceFirst(_mdQuotePrefix, '');
+    if (unquoted.trim().isEmpty) {
+      i++;
+      continue;
+    }
+
+    final fence = _mdFenceOpen.firstMatch(unquoted);
+    if (fence != null) {
+      final marker = fence.group(1) ?? fence.group(2)!;
+      final close = RegExp(
+        '^[ \\t]*${RegExp.escape(marker[0])}{${marker.length},}[ \\t]*\$',
+      );
+      var end = contents.length - 1;
+      for (var j = i + 1; j < contents.length; j++) {
+        if (close.hasMatch(contents[j].replaceFirst(_mdQuotePrefix, ''))) {
+          end = j;
+          break;
+        }
+      }
+      i = end + 1;
+      continue;
+    }
+
+    if (_mdMathOpen.hasMatch(unquoted)) {
+      final rest = unquoted.trim().substring(2);
+      if (rest.trimRight().endsWith(r'$$')) {
+        i++;
+        continue;
+      }
+      var end = contents.length - 1;
+      for (var j = i + 1; j < contents.length; j++) {
+        if (contents[j].trimRight().endsWith(r'$$')) {
+          end = j;
+          break;
+        }
+      }
+      i = end + 1;
+      continue;
+    }
+
+    if (unquoted.trimLeft().startsWith('<!--')) {
+      var end = contents.length - 1;
+      for (var j = i; j < contents.length; j++) {
+        if (contents[j].contains('-->')) {
+          end = j;
+          break;
+        }
+      }
+      i = end + 1;
+      continue;
+    }
+
+    final rawHtml = _mdRawHtmlOpen.firstMatch(unquoted);
+    if (rawHtml != null) {
+      final closing = '</${rawHtml.group(1)!.toLowerCase()}';
+      var end = contents.length - 1;
+      for (var j = i; j < contents.length; j++) {
+        if (contents[j].toLowerCase().contains(closing)) {
+          end = j;
+          break;
+        }
+      }
+      i = end + 1;
+      continue;
+    }
+
+    if (!inList &&
+        _mdIndentWidth(content) >= 4 &&
+        (i == 0 || isBlanks[i - 1])) {
+      var end = i + 1;
+      while (end < contents.length &&
+          (isBlanks[end] || _mdIndentWidth(contents[end]) >= 4)) {
+        end++;
+      }
+      while (end > i + 1 && isBlanks[end - 1]) {
+        end--;
+      }
+      i = end;
+      continue;
+    }
+
+    if (_mdThematicBreak.hasMatch(content) ||
+        _mdSetextUnderline.hasMatch(content)) {
+      inList = false;
+      i++;
+      continue;
+    }
+
+    if (_mdListMarker.hasMatch(unquoted)) {
+      inList = true;
+    } else if (_mdIndentWidth(content) == 0 &&
+        !_mdQuotePrefix.hasMatch(content)) {
+      inList = false;
+    }
+    i++;
+  }
+
+  if (chunkStart < length) {
+    chunks.add(text.substring(chunkStart));
+  }
+  return chunks;
+}
 
 final _subtitleTimingLine = RegExp(
   r'^\s*(?:\d+:)?\d{1,2}:\d{2}[,.]\d{1,3}\s*-->\s*(?:\d+:)?\d{1,2}:\d{2}'

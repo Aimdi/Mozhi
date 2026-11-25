@@ -150,5 +150,76 @@ void main() {
         );
       },
     );
+
+    test(
+      'translates multiple files to --output-dir and reports --json',
+      () async {
+        final xmlFile = File('${h.directory.path}/strings.xml')
+          ..writeAsStringSync(
+            '<resources><string name="hi">Hello</string></resources>\n',
+          );
+        final outDir = '${h.directory.path}/translated';
+        final code = await h.run([
+          'document',
+          '-f',
+          'en',
+          '-t',
+          'de',
+          '--output-dir',
+          outDir,
+          '--json',
+          jsonFile.path,
+          xmlFile.path,
+        ]);
+        expect(code, ExitCode.success.code);
+        final json = h.json()! as Map<String, Object?>;
+        expect(json['totalSegments'], 3);
+        expect(json['totalTranslated'], 3);
+        expect((json['files']! as List<Object?>).length, 2);
+        expect(
+          File('$outDir/en.json').readAsStringSync(),
+          contains('"hello": "[de] Hello"'),
+        );
+        expect(
+          File('$outDir/strings.xml').readAsStringSync(),
+          contains('<string name="hi">[de] Hello</string>'),
+        );
+      },
+    );
+
+    test('supports multi-file --dry-run and validates batch flags', () async {
+      final second = File('${h.directory.path}/notes.txt')
+        ..writeAsStringSync('Second file\n');
+      expect(
+        await h.run([
+          'document',
+          '--dry-run',
+          '--json',
+          '-t',
+          'fr',
+          jsonFile.path,
+          second.path,
+        ]),
+        ExitCode.success.code,
+      );
+      final json = h.json()! as Map<String, Object?>;
+      expect(json['dryRun'], isTrue);
+      expect(json['totalSegments'], 3);
+
+      expect(
+        await h.run(['document', '-t', 'fr', jsonFile.path, second.path]),
+        ExitCode.usage.code,
+      );
+      expect(
+        await h.run([
+          'document',
+          '-o',
+          'single.out',
+          jsonFile.path,
+          second.path,
+        ]),
+        ExitCode.usage.code,
+      );
+    });
   });
 }

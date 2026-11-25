@@ -210,6 +210,46 @@ void main() {
         expect(coop.render(translations), sync.render(translations));
       },
     );
+
+    test('chunks large Markdown identically to sync parseDocument', () async {
+      final sections = <String>[
+        '---\ntitle: Keep me\nauthor: Mozhi\n---',
+        for (var i = 0; i < 40; i++) ...[
+          '## Section $i',
+          'Paragraph $i with `inlineCode` and [link](https://example.com/$i).',
+          '```dart\n// Blank line in fence\n\nfinal x = $i;\n```',
+          '\$\$\na_$i = b_$i\n\n+ c_$i\n\$\$',
+          '<!-- multi-line\n\nHTML comment $i -->',
+          '<pre>\nraw html $i\n\nstill pre\n</pre>',
+          '    indented code $i\n\n    still indented $i',
+          '- List item $i\n\n    indented list continuation $i',
+          '---',
+          '| Col A | Col B |\n| --- | --- |\n| Val $i | Text $i |',
+        ],
+      ];
+      final text = '${sections.join('\n\n')}\n';
+      var yields = 0;
+      final coop = await parseTextCooperatively(
+        parseDocument,
+        text,
+        DocumentFormat.markdown,
+        chunkThreshold: 500,
+        chunkSize: 400,
+        yieldTurn: () async {
+          yields++;
+          await Future<void>.delayed(Duration.zero);
+        },
+      );
+      final sync = parseDocument(text, DocumentFormat.markdown);
+
+      expect(yields, greaterThanOrEqualTo(4));
+      expect(coop.segments, sync.segments);
+      expect(coop.render(), text);
+      final translations = [
+        for (final s in sync.segments) s.text.toUpperCase(),
+      ];
+      expect(coop.render(translations), sync.render(translations));
+    });
   });
 
   group('OfficePackage async cooperative yielding', () {

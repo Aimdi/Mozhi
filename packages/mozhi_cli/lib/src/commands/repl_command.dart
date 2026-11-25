@@ -26,12 +26,25 @@ class ReplCommand extends MozhiCommand {
       );
     addEngineOption();
     addInstanceOption();
-    argParser.addOption(
-      'formality',
-      valueHelp: 'level',
-      allowed: [for (final value in Formality.values) kebabCase(value.name)],
-      help: 'Initial formality level (AI / DeepL).',
-    );
+    argParser
+      ..addOption(
+        'formality',
+        valueHelp: 'level',
+        allowed: [for (final value in Formality.values) kebabCase(value.name)],
+        help: 'Initial formality level (AI / DeepL).',
+      )
+      ..addOption(
+        'style',
+        allowed: [
+          for (final value in TranslationStyle.values) kebabCase(value.name),
+        ],
+        help: 'Initial translation style (natural or literal; AI only).',
+      )
+      ..addOption(
+        'context',
+        valueHelp: 'text',
+        help: 'Initial translation context (AI only).',
+      );
   }
 
   final Stream<String>? _inputLines;
@@ -62,6 +75,11 @@ class ReplCommand extends MozhiCommand {
     final formality = formalityOpt == null
         ? Formality.automatic
         : parseChoice('formality', formalityOpt, Formality.values);
+    final styleOpt = option('style');
+    final style = styleOpt == null
+        ? TranslationStyle.natural
+        : parseChoice('style', styleOpt, TranslationStyle.values);
+    final contextText = option('context') ?? '';
 
     final sink = _outputSink ?? _LoggerSink(logger);
     final lines = _inputLines ?? console.readLines();
@@ -79,6 +97,8 @@ class ReplCommand extends MozhiCommand {
         source: source,
         target: target,
         formality: formality,
+        style: style,
+        context: contextText,
         output: sink,
         bold: bold,
         showPrompt: showPrompt,
@@ -100,9 +120,12 @@ class ReplSession {
     required this.target,
     required this.output,
     this.formality = Formality.automatic,
+    this.style = TranslationStyle.natural,
+    this.context = '',
     String Function(String)? bold,
     this.showPrompt = false,
-  }) : _bold = bold ?? _identity;
+  }) : _bold = bold ?? _identity,
+       glossary = Map<String, String>.of(config.glossary);
 
   final TranslationRepository repository;
   final CliConfig config;
@@ -115,6 +138,9 @@ class ReplSession {
   Language source;
   Language target;
   Formality formality;
+  TranslationStyle style;
+  String context;
+  final Map<String, String> glossary;
   String? lastDetectedSource;
 
   static String _identity(String s) => s;
@@ -169,8 +195,10 @@ class ReplSession {
             'Languages: ${source.code} (${source.name}) → '
             '${target.code} (${target.name})\n'
             'Formality: ${kebabCase(formality.name)}\n'
-            'Glossary: ${config.glossary.length} saved '
-            '${config.glossary.length == 1 ? 'term' : 'terms'}',
+            'Style: ${kebabCase(style.name)}\n'
+            'Context: ${context.isEmpty ? '(none)' : context}\n'
+            'Glossary: ${glossary.length} '
+            '${glossary.length == 1 ? 'term' : 'terms'}',
           );
           return true;
 
@@ -240,6 +268,40 @@ class ReplSession {
           output.writeln('Formality set to ${kebabCase(formality.name)}.');
           return true;
 
+        case '/style':
+          if (arg.isEmpty) {
+            final allowed = TranslationStyle.values
+                .map((v) => kebabCase(v.name))
+                .join('|');
+            output.writeln('Usage: /style <$allowed>');
+            return true;
+          }
+          style = parseChoice('style', arg, TranslationStyle.values);
+          output.writeln('Style set to ${kebabCase(style.name)}.');
+          return true;
+
+        case '/context':
+          if (arg.isEmpty) {
+            output.writeln(
+              context.isEmpty
+                  ? 'Context is empty. Usage: /context <text|clear>'
+                  : 'Context: $context',
+            );
+            return true;
+          }
+          if (arg.toLowerCase() == 'clear') {
+            context = '';
+            output.writeln('Context cleared.');
+            return true;
+          }
+          context = arg;
+          output.writeln('Context set to "$context".');
+          return true;
+
+        case '/glossary':
+          _handleGlossary(arg);
+          return true;
+
         case '/proofread' || '/proof':
           if (arg.isEmpty) {
             output.writeln('Usage: /proofread <text>');
@@ -289,6 +351,52 @@ class ReplSession {
     }
   }
 
+  void _handleGlossary(String arg) {
+    if (arg.isEmpty || arg.toLowerCase() == 'list') {
+      if (glossary.isEmpty) {
+        output.writeln('Glossary is empty.');
+        return;
+      }
+      final keys = glossary.keys.toList()..sort();
+      for (final key in keys) {
+        output.writeln('  $key → ${glossary[key]}');
+      }
+      return;
+    }
+    final space = arg.indexOf(RegExp(r'\s'));
+    final sub = (space < 0 ? arg : arg.substring(0, space)).toLowerCase();
+    final rest = space < 0 ? '' : arg.substring(space + 1).trim();
+    switch (sub) {
+      case 'add' || 'set':
+        if (rest.isEmpty) {
+          output.writeln('Usage: /glossary add <term=translation>');
+          return;
+        }
+        final parsed = parseGlossary([rest]);
+        glossary.addAll(parsed);
+        for (final MapEntry(:key, :value) in parsed.entries) {
+          output.writeln('Glossary term set: $key → $value');
+        }
+      case 'remove' || 'rm' || 'delete':
+        if (rest.isEmpty) {
+          output.writeln('Usage: /glossary remove <term>');
+          return;
+        }
+        if (glossary.remove(rest) != null) {
+          output.writeln('Removed glossary term "$rest".');
+        } else {
+          output.writeln('Glossary term "$rest" not found.');
+        }
+      case 'clear':
+        glossary.clear();
+        output.writeln('Glossary cleared.');
+      default:
+        output.writeln(
+          'Usage: /glossary <list|add term=translation|remove term|clear>',
+        );
+    }
+  }
+
   TranslationEngine _aiEngineFor(String feature) => engine.isAi
       ? engine
       : resolveAiEngine(null, config, providers, feature: feature);
@@ -296,10 +404,17 @@ class ReplSession {
   Future<void> _translateLine(String text) async {
     try {
       final options = engine.isAi || engine.isMt
-          ? TranslationOptions(formality: formality, glossary: config.glossary)
-          : config.glossary.isEmpty
+          ? TranslationOptions(
+              style: style,
+              formality: formality,
+              context: context,
+              glossary: Map<String, String>.unmodifiable(glossary),
+            )
+          : glossary.isEmpty
           ? const TranslationOptions()
-          : TranslationOptions(glossary: config.glossary);
+          : TranslationOptions(
+              glossary: Map<String, String>.unmodifiable(glossary),
+            );
       final request = TranslationRequest(
         text: text,
         source: source,
@@ -325,6 +440,9 @@ Commands:
   /swap                Swap source and target languages
   /engine <id>         Switch engine (google, deepl, ai, ai:<id>, mt:<id>)
   /formality <level>   Set formality (automatic, more, less, prefer-more, prefer-less)
+  /style <style>       Set translation style (natural, literal)
+  /context <text|clear> Set or clear translation context (AI)
+  /glossary <cmd>      Manage session glossary (list, add k=v, remove k, clear)
   /proofread <text>    Proofread text using an AI provider
   /dict <word>         Look up a word using an AI provider
   /status              Show current session settings
