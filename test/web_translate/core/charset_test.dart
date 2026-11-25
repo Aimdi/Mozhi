@@ -282,6 +282,106 @@ void main() {
       expect(decoded.unsupportedCharset, isNull);
     });
 
+    test('decodes windows-1255 and iso-8859-8 (Hebrew)', () {
+      // "שלום ₪" in windows-1255
+      final win = decodeHtmlBytes([
+        0xF9,
+        0xEC,
+        0xE5,
+        0xED,
+        0x20,
+        0xA4,
+      ], contentType: 'text/html; charset=windows-1255');
+      expect(win.text, 'שלום ₪');
+      expect(win.charset, 'windows-1255');
+
+      // "שלום" in iso-8859-8-i
+      final iso = decodeHtmlBytes([
+        0xF9,
+        0xEC,
+        0xE5,
+        0xED,
+      ], contentType: 'text/html; charset=iso-8859-8-i');
+      expect(iso.text, 'שלום');
+      expect(iso.charset, 'iso-8859-8');
+    });
+
+    test('decodes windows-1257, iso-8859-13, and iso-8859-4 (Baltic)', () {
+      // "Rīga €" in windows-1257
+      final win = decodeHtmlBytes([
+        0x52,
+        0xEE,
+        0x67,
+        0x61,
+        0x20,
+        0x80,
+      ], contentType: 'text/html; charset=windows-1257');
+      expect(win.text, 'Rīga €');
+      expect(win.charset, 'windows-1257');
+
+      // "Rīga" in iso-8859-13 and iso-8859-4
+      expect(
+        decodeHtmlBytes([
+          0x52,
+          0xEE,
+          0x67,
+          0x61,
+        ], contentType: 'text/html; charset=iso-8859-13').text,
+        'Rīga',
+      );
+      expect(
+        decodeHtmlBytes([
+          0x52,
+          0xEF,
+          0x67,
+          0x61,
+        ], contentType: 'text/html; charset=latin4').text,
+        'Rīga',
+      );
+    });
+
+    test('decodes windows-1258 (Vietnamese), windows-874 (Thai), and '
+        'iso-8859-6 (Arabic)', () {
+      // "Hà Nội ₫" (combining marks in cp1258)
+      final vi = decodeHtmlBytes([
+        0x48,
+        0x61,
+        0xCC,
+        0x20,
+        0x4E,
+        0xF4,
+        0xF2,
+        0x69,
+        0x20,
+        0xFE,
+      ], contentType: 'text/html; charset=cp1258');
+      expect(vi.text, 'Ha\u0300 Nô\u0323i ₫');
+      expect(vi.charset, 'windows-1258');
+
+      // "ไทย ฿" in tis-620 / windows-874
+      final th = decodeHtmlBytes([
+        0xE4,
+        0xB7,
+        0xC2,
+        0x20,
+        0xDF,
+      ], contentType: 'text/html; charset=tis-620');
+      expect(th.text, 'ไทย ฿');
+      expect(th.charset, 'windows-874');
+
+      // "مرحبا؟" in iso-8859-6
+      final ar = decodeHtmlBytes([
+        0xE5,
+        0xD1,
+        0xCD,
+        0xC8,
+        0xC7,
+        0xBF,
+      ], contentType: 'text/html; charset=iso-8859-6');
+      expect(ar.text, 'مرحبا؟');
+      expect(ar.charset, 'iso-8859-6');
+    });
+
     test('sniffs legacy charset from <meta> tag', () {
       final bytes = [
         ...latin1.encode('<meta charset="koi8-r"><p>'),

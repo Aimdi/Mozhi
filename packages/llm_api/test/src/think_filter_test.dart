@@ -22,14 +22,18 @@ void main() {
         );
       });
 
-      test('removes consecutive <thinking> and <reasoning> blocks', () {
-        expect(
-          ThinkTagFilter.strip(
-            '<thinking>a</thinking>\n<reasoning>b</reasoning> One two',
-          ),
-          'One two',
-        );
-      });
+      test(
+        'removes consecutive <thinking>, <thought> and <reasoning> blocks',
+        () {
+          expect(
+            ThinkTagFilter.strip(
+              '<thinking>a</thinking>\n<thought>gemma</thought>\n'
+              '<reasoning>b</reasoning> One two',
+            ),
+            'One two',
+          );
+        },
+      );
 
       test('matches tags case-insensitively', () {
         expect(ThinkTagFilter.strip('<THINK>x</Think>Answer'), 'Answer');
