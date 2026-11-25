@@ -195,6 +195,66 @@ void main() {
       expect(_roundTrip('strings.tsv', tsv), '1\tTR[Hello]\ttrue\n');
     });
 
+    test('.toml preserves tables, comments, types and multiline strings', () {
+      const input =
+          '# App config\ntitle = "Hello"\n'
+          'count = 42\nenabled = true\n\n'
+          '[messages]\n'
+          "literal = 'Good morning' # note\n"
+          'body = """\nLine one\nLine two"""\n';
+      final doc = DocumentHandlers.parse('strings.toml', input);
+      expect(doc.format, 'toml');
+      expect(doc.segments.map((s) => (s.id, s.text)), [
+        ('title', 'Hello'),
+        ('messages.literal', 'Good morning'),
+        ('messages.body', 'Line one\nLine two'),
+      ]);
+      final out = _roundTrip('strings.toml', input);
+      expect(out, contains('# App config'));
+      expect(out, contains('title = "TR[Hello]"'));
+      expect(out, contains('count = 42'));
+      expect(out, contains('enabled = true'));
+      expect(out, contains("literal = 'TR[Good morning]' # note"));
+      expect(out, contains('body = """\nTR[Line one\nLine two]"""'));
+    });
+
+    test('.tmx inserts or updates target <tuv> while keeping XML intact', () {
+      const input =
+          '<?xml version="1.0" encoding="UTF-8"?>\n'
+          '<tmx version="1.4">\n'
+          '  <header srclang="en"/>\n'
+          '  <body>\n'
+          '    <tu>\n'
+          '      <tuv xml:lang="en"><seg>Hello &amp; welcome</seg></tuv>\n'
+          '    </tu>\n'
+          '    <tu>\n'
+          '      <tuv xml:lang="en"><seg>Goodbye</seg></tuv>\n'
+          '      <tuv xml:lang="de"><seg>Old</seg></tuv>\n'
+          '    </tu>\n'
+          '  </body>\n'
+          '</tmx>\n';
+      final doc = DocumentHandlers.parse(
+        'memory.tmx',
+        input,
+        targetLanguage: 'de',
+      );
+      expect(doc.format, 'tmx');
+      expect(doc.segments.map((s) => (s.id, s.text)), [
+        ('tu-1', 'Hello & welcome'),
+        ('tu-2', 'Goodbye'),
+      ]);
+      final out = doc.rebuild(['Hallo & willkommen', 'Tschüss']);
+      expect(
+        out,
+        contains(
+          '<tuv xml:lang="en"><seg>Hello &amp; welcome</seg></tuv>\n'
+          '      <tuv xml:lang="de"><seg>Hallo &amp; willkommen</seg></tuv>',
+        ),
+      );
+      expect(out, contains('<tuv xml:lang="de"><seg>Tschüss</seg></tuv>'));
+      expect(out, isNot(contains('<seg>Old</seg>')));
+    });
+
     test('rejects unsupported extensions', () {
       expect(
         () => DocumentHandlers.parse('file.bin', 'abc'),

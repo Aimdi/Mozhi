@@ -21,6 +21,11 @@ in `-rc.N`).
   `parseTextCooperatively` beyond plain text to yield between safe
   chunks on large `.srt`, `.vtt`, and Java `.properties` files without
   breaking cue numbering or backslash continuations.
+- **`mozhi_cli` `.toml` & `.tmx` support + v2 docs**: added `.toml` and
+  `.tmx` handlers to `mozhi document` (with target `<tuv>` insertion and
+  updating) and updated `packages/mozhi_cli/README.md` with full v2
+  command documentation (`dictionary`, `document`, `repl`, `config glossary`,
+  direct MT providers, and AI extra flags).
 
 ## Unreleased (Wave 17)
 

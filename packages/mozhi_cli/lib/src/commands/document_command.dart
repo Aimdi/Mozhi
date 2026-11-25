@@ -82,7 +82,8 @@ class DocumentCommand extends MozhiCommand {
   String get description =>
       'Translate structured text and localization files '
       '(.txt, .md, .json, .arb, .srt, .vtt, .po, .properties, .yml/.yaml, '
-      '.csv/.tsv) while preserving keys, timestamps and structure.';
+      '.toml, .tmx, .csv/.tsv) while preserving keys, timestamps and '
+      'structure.';
 
   @override
   String get invocation => 'mozhi document [arguments] <file>';
@@ -115,11 +116,6 @@ class DocumentCommand extends MozhiCommand {
       );
     }
 
-    final parsed = DocumentHandlers.parse(
-      inputPath,
-      content,
-      formatOverride: option('format'),
-    );
     final engine = selectedEngine();
     final sourceInput = option('from') ?? config.source ?? 'auto';
     final targetInput =
@@ -132,6 +128,13 @@ class DocumentCommand extends MozhiCommand {
 
     var source = resolveLanguage(sourceInput, allowAuto: true);
     var target = resolveLanguage(targetInput, allowCustom: engine.isAi);
+
+    final parsed = DocumentHandlers.parse(
+      inputPath,
+      content,
+      formatOverride: option('format'),
+      targetLanguage: target.code,
+    );
 
     if (dryRun) {
       if (jsonOutput) {
