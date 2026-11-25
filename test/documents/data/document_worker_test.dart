@@ -250,6 +250,79 @@ void main() {
       ];
       expect(coop.render(translations), sync.render(translations));
     });
+
+    test(
+      'chunks large Apple .strings identically to sync parseDocument',
+      () async {
+        final entries = List.generate(
+          60,
+          (i) =>
+              '/* Comment with ; inside $i */\n'
+              '"key_$i" = "Hello world ; number $i with %@";',
+        );
+        final text = '\uFEFF// Header\n${entries.join('\n')}\n';
+        var yields = 0;
+        final coop = await parseTextCooperatively(
+          parseDocument,
+          text,
+          DocumentFormat.appleStrings,
+          chunkThreshold: 400,
+          chunkSize: 300,
+          yieldTurn: () async {
+            yields++;
+            await Future<void>.delayed(Duration.zero);
+          },
+        );
+        final sync = parseDocument(text, DocumentFormat.appleStrings);
+
+        expect(yields, greaterThanOrEqualTo(3));
+        expect(coop.segments, sync.segments);
+        expect(coop.render(), text);
+        final translations = [
+          for (final s in sync.segments) s.text.toUpperCase(),
+        ];
+        expect(coop.render(translations), sync.render(translations));
+      },
+    );
+
+    test(
+      'chunks large TOML identically to sync parseDocument across tables',
+      () async {
+        final sections = [
+          'title = "Top level"\n',
+          ...List.generate(
+            30,
+            (i) =>
+                '[section_$i]\n'
+                'label = "Section $i label"\n'
+                'body = """\n[not_a_table]\nLine $i\n"""\n'
+                'items = [\n  "Item $i a",\n  "Item $i b",\n]\n',
+          ),
+        ];
+        final text = sections.join('\n');
+        var yields = 0;
+        final coop = await parseTextCooperatively(
+          parseDocument,
+          text,
+          DocumentFormat.toml,
+          chunkThreshold: 400,
+          chunkSize: 300,
+          yieldTurn: () async {
+            yields++;
+            await Future<void>.delayed(Duration.zero);
+          },
+        );
+        final sync = parseDocument(text, DocumentFormat.toml);
+
+        expect(yields, greaterThanOrEqualTo(3));
+        expect(coop.segments, sync.segments);
+        expect(coop.render(), text);
+        final translations = [
+          for (final s in sync.segments) s.text.toUpperCase(),
+        ];
+        expect(coop.render(translations), sync.render(translations));
+      },
+    );
   });
 
   group('OfficePackage async cooperative yielding', () {

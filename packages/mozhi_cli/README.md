@@ -221,6 +221,8 @@ mozhi config path
 mozhi config glossary add "cloud=Cloud"
 mozhi config glossary list
 mozhi config glossary remove "cloud"
+mozhi config glossary import terms.csv
+mozhi config glossary export --format csv -o terms.csv
 ```
 
 ### AI & MT providers
