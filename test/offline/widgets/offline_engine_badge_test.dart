@@ -24,19 +24,24 @@ void main() {
       expect(find.byTooltip('Translated on this device'), findsOneWidget);
     });
 
-    testWidgets('is keyboard-focusable and exposes tooltip via semantics', (
-      tester,
-    ) async {
-      final handle = tester.ensureSemantics();
-      await tester.pumpApp(const Center(child: OfflineEngineBadge()));
-      final focusFinder = find.descendant(
-        of: find.byType(OfflineEngineBadge),
-        matching: find.byType(Focus),
-      );
-      expect(focusFinder, findsAtLeast(1));
-      final semantics = tester.getSemantics(find.byType(OfflineEngineBadge));
-      expect(semantics.hint, contains('Translated on this device'));
-      handle.dispose();
-    });
+    testWidgets(
+      'exposes tooltip via semantics without blocking sibling merge',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpApp(
+          const MergeSemantics(
+            child: Column(children: [Text('English'), OfflineEngineBadge()]),
+          ),
+        );
+        final semantics = tester.getSemantics(find.byType(Column));
+        expect(
+          semantics.label.split('\n'),
+          containsAll(['English', 'Offline']),
+        );
+        expect(semantics.tooltip, 'Translated on this device');
+        expect(semantics.hint, isEmpty);
+        handle.dispose();
+      },
+    );
   });
 }
