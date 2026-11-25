@@ -89,6 +89,7 @@ mozhi translate -e ai -t "Pirate speak" "Where is the treasure?"   # free-form t
 | `--explain` | fetch a brief explanation of the translation (AI) |
 | `--insights` | fetch word-level insights and variations (AI) |
 | `--romanize` | fetch romanization / transliteration (AI) |
+| `--check-meaning` | back-translate and flag semantic differences (AI) |
 
 AI output streams to the terminal as it is generated (`--no-stream` turns
 that off); when piped, only the final, cleaned-up text is printed.
@@ -158,7 +159,7 @@ mozhi repl --to de --style natural --context "Release notes"
 ```sh
 mozhi proofread "Their going to the libary tomorow."
 mozhi proofread --style email --level comprehensive < draft.txt
-mozhi proofread --tone diplomatic "Your plan won't work."
+mozhi proofread --tone diplomatic --variety en-GB --reading-level b2 "Your plan won't work."
 mozhi proofread -q < draft.txt > fixed.txt      # corrected text only
 ```
 

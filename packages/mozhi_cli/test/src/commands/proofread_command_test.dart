@@ -10,6 +10,7 @@ void main() {
   setUpAll(() {
     registerFallbacks();
     registerFallbackValue(WritingTone.automatic);
+    registerFallbackValue(ReadingLevel.standard);
   });
 
   group('proofread', () {
@@ -50,6 +51,8 @@ void main() {
           style: any(named: 'style'),
           level: any(named: 'level'),
           formality: any(named: 'formality'),
+          readingLevel: any(named: 'readingLevel'),
+          variety: any(named: 'variety'),
           context: any(named: 'context'),
           tone: any(named: 'tone'),
         ),
@@ -133,6 +136,39 @@ void main() {
     test('rejects an unknown tone', () async {
       expect(await h.run(['proofread', '--tone', 'grumpy', 'x']), isNot(0));
     });
+
+    test(
+      'passes --reading-level and --variety and validates unknown tags',
+      () async {
+        expect(
+          await h.run([
+            'proofread',
+            '--reading-level',
+            'b1',
+            '--variety',
+            'en-GB',
+            '-e',
+            'claude',
+            'color',
+          ]),
+          0,
+        );
+        verify(
+          () => h.repository.proofread(
+            any(),
+            'color',
+            readingLevel: ReadingLevel.b1,
+            variety: ProofreadVariety.enGb,
+          ),
+        ).called(1);
+
+        expect(
+          await h.run(['proofread', '--variety', 'zz-ZZ', 'x']),
+          ExitCode.usage.code,
+        );
+        expect(h.stderr, contains('Unknown regional variety'));
+      },
+    );
 
     test('prints JSON', () async {
       expect(await h.run(['proofread', '--json', '-e', 'claude', 'x']), 0);

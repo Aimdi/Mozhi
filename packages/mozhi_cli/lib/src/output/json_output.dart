@@ -32,6 +32,7 @@ Map<String, dynamic> translationJson(
   List<WordInsight>? insights,
   String? explanation,
   String? romanization,
+  MeaningCheck? meaningCheck,
 }) => {
   'engine': result.engineId,
   'engineName': result.engineName,
@@ -63,7 +64,25 @@ Map<String, dynamic> translationJson(
     'insights': [for (final insight in insights) insightJson(insight)],
   'explanation': ?explanation,
   'romanization': ?romanization,
+  if (meaningCheck != null) 'meaningCheck': meaningCheckJson(meaningCheck),
   'elapsedMs': ?result.elapsed?.inMilliseconds,
+};
+
+Map<String, dynamic> meaningCheckJson(MeaningCheck check) => {
+  'verdict': check.verdict.name,
+  if (check.backTranslation.isNotEmpty)
+    'backTranslation': check.backTranslation,
+  'issues': [
+    for (final issue in check.issues)
+      {
+        'type': issue.type.name,
+        'problem': issue.problem,
+        if (issue.sourceSpan.isNotEmpty) 'sourceSpan': issue.sourceSpan,
+        if (issue.translationSpan.isNotEmpty)
+          'translationSpan': issue.translationSpan,
+        if (issue.suggestion.isNotEmpty) 'suggestion': issue.suggestion,
+      },
+  ],
 };
 
 Map<String, dynamic> alternativesJson(AlternativeTranslations alternatives) => {
