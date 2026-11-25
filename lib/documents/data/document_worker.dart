@@ -42,8 +42,9 @@ Future<ParsedDocument> parseTextInBackground(
       ));
 
 /// Cooperatively parses [text] on the current isolate, yielding to the event
-/// loop before parsing and between blank-line-delimited chunks for large
-/// plain-text files (> [chunkThreshold]) without changing the parse result.
+/// loop before parsing and between safe structural chunks for large text,
+/// subtitle (`.srt`, `.vtt`) and `.properties` files (> [chunkThreshold])
+/// without changing the parse result.
 Future<ParsedDocument> parseTextCooperatively(
   TextDocumentParser parser,
   String text,
@@ -57,8 +58,8 @@ Future<ParsedDocument> parseTextCooperatively(
   final pause = yieldTurn ?? _yield;
   await pause();
   if (!identical(parser, parseDocument) ||
-      format != DocumentFormat.plainText ||
-      text.length <= chunkThreshold) {
+      text.length <= chunkThreshold ||
+      !_supportsCooperativeChunking(format)) {
     return _invokeParser(
       parser,
       text,
@@ -67,16 +68,96 @@ Future<ParsedDocument> parseTextCooperatively(
       expandPlurals: expandPlurals,
     );
   }
-  final chunks = _splitPlainTextChunks(text, chunkSize);
+  final chunks = switch (format) {
+    DocumentFormat.plainText ||
+    DocumentFormat.srt ||
+    DocumentFormat.vtt => _splitPlainTextChunks(text, chunkSize),
+    DocumentFormat.properties => _splitPropertiesChunks(text, chunkSize),
+    _ => [text],
+  };
   if (chunks.length <= 1) {
-    return parser(text, format, targetLanguage: targetLanguage);
+    return _invokeParser(
+      parser,
+      text,
+      format,
+      targetLanguage: targetLanguage,
+      expandPlurals: expandPlurals,
+    );
   }
   final parsed = <ParsedDocument>[];
+  final cueOffsets = format.isSubtitle ? <int>[] : null;
+  var totalCues = 0;
   for (var i = 0; i < chunks.length; i++) {
     if (i > 0) await pause();
-    parsed.add(parser(chunks[i], format, targetLanguage: targetLanguage));
+    final chunk = chunks[i];
+    if (cueOffsets != null) {
+      cueOffsets.add(totalCues);
+      totalCues += _countSubtitleCues(chunk);
+    }
+    parsed.add(
+      _invokeParser(
+        parser,
+        chunk,
+        format,
+        targetLanguage: targetLanguage,
+        expandPlurals: expandPlurals,
+      ),
+    );
   }
-  return _mergeParsedDocuments(format, parsed);
+  return _mergeParsedDocuments(format, parsed, cueOffsets: cueOffsets);
+}
+
+bool _supportsCooperativeChunking(DocumentFormat format) =>
+    format == DocumentFormat.plainText ||
+    format == DocumentFormat.srt ||
+    format == DocumentFormat.vtt ||
+    format == DocumentFormat.properties;
+
+final _subtitleTimingLine = RegExp(
+  r'^\s*(?:\d+:)?\d{1,2}:\d{2}[,.]\d{1,3}\s*-->\s*(?:\d+:)?\d{1,2}:\d{2}'
+  r'[,.]\d{1,3}',
+  multiLine: true,
+);
+
+int _countSubtitleCues(String chunk) =>
+    _subtitleTimingLine.allMatches(chunk).length;
+
+/// Splits a Java `.properties` file into chunks of about [targetSize]
+/// characters, cutting only after lines that do not end with an unescaped
+/// backslash continuation (`\`) and never right before a mid-file BOM.
+List<String> _splitPropertiesChunks(String text, int targetSize) {
+  final chunks = <String>[];
+  final length = text.length;
+  var chunkStart = 0;
+  var pos = 0;
+
+  while (pos < length) {
+    final nl = text.indexOf('\n', pos);
+    final lineEnd = nl < 0 ? length : nl + 1;
+    final contentEnd = nl < 0
+        ? length
+        : (nl > pos && text.codeUnitAt(nl - 1) == 0x0D ? nl - 1 : nl);
+    var backslashes = 0;
+    for (var i = contentEnd - 1; i >= pos; i--) {
+      if (text.codeUnitAt(i) == 0x5C) {
+        backslashes++;
+      } else {
+        break;
+      }
+    }
+    pos = lineEnd;
+    if (backslashes.isEven &&
+        pos < length &&
+        pos - chunkStart >= targetSize &&
+        text.codeUnitAt(pos) != 0xFEFF) {
+      chunks.add(text.substring(chunkStart, pos));
+      chunkStart = pos;
+    }
+  }
+  if (chunkStart < length) {
+    chunks.add(text.substring(chunkStart));
+  }
+  return chunks;
 }
 
 Future<void> _yield() => Future<void>.delayed(Duration.zero);
@@ -119,8 +200,9 @@ List<String> _splitPlainTextChunks(String text, int targetSize) {
 /// continuous segment indices and merged adjacent [TextNode]s.
 ParsedDocument _mergeParsedDocuments(
   DocumentFormat format,
-  List<ParsedDocument> parts,
-) {
+  List<ParsedDocument> parts, {
+  List<int>? cueOffsets,
+}) {
   final nodes = <DocNode>[];
   final segments = <Segment>[];
   final segmentNodes = <SegmentNode>[];
@@ -157,9 +239,28 @@ ParsedDocument _mergeParsedDocuments(
     }
   }
 
-  for (final part in parts) {
+  for (var i = 0; i < parts.length; i++) {
+    final part = parts[i];
     final offset = segments.length;
-    segments.addAll(part.segments);
+    final cueOffset = cueOffsets == null ? 0 : cueOffsets[i];
+    if (cueOffset == 0) {
+      segments.addAll(part.segments);
+    } else {
+      for (final segment in part.segments) {
+        final number = segment.label == null
+            ? null
+            : int.tryParse(segment.label!);
+        segments.add(
+          number == null
+              ? segment
+              : Segment(
+                  segment.text,
+                  label: '${number + cueOffset}',
+                  contextHint: segment.contextHint,
+                ),
+        );
+      }
+    }
     for (final node in part.nodes) {
       final remapped = offset == 0 ? node : remap(node, offset);
       addNode(remapped);

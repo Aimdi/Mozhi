@@ -1008,6 +1008,57 @@ void main() {
       );
     });
   });
+
+  group('tilted overlay paragraphs', () {
+    testWidgets('rotates the widget and hit-test area for tilted paragraphs', (
+      tester,
+    ) async {
+      final harness = ImageTranslateHarness();
+      const tiltedLayout = TextLayout(
+        width: 400,
+        height: 300,
+        paragraphs: [
+          TextParagraph(
+            text: 'Eingang',
+            box: Rect.fromLTWH(50, 120, 260, 40),
+            background: _yellow,
+            foreground: _navy,
+            angle: 18,
+          ),
+        ],
+      );
+      await harness.pump(
+        tester,
+        Scaffold(
+          body: SizedBox(
+            width: 400,
+            height: 300,
+            child: TranslatedImageOverlay(
+              image: pngBytes,
+              layout: tiltedLayout,
+              translations: const ['Entrance'],
+              source: german,
+              target: english,
+            ),
+          ),
+        ),
+      );
+
+      final paragraph = find.byKey(
+        const Key('image_translate_overlay_paragraph_0'),
+      );
+      expect(paragraph, findsOneWidget);
+      expect(
+        find.ancestor(of: paragraph, matching: find.byType(Transform)),
+        findsAtLeast(1),
+      );
+
+      await tester.tap(paragraph);
+      await tester.pumpAndSettle();
+      expect(find.text('Entrance'), findsOneWidget);
+      expect(find.text('Eingang'), findsOneWidget);
+    });
+  });
 }
 
 class _GatedRenderer implements OverlayImageRenderer {

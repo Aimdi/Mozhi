@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/semantics.dart';
@@ -180,7 +181,7 @@ class _Paragraph extends StatelessWidget {
         target: target,
       ),
     );
-    return Semantics(
+    final content = Semantics(
       key: Key('image_translate_overlay_paragraph_${label.index}'),
       container: true,
       button: true,
@@ -200,6 +201,8 @@ class _Paragraph extends StatelessWidget {
         ),
       ),
     );
+    if (label.angle == 0) return content;
+    return Transform.rotate(angle: label.angle * math.pi / 180, child: content);
   }
 
   static AttributedString _attributed(String text, Language language) {
@@ -227,7 +230,7 @@ class _LabelPainter extends CustomPainter {
     canvas
       ..save()
       ..translate(-label.fill.left, -label.fill.top);
-    label.paint(canvas);
+    label.paint(canvas, applyRotation: false);
     canvas.restore();
   }
 

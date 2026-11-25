@@ -130,6 +130,86 @@ void main() {
       expect(calls, 1);
       expect(doc.segments, hasLength(400));
     });
+
+    test(
+      'chunks large SRT and VTT subtitles identically to sync parseDocument',
+      () async {
+        for (final format in [DocumentFormat.srt, DocumentFormat.vtt]) {
+          String cue(int i) {
+            final s = (i % 60).toString().padLeft(2, '0');
+            final e = ((i + 1) % 60).toString().padLeft(2, '0');
+            return '$i\n00:00:$s,000 --> 00:00:$e,500\n'
+                'Subtitle line $i with <i>tag</i>';
+          }
+
+          final cues = <String>[
+            if (format == DocumentFormat.vtt) 'WEBVTT\n\nNOTE header note',
+            for (var i = 1; i <= 60; i++) cue(i),
+          ];
+          final text = '${cues.join('\n\n')}\n';
+          var yields = 0;
+          final coop = await parseTextCooperatively(
+            parseDocument,
+            text,
+            format,
+            chunkThreshold: 400,
+            chunkSize: 400,
+            yieldTurn: () async {
+              yields++;
+              await Future<void>.delayed(Duration.zero);
+            },
+          );
+          final sync = parseDocument(text, format);
+
+          expect(yields, greaterThanOrEqualTo(3), reason: format.name);
+          expect(coop.segments, sync.segments, reason: format.name);
+          expect(coop.render(), text, reason: format.name);
+          final translations = [
+            for (final s in sync.segments) s.text.toUpperCase(),
+          ];
+          expect(
+            coop.render(translations),
+            sync.render(translations),
+            reason: format.name,
+          );
+        }
+      },
+    );
+
+    test(
+      'chunks large Java .properties without breaking backslash continuations',
+      () async {
+        final entries = [
+          for (var i = 0; i < 80; i++)
+            if (i.isEven)
+              'key.$i = Hello world number $i'
+            else
+              'multi.$i = First line of $i \\\n  continued line $i',
+        ];
+        final text = '\uFEFF# Header comment\n${entries.join('\n')}\n';
+        var yields = 0;
+        final coop = await parseTextCooperatively(
+          parseDocument,
+          text,
+          DocumentFormat.properties,
+          chunkThreshold: 400,
+          chunkSize: 300,
+          yieldTurn: () async {
+            yields++;
+            await Future<void>.delayed(Duration.zero);
+          },
+        );
+        final sync = parseDocument(text, DocumentFormat.properties);
+
+        expect(yields, greaterThanOrEqualTo(3));
+        expect(coop.segments, sync.segments);
+        expect(coop.render(), text);
+        final translations = [
+          for (final s in sync.segments) s.text.toUpperCase(),
+        ];
+        expect(coop.render(translations), sync.render(translations));
+      },
+    );
   });
 
   group('OfficePackage async cooperative yielding', () {

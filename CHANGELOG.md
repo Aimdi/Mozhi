@@ -3,6 +3,25 @@
 All notable changes to Mozhi, by release tag on GitHub (pre-releases end
 in `-rc.N`).
 
+## Unreleased (Wave 18)
+
+### Added & Improved
+
+- **Play variant ML Kit photo overlay**: implemented `TextRecognitionLayout`
+  in `MlKitTextRecognitionService` with bounding boxes, multi-line joining,
+  tilt angle extraction (line angles on Android, corner-point fallback on
+  iOS), alignment classification, RTL detection, and sampled
+  background/foreground colours so the Play variant gets the same
+  in-place photo overlay as the default Tesseract build.
+- **Tilted image overlay hit-testing**: `TranslatedImageOverlay` now
+  rotates tilted paragraphs with `Transform.rotate` (avoiding double
+  rotation in `OverlayLabel.paint`) so pointer hit-testing and
+  screen-reader bounds match the visual rotated box.
+- **Cooperative web parsing for subtitles & `.properties`**: extended
+  `parseTextCooperatively` beyond plain text to yield between safe
+  chunks on large `.srt`, `.vtt`, and Java `.properties` files without
+  breaking cue numbering or backslash continuations.
+
 ## Unreleased (Wave 17)
 
 ### Added
