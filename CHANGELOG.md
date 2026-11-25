@@ -3,6 +3,19 @@
 All notable changes to Mozhi, by release tag on GitHub (pre-releases end
 in `-rc.N`).
 
+## Unreleased (Wave 20)
+
+### Added & Improved
+
+- **Cooperative web parsing for `.strings` & `.toml`**: extended
+  `parseTextCooperatively` to chunk large Apple `.strings` and TOML
+  files safely across comments, quoted strings, multiline strings, and
+  table headers (7 text formats total: `.txt`, `.md`, `.srt`, `.vtt`,
+  `.properties`, `.strings`, `.toml`, plus multi-part Office & EPUB).
+- **`mozhi_cli` glossary import/export**: added `mozhi config glossary
+  import <file>` (`--replace`, supporting `key=value`, TSV, and CSV) and
+  `mozhi config glossary export` (`--format txt|tsv|csv|json`, `-o`).
+
 ## Unreleased (Wave 19)
 
 ### Added & Improved
