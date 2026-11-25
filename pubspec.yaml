@@ -33,7 +33,7 @@ dependencies:
     path: packages/llama_engine
   llm_api:
     path: packages/llm_api
-  material_ui: ^1.7.0
+  material_ui: ^1.11.1
   mozhi_api:
     path: packages/mozhi_api
   package_info_plus: ^10.2.2
