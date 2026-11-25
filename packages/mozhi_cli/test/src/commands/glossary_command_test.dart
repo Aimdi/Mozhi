@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:mason_logger/mason_logger.dart';
 import 'package:mozhi_cli/src/config/cli_config.dart';
 import 'package:test/test.dart';
@@ -81,5 +83,58 @@ void main() {
         expect(h.readConfig().glossary, isEmpty);
       },
     );
+
+    test('imports and exports glossaries in txt, tsv, csv and json', () async {
+      final csvFile = File('${h.directory.path}/terms.csv')
+        ..writeAsStringSync(
+          'term,translation\n'
+          '"cloud, hybrid","nuage, hybride"\n'
+          'server,serveur\n',
+        );
+      expect(await h.run(['config', 'glossary', 'import', csvFile.path]), 0);
+      expect(h.readConfig().glossary, {
+        'cloud, hybrid': 'nuage, hybride',
+        'server': 'serveur',
+      });
+
+      final txtFile = File('${h.directory.path}/more.txt')
+        ..writeAsStringSync('# comment\ncache\tmémoire cache\n');
+      expect(
+        await h.run([
+          'config',
+          'glossary',
+          'import',
+          '--replace',
+          txtFile.path,
+        ]),
+        0,
+      );
+      expect(h.readConfig().glossary, {'cache': 'mémoire cache'});
+
+      final outCsv = '${h.directory.path}/out/glossary.csv';
+      expect(
+        await h.run([
+          'config',
+          'glossary',
+          'export',
+          '--format',
+          'csv',
+          '-o',
+          outCsv,
+        ]),
+        0,
+      );
+      expect(
+        File(outCsv).readAsStringSync(),
+        'term,translation\ncache,mémoire cache\n',
+      );
+
+      h.written.clear();
+      expect(
+        await h.run(['config', 'glossary', 'export', '--format', 'tsv']),
+        0,
+      );
+      expect(h.written.toString(), 'cache\tmémoire cache\n');
+    });
   });
 }
