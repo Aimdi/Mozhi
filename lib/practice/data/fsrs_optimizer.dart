@@ -1,8 +1,20 @@
 import 'dart:math' as math;
 
 import 'package:equatable/equatable.dart';
+import 'package:flutter/foundation.dart' show compute;
 import 'package:mozhi/practice/data/fsrs.dart';
 import 'package:mozhi/practice/models/practice_review_log.dart';
+
+/// Top-level entry point for running [FsrsOptimizer.optimize] in a background
+/// isolate via [compute].
+FsrsOptimizationResult runFsrsOptimization(List<PracticeReviewLog> logs) =>
+    const FsrsOptimizer().optimize(logs);
+
+/// Runs [FsrsOptimizer.optimize] off the UI thread so large review histories
+/// never freeze the practice overview or its loading indicator.
+Future<FsrsOptimizationResult> optimizeFsrsInBackground(
+  List<PracticeReviewLog> logs,
+) => compute(runFsrsOptimization, logs);
 
 /// The outcome of fitting personalized FSRS-5 weights to a user's review logs.
 final class FsrsOptimizationResult extends Equatable {

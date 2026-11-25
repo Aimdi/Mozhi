@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:bloc/bloc.dart';
-import 'package:flutter/foundation.dart' show compute;
 import 'package:mozhi/practice/cubit/practice_state.dart';
 import 'package:mozhi/practice/data/answer_check.dart';
 import 'package:mozhi/practice/data/fsrs.dart';
@@ -14,11 +13,6 @@ import 'package:mozhi/practice/models/practice_review_log.dart';
 import 'package:mozhi/practice/models/practice_settings.dart';
 
 export 'practice_state.dart';
-
-/// Top-level entry point for running [FsrsOptimizer.optimize] in a background
-/// isolate via [compute].
-FsrsOptimizationResult runFsrsOptimization(List<PracticeReviewLog> logs) =>
-    const FsrsOptimizer().optimize(logs);
 
 /// Practice: the overview of what is due ([load]), the settings, and
 /// review sessions ([start]): each card's front, then the answer
@@ -84,7 +78,7 @@ class PracticeCubit extends Cubit<PracticeState> {
 
   static Future<FsrsOptimizationResult> _defaultOptimizer(
     List<PracticeReviewLog> logs,
-  ) => compute(runFsrsOptimization, logs);
+  ) => optimizeFsrsInBackground(logs);
 
   static FsrsScheduler _defaultScheduler(PracticeSettings settings) =>
       FsrsScheduler(
