@@ -131,22 +131,42 @@ class DocumentCommand extends MozhiCommand {
       '.csv/.tsv) while preserving keys, timestamps and structure.';
 
   @override
-  String get invocation => 'mozhi document [arguments] <file>...';
+  String get invocation => 'mozhi document [arguments] [<file>... | -]';
 
   @override
   Future<int> run() async {
-    if (args.rest.isEmpty) {
-      throw CliException.usage(
-        'Expected at least one input file path.',
-        hint: 'Usage: $invocation',
-      );
+    final rawPaths = args.rest;
+    final List<String> inputPaths;
+    if (rawPaths.isEmpty) {
+      if (!console.stdinHasTerminal) {
+        inputPaths = const ['-'];
+      } else {
+        throw CliException.usage(
+          'Expected at least one input file path (or "-" for stdin).',
+          hint: 'Usage: $invocation',
+        );
+      }
+    } else {
+      inputPaths = rawPaths;
     }
-    final inputPaths = args.rest;
     final isBatch = inputPaths.length > 1;
+    final hasStdin = inputPaths.contains('-');
     final outputPath = option('output');
     final outputDir = option('output-dir');
     final inPlace = flag('in-place');
     final dryRun = flag('dry-run');
+
+    if (hasStdin && isBatch) {
+      throw const CliException.usage(
+        'Cannot combine stdin ("-") with multiple input files.',
+      );
+    }
+    if (hasStdin && (inPlace || outputDir != null)) {
+      throw const CliException.usage(
+        'Cannot use --in-place (-i) or --output-dir with stdin ("-").',
+        hint: 'Write to stdout or pass --output (-o) <file>.',
+      );
+    }
 
     final outputModeCount =
         (outputPath != null ? 1 : 0) +
@@ -216,24 +236,46 @@ class DocumentCommand extends MozhiCommand {
     final parsedFiles = <({String path, ParsedDocument doc})>[];
     for (final inputPath in inputPaths) {
       final String content;
-      try {
-        content = io.File(inputPath).readAsStringSync();
-      } on io.FileSystemException catch (error) {
-        throw CliException(
-          'Cannot read document $inputPath: ${error.message}',
-          exitCode: ExitCode.noInput,
-        );
+      final String? formatOverride;
+      if (inputPath == '-') {
+        content = await console.readStdin();
+        formatOverride = option('format') ?? 'txt';
+      } else {
+        try {
+          content = io.File(inputPath).readAsStringSync();
+        } on io.FileSystemException catch (error) {
+          throw CliException(
+            'Cannot read document $inputPath: ${error.message}',
+            exitCode: ExitCode.noInput,
+          );
+        }
+        formatOverride = option('format');
       }
       parsedFiles.add((
         path: inputPath,
         doc: DocumentHandlers.parse(
           inputPath,
           content,
-          formatOverride: option('format'),
+          formatOverride: formatOverride,
           targetLanguage: target.code,
         ),
       ));
     }
+
+    // Group identical segment texts so repeated UI strings across a file or
+    // batch are only sent to the translation engine once.
+    final slotsByText = <String, List<({int fileIdx, int segIdx})>>{};
+    for (var fileIdx = 0; fileIdx < parsedFiles.length; fileIdx++) {
+      final segments = parsedFiles[fileIdx].doc.segments;
+      for (var segIdx = 0; segIdx < segments.length; segIdx++) {
+        (slotsByText[segments[segIdx].text] ??= []).add((
+          fileIdx: fileIdx,
+          segIdx: segIdx,
+        ));
+      }
+    }
+    final uniqueJobs = slotsByText.entries.toList(growable: false);
+    final uniqueCount = uniqueJobs.length;
 
     if (dryRun) {
       if (!isBatch) {
@@ -247,6 +289,7 @@ class DocumentCommand extends MozhiCommand {
             'target': target.code,
             'dryRun': true,
             'segments': doc.segments.length,
+            'uniqueSegments': uniqueCount,
             'translated': 0,
             'entries': [
               for (final seg in doc.segments) {'id': seg.id, 'text': seg.text},
@@ -254,9 +297,12 @@ class DocumentCommand extends MozhiCommand {
           });
           return ExitCode.success.code;
         }
+        final dedupNote = uniqueCount < doc.segments.length
+            ? ' ($uniqueCount unique)'
+            : '';
         logger.info(
           'Dry run: ${doc.segments.length} translatable '
-          '${doc.segments.length == 1 ? 'segment' : 'segments'} '
+          '${doc.segments.length == 1 ? 'segment' : 'segments'}$dedupNote '
           'in $path (${doc.format}) using ${engine.id} '
           '(${source.code} → ${target.code}).',
         );
@@ -278,6 +324,7 @@ class DocumentCommand extends MozhiCommand {
           'source': source.code,
           'target': target.code,
           'totalSegments': totalSegments,
+          'uniqueSegments': uniqueCount,
           'files': [
             for (final (:path, :doc) in parsedFiles)
               {
@@ -294,10 +341,13 @@ class DocumentCommand extends MozhiCommand {
         });
         return ExitCode.success.code;
       }
+      final dedupNote = uniqueCount < totalSegments
+          ? ' ($uniqueCount unique)'
+          : '';
       logger.info(
         'Dry run: ${parsedFiles.length} files, $totalSegments translatable '
-        '${totalSegments == 1 ? 'segment' : 'segments'} using ${engine.id} '
-        '(${source.code} → ${target.code}).',
+        '${totalSegments == 1 ? 'segment' : 'segments'}$dedupNote '
+        'using ${engine.id} (${source.code} → ${target.code}).',
       );
       for (final (:path, :doc) in parsedFiles) {
         logger.info(
@@ -326,31 +376,21 @@ class DocumentCommand extends MozhiCommand {
         source = supported.first;
         target = supported.last;
       }
-      final progress = interactive && !jsonOutput && totalSegments > 0
-          ? logger.progress('Translating 0/$totalSegments segments')
+      final progressLabel = uniqueCount < totalSegments
+          ? 'unique segments'
+          : 'segments';
+      final progress = interactive && !jsonOutput && uniqueCount > 0
+          ? logger.progress('Translating 0/$uniqueCount $progressLabel')
           : null;
-      final jobs = <({int fileIdx, int segIdx, DocumentSegment segment})>[
-        for (var fileIdx = 0; fileIdx < parsedFiles.length; fileIdx++)
-          for (
-            var segIdx = 0;
-            segIdx < parsedFiles[fileIdx].doc.segments.length;
-            segIdx++
-          )
-            (
-              fileIdx: fileIdx,
-              segIdx: segIdx,
-              segment: parsedFiles[fileIdx].doc.segments[segIdx],
-            ),
-      ];
       var nextJob = 0;
       var completed = 0;
       try {
         Future<void> worker() async {
           while (true) {
-            if (nextJob >= jobs.length) return;
-            final job = jobs[nextJob++];
+            if (nextJob >= uniqueJobs.length) return;
+            final entry = uniqueJobs[nextJob++];
             final request = TranslationRequest(
-              text: job.segment.text,
+              text: entry.key,
               source: source,
               target: target,
               options: options,
@@ -358,16 +398,18 @@ class DocumentCommand extends MozhiCommand {
             final result = await repository
                 .translate(engine, request)
                 .lastWhere((r) => r.isComplete);
-            allTranslations[job.fileIdx][job.segIdx] = result.text;
+            for (final slot in entry.value) {
+              allTranslations[slot.fileIdx][slot.segIdx] = result.text;
+            }
             progress?.update(
-              'Translating ${++completed}/$totalSegments segments',
+              'Translating ${++completed}/$uniqueCount $progressLabel',
             );
           }
         }
 
-        final workerCount = concurrency < jobs.length
+        final workerCount = concurrency < uniqueJobs.length
             ? concurrency
-            : jobs.length;
+            : uniqueJobs.length;
         await Future.wait([for (var w = 0; w < workerCount; w++) worker()]);
         progress?.complete('Translated $totalSegments segments');
       } on Object {
@@ -411,6 +453,7 @@ class DocumentCommand extends MozhiCommand {
           'target': target.code,
           'dryRun': false,
           'segments': doc.segments.length,
+          'uniqueSegments': uniqueCount,
           'translated': translations.length,
           'outputFile': ?destination,
           if (destination == null) 'text': rebuilt,
@@ -436,6 +479,7 @@ class DocumentCommand extends MozhiCommand {
         'source': source.code,
         'target': target.code,
         'totalSegments': totalSegments,
+        'uniqueSegments': uniqueCount,
         'totalTranslated': totalSegments,
         'files': [
           for (var i = 0; i < parsedFiles.length; i++)

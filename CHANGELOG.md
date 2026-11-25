@@ -3,6 +3,19 @@
 All notable changes to Mozhi, by release tag on GitHub (pre-releases end
 in `-rc.N`).
 
+## Unreleased (Wave 22)
+
+### Added & Improved
+
+- **`mozhi_cli` document stdin piping, deduplication & web charset decoding**:
+  `mozhi document` now accepts `-` (or piped stdin with no file argument)
+  with `--format` for Unix pipelines, and automatically deduplicates
+  repeated segment strings across single files and multi-file batches so
+  identical strings are only translated once (reporting `uniqueSegments`
+  in `--json`). `mozhi web` now handles UTF-8/UTF-16 BOMs, `<meta charset>`
+  sniffing, and true Windows-1252 (`0x80`–`0x9F` smart quotes/dashes/euro)
+  decoding with UTF-8 -> Windows-1252 fallback.
+
 ## Unreleased (Wave 21)
 
 ### Added & Improved

@@ -142,6 +142,7 @@ mozhi document subtitles.srt -t fr --in-place -j 4
 mozhi document strings.toml -t es --dry-run --json
 mozhi document Localizable.xcstrings -e ai -t de --formality less -i
 mozhi document app.xliff strings.xml index.html -t fr --output-dir out/fr
+cat locales/en.yaml | mozhi document - --format yaml -t de > locales/de.yaml
 ```
 
 ## Translate web pages

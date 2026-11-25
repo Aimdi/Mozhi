@@ -201,5 +201,31 @@ void main() {
       expect(json['outputFile'], outPath);
       expect(File(outPath).readAsStringSync(), contains('[de] Hello world.'));
     });
+
+    test('decodeWebBytes handles BOMs, meta charset and windows-1252', () {
+      // UTF-8 BOM stripped cleanly
+      expect(decodeWebBytes([0xEF, 0xBB, 0xBF, 0x48, 0x69]), 'Hi');
+      // UTF-16LE BOM
+      expect(decodeWebBytes([0xFF, 0xFE, 0x48, 0x00, 0x69, 0x00]), 'Hi');
+      // <meta charset="windows-1252"> with euro (0x80), smart quotes & em-dash
+      final winBytes = <int>[
+        ...'<meta charset="windows-1252"><p>'.codeUnits,
+        0x80,
+        0x35,
+        0x20,
+        0x93,
+        0x48,
+        0x69,
+        0x94,
+        0x20,
+        0x97,
+        0x20,
+        0xE9,
+        ...'</p>'.codeUnits,
+      ];
+      expect(decodeWebBytes(winBytes), contains('€5 “Hi” — é'));
+      // Invalid UTF-8 bytes fall back to windows-1252 without replacement chars
+      expect(decodeWebBytes([0x43, 0x61, 0x66, 0xE9]), 'Café');
+    });
   });
 }
