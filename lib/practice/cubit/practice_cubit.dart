@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:bloc/bloc.dart';
+import 'package:flutter/foundation.dart' show compute;
 import 'package:mozhi/practice/cubit/practice_state.dart';
 import 'package:mozhi/practice/data/answer_check.dart';
 import 'package:mozhi/practice/data/fsrs.dart';
@@ -13,6 +14,11 @@ import 'package:mozhi/practice/models/practice_review_log.dart';
 import 'package:mozhi/practice/models/practice_settings.dart';
 
 export 'practice_state.dart';
+
+/// Top-level entry point for running [FsrsOptimizer.optimize] in a background
+/// isolate via [compute].
+FsrsOptimizationResult runFsrsOptimization(List<PracticeReviewLog> logs) =>
+    const FsrsOptimizer().optimize(logs);
 
 /// Practice: the overview of what is due ([load]), the settings, and
 /// review sessions ([start]): each card's front, then the answer
@@ -41,8 +47,11 @@ class PracticeCubit extends Cubit<PracticeState> {
     this.learnAhead = const Duration(minutes: 20),
     DateTime Function()? clock,
     FsrsScheduler Function(PracticeSettings settings)? scheduler,
+    Future<FsrsOptimizationResult> Function(List<PracticeReviewLog> logs)?
+    optimizer,
   }) : _clock = clock ?? DateTime.now,
        _schedulerOf = scheduler ?? _defaultScheduler,
+       _optimize = optimizer ?? _defaultOptimizer,
        super(const PracticeState());
 
   final PracticeRepository _repository;
@@ -68,8 +77,14 @@ class PracticeCubit extends Cubit<PracticeState> {
   final Duration learnAhead;
   final DateTime Function() _clock;
   final FsrsScheduler Function(PracticeSettings settings) _schedulerOf;
+  final Future<FsrsOptimizationResult> Function(List<PracticeReviewLog> logs)
+  _optimize;
   final List<_Undo> _undo = [];
   StreamSubscription<void>? _phrasebookChanges;
+
+  static Future<FsrsOptimizationResult> _defaultOptimizer(
+    List<PracticeReviewLog> logs,
+  ) => compute(runFsrsOptimization, logs);
 
   static FsrsScheduler _defaultScheduler(PracticeSettings settings) =>
       FsrsScheduler(
@@ -130,29 +145,43 @@ class PracticeCubit extends Cubit<PracticeState> {
     await _reload();
   }
 
-  /// Fits personalized FSRS weights to the stored review logs and persists
-  /// them when they improve on the defaults.
+  /// Fits personalized FSRS weights to the stored review logs in a background
+  /// isolate and persists them when they improve on the defaults.
+  ///
+  /// Reports completion via [onResult], or failure via [onError] (in addition
+  /// to [addError]) so callers can show error feedback.
   Future<void> optimizeSchedule({
     void Function(FsrsOptimizationResult result)? onResult,
+    void Function(Object error)? onError,
   }) async {
     try {
       final logs = await _repository.reviewLogs();
-      final result = const FsrsOptimizer().optimize(logs);
+      final result = await _optimize(logs);
+      if (isClosed) return;
       if (result.improved) {
         await updateSettings(
-          state.settings.copyWith(customWeights: () => result.weights),
+          state.settings.copyWith(
+            customWeights: () => result.weights,
+            customWeightsUpdatedAt: () => _clock().toUtc(),
+          ),
         );
       }
       onResult?.call(result);
     } on Object catch (error, stackTrace) {
       addError(error, stackTrace);
+      onError?.call(error);
     }
   }
 
   /// Restores the default FSRS weights.
   Future<void> resetCustomWeights() async {
     if (!state.settings.hasCustomWeights) return;
-    await updateSettings(state.settings.copyWith(customWeights: () => null));
+    await updateSettings(
+      state.settings.copyWith(
+        customWeights: () => null,
+        customWeightsUpdatedAt: () => _clock().toUtc(),
+      ),
+    );
   }
 
   /// Sets the unreadable progress aside and starts over.

@@ -1,6 +1,7 @@
 import 'package:args/command_runner.dart';
 import 'package:mason_logger/mason_logger.dart';
 import 'package:mozhi_cli/src/cli_context.dart';
+import 'package:mozhi_cli/src/commands/glossary_command.dart';
 import 'package:mozhi_cli/src/commands/mozhi_command.dart';
 import 'package:mozhi_cli/src/commands/providers_command.dart';
 import 'package:mozhi_cli/src/config/cli_config.dart';
@@ -17,6 +18,7 @@ class ConfigCommand extends Command<int> {
     addSubcommand(ConfigUnsetCommand(context));
     addSubcommand(ConfigPathCommand(context));
     addSubcommand(ProvidersCommand(context));
+    addSubcommand(GlossaryCommand(context));
   }
 
   @override
@@ -24,8 +26,8 @@ class ConfigCommand extends Command<int> {
 
   @override
   String get description =>
-      'Show or change defaults (instance, engine, languages) and AI '
-      'providers.';
+      'Show or change defaults (instance, engine, languages), providers '
+      'and saved glossaries.';
 }
 
 String _keyHelp() => [
@@ -94,6 +96,20 @@ class ConfigShowCommand extends MozhiCommand {
       );
     } else {
       logger.info(providersTable(config, styleHeader: bold));
+    }
+    if (config.glossary.isNotEmpty) {
+      logger
+        ..info('')
+        ..info(
+          renderTable(
+            ['GLOSSARY TERM', 'TRANSLATION'],
+            [
+              for (final MapEntry(:key, :value) in config.glossary.entries)
+                [key, value],
+            ],
+            styleHeader: bold,
+          ),
+        );
     }
     if (configStore.isExposed) {
       logger.warn(

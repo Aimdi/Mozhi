@@ -56,6 +56,11 @@ final class PracticeReviewLog extends Equatable {
   /// When the review happened (UTC).
   final DateTime reviewedAt;
 
+  /// Stable identifier for sync tombstones so an undone review does not
+  /// resurrect when merging backups across devices.
+  String get tombstoneKey =>
+      '$cardKey|${reviewedAt.toUtc().toIso8601String()}|${rating.grade}';
+
   Map<String, Object?> toJson() => {
     'cardKey': cardKey,
     'rating': rating.grade,

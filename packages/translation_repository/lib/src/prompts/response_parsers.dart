@@ -1652,30 +1652,31 @@ abstract final class ResponseParsers {
   }
 
   /// The first acceptable value ([_acceptable]) among the bracket spans of
-  /// [s], in the order they start: a balanced span is decoded (and
-  /// repaired); one that decodes is searched for its first acceptable
-  /// value ([_firstAcceptable]), one that does not is looked into
-  /// ([_firstInSpan]). An opening bracket that is never closed may be
-  /// output truncated by a token limit: what is open is closed and an
-  /// incomplete tail dropped ([_decodeTruncated]), for the first
-  /// [_truncatedCandidates] of them (with [strings] only).
-  ///
-  /// Linear time also for hostile replies (mostly brackets, nested ones
-  /// that never decode): the scan is one pass, the outermost balanced
-  /// spans are disjoint (each character is decoded once), a decoded value
-  /// is searched instead of the spans inside it, and looking into spans
-  /// that do not decode is bounded by [_searchWork]: only valid JSON
-  /// nested in dozens of brackets that do not decode is missed.
+  /// [s], in the order they start: a balanced span tree is validated
+  /// bottom-up in linear time ([_validateTree]) so non-decoding wrapper
+  /// brackets of arbitrary nesting depth are skipped without repeated
+  /// decoding, and only structurally valid spans containing an object are
+  /// decoded (and repaired). A span that decodes is searched for its first
+  /// acceptable value ([_firstAcceptable]); one that unexpectedly does not
+  /// is looked into bounded by [_searchWork]. An opening bracket that is
+  /// never closed may be output truncated by a token limit: what is open is
+  /// closed and an incomplete tail dropped ([_decodeTruncated]), for the
+  /// first [_truncatedCandidates] plausible ones (with [strings] only).
   static Object? _searchBrackets(String s, {required bool strings}) {
     final work = _Work(_searchWork * s.length + _searchWorkBase);
+    final stringBudget = _Work(_searchWork * s.length + _searchWorkBase);
+    final lastOpenBrace = s.lastIndexOf('{');
     var truncated = 0;
     for (final (span, :closed) in _scanBrackets(s, strings: strings)) {
       if (closed) {
-        if (_firstInSpan(s, span, work) case final value?) return value;
+        if (_firstInSpan(s, span, work, stringBudget) case final value?) {
+          return value;
+        }
         continue;
       }
       if (!strings ||
-          !_isCandidate(s, span.start) ||
+          span.start > lastOpenBrace ||
+          !_mayStartTruncatedJson(s, span) ||
           truncated++ >= _truncatedCandidates) {
         continue;
       }
@@ -1757,33 +1758,304 @@ abstract final class ResponseParsers {
   static const _closeBrace = 0x7D;
   static const _openBracket = 0x5B;
   static const _closeBracket = 0x5D;
+  static const _colon = 0x3A;
+  static const _comma = 0x2C;
+  static const _minus = 0x2D;
+  static const _plus = 0x2B;
+  static const _dot = 0x2E;
 
   /// The first acceptable value of the balanced [root] span of [s] or the
-  /// spans inside it, in the order they start: a span that decodes gives
-  /// its first acceptable value ([_firstAcceptable]) or nothing (the spans
-  /// inside it are parts of that value); the spans inside one that cannot
-  /// start JSON or does not decode are tried next, while [work] lasts.
-  static Object? _firstInSpan(String s, _Span root, _Work work) {
+  /// spans inside it, in the order they start.
+  ///
+  /// [_validateTree] first marks which spans are structurally valid JSON
+  /// (including [_repair] rules) and which subtrees contain a valid JSON
+  /// object, in a single linear bottom-up pass without recursion. Non-valid
+  /// wrappers of arbitrary depth are then skipped in O(1) each without
+  /// calling [_decode].
+  static Object? _firstInSpan(
+    String s,
+    _Span root,
+    _Work work,
+    _Work stringBudget,
+  ) {
+    _validateTree(s, root, stringBudget);
+    if (!root.hasValidObject) return null;
     final pending = [root];
     while (pending.isNotEmpty) {
       final span = pending.removeLast();
-      if (_isCandidate(s, span.start)) {
+      if (!span.hasValidObject) continue;
+      if (span.isValid) {
         final length = span.end + 1 - span.start;
-        // The outermost spans do not overlap: each is decoded once.
-        if (!identical(span, root)) {
-          // A decode, its repair and a second decode.
-          if ((work.left -= 3 * length) < 0) return null;
-        }
         final value = _decode(s.substring(span.start, span.end + 1));
         if (value != null) {
           if (_firstAcceptable(value) case final found?) return found;
           continue;
         }
+        // Only charge fallback work when a structurally valid span failed
+        // to decode (e.g. an invalid \u escape or extreme nesting).
+        if (!identical(span, root) && (work.left -= 3 * length) < 0) {
+          return null;
+        }
       }
-      if ((work.left -= span.children.length) < 0) return null;
-      pending.addAll(span.children.reversed);
+      for (var i = span.children.length - 1; i >= 0; i--) {
+        final child = span.children[i];
+        if (child.hasValidObject) pending.add(child);
+      }
     }
     return null;
+  }
+
+  /// Iterative post-order pass setting [_Span.isValid] and
+  /// [_Span.hasValidObject] for every span in [root].
+  static void _validateTree(String s, _Span root, _Work stringBudget) {
+    final stack = <(_Span, bool)>[(root, false)];
+    while (stack.isNotEmpty) {
+      final (span, visited) = stack.removeLast();
+      if (!visited) {
+        stack.add((span, true));
+        for (var i = span.children.length - 1; i >= 0; i--) {
+          stack.add((span.children[i], false));
+        }
+      } else {
+        _validateSpan(s, span, stringBudget);
+      }
+    }
+  }
+
+  /// Validates the direct JSON syntax of balanced [span] (under [_repair]
+  /// rules), treating each child span in a value position as a pre-validated
+  /// value in O(1).
+  static void _validateSpan(String s, _Span span, _Work stringBudget) {
+    final isObject = s.codeUnitAt(span.start) == _openBrace;
+    final children = span.children;
+    final end = span.end;
+    var i = span.start + 1;
+    var childIdx = 0;
+    var valueChildHasObject = false;
+
+    void skipWs() {
+      while (i < end && _isJsonSpace(s.codeUnitAt(i))) {
+        i++;
+      }
+    }
+
+    bool scanString() {
+      if (i >= end) return false;
+      final opener = s.codeUnitAt(i);
+      final bool smart;
+      if (opener == _quote) {
+        smart = false;
+      } else if (_isSmartOpenUnit(opener)) {
+        smart = true;
+      } else {
+        return false;
+      }
+      i++;
+      while (i < end) {
+        // If this string crosses into a child span (only possible for smart
+        // quotes or strings: false), skip those children as string content
+        // and bound total crossed characters to stay linear.
+        while (childIdx < children.length && children[childIdx].end < i) {
+          childIdx++;
+        }
+        if (childIdx < children.length && i >= children[childIdx].start) {
+          if (--stringBudget.left < 0) return false;
+        }
+        final unit = s.codeUnitAt(i);
+        if (unit == _backslash) {
+          if (i + 1 >= end) return false;
+          i += 2;
+          continue;
+        }
+        if (unit == _quote || (smart && _isSmartCloseUnit(unit))) {
+          i++;
+          while (childIdx < children.length && children[childIdx].end < i) {
+            childIdx++;
+          }
+          return true;
+        }
+        // Raw control characters other than \t, \n, \r (which _repair
+        // escapes) are invalid in JSON strings.
+        if (unit < 0x20 && unit != 0x09 && unit != 0x0A && unit != 0x0D) {
+          return false;
+        }
+        i++;
+      }
+      return false;
+    }
+
+    bool scanNumber() {
+      final start = i;
+      if (i < end && s.codeUnitAt(i) == _minus) i++;
+      if (i >= end) return false;
+      final first = s.codeUnitAt(i);
+      if (first == 0x30) {
+        i++;
+      } else if (first >= 0x31 && first <= 0x39) {
+        i++;
+        while (i < end && _isAsciiDigit(s.codeUnitAt(i))) {
+          i++;
+        }
+      } else {
+        return false;
+      }
+      if (i < end && s.codeUnitAt(i) == _dot) {
+        i++;
+        if (i >= end || !_isAsciiDigit(s.codeUnitAt(i))) return false;
+        while (i < end && _isAsciiDigit(s.codeUnitAt(i))) {
+          i++;
+        }
+      }
+      if (i < end) {
+        final exp = s.codeUnitAt(i);
+        if (exp == 0x65 || exp == 0x45) {
+          i++;
+          if (i < end &&
+              (s.codeUnitAt(i) == _plus || s.codeUnitAt(i) == _minus)) {
+            i++;
+          }
+          if (i >= end || !_isAsciiDigit(s.codeUnitAt(i))) return false;
+          while (i < end && _isAsciiDigit(s.codeUnitAt(i))) {
+            i++;
+          }
+        }
+      }
+      return i > start;
+    }
+
+    bool scanLiteral() {
+      final length = _jsonLiteralLength(s, i, end);
+      if (length == 0) return false;
+      i += length;
+      return true;
+    }
+
+    bool scanValue() {
+      if (i >= end) return false;
+      if (childIdx < children.length && i == children[childIdx].start) {
+        final child = children[childIdx++];
+        if (!child.isValid) return false;
+        if (child.hasValidObject) valueChildHasObject = true;
+        i = child.end + 1;
+        return true;
+      }
+      final unit = s.codeUnitAt(i);
+      if (unit == _quote || _isSmartOpenUnit(unit)) return scanString();
+      if (unit == _minus || _isAsciiDigit(unit)) return scanNumber();
+      return scanLiteral();
+    }
+
+    var valid = false;
+    skipWs();
+    if (i == end) {
+      valid = true;
+    } else if (isObject) {
+      while (true) {
+        if (!scanString()) break;
+        skipWs();
+        if (i >= end || s.codeUnitAt(i) != _colon) break;
+        i++;
+        skipWs();
+        if (!scanValue()) break;
+        skipWs();
+        if (i == end) {
+          valid = true;
+          break;
+        }
+        if (s.codeUnitAt(i) != _comma) break;
+        i++;
+        skipWs();
+        if (i == end) {
+          valid = true;
+          break;
+        }
+      }
+    } else {
+      while (true) {
+        if (!scanValue()) break;
+        skipWs();
+        if (i == end) {
+          valid = true;
+          break;
+        }
+        if (s.codeUnitAt(i) != _comma) break;
+        i++;
+        skipWs();
+        if (i == end) {
+          valid = true;
+          break;
+        }
+      }
+    }
+
+    span.isValid = valid;
+    if (valid) {
+      span.hasValidObject = isObject || valueChildHasObject;
+    } else {
+      var childHasObject = false;
+      for (final child in children) {
+        if (child.hasValidObject) {
+          childHasObject = true;
+          break;
+        }
+      }
+      span.hasValidObject = childHasObject;
+    }
+  }
+
+  /// Whether an unclosed [span] starts with plausible JSON tokens (avoiding
+  /// burning [_truncatedCandidates] on junk prose brackets like `[x `).
+  static bool _mayStartTruncatedJson(String s, _Span span) {
+    final opener = s.codeUnitAt(span.start);
+    if (opener == _openBrace) return _mayStartObject(s, span.start);
+    var i = span.start + 1;
+    while (i < s.length && _isJsonSpace(s.codeUnitAt(i))) {
+      i++;
+    }
+    if (i >= s.length) return false;
+    final unit = s.codeUnitAt(i);
+    if (unit == _openBrace ||
+        unit == _openBracket ||
+        unit == _quote ||
+        _isSmartOpenUnit(unit) ||
+        unit == _minus ||
+        _isAsciiDigit(unit)) {
+      return true;
+    }
+    return _jsonLiteralLength(s, i, s.length) > 0;
+  }
+
+  static bool _isAsciiDigit(int unit) => unit >= 0x30 && unit <= 0x39;
+
+  static bool _isAsciiWordUnit(int unit) =>
+      (unit >= 0x30 && unit <= 0x39) ||
+      (unit >= 0x41 && unit <= 0x5A) ||
+      (unit >= 0x61 && unit <= 0x7A) ||
+      unit == 0x5F;
+
+  static bool _isSmartOpenUnit(int unit) =>
+      unit == 0x201C ||
+      unit == 0x201E ||
+      unit == 0x201F ||
+      unit == 0x201D ||
+      unit == 0x2033;
+
+  static bool _isSmartCloseUnit(int unit) =>
+      unit == 0x201D || unit == 0x201C || unit == 0x2033;
+
+  /// Length of a JSON or Python literal (`true`/`false`/`null`/
+  /// `True`/`False`/`None`) starting at [index] before [end], or 0.
+  static int _jsonLiteralLength(String s, int index, int end) {
+    const literals = ['true', 'false', 'null', 'True', 'False', 'None'];
+    for (final literal in literals) {
+      final after = index + literal.length;
+      if (after <= end &&
+          s.startsWith(literal, index) &&
+          (after == end || !_isAsciiWordUnit(s.codeUnitAt(after)))) {
+        return literal.length;
+      }
+    }
+    return 0;
   }
 
   /// The first acceptable value ([_acceptable]) of [value] and the values
@@ -1803,11 +2075,6 @@ abstract final class ResponseParsers {
     }
     return null;
   }
-
-  /// Whether the bracket at [index] of [s] may start JSON: a `[`, or a `{`
-  /// that [_mayStartObject].
-  static bool _isCandidate(String s, int index) =>
-      s.codeUnitAt(index) == _openBracket || _mayStartObject(s, index);
 
   /// Characters of work [_firstInSpan] may spend, per character of the
   /// reply (plus [_searchWorkBase]), looking into spans that do not decode.
@@ -2540,6 +2807,8 @@ final class _Span {
   final int start;
   int end = -1;
   final List<_Span> children = [];
+  bool isValid = false;
+  bool hasValidObject = false;
 }
 
 /// Work left to a search (see `ResponseParsers._firstInSpan`).

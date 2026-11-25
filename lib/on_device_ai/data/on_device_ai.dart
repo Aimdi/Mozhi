@@ -158,6 +158,7 @@ class OnDeviceAi {
     Duration idleUnloadAfter = defaultIdleUnloadAfter,
     this._engineBuild,
     DeviceConditions? deviceConditions,
+    this.engineSupportsVision = OnDeviceLlmClient.supportsMultimodalVision,
   }) : runtime = OnDeviceRuntime(
          engine: engine,
          catalog: models.catalog,
@@ -185,6 +186,12 @@ class OnDeviceAi {
 
   /// The engine, its queue and its status.
   final OnDeviceRuntime runtime;
+
+  /// Whether the underlying engine/client can perform multimodal image
+  /// inference. Guards [AiProviderConfig.supportsVision] so a catalog model
+  /// with an `mmproj` file never advertises vision support while the runtime
+  /// would reject images.
+  final bool engineSupportsVision;
 
   final LlamaEngineBuild Function()? _engineBuild;
 
@@ -257,23 +264,31 @@ class OnDeviceAi {
   }
 
   /// The provider of on-device [model].
-  static AiProviderConfig providerFor(LlamaCatalogModel model) =>
-      AiProviderConfig(
-        id: '$providerIdPrefix${model.id}',
-        // The engine picker and badges say "On this device" (localised).
-        name: model.displayName,
-        provider: LlmProvider.onDevice,
-        baseUrl: '',
-        model: model.id,
-        supportsVision: model.supportsVision,
-        promptProfile:
-            PromptProfile.tryParse(model.promptProfile) ?? PromptProfile.auto,
-      );
+  ///
+  /// [AiProviderConfig.supportsVision] is only enabled when both
+  /// [LlamaCatalogModel.supportsVision] and [engineSupportsVision] are `true`,
+  /// preventing image requests from reaching [OnDeviceLlmClient] when the
+  /// engine does not yet run multimodal image inference.
+  static AiProviderConfig providerFor(
+    LlamaCatalogModel model, {
+    bool engineSupportsVision = OnDeviceLlmClient.supportsMultimodalVision,
+  }) => AiProviderConfig(
+    id: '$providerIdPrefix${model.id}',
+    // The engine picker and badges say "On this device" (localised).
+    name: model.displayName,
+    provider: LlmProvider.onDevice,
+    baseUrl: '',
+    model: model.id,
+    supportsVision: model.supportsVision && engineSupportsVision,
+    promptProfile:
+        PromptProfile.tryParse(model.promptProfile) ?? PromptProfile.auto,
+  );
 
   List<AiProviderConfig> _selectedProviders() => [
     for (final id in [models.translationModel, models.assistantModel])
       if (id != null)
-        if (models.catalog.model(id) case final model?) providerFor(model),
+        if (models.catalog.model(id) case final model?)
+          providerFor(model, engineSupportsVision: engineSupportsVision),
   ];
 
   void _onModelsChanged() {

@@ -17,6 +17,7 @@ abstract final class AiAnchors {
   static const onDeviceAi = 'on_device_ai';
   static const providers = 'ai_providers';
   static const assistant = 'ai_assistant';
+  static const autoExtras = 'ai_auto_extras';
   static const presets = 'presets';
   static const glossaries = 'glossaries';
   static const usage = 'usage';
@@ -59,6 +60,18 @@ class AiSettings extends StatelessWidget {
         SettingsAnchor(
           id: AiAnchors.assistant,
           child: _AssistEngineTile(settings: settings),
+        ),
+        SettingsAnchor(
+          id: AiAnchors.autoExtras,
+          child: SwitchListTile(
+            key: const Key('settings_auto_extras'),
+            secondary: const SettingsIcon(Icons.auto_fix_high_outlined),
+            title: Text(l10n.settingsAutoExtras),
+            subtitle: Text(l10n.settingsAutoExtrasSubtitle),
+            value: settings.autoExtras,
+            onChanged: (value) =>
+                context.read<SettingsCubit>().setAutoExtras(enabled: value),
+          ),
         ),
         SettingsAnchor(
           id: AiAnchors.presets,

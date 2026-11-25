@@ -387,6 +387,40 @@ void main() {
         });
       }
 
+      for (final translatedText in ['', '   ', '\n\t ']) {
+        test(
+          'throws a retryable error when HTTP 200 returns blank '
+          'translated-text (${jsonEncode(translatedText)}) for non-blank input',
+          () async {
+            await expectLater(
+              clientReturning(
+                _json(
+                  jsonEncode({
+                    'engine': 'deepl',
+                    'translated-text': translatedText,
+                  }),
+                ),
+              ).translate(engine: 'deepl', from: 'de', to: 'en', text: 'Hallo'),
+              throwsA(
+                isA<MozhiApiException>()
+                    .having((e) => e.statusCode, 'statusCode', isNull)
+                    .having((e) => e.isRetryable, 'isRetryable', isTrue)
+                    .having(
+                      (e) => e.message,
+                      'message',
+                      'deepl returned an empty translation',
+                    )
+                    .having(
+                      (e) => e.uri,
+                      'uri',
+                      Uri.parse('https://mozhi.example/api/translate'),
+                    ),
+              ),
+            );
+          },
+        );
+      }
+
       test('surfaces the 400 for missing parameters', () async {
         await expectLater(
           clientReturning(
@@ -475,6 +509,50 @@ void main() {
 
         expect(translations.single.translatedText, 'Hi');
       });
+
+      test('throws a retryable error when every returned engine has blank '
+          'translated-text', () async {
+        await expectLater(
+          clientReturning(_json('[{"engine":"deepl","translated-text":"   "}]'))
+              .translateWithEngines(
+                engines: ['deepl'],
+                from: 'de',
+                to: 'en',
+                text: 'Hallo',
+              ),
+          throwsA(
+            isA<MozhiApiException>()
+                .having((e) => e.statusCode, 'statusCode', isNull)
+                .having((e) => e.isRetryable, 'isRetryable', isTrue)
+                .having(
+                  (e) => e.message,
+                  'message',
+                  'deepl returned an empty translation',
+                ),
+          ),
+        );
+      });
+
+      test(
+        'drops silent empty engine results when another engine succeeded',
+        () async {
+          final translations =
+              await clientReturning(
+                _json(
+                  '[{"engine":"deepl","translated-text":""},'
+                  '{"engine":"google","translated-text":"Hello"}]',
+                ),
+              ).translateWithEngines(
+                engines: ['deepl', 'google'],
+                from: 'de',
+                to: 'en',
+                text: 'Hallo',
+              );
+
+          expect(translations.single.engine, 'google');
+          expect(translations.single.translatedText, 'Hello');
+        },
+      );
 
       test('throws for a body that is neither object nor array', () async {
         await expectLater(

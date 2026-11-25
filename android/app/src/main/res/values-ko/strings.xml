@@ -52,14 +52,14 @@
     <string name="tile_live_captions_description">Mozhi 실시간 자막 시작 또는 중지</string>
     <string name="live_captions_locked">Mozhi가 잠겨 있습니다</string>
     <!-- Model downloads foreground service (ModelDownloadService). -->
-    <string name="notification_channel_downloads">Model downloads</string>
-    <string name="notification_channel_downloads_description">Shown while Mozhi downloads offline languages, voice or AI models</string>
-    <string name="notification_downloads_title">Downloading model</string>
-    <string name="notification_downloads_cancel">Cancel</string>
+    <string name="notification_channel_downloads">모델 다운로드</string>
+    <string name="notification_channel_downloads_description">Mozhi가 오프라인 언어, 음성 또는 AI 모델을 다운로드하는 동안 표시됩니다</string>
+    <string name="notification_downloads_title">모델 다운로드 중</string>
+    <string name="notification_downloads_cancel">취소</string>
 
     <!-- Opt-in offline notification translation (NotificationTranslateService). -->
-    <string name="notification_translate_service_label">Mozhi offline notification translation</string>
-    <string name="notification_channel_translate_notifications">Translated notifications</string>
-    <string name="notification_channel_translate_notifications_description">Offline translations of incoming notifications from other apps</string>
-    <string name="notification_translated_title">Translated notification</string>
+    <string name="notification_translate_service_label">Mozhi 오프라인 알림 번역</string>
+    <string name="notification_channel_translate_notifications">번역된 알림</string>
+    <string name="notification_channel_translate_notifications_description">다른 앱에서 받은 알림의 오프라인 번역</string>
+    <string name="notification_translated_title">번역된 알림</string>
 </resources>

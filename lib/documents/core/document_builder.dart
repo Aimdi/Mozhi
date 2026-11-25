@@ -97,6 +97,7 @@ class DocumentBuilder {
     String lineBreak = '\n',
     String continuation = '',
     String? label,
+    String? contextHint,
     bool Function(String text)? accept,
     String Function(String text)? escape,
   }) => add(
@@ -105,6 +106,7 @@ class DocumentBuilder {
       lineBreak: lineBreak,
       continuation: continuation,
       label: label,
+      contextHint: contextHint,
       accept: accept,
       escape: escape,
     ),
@@ -121,6 +123,7 @@ class DocumentBuilder {
     String lineBreak = '\n',
     String continuation = '',
     String? label,
+    String? contextHint,
     bool Function(String text)? accept,
     String Function(String text)? escape,
   }) {
@@ -190,6 +193,7 @@ class DocumentBuilder {
           lineBreak: lineBreak,
           continuation: continuation,
           label: label,
+          contextHint: contextHint,
           escape: escape,
         ),
       ]);
@@ -202,6 +206,7 @@ class DocumentBuilder {
     required String lineBreak,
     required String continuation,
     String? label,
+    String? contextHint,
     String Function(String text)? escape,
   }) {
     final text = StringBuffer();
@@ -226,7 +231,9 @@ class DocumentBuilder {
     }
     sourceParts.add(current.toString());
     final index = _segments.length;
-    _segments.add(Segment(text.toString(), label: label));
+    _segments.add(
+      Segment(text.toString(), label: label, contextHint: contextHint),
+    );
     final node = SegmentNode(
       segment: index,
       sourceParts: sourceParts,

@@ -52,14 +52,14 @@
     <string name="tile_live_captions_description">Démarrer ou arrêter les sous-titres en direct de Mozhi</string>
     <string name="live_captions_locked">Mozhi est verrouillé</string>
     <!-- Model downloads foreground service (ModelDownloadService). -->
-    <string name="notification_channel_downloads">Model downloads</string>
-    <string name="notification_channel_downloads_description">Shown while Mozhi downloads offline languages, voice or AI models</string>
-    <string name="notification_downloads_title">Downloading model</string>
-    <string name="notification_downloads_cancel">Cancel</string>
+    <string name="notification_channel_downloads">Téléchargements de modèles</string>
+    <string name="notification_channel_downloads_description">Affiché pendant que Mozhi télécharge des langues hors ligne, des modèles vocaux ou d\'IA</string>
+    <string name="notification_downloads_title">Téléchargement du modèle</string>
+    <string name="notification_downloads_cancel">Annuler</string>
 
     <!-- Opt-in offline notification translation (NotificationTranslateService). -->
-    <string name="notification_translate_service_label">Mozhi offline notification translation</string>
-    <string name="notification_channel_translate_notifications">Translated notifications</string>
-    <string name="notification_channel_translate_notifications_description">Offline translations of incoming notifications from other apps</string>
-    <string name="notification_translated_title">Translated notification</string>
+    <string name="notification_translate_service_label">Traduction des notifications hors ligne Mozhi</string>
+    <string name="notification_channel_translate_notifications">Notifications traduites</string>
+    <string name="notification_channel_translate_notifications_description">Traductions hors ligne des notifications entrantes d\'autres applications</string>
+    <string name="notification_translated_title">Notification traduite</string>
 </resources>

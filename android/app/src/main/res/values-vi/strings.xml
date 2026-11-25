@@ -52,14 +52,14 @@
     <string name="tile_live_captions_description">Bật hoặc tắt phụ đề trực tiếp của Mozhi</string>
     <string name="live_captions_locked">Mozhi đang bị khóa</string>
     <!-- Model downloads foreground service (ModelDownloadService). -->
-    <string name="notification_channel_downloads">Model downloads</string>
-    <string name="notification_channel_downloads_description">Shown while Mozhi downloads offline languages, voice or AI models</string>
-    <string name="notification_downloads_title">Downloading model</string>
-    <string name="notification_downloads_cancel">Cancel</string>
+    <string name="notification_channel_downloads">Tải xuống mô hình</string>
+    <string name="notification_channel_downloads_description">Hiển thị khi Mozhi tải xuống ngôn ngữ ngoại tuyến, mô hình giọng nói hoặc AI</string>
+    <string name="notification_downloads_title">Đang tải xuống mô hình</string>
+    <string name="notification_downloads_cancel">Hủy</string>
 
     <!-- Opt-in offline notification translation (NotificationTranslateService). -->
-    <string name="notification_translate_service_label">Mozhi offline notification translation</string>
-    <string name="notification_channel_translate_notifications">Translated notifications</string>
-    <string name="notification_channel_translate_notifications_description">Offline translations of incoming notifications from other apps</string>
-    <string name="notification_translated_title">Translated notification</string>
+    <string name="notification_translate_service_label">Dịch thông báo ngoại tuyến Mozhi</string>
+    <string name="notification_channel_translate_notifications">Thông báo đã dịch</string>
+    <string name="notification_channel_translate_notifications_description">Bản dịch ngoại tuyến cho thông báo đến từ ứng dụng khác</string>
+    <string name="notification_translated_title">Thông báo đã dịch</string>
 </resources>

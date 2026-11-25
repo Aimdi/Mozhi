@@ -33,6 +33,36 @@ void main() {
       expect(dictionaryGlossLanguage(packs([french]), gatoAnswer), 'fr');
     });
 
+    test(
+      'prefers answer.glossLanguage when multiple packs share a language',
+      () {
+        final esEn = packInfo('es', bytes);
+        final esDe = DictionaryPackInfo(
+          id: 'es-de',
+          language: 'es',
+          name: 'Spanish',
+          url: esEn.url,
+          size: esEn.size,
+          sha256: esEn.sha256,
+          glossLanguage: 'de',
+        );
+        const germanGlossAnswer = OfflineDictionaryAnswer(
+          entry: gatoPackEntry,
+          language: 'es',
+          attribution: wiktionary,
+          glossLanguage: 'de',
+        );
+        // Even though the English-gloss pack is first in the catalog, the exact
+        // glossLanguage carried on the answer wins.
+        expect(
+          dictionaryGlossLanguage(packs([esEn, esDe]), germanGlossAnswer),
+          'de',
+        );
+        // Works even without a DictionaryPacks catalog reference.
+        expect(dictionaryGlossLanguage(null, germanGlossAnswer), 'de');
+      },
+    );
+
     test('is null without a pack or packs', () {
       expect(dictionaryGlossLanguage(null, gatoAnswer), isNull);
       expect(

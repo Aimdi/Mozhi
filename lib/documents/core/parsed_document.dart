@@ -58,15 +58,20 @@ const maxPlaceholderDigits = 6;
 /// document) and uses `\n` line breaks. Protected spans appear as numbered
 /// placeholders (`⟨1⟩`) that the translation must keep.
 class Segment extends Equatable {
-  const new(this.text, {this.label});
+  const new(this.text, {this.label, this.contextHint});
 
   final String text;
 
   /// Optional location hint, e.g. a JSON key path or a cue number.
   final String? label;
 
+  /// Optional translation context hint, e.g. a CLDR plural category
+  /// (`"few"`, `"many"`) passed to AI engines for grammatically accurate
+  /// multi-plural translations.
+  final String? contextHint;
+
   @override
-  List<Object?> get props => [text, label];
+  List<Object?> get props => [text, label, contextHint];
 }
 
 /// A node of a parsed document's template.

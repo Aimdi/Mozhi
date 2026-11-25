@@ -79,11 +79,15 @@ void main() {
       final text = jsonEncode(data);
 
       // Without the device-only fields (test/app_lock covers the lock).
-      expect(data, {
-        'settings': mine.toJson()
+      final settingsMap = Map<String, dynamic>.from(
+        (data! as Map)['settings'] as Map,
+      )..remove('settingTimestamps');
+      expect(
+        settingsMap,
+        mine.toJson()
           ..remove('appLock')
           ..remove('offlineAppShell'),
-      });
+      );
       expect(text, isNot(contains('key-a')));
       expect(text, isNot(contains('pw@')));
       expect(text, isNot(contains('X-Org')));
@@ -763,7 +767,10 @@ void main() {
           reason: '$data',
         );
       }
-      expect(await repository.load(), mine);
+      expect(
+        (await repository.load()).copyWith(settingTimestamps: const {}),
+        mine,
+      );
     });
 
     test('ignores invalid secrets', () async {
@@ -877,7 +884,10 @@ void main() {
         'new.example.org',
       ]);
       expect(merge.isEmpty, isFalse);
-      expect(await repository.load(), mine);
+      expect(
+        (await repository.load()).copyWith(settingTimestamps: const {}),
+        mine,
+      );
     });
 
     test('match what a restore then adds', () async {

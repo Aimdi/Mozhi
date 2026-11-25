@@ -255,26 +255,34 @@ function blake2bLong(input, outLen) {
   writeU32LE(framed, 0, outLen >>> 0);
   framed.set(input, 4);
 
-  if (outLen <= 64) {
-    return blake2b(framed, outLen);
+  try {
+    if (outLen <= 64) {
+      return blake2b(framed, outLen);
+    }
+
+    const out = new Uint8Array(outLen);
+    let v = blake2b(framed, 64);
+    out.set(v.subarray(0, 32), 0);
+
+    let pos = 32;
+    let remaining = outLen - 32;
+    while (remaining > 64) {
+      const next = blake2b(v, 64);
+      v.fill(0);
+      v = next;
+      out.set(v.subarray(0, 32), pos);
+      pos += 32;
+      remaining -= 32;
+    }
+
+    const last = blake2b(v, remaining);
+    v.fill(0);
+    out.set(last, pos);
+    last.fill(0);
+    return out;
+  } finally {
+    framed.fill(0);
   }
-
-  const out = new Uint8Array(outLen);
-  let v = blake2b(framed, 64);
-  out.set(v.subarray(0, 32), 0);
-
-  let pos = 32;
-  let remaining = outLen - 32;
-  while (remaining > 64) {
-    v = blake2b(v, 64);
-    out.set(v.subarray(0, 32), pos);
-    pos += 32;
-    remaining -= 32;
-  }
-
-  const last = blake2b(v, remaining);
-  out.set(last, pos);
-  return out;
 }
 
 /**
@@ -559,162 +567,190 @@ function argon2id({
   const K = toUint8Array(secret);
   const X = toUint8Array(associatedData);
 
-  if (!Number.isInteger(parallelism) || parallelism < 1) {
-    throw new RangeError(`Invalid parallelism: ${parallelism}`);
-  }
-  if (!Number.isInteger(iterations) || iterations < 1) {
-    throw new RangeError(`Invalid iterations: ${iterations}`);
-  }
-  if (!Number.isInteger(memoryKiB) || memoryKiB < 8 * parallelism) {
-    throw new RangeError(`Invalid memoryKiB: ${memoryKiB}`);
-  }
-  if (!Number.isInteger(hashLength) || hashLength < 4) {
-    throw new RangeError(`Invalid hashLength: ${hashLength}`);
-  }
+  let initBuf = null;
+  let h0 = null;
+  let memory = null;
+  let blockSeed = null;
+  let finalWords = null;
+  let finalBlock = null;
 
-  // Step 1: H_0 = BLAKE2b-512(LE32(p) || LE32(T) || LE32(m) || LE32(t) ||
-  //                           LE32(v) || LE32(y) || len||P || len||S ||
-  //                           len||K || len||X)
-  const initLen = 40 + P.length + S.length + K.length + X.length;
-  const initBuf = new Uint8Array(initLen);
-  let off = 0;
-  writeU32LE(initBuf, off, parallelism); off += 4;
-  writeU32LE(initBuf, off, hashLength); off += 4;
-  writeU32LE(initBuf, off, memoryKiB); off += 4;
-  writeU32LE(initBuf, off, iterations); off += 4;
-  writeU32LE(initBuf, off, ARGON2_VERSION); off += 4;
-  writeU32LE(initBuf, off, ARGON2_ID); off += 4;
-  writeU32LE(initBuf, off, P.length); off += 4;
-  initBuf.set(P, off); off += P.length;
-  writeU32LE(initBuf, off, S.length); off += 4;
-  initBuf.set(S, off); off += S.length;
-  writeU32LE(initBuf, off, K.length); off += 4;
-  initBuf.set(K, off); off += K.length;
-  writeU32LE(initBuf, off, X.length); off += 4;
-  initBuf.set(X, off);
+  try {
+    if (!Number.isInteger(parallelism) || parallelism < 1) {
+      throw new RangeError(`Invalid parallelism: ${parallelism}`);
+    }
+    if (!Number.isInteger(iterations) || iterations < 1) {
+      throw new RangeError(`Invalid iterations: ${iterations}`);
+    }
+    if (!Number.isInteger(memoryKiB) || memoryKiB < 8 * parallelism) {
+      throw new RangeError(`Invalid memoryKiB: ${memoryKiB}`);
+    }
+    if (!Number.isInteger(hashLength) || hashLength < 4) {
+      throw new RangeError(`Invalid hashLength: ${hashLength}`);
+    }
 
-  const h0 = blake2b(initBuf, 64);
+    // Step 1: H_0 = BLAKE2b-512(LE32(p) || LE32(T) || LE32(m) || LE32(t) ||
+    //                           LE32(v) || LE32(y) || len||P || len||S ||
+    //                           len||K || len||X)
+    const initLen = 40 + P.length + S.length + K.length + X.length;
+    initBuf = new Uint8Array(initLen);
+    let off = 0;
+    writeU32LE(initBuf, off, parallelism); off += 4;
+    writeU32LE(initBuf, off, hashLength); off += 4;
+    writeU32LE(initBuf, off, memoryKiB); off += 4;
+    writeU32LE(initBuf, off, iterations); off += 4;
+    writeU32LE(initBuf, off, ARGON2_VERSION); off += 4;
+    writeU32LE(initBuf, off, ARGON2_ID); off += 4;
+    writeU32LE(initBuf, off, P.length); off += 4;
+    initBuf.set(P, off); off += P.length;
+    writeU32LE(initBuf, off, S.length); off += 4;
+    initBuf.set(S, off); off += S.length;
+    writeU32LE(initBuf, off, K.length); off += 4;
+    initBuf.set(K, off); off += K.length;
+    writeU32LE(initBuf, off, X.length); off += 4;
+    initBuf.set(X, off);
 
-  // Step 2: Memory layout (m' blocks, laneLength blocks per lane).
-  const segmentLength = Math.floor(memoryKiB / (SYNC_POINTS * parallelism));
-  const laneLength = segmentLength * SYNC_POINTS;
-  const memoryBlocks = laneLength * parallelism;
-  const memory = new Uint32Array(memoryBlocks * BLOCK_U32);
+    h0 = blake2b(initBuf, 64);
 
-  // Step 3: Initial blocks B[i][0] and B[i][1] for every lane.
-  const blockSeed = new Uint8Array(72);
-  blockSeed.set(h0, 0);
-  for (let lane = 0; lane < parallelism; lane++) {
-    writeU32LE(blockSeed, 68, lane);
-    for (let j = 0; j < 2; j++) {
-      writeU32LE(blockSeed, 64, j);
-      const blockBytes = blake2bLong(blockSeed, 1024);
-      const dstOff = (lane * laneLength + j) * BLOCK_U32;
-      for (let w = 0; w < BLOCK_U32; w++) {
-        const bo = w << 2;
-        memory[dstOff + w] =
-          (blockBytes[bo] |
-            (blockBytes[bo + 1] << 8) |
-            (blockBytes[bo + 2] << 16) |
-            (blockBytes[bo + 3] << 24)) >>>
-          0;
+    // Step 2: Memory layout (m' blocks, laneLength blocks per lane).
+    const segmentLength = Math.floor(memoryKiB / (SYNC_POINTS * parallelism));
+    const laneLength = segmentLength * SYNC_POINTS;
+    const memoryBlocks = laneLength * parallelism;
+    memory = new Uint32Array(memoryBlocks * BLOCK_U32);
+
+    // Step 3: Initial blocks B[i][0] and B[i][1] for every lane.
+    blockSeed = new Uint8Array(72);
+    blockSeed.set(h0, 0);
+    for (let lane = 0; lane < parallelism; lane++) {
+      writeU32LE(blockSeed, 68, lane);
+      for (let j = 0; j < 2; j++) {
+        writeU32LE(blockSeed, 64, j);
+        const blockBytes = blake2bLong(blockSeed, 1024);
+        const dstOff = (lane * laneLength + j) * BLOCK_U32;
+        for (let w = 0; w < BLOCK_U32; w++) {
+          const bo = w << 2;
+          memory[dstOff + w] =
+            (blockBytes[bo] |
+              (blockBytes[bo + 1] << 8) |
+              (blockBytes[bo + 2] << 16) |
+              (blockBytes[bo + 3] << 24)) >>>
+            0;
+        }
+        blockBytes.fill(0);
       }
     }
-  }
 
-  // Step 4: Fill memory over `iterations` passes × 4 sync points × `parallelism` lanes.
-  for (let pass = 0; pass < iterations; pass++) {
-    for (let slice = 0; slice < SYNC_POINTS; slice++) {
-      const dataIndependent = pass === 0 && slice < 2;
+    // Step 4: Fill memory over `iterations` passes × 4 sync points × `parallelism` lanes.
+    for (let pass = 0; pass < iterations; pass++) {
+      for (let slice = 0; slice < SYNC_POINTS; slice++) {
+        const dataIndependent = pass === 0 && slice < 2;
 
-      for (let lane = 0; lane < parallelism; lane++) {
-        let addrCounter = 0;
-        const startIdx = pass === 0 && slice === 0 ? 2 : 0;
+        for (let lane = 0; lane < parallelism; lane++) {
+          let addrCounter = 0;
+          const startIdx = pass === 0 && slice === 0 ? 2 : 0;
 
-        if (dataIndependent && startIdx > 0) {
-          addrCounter = 1;
-          nextAddresses(pass, lane, slice, memoryBlocks, iterations, addrCounter);
-        }
-
-        for (let index = startIdx; index < segmentLength; index++) {
-          const currPos = slice * segmentLength + index;
-          const currOffset = (lane * laneLength + currPos) * BLOCK_U32;
-          const prevPos = currPos === 0 ? laneLength - 1 : currPos - 1;
-          const prevOffset = (lane * laneLength + prevPos) * BLOCK_U32;
-
-          let j1;
-          let j2;
-          if (dataIndependent) {
-            const addrSlot = index & 127;
-            if (addrSlot === 0) {
-              addrCounter++;
-              nextAddresses(pass, lane, slice, memoryBlocks, iterations, addrCounter);
-            }
-            j1 = _addrBlock[addrSlot << 1];
-            j2 = _addrBlock[(addrSlot << 1) + 1];
-          } else {
-            j1 = memory[prevOffset];
-            j2 = memory[prevOffset + 1];
+          if (dataIndependent && startIdx > 0) {
+            addrCounter = 1;
+            nextAddresses(pass, lane, slice, memoryBlocks, iterations, addrCounter);
           }
 
-          const refLane =
-            pass === 0 && slice === 0 ? lane : j2 % parallelism;
+          for (let index = startIdx; index < segmentLength; index++) {
+            const currPos = slice * segmentLength + index;
+            const currOffset = (lane * laneLength + currPos) * BLOCK_U32;
+            const prevPos = currPos === 0 ? laneLength - 1 : currPos - 1;
+            const prevOffset = (lane * laneLength + prevPos) * BLOCK_U32;
 
-          let refAreaSize;
-          if (pass === 0) {
-            if (slice === 0) {
-              refAreaSize = index - 1;
-            } else if (refLane === lane) {
-              refAreaSize = slice * segmentLength + index - 1;
+            let j1;
+            let j2;
+            if (dataIndependent) {
+              const addrSlot = index & 127;
+              if (addrSlot === 0) {
+                addrCounter++;
+                nextAddresses(pass, lane, slice, memoryBlocks, iterations, addrCounter);
+              }
+              j1 = _addrBlock[addrSlot << 1];
+              j2 = _addrBlock[(addrSlot << 1) + 1];
             } else {
-              refAreaSize = slice * segmentLength + (index === 0 ? -1 : 0);
+              j1 = memory[prevOffset];
+              j2 = memory[prevOffset + 1];
             }
-          } else if (refLane === lane) {
-            refAreaSize = laneLength - segmentLength + index - 1;
-          } else {
-            refAreaSize = laneLength - segmentLength + (index === 0 ? -1 : 0);
+
+            const refLane =
+              pass === 0 && slice === 0 ? lane : j2 % parallelism;
+
+            let refAreaSize;
+            if (pass === 0) {
+              if (slice === 0) {
+                refAreaSize = index - 1;
+              } else if (refLane === lane) {
+                refAreaSize = slice * segmentLength + index - 1;
+              } else {
+                refAreaSize = slice * segmentLength + (index === 0 ? -1 : 0);
+              }
+            } else if (refLane === lane) {
+              refAreaSize = laneLength - segmentLength + index - 1;
+            } else {
+              refAreaSize = laneLength - segmentLength + (index === 0 ? -1 : 0);
+            }
+
+            const x = mulHi32(j1, j1);
+            const y = mulHi32(refAreaSize >>> 0, x);
+            const relativePos = refAreaSize - 1 - y;
+
+            const startPos =
+              pass !== 0 && slice !== SYNC_POINTS - 1
+                ? (slice + 1) * segmentLength
+                : 0;
+            const refIndex = (startPos + relativePos) % laneLength;
+            const refOffset = (refLane * laneLength + refIndex) * BLOCK_U32;
+
+            compressBlock(
+              memory,
+              prevOffset,
+              memory,
+              refOffset,
+              memory,
+              currOffset,
+              pass !== 0,
+            );
           }
-
-          const x = mulHi32(j1, j1);
-          const y = mulHi32(refAreaSize >>> 0, x);
-          const relativePos = refAreaSize - 1 - y;
-
-          const startPos =
-            pass !== 0 && slice !== SYNC_POINTS - 1
-              ? (slice + 1) * segmentLength
-              : 0;
-          const refIndex = (startPos + relativePos) % laneLength;
-          const refOffset = (refLane * laneLength + refIndex) * BLOCK_U32;
-
-          compressBlock(
-            memory,
-            prevOffset,
-            memory,
-            refOffset,
-            memory,
-            currOffset,
-            pass !== 0,
-          );
         }
       }
     }
-  }
 
-  // Step 5: Finalize C = B[0][q-1] XOR B[1][q-1] XOR ... XOR B[p-1][q-1].
-  const finalWords = new Uint32Array(BLOCK_U32);
-  for (let lane = 0; lane < parallelism; lane++) {
-    const lastOff = (lane * laneLength + laneLength - 1) * BLOCK_U32;
-    for (let i = 0; i < BLOCK_U32; i++) {
-      finalWords[i] = (finalWords[i] ^ memory[lastOff + i]) >>> 0;
+    // Step 5: Finalize C = B[0][q-1] XOR B[1][q-1] XOR ... XOR B[p-1][q-1].
+    finalWords = new Uint32Array(BLOCK_U32);
+    for (let lane = 0; lane < parallelism; lane++) {
+      const lastOff = (lane * laneLength + laneLength - 1) * BLOCK_U32;
+      for (let i = 0; i < BLOCK_U32; i++) {
+        finalWords[i] = (finalWords[i] ^ memory[lastOff + i]) >>> 0;
+      }
     }
-  }
 
-  const finalBlock = new Uint8Array(1024);
-  for (let i = 0; i < BLOCK_U32; i++) {
-    writeU32LE(finalBlock, i << 2, finalWords[i]);
-  }
+    finalBlock = new Uint8Array(1024);
+    for (let i = 0; i < BLOCK_U32; i++) {
+      writeU32LE(finalBlock, i << 2, finalWords[i]);
+    }
 
-  return blake2bLong(finalBlock, hashLength);
+    return blake2bLong(finalBlock, hashLength);
+  } finally {
+    P.fill(0);
+    K.fill(0);
+    if (initBuf) initBuf.fill(0);
+    if (h0) h0.fill(0);
+    if (blockSeed) blockSeed.fill(0);
+    if (memory) memory.fill(0);
+    if (finalWords) finalWords.fill(0);
+    if (finalBlock) finalBlock.fill(0);
+    _b2v.fill(0);
+    _b2m.fill(0);
+    _b2h.fill(0);
+    _b2Block.fill(0);
+    _blockR.fill(0);
+    _blockZ.fill(0);
+    _inputBlock.fill(0);
+    _addrTmp.fill(0);
+    _addrBlock.fill(0);
+  }
 }
 
 function toUint8Array(value) {

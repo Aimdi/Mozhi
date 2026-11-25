@@ -11,6 +11,7 @@ final class PracticeSettings extends Equatable {
     this.desiredRetention = FsrsScheduler.defaultDesiredRetention,
     this.typeAnswers = false,
     this.customWeights,
+    this.customWeightsUpdatedAt,
     this.updatedAt,
   });
 
@@ -45,6 +46,11 @@ final class PracticeSettings extends Equatable {
           : FsrsScheduler.defaultDesiredRetention,
       typeAnswers: json['typeAnswers'] == true,
       customWeights: _parseWeights(json['fsrsWeights']),
+      customWeightsUpdatedAt: switch (json['customWeightsUpdatedAt'] ??
+          json['fsrsWeightsUpdatedAt']) {
+        final String value => DateTime.tryParse(value)?.toUtc(),
+        _ => null,
+      },
       updatedAt: switch (json['updatedAt']) {
         final String value => DateTime.tryParse(value)?.toUtc(),
         _ => null,
@@ -89,6 +95,10 @@ final class PracticeSettings extends Equatable {
   /// [FsrsScheduler.defaultWeights].
   final List<double>? customWeights;
 
+  /// When [customWeights] last changed (merged independently of [updatedAt] so
+  /// editing other practice settings never clobbers personalized weights).
+  final DateTime? customWeightsUpdatedAt;
+
   /// When the settings last changed (the newer copy wins in a merge).
   final DateTime? updatedAt;
 
@@ -117,6 +127,7 @@ final class PracticeSettings extends Equatable {
     double? desiredRetention,
     bool? typeAnswers,
     List<double>? Function()? customWeights,
+    DateTime? Function()? customWeightsUpdatedAt,
     DateTime? updatedAt,
   }) => PracticeSettings(
     collectionIds: collectionIds != null ? collectionIds() : this.collectionIds,
@@ -130,6 +141,9 @@ final class PracticeSettings extends Equatable {
             null => null,
           }
         : this.customWeights,
+    customWeightsUpdatedAt: customWeightsUpdatedAt != null
+        ? customWeightsUpdatedAt()
+        : this.customWeightsUpdatedAt,
     updatedAt: updatedAt ?? this.updatedAt,
   );
 
@@ -140,6 +154,10 @@ final class PracticeSettings extends Equatable {
     'retention': desiredRetention,
     if (typeAnswers) 'typeAnswers': true,
     if (customWeights != null) 'fsrsWeights': [...customWeights!],
+    if (customWeightsUpdatedAt != null)
+      'customWeightsUpdatedAt': customWeightsUpdatedAt!
+          .toUtc()
+          .toIso8601String(),
     if (updatedAt != null) 'updatedAt': updatedAt!.toUtc().toIso8601String(),
   };
 
@@ -151,6 +169,7 @@ final class PracticeSettings extends Equatable {
     desiredRetention,
     typeAnswers,
     customWeights,
+    customWeightsUpdatedAt,
     updatedAt,
   ];
 }

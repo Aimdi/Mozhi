@@ -37,20 +37,29 @@ String providersTable(
       [
         [
           entry.id,
-          if (config.engine == 'ai:${entry.id}') ' *',
+          if (config.engine ==
+              (entry.config.isMtService ? 'mt:${entry.id}' : 'ai:${entry.id}'))
+            ' *',
           if (!entry.config.enabled) ' (disabled)',
         ].join(),
         entry.name,
-        protocolName(entry.config.provider),
-        entry.config.model,
-        entry.config.baseUrl,
+        if (entry.config.isMtService)
+          entry.config.service.name
+        else
+          protocolName(entry.config.provider),
+        if (entry.config.isMtService) '-' else entry.config.model,
+        if (entry.config.baseUrl.isEmpty &&
+            entry.config.service == MtService.deepl)
+          '(official)'
+        else
+          entry.config.baseUrl,
         entry.keySource,
       ],
   ],
   styleHeader: styleHeader,
 );
 
-/// `mozhi config providers`: manage AI providers.
+/// `mozhi config providers`: manage AI and direct MT providers.
 class ProvidersCommand extends Command<int> {
   new(CliContext context) {
     addSubcommand(ProvidersAddCommand(context));
@@ -68,7 +77,8 @@ class ProvidersCommand extends Command<int> {
 
   @override
   String get description =>
-      'Manage AI providers (OpenAI-compatible, Anthropic, Gemini, Ollama).';
+      'Manage AI providers (OpenAI-compatible, Anthropic, Gemini, Ollama) '
+      'and direct MT services (DeepL, LibreTranslate).';
 }
 
 /// Common lookup of the provider named by the first positional argument.
@@ -96,21 +106,27 @@ mixin _ProviderArgument on MozhiCommand {
 /// `mozhi config providers add`.
 class ProvidersAddCommand extends MozhiCommand {
   new(super.context) {
+    final allPresets = [
+      ...AiProviderPreset.all,
+      ...AiProviderPreset.mtServices,
+    ];
     argParser
       ..addOption(
         'preset',
         abbr: 'p',
-        allowed: [for (final preset in AiProviderPreset.all) preset.id],
+        allowed: [for (final preset in allPresets) preset.id],
         allowedHelp: {
-          for (final preset in AiProviderPreset.all)
+          for (final preset in allPresets)
             preset.id: '${preset.name}: ${preset.description}',
         },
-        help: 'Start from a ready-made provider.',
+        help: 'Start from a ready-made AI or MT provider.',
       )
       ..addOption('name', abbr: 'n', help: 'Display name (default: preset).')
       ..addOption(
         'id',
-        help: 'Stable id used in --engine ai:<id> (default: from the name).',
+        help:
+            'Stable id used in --engine ai:<id> or mt:<id> '
+            '(default: from the name).',
       )
       ..addOption(
         'protocol',
@@ -118,7 +134,7 @@ class ProvidersAddCommand extends MozhiCommand {
         help: 'Wire protocol (required without --preset).',
       )
       ..addOption('base-url', valueHelp: 'url', help: 'API base URL.')
-      ..addOption('model', abbr: 'm', help: 'Model id.')
+      ..addOption('model', abbr: 'm', help: 'Model id (AI providers only).')
       ..addSeparator('API key (stored in the config file, mode 0600):')
       ..addOption(
         'api-key',
@@ -165,7 +181,7 @@ class ProvidersAddCommand extends MozhiCommand {
   String get name => 'add';
 
   @override
-  String get description => 'Add an AI provider.';
+  String get description => 'Add an AI or direct MT provider.';
 
   @override
   String get invocation => 'mozhi config providers add [arguments]';
@@ -185,6 +201,8 @@ class ProvidersAddCommand extends MozhiCommand {
             '--api-key-env ANTHROPIC_API_KEY',
       );
     }
+    final service = preset?.service ?? MtService.llm;
+    final isMt = service != MtService.llm;
     final name = option('name') ?? preset?.name;
     if (name == null) {
       throw const CliException.usage('Pass --name for a custom provider.');
@@ -199,7 +217,7 @@ class ProvidersAddCommand extends MozhiCommand {
       );
     }
     final baseUrl = option('base-url') ?? preset?.baseUrl ?? '';
-    if (baseUrl.isEmpty) {
+    if (baseUrl.isEmpty && service != MtService.deepl) {
       throw const CliException.usage('Pass --base-url for this provider.');
     }
     final apiKey = await _apiKey(preset);
@@ -215,16 +233,17 @@ class ProvidersAddCommand extends MozhiCommand {
       name: name,
       provider: protocol != null ? protocolNames[protocol]! : preset!.provider,
       baseUrl: baseUrl,
-      model: option('model') ?? preset?.defaultModel ?? '',
+      model: isMt ? '' : (option('model') ?? preset?.defaultModel ?? ''),
       apiKey: apiKey,
       presetId: preset?.id,
-      effort: option('effort') ?? preset?.defaultEffort,
-      temperature: temperature,
+      effort: isMt ? null : (option('effort') ?? preset?.defaultEffort),
+      temperature: isMt ? null : temperature,
       headers: {...?preset?.headers, ..._headers()},
-      supportsVision: flag('vision'),
+      supportsVision: !isMt && flag('vision'),
+      service: service,
     );
     final apiKeyEnv = option('api-key-env');
-    if (provider.model.isEmpty) {
+    if (!isMt && provider.model.isEmpty) {
       provider = provider.copyWith(
         model: await _pickModel(
           apiKeyEnv == null
@@ -237,6 +256,7 @@ class ProvidersAddCommand extends MozhiCommand {
       );
     }
 
+    final engineId = isMt ? 'mt:$id' : 'ai:$id';
     final entry = ProviderEntry(provider, apiKeyEnv: apiKeyEnv);
     var updated = config.withProviders([
       for (final other in config.providers)
@@ -244,12 +264,13 @@ class ProvidersAddCommand extends MozhiCommand {
       entry,
     ]);
     if (flag('default')) {
-      updated = updated.withValue(ConfigKey.engine, 'ai:$id');
+      updated = updated.withValue(ConfigKey.engine, engineId);
     }
     saveConfig(updated);
+    final detail = isMt ? service.name : provider.model;
     logger.success(
       '${existing == null ? 'Added' : 'Replaced'} $name '
-      '(${provider.model}). Use it with: mozhi translate --engine ai:$id',
+      '($detail). Use it with: mozhi translate --engine $engineId',
     );
     if (apiKey == null &&
         apiKeyEnv == null &&
@@ -401,7 +422,10 @@ class ProvidersRemoveCommand extends MozhiCommand with _ProviderArgument {
       for (final other in config.providers)
         if (other.id != removed.id) other,
     ]);
-    final wasDefault = config.engine == 'ai:${removed.id}';
+    final engineId = removed.config.isMtService
+        ? 'mt:${removed.id}'
+        : 'ai:${removed.id}';
+    final wasDefault = config.engine == engineId;
     if (wasDefault) updated = updated.withValue(ConfigKey.engine, null);
     saveConfig(updated);
     logger.success('Removed ${removed.name}.');
@@ -423,7 +447,7 @@ class ProvidersTestCommand extends MozhiCommand with _ProviderArgument {
   String get name => 'test';
 
   @override
-  String get description => 'Send a short test translation to an AI provider.';
+  String get description => 'Send a short test translation to a provider.';
 
   @override
   Future<int> run() async {
@@ -460,6 +484,12 @@ class ProvidersModelsCommand extends MozhiCommand with _ProviderArgument {
   @override
   Future<int> run() async {
     final entry = provider;
+    if (entry.config.isMtService) {
+      throw CliException.usage(
+        '${entry.name} is a direct MT service and does not have selectable '
+        'models.',
+      );
+    }
     final repository = context.repositoryFactory();
     try {
       final models = await repository.listModels(

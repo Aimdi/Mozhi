@@ -8,14 +8,20 @@ export 'batch_codec.dart' show ChunkEncoding;
 /// One piece of a segment that is translated as a whole: the segment
 /// itself, or a part of an oversized segment.
 class TranslationUnit extends Equatable {
-  const new({required this.segment, required this.part, required this.text});
+  const new({
+    required this.segment,
+    required this.part,
+    required this.text,
+    this.contextHint,
+  });
 
   final int segment;
   final int part;
   final String text;
+  final String? contextHint;
 
   @override
-  List<Object?> get props => [segment, part, text];
+  List<Object?> get props => [segment, part, text, contextHint];
 }
 
 /// Units translated together in one request.
@@ -138,7 +144,11 @@ class Chunker {
     DocumentFormat.csv ||
     DocumentFormat.tsv ||
     DocumentFormat.appleStrings ||
-    DocumentFormat.xcstrings => .markers,
+    DocumentFormat.xcstrings ||
+    DocumentFormat.yaml ||
+    DocumentFormat.toml ||
+    DocumentFormat.properties ||
+    DocumentFormat.tmx => .markers,
   };
 
   /// Plans the chunks for [document].
@@ -157,7 +167,14 @@ class Chunker {
         for (var k = 0; k < parts.length - 1; k++) parts[k].separator,
       ]);
       for (var k = 0; k < parts.length; k++) {
-        units.add(TranslationUnit(segment: i, part: k, text: parts[k].text));
+        units.add(
+          TranslationUnit(
+            segment: i,
+            part: k,
+            text: parts[k].text,
+            contextHint: segments[i].contextHint,
+          ),
+        );
       }
     }
 

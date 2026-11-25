@@ -33,6 +33,7 @@ import 'package:mozhi/image_translate/view/image_translate_page.dart'
     deferred as image_page;
 import 'package:mozhi/image_translate/view/image_translate_page.dart'
     show ImageTranslatePage;
+import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/live_camera/live_camera_entry.dart';
 import 'package:mozhi/live_camera/view/live_camera_page.dart'
     deferred as live_camera_page;
@@ -50,6 +51,7 @@ import 'package:mozhi/pairing/view/pairing_pages.dart' deferred as pairing_page;
 import 'package:mozhi/phrasebook/view/phrasebook_page.dart'
     deferred as phrasebook_page;
 import 'package:mozhi/platform/web_address.dart';
+import 'package:mozhi/platform/web_locale.dart';
 import 'package:mozhi/practice/practice_routes.dart';
 import 'package:mozhi/practice/view/practice_page.dart'
     deferred as practice_page;
@@ -78,6 +80,7 @@ import 'package:mozhi/settings/view/providers_page.dart'
     deferred as providers_page;
 import 'package:mozhi/settings/view/quality_modes_page.dart'
     deferred as quality_page;
+import 'package:mozhi/settings/view/settings_category_labels.dart';
 import 'package:mozhi/settings/view/settings_page.dart'
     deferred as settings_page;
 import 'package:mozhi/settings/view/tab_order_page.dart'
@@ -460,22 +463,33 @@ GoRouter createAppRouter({
     String path,
     DeferredLibrary library,
     GoRouterWidgetBuilder builder, {
+    _PageTitleBuilder? title,
     GlobalKey<NavigatorState>? parentNavigatorKey,
     List<RouteBase> routes = const [],
   }) => GoRoute(
     path: path,
     parentNavigatorKey: parentNavigatorKey,
     routes: routes,
-    builder: (context, state) => DeferredPage(
-      library: library,
-      builder: (context) => builder(context, state),
-    ),
+    builder: (context, state) {
+      final page = DeferredPage(
+        library: library,
+        builder: (context) => builder(context, state),
+      );
+      return title == null ? page : _PageTitle(title: title, child: page);
+    },
   );
   GoRoute fullScreenDeferred(
     String path,
     DeferredLibrary library,
-    GoRouterWidgetBuilder builder,
-  ) => deferredRoute(path, library, builder, parentNavigatorKey: rootKey);
+    GoRouterWidgetBuilder builder, {
+    _PageTitleBuilder? title,
+  }) => deferredRoute(
+    path,
+    library,
+    builder,
+    title: title,
+    parentNavigatorKey: rootKey,
+  );
 
   return GoRouter(
     navigatorKey: rootKey,
@@ -515,50 +529,53 @@ GoRouter createAppRouter({
       fullScreenDeferred(
         AppRoutes.onboarding,
         DeferredFeatures.onboarding,
+        title: (l10n) => l10n.onboardingWelcomeTitle,
         (context, state) => onboarding_page.OnboardingPage(
           finishLocation: _homeLocation(context),
         ),
       ),
-      fullScreenDeferred(AppRoutes.image, DeferredFeatures.image, (
-        context,
-        state,
-      ) {
-        final query = state.uri.queryParameters;
-        final token = query[SharedFiles.parameter];
-        if (SharedFiles.isToken(token)) {
-          // A file that could not be shared says why (too large, not
-          // readable), as a photo that could not be picked does.
-          final failure = ImageTranslateException(
-            SharedFileError.tryParse(query[SharedFiles.errorParameter]) ==
-                    SharedFileError.tooLarge
-                ? ImageTranslateErrorKind.fileTooLarge
-                : ImageTranslateErrorKind.pickFailed,
-          );
-          return SharedItemsNotice(
-            key: ValueKey(token),
-            id: token,
-            several: SharedFiles.sharedSeveral(query),
-            child: SharedFileLoader(
-              token: token,
-              // On-device text recognition reads the file.
-              keep: true,
-              builder: (context, file, _) => file == null
-                  ? image_page.ImageTranslatePage(
-                      picker: shared_image.SharedImagePicker.failed(failure),
-                    )
-                  : image_page.ImageTranslatePage(
-                      picker: shared_image.SharedImagePicker(file),
-                      autoTranslate: mayAutoTranslateShared(context),
-                    ),
+      fullScreenDeferred(
+        AppRoutes.image,
+        DeferredFeatures.image,
+        title: (l10n) => l10n.imageTranslateTitle,
+        (context, state) {
+          final query = state.uri.queryParameters;
+          final token = query[SharedFiles.parameter];
+          if (SharedFiles.isToken(token)) {
+            // A file that could not be shared says why (too large, not
+            // readable), as a photo that could not be picked does.
+            final failure = ImageTranslateException(
+              SharedFileError.tryParse(query[SharedFiles.errorParameter]) ==
+                      SharedFileError.tooLarge
+                  ? ImageTranslateErrorKind.fileTooLarge
+                  : ImageTranslateErrorKind.pickFailed,
+            );
+            return SharedItemsNotice(
+              key: ValueKey(token),
+              id: token,
+              several: SharedFiles.sharedSeveral(query),
+              child: SharedFileLoader(
+                token: token,
+                // On-device text recognition reads the file.
+                keep: true,
+                builder: (context, file, _) => file == null
+                    ? image_page.ImageTranslatePage(
+                        picker: shared_image.SharedImagePicker.failed(failure),
+                      )
+                    : image_page.ImageTranslatePage(
+                        picker: shared_image.SharedImagePicker(file),
+                        autoTranslate: mayAutoTranslateShared(context),
+                      ),
+              ),
+            );
+          }
+          return image_page.ImageTranslatePage(
+            initialSource: ImagePickSource.tryParse(
+              state.uri.queryParameters[ImageTranslatePage.sourceParameter],
             ),
           );
-        }
-        return image_page.ImageTranslatePage(
-          initialSource: ImagePickSource.tryParse(
-            state.uri.queryParameters[ImageTranslatePage.sourceParameter],
-          ),
-        );
-      }),
+        },
+      ),
       // Only the image screen opens the live camera: a link never turns
       // the camera on by itself.
       GoRoute(
@@ -566,76 +583,90 @@ GoRouter createAppRouter({
         parentNavigatorKey: rootKey,
         redirect: (context, state) =>
             state.extra == LiveCameraLaunch.open ? null : AppRoutes.image,
-        builder: (context, state) => DeferredPage(
-          library: DeferredFeatures.liveCamera,
-          builder: (context) => live_camera_page.LiveCameraPage(),
+        builder: (context, state) => _PageTitle(
+          title: (l10n) => l10n.liveCameraTitle,
+          child: DeferredPage(
+            library: DeferredFeatures.liveCamera,
+            builder: (context) => live_camera_page.LiveCameraPage(),
+          ),
         ),
       ),
-      fullScreenDeferred(AppRoutes.documents, DeferredFeatures.documents, (
-        context,
-        state,
-      ) {
-        final query = state.uri.queryParameters;
-        final shared = query[SharedFiles.parameter];
-        final token = SharedFiles.isToken(shared) ? shared : null;
-        final error = SharedFileError.tryParse(
-          query[SharedFiles.errorParameter],
-        );
-        // Not keyed by the share: the open screen takes a new shared file
-        // (asking first while it translates, `DocumentShareHandoff`).
-        return SharedItemsNotice(
-          id: token,
-          several: SharedFiles.sharedSeveral(query),
-          child: SharedFileLoader(
-            token: token,
-            builder: (context, file, loaded) =>
-                documents_page.DocumentTranslatePage(
-                  shareId: loaded,
-                  initialFile: file == null
-                      ? null
-                      : document_files.PickedFile(
-                          name: file.name,
-                          bytes: file.bytes,
-                        ),
-                  // Without a file: why (not readable when unknown).
-                  unavailableFile: file == null && loaded != null
-                      ? (
-                          name: query[SharedFiles.nameParameter],
-                          tooLarge: error == SharedFileError.tooLarge,
-                        )
-                      : null,
-                ),
-          ),
-        );
-      }),
-      fullScreenDeferred(AppRoutes.web, DeferredFeatures.web, (context, state) {
-        final url =
-            state.uri.queryParameters[WebTranslateRoute.urlParameter]?.trim() ??
-            '';
-        if (url.isEmpty || state.extra == WebPageLaunch.load) {
-          return web_page.WebTranslatePage(initialUrl: url);
-        }
-        // A link only fills in the address; a new address (another link
-        // while the page is open) starts afresh.
-        return web_page.WebTranslatePage(
-          key: ValueKey(url),
-          initialUrl: url,
-          autoLoad: false,
-        );
-      }),
+      fullScreenDeferred(
+        AppRoutes.documents,
+        DeferredFeatures.documents,
+        title: (l10n) => l10n.documentsTitle,
+        (context, state) {
+          final query = state.uri.queryParameters;
+          final shared = query[SharedFiles.parameter];
+          final token = SharedFiles.isToken(shared) ? shared : null;
+          final error = SharedFileError.tryParse(
+            query[SharedFiles.errorParameter],
+          );
+          // Not keyed by the share: the open screen takes a new shared file
+          // (asking first while it translates, `DocumentShareHandoff`).
+          return SharedItemsNotice(
+            id: token,
+            several: SharedFiles.sharedSeveral(query),
+            child: SharedFileLoader(
+              token: token,
+              builder: (context, file, loaded) =>
+                  documents_page.DocumentTranslatePage(
+                    shareId: loaded,
+                    initialFile: file == null
+                        ? null
+                        : document_files.PickedFile(
+                            name: file.name,
+                            bytes: file.bytes,
+                          ),
+                    // Without a file: why (not readable when unknown).
+                    unavailableFile: file == null && loaded != null
+                        ? (
+                            name: query[SharedFiles.nameParameter],
+                            tooLarge: error == SharedFileError.tooLarge,
+                          )
+                        : null,
+                  ),
+            ),
+          );
+        },
+      ),
+      fullScreenDeferred(
+        AppRoutes.web,
+        DeferredFeatures.web,
+        title: (l10n) => l10n.webTranslateTitle,
+        (context, state) {
+          final url =
+              state.uri.queryParameters[WebTranslateRoute.urlParameter]
+                  ?.trim() ??
+              '';
+          if (url.isEmpty || state.extra == WebPageLaunch.load) {
+            return web_page.WebTranslatePage(initialUrl: url);
+          }
+          // A link only fills in the address; a new address (another link
+          // while the page is open) starts afresh.
+          return web_page.WebTranslatePage(
+            key: ValueKey(url),
+            initialUrl: url,
+            autoLoad: false,
+          );
+        },
+      ),
       fullScreenDeferred(
         AppRoutes.transcribe,
         DeferredFeatures.transcribe,
+        title: (l10n) => l10n.transcribeTitle,
         (context, state) => transcribe_page.TranscribePage(),
       ),
       fullScreenDeferred(
         AppRoutes.liveCaptions,
         DeferredFeatures.liveCaptions,
+        title: (l10n) => l10n.liveCaptionsTitle,
         (context, state) => live_captions_page.LiveCaptionsPage(),
       ),
       fullScreenDeferred(
         AppRoutes.phrasebook,
         DeferredFeatures.phrasebook,
+        title: (l10n) => l10n.phrasebookTitle,
         (context, state) => phrasebook_page.PhrasebookPage(
           initialCollectionId: state.uri.queryParameters['collection'],
         ),
@@ -643,6 +674,7 @@ GoRouter createAppRouter({
       fullScreenDeferred(
         AppRoutes.practice,
         DeferredFeatures.practice,
+        title: (l10n) => l10n.practiceTitle,
         (context, state) => practice_page.PracticePage(
           // A new collection (another link while the page is open) starts
           // afresh.
@@ -654,17 +686,20 @@ GoRouter createAppRouter({
       deferredRoute(
         AppRoutes.pairing,
         DeferredFeatures.pairing,
+        title: (l10n) => l10n.pairingSectionTitle,
         (context, state) => pairing_page.PairingPage(),
         parentNavigatorKey: rootKey,
         routes: [
           deferredRoute(
             'receive',
             DeferredFeatures.pairing,
+            title: (l10n) => l10n.pairingSectionTitle,
             (context, state) => pairing_page.PairingReceivePage(),
           ),
           deferredRoute(
             'send',
             DeferredFeatures.pairing,
+            title: (l10n) => l10n.pairingSectionTitle,
             (context, state) => pairing_page.pairingSendPageFor(state.uri),
           ),
         ],
@@ -674,37 +709,46 @@ GoRouter createAppRouter({
       // that load to a finished test's zone (test/app/view/app_test.dart).
       GoRoute(
         path: AppRoutes.history,
-        builder: (context, state) => TopLevelPageScope(
-          child: HistoryPage(
-            initialTab: HistoryTab.tryParse(
-              state.uri.queryParameters[HistoryPage.tabParameter],
+        builder: (context, state) => _PageTitle(
+          title: (l10n) => l10n.historyTitle,
+          child: TopLevelPageScope(
+            child: HistoryPage(
+              initialTab: HistoryTab.tryParse(
+                state.uri.queryParameters[HistoryPage.tabParameter],
+              ),
             ),
           ),
         ),
       ),
       GoRoute(
         path: AppRoutes.settings,
-        builder: (context, state) => DeferredPage(
-          library: DeferredFeatures.settings,
-          builder: (context) =>
-              // A deferred class cannot be const (the lint does not know).
-              // ignore: prefer_const_constructors
-              TopLevelPageScope(child: settings_page.SettingsPage()),
+        builder: (context, state) => _PageTitle(
+          title: (l10n) => l10n.settingsTitle,
+          child: DeferredPage(
+            library: DeferredFeatures.settings,
+            builder: (context) =>
+                // A deferred class cannot be const (the lint does not know).
+                // ignore: prefer_const_constructors
+                TopLevelPageScope(child: settings_page.SettingsPage()),
+          ),
         ),
         routes: [
           deferredRoute(
             'instances',
             DeferredFeatures.settings,
+            title: (l10n) => l10n.settingsInstancesTitle,
             (context, state) => instances_page.InstancesPage(),
           ),
           deferredRoute(
             'providers',
             DeferredFeatures.settings,
+            title: (l10n) => l10n.settingsProvidersTitle,
             (context, state) => providers_page.ProvidersPage(),
             routes: [
               deferredRoute(
                 'edit',
                 DeferredFeatures.settings,
+                title: (l10n) => l10n.settingsProvidersTitle,
                 (context, state) => provider_editor_page.ProviderEditorPage(
                   providerId: state.uri.queryParameters['id'],
                   presetId: state.uri.queryParameters['preset'],
@@ -715,11 +759,13 @@ GoRouter createAppRouter({
           deferredRoute(
             'offline',
             DeferredFeatures.offline,
+            title: (l10n) => l10n.offlineTitle,
             (context, state) => offline_page.OfflineModelsPage(),
           ),
           deferredRoute(
             'presets',
             DeferredFeatures.presets,
+            title: (l10n) => l10n.presetsTitle,
             (context, state) => presets_page.PresetsPage(
               onOpenGlossaries: () =>
                   unawaited(context.push<void>(AppRoutes.glossaries)),
@@ -728,41 +774,49 @@ GoRouter createAppRouter({
           deferredRoute(
             'glossaries',
             DeferredFeatures.glossaries,
+            title: (l10n) => l10n.glossariesTitle,
             (context, state) => glossaries_page.GlossariesPage(),
           ),
           deferredRoute(
             'quality',
             DeferredFeatures.settings,
+            title: (l10n) => l10n.settingsQualityTitle,
             (context, state) => quality_page.QualityModesPage(),
           ),
           deferredRoute(
             'tabs',
             DeferredFeatures.settings,
+            title: (l10n) => l10n.settingsTabOrder,
             (context, state) => tab_order_page.TabOrderPage(),
           ),
           deferredRoute(
             'voice',
             DeferredFeatures.settings,
+            title: (l10n) => l10n.voiceSettingsTitle,
             (context, state) => voice_settings_page.VoiceInputSettingsPage(),
           ),
           deferredRoute(
             'on-device-ai',
             DeferredFeatures.settings,
+            title: (l10n) => l10n.settingsOnDeviceAi,
             (context, state) => on_device_ai_page.OnDeviceAiPage(),
           ),
           deferredRoute(
             'usage',
             DeferredFeatures.usage,
+            title: (l10n) => l10n.settingsUsageTitle,
             (context, state) => const _UsageRoute(),
           ),
           deferredRoute(
             'network',
             DeferredFeatures.settings,
+            title: (l10n) => l10n.settingsNetworkActivity,
             (context, state) => network_page.NetworkActivityPage(),
           ),
           deferredRoute(
             'about',
             DeferredFeatures.settings,
+            title: (l10n) => l10n.settingsAbout,
             (context, state) => about_page.AboutPage(
               highlight:
                   state.uri.queryParameters[SettingsCategory.rowParameter],
@@ -774,6 +828,7 @@ GoRouter createAppRouter({
             deferredRoute(
               category.path,
               DeferredFeatures.settings,
+              title: category.title,
               (context, state) => settings_page.SettingsCategoryPage(
                 category: category,
                 highlight:
@@ -783,14 +838,17 @@ GoRouter createAppRouter({
         ],
       ),
       StatefulShellRoute.indexedStack(
-        builder: (context, state, navigationShell) => AppShell(
-          selectedIndex: navigationShell.currentIndex,
-          onDestinationSelected: (index) => navigationShell.goBranch(
-            index,
-            // Tapping the active tab returns to its first page.
-            initialLocation: index == navigationShell.currentIndex,
+        builder: (context, state, navigationShell) => _PageTitle(
+          title: (l10n) => _tabTitle(l10n, navigationShell.currentIndex),
+          child: AppShell(
+            selectedIndex: navigationShell.currentIndex,
+            onDestinationSelected: (index) => navigationShell.goBranch(
+              index,
+              // Tapping the active tab returns to its first page.
+              initialLocation: index == navigationShell.currentIndex,
+            ),
+            child: navigationShell,
           ),
-          child: navigationShell,
         ),
         branches: [
           StatefulShellBranch(
@@ -1042,6 +1100,59 @@ class _UsageRoute extends StatelessWidget {
       providers: providers,
       onOpenProvider: (id) =>
           unawaited(context.push<void>(AppRoutes.editProvider(id: id))),
+    );
+  }
+}
+
+typedef _PageTitleBuilder = String Function(AppLocalizations l10n);
+
+String _tabTitle(AppLocalizations l10n, int branchIndex) =>
+    switch (branchIndex) {
+      0 => l10n.navTranslate,
+      1 => l10n.navDictionary,
+      2 => l10n.navProofread,
+      3 => l10n.navConversation,
+      _ => l10n.appTitle,
+    };
+
+/// Announces the active page title to the browser tab and screen readers
+/// ([Title], WCAG 2.4.2) and keeps the web `<html lang>` attribute in sync
+/// with the resolved app locale (WCAG 3.1.1).
+class _PageTitle extends StatefulWidget {
+  const new({required this.title, required this.child});
+
+  final _PageTitleBuilder title;
+  final Widget child;
+
+  @override
+  State<_PageTitle> createState() => _PageTitleState();
+}
+
+class _PageTitleState extends State<_PageTitle> {
+  String? _lastLocale;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final tag = Localizations.maybeLocaleOf(context)?.toLanguageTag();
+    if (tag != null && tag != _lastLocale) {
+      _lastLocale = tag;
+      setWebDocumentLocale(tag);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = Localizations.of<AppLocalizations>(context, AppLocalizations);
+    final appTitle = l10n?.appTitle ?? 'Mozhi';
+    final page = l10n == null ? '' : widget.title(l10n).trim();
+    final fullTitle = page.isEmpty || page == appTitle
+        ? appTitle
+        : '$page · $appTitle';
+    return Title(
+      title: fullTitle,
+      color: Theme.of(context).colorScheme.primary,
+      child: widget.child,
     );
   }
 }

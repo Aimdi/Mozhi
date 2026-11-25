@@ -61,7 +61,7 @@ final Map<String, PartBuilderFactory> _translated = {
   '${_spreadsheet}sharedStrings+xml': SheetPartBuilder.new,
   '${_spreadsheet}comments+xml': SheetPartBuilder.new,
   'application/vnd.ms-excel.threadedcomments+xml':
-      PlainElementPartBuilder.threadedComments,
+      ThreadedCommentsPartBuilder.new,
   _worksheet: SheetPartBuilder.new,
   '${_officeDocument}drawingml.chart+xml': DrawingPartBuilder.new,
   'application/vnd.ms-office.chartex+xml': DrawingPartBuilder.new,

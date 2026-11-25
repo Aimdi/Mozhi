@@ -52,14 +52,14 @@
     <string name="tile_live_captions_description">开始或停止 Mozhi 实时字幕</string>
     <string name="live_captions_locked">Mozhi 已锁定</string>
     <!-- Model downloads foreground service (ModelDownloadService). -->
-    <string name="notification_channel_downloads">Model downloads</string>
-    <string name="notification_channel_downloads_description">Shown while Mozhi downloads offline languages, voice or AI models</string>
-    <string name="notification_downloads_title">Downloading model</string>
-    <string name="notification_downloads_cancel">Cancel</string>
+    <string name="notification_channel_downloads">模型下载</string>
+    <string name="notification_channel_downloads_description">Mozhi 下载离线语言、语音或 AI 模型时显示</string>
+    <string name="notification_downloads_title">正在下载模型</string>
+    <string name="notification_downloads_cancel">取消</string>
 
     <!-- Opt-in offline notification translation (NotificationTranslateService). -->
-    <string name="notification_translate_service_label">Mozhi offline notification translation</string>
-    <string name="notification_channel_translate_notifications">Translated notifications</string>
-    <string name="notification_channel_translate_notifications_description">Offline translations of incoming notifications from other apps</string>
-    <string name="notification_translated_title">Translated notification</string>
+    <string name="notification_translate_service_label">Mozhi 离线通知翻译</string>
+    <string name="notification_channel_translate_notifications">已翻译的通知</string>
+    <string name="notification_channel_translate_notifications_description">来自其他应用的通知的离线翻译</string>
+    <string name="notification_translated_title">已翻译的通知</string>
 </resources>

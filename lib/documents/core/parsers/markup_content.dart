@@ -390,6 +390,7 @@ List<DocNode> inlineContent(
   List<Inline> inlines, {
   String Function(String text)? escape,
   String? label,
+  String? contextHint,
   bool Function(String text)? accept,
   String lineBreak = '\n',
   String Function(String fragment)? repair,
@@ -452,6 +453,7 @@ List<DocNode> inlineContent(
     pieces,
     escape: escape,
     label: label,
+    contextHint: contextHint,
     accept: accept,
     lineBreak: lineBreak,
   );

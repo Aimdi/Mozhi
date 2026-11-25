@@ -19,6 +19,11 @@ const llamaMirrorFolder = 'llm';
 Uri llamaMirrorUrl(Uri mirror, LlamaCatalogModel model) =>
     _mirrorUrl(mirror, [llamaMirrorFolder, model.name]);
 
+/// Where [projector] (a vision model's companion mmproj `.gguf`) is on a
+/// [mirror]: `<mirror>/llm/<projector.name>`.
+Uri llamaProjectorMirrorUrl(Uri mirror, LlamaProjectorFile projector) =>
+    _mirrorUrl(mirror, [llamaMirrorFolder, projector.name]);
+
 /// The URLs to download [model] from, in the order to try them: without a
 /// [mirror], [LlamaCatalogModel.url] (Hugging Face); with one, its copy
 /// ([llamaMirrorUrl]), then [LlamaCatalogModel.url] when
@@ -34,6 +39,17 @@ List<Uri> llamaDownloadUrls(
 }) => [
   if (mirror != null) llamaMirrorUrl(mirror, model),
   if (mirror == null || fallbackToDefault) model.url,
+];
+
+/// The URLs to download [projector] from, in the order to try them (see
+/// [llamaDownloadUrls]).
+List<Uri> llamaProjectorDownloadUrls(
+  LlamaProjectorFile projector, {
+  Uri? mirror,
+  bool fallbackToDefault = false,
+}) => [
+  if (mirror != null) llamaProjectorMirrorUrl(mirror, projector),
+  if (mirror == null || fallbackToDefault) projector.url,
 ];
 
 /// [mirror] with [segments] appended to its path.

@@ -1,4 +1,5 @@
 import 'package:llama_engine/src/engine/llama_engine.dart';
+import 'package:llama_engine/src/engine/web/llama_worker.dart';
 
 /// Whether the native engine can run here: never on the web.
 bool get llamaPlatformSupported => false;
@@ -19,7 +20,14 @@ LlamaEngineBuild llamaEngineBuild({
   library: 'libmozhi_llama.so',
 );
 
-/// The engine on platforms without `dart:ffi` (web).
+/// No browser worker on platforms without `dart:js_interop`.
+LlamaWorkerChannel? openLlamaWorker({String url = defaultLlamaWorkerUrl}) =>
+    null;
+
+/// No browser persistent storage on platforms without `dart:js_interop`.
+Future<bool> requestPersistentLlamaStorage() async => false;
+
+/// The engine on platforms without `dart:ffi` or `dart:js_interop`.
 final class UnsupportedLlamaEngine implements LlamaEngine {
   const new();
 

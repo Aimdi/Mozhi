@@ -5,6 +5,7 @@ import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/practice/cubit/practice_cubit.dart';
 import 'package:mozhi/practice/cubit/practice_speech_cubit.dart';
 import 'package:mozhi/practice/data/fsrs.dart';
+import 'package:mozhi/practice/data/fsrs_optimizer.dart';
 import 'package:mozhi/practice/models/practice_review_log.dart';
 import 'package:mozhi/practice/widgets/practice_overview.dart';
 
@@ -118,6 +119,67 @@ void main() {
     await tester.tap(resetTile);
     await _settle(tester);
     expect(find.byKey(const Key('practice_reset_weights')), findsNothing);
+    expect(cubit.state.settings.hasCustomWeights, isFalse);
+  });
+
+  testWidgets('personalize schedule shows a SnackBar when optimization fails', (
+    tester,
+  ) async {
+    final fixture = PracticeFixture(favorites: [favorite('1')]);
+    final base = DateTime.utc(2026, 1, 1, 9);
+    final seededLogs = <Map<String, Object?>>[];
+    for (var c = 0; c < 20; c++) {
+      final t0 = base.add(Duration(hours: c));
+      for (var r = 0; r < 4; r++) {
+        seededLogs.add(
+          PracticeReviewLog(
+            cardKey: 'seed:$c#r',
+            rating: r == 0 || r == 2 ? FsrsRating.good : FsrsRating.again,
+            elapsedDays: r == 0 ? 0 : 4,
+            state: r == 0 ? FsrsState.newCard : FsrsState.review,
+            reviewedAt: t0.add(Duration(days: r * 4)),
+          ).toJson(),
+        );
+      }
+    }
+    await tester.runAsync(
+      () => fixture.practice.restoreBackup(
+        {'version': 1, 'cards': <Object?>[], 'reviews': seededLogs},
+        version: 1,
+        merge: false,
+      ),
+    );
+    final cubit = PracticeCubit(
+      repository: fixture.practice,
+      appLanguage: 'en',
+      clock: fixture.clock.call,
+      optimizer: (_) =>
+          Future<FsrsOptimizationResult>.error(StateError('optimizer boom')),
+    );
+    final speech = PracticeSpeechCubit(recognizer: FakeRecognizer());
+    addTearDown(() async {
+      await cubit.close();
+      await speech.close();
+    });
+
+    await tester.runAsync(cubit.load);
+    await tester.runAsync(speech.load);
+    await _pumpOverview(tester, cubit, speech);
+
+    final runButton = find.byKey(const Key('practice_personalize_run'));
+    await tester.ensureVisible(runButton);
+    await tester.pumpAndSettle();
+
+    await tester.tap(runButton);
+    await _settle(tester);
+
+    expect(find.byType(SnackBar), findsOneWidget);
+    expect(
+      find.text('Could not personalize schedule. Please try again.'),
+      findsOneWidget,
+    );
+    // Button is enabled again (spinner cleared).
+    expect(find.byKey(const Key('practice_personalize_run')), findsOneWidget);
     expect(cubit.state.settings.hasCustomWeights, isFalse);
   });
 }

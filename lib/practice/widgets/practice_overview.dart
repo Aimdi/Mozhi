@@ -516,14 +516,23 @@ class _PersonalizeScheduleTileState extends State<_PersonalizeScheduleTile> {
     if (_running) return;
     setState(() => _running = true);
     FsrsOptimizationResult? result;
+    Object? failure;
     await context.read<PracticeCubit>().optimizeSchedule(
       onResult: (value) => result = value,
+      onError: (error) => failure = error,
     );
     if (!mounted) return;
     setState(() {
       _running = false;
-      _lastResult = result;
+      if (failure == null) _lastResult = result;
     });
+    if (failure != null) {
+      ScaffoldMessenger.maybeOf(context)
+        ?..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(content: Text(context.l10n.practicePersonalizeFailed)),
+        );
+    }
   }
 
   Future<void> _reset() async {

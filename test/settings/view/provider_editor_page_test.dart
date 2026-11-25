@@ -522,6 +522,67 @@ void main() {
           await tester.pumpAndSettle();
           expect(savedConfig().headers, {'X-Own': 'kept'});
         });
+
+        testWidgets(
+          'strips stale preset headers when changing baseUrl to another host',
+          (tester) async {
+            const saved = AiProviderConfig(
+              id: 'or1',
+              name: 'OpenRouter',
+              provider: LlmProvider.openAiCompatible,
+              baseUrl: 'https://openrouter.ai/api/v1',
+              model: 'openai/gpt-5-mini',
+              apiKey: 'sk-or',
+              presetId: 'openrouter',
+              headers: {
+                'HTTP-Referer': 'https://github.com/Aimdi/Mozhi',
+                'X-Title': 'Mozhi',
+                'X-Own': 'kept',
+              },
+            );
+            when(() => settings.state)
+                .thenReturn(const AppSettings(providers: [saved]));
+            await pump(tester, providerId: 'or1');
+            await tester.enterText(
+              field('Base URL'),
+              'https://other-host.example/v1',
+            );
+            await tester.tap(find.text('Save'));
+            await tester.pumpAndSettle();
+            expect(savedConfig().headers, {'X-Own': 'kept'});
+          },
+        );
+
+        testWidgets('keeps headers when editing path on the same host', (
+          tester,
+        ) async {
+          const saved = AiProviderConfig(
+            id: 'or2',
+            name: 'OpenRouter',
+            provider: LlmProvider.openAiCompatible,
+            baseUrl: 'https://openrouter.ai/api/v1',
+            model: 'openai/gpt-5-mini',
+            apiKey: 'sk-or',
+            presetId: 'openrouter',
+            headers: {
+              'HTTP-Referer': 'https://github.com/Aimdi/Mozhi',
+              'X-Title': 'Mozhi',
+            },
+          );
+          when(() => settings.state)
+              .thenReturn(const AppSettings(providers: [saved]));
+          await pump(tester, providerId: 'or2');
+          await tester.enterText(
+            field('Base URL'),
+            'https://openrouter.ai/api/v2',
+          );
+          await tester.tap(find.text('Save'));
+          await tester.pumpAndSettle();
+          expect(savedConfig().headers, {
+            'HTTP-Referer': 'https://github.com/Aimdi/Mozhi',
+            'X-Title': 'Mozhi',
+          });
+        });
       });
     });
 

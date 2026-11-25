@@ -23,5 +23,20 @@ void main() {
       expect(find.bySemanticsLabel('Offline'), findsOneWidget);
       expect(find.byTooltip('Translated on this device'), findsOneWidget);
     });
+
+    testWidgets('is keyboard-focusable and exposes tooltip via semantics', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpApp(const Center(child: OfflineEngineBadge()));
+      final focusFinder = find.descendant(
+        of: find.byType(OfflineEngineBadge),
+        matching: find.byType(Focus),
+      );
+      expect(focusFinder, findsAtLeast(1));
+      final semantics = tester.getSemantics(find.byType(OfflineEngineBadge));
+      expect(semantics.hint, contains('Translated on this device'));
+      handle.dispose();
+    });
   });
 }

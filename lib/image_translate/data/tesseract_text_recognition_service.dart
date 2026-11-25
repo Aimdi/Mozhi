@@ -9,6 +9,7 @@ import 'package:mozhi/image_translate/data/rgba_image_decoder.dart';
 import 'package:mozhi/image_translate/data/text_recognition_plan.dart';
 import 'package:mozhi/image_translate/data/text_recognition_service.dart';
 import 'package:mozhi/image_translate/models/models.dart';
+import 'package:mozhi/platform/download_foreground_service.dart';
 import 'package:mozhi/settings/models/model_source.dart';
 import 'package:tesseract_ocr/tesseract_ocr.dart';
 import 'package:translation_repository/translation_repository.dart';
@@ -182,11 +183,20 @@ class TesseractTextRecognitionService
         ..fallbackToDefault = source.fallsBackToDefault;
       // Starts (and registers) the install before it awaits anything, so
       // a cancel from now on reaches it.
-      await ocr.download(
-        code,
-        onProgress: onProgress == null
-            ? null
-            : (progress) => onProgress(progress.fraction),
+      final language = ocr.catalog.byCode(code);
+      final label = language == null
+          ? code
+          : LanguageCatalog.nameOf(language.languages.first);
+      await DownloadForegroundCoordinator.instance.track(
+        label: label,
+        onCancel: () => cancelOcrDownload(code),
+        run: (reportForeground) => ocr.download(
+          code,
+          onProgress: (progress) {
+            onProgress?.call(progress.fraction);
+            reportForeground(progress.fraction);
+          },
+        ),
       );
     } on TessdataDownloadCancelledException {
       throw OfflineDownloadCancelledException(code);

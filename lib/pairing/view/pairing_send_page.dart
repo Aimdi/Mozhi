@@ -237,6 +237,13 @@ class _EnterCodeState extends State<_EnterCode> {
   late final TextEditingController _controller = TextEditingController(
     text: context.read<PairingSendCubit>().state.input,
   );
+  late final bool _canScanQr;
+
+  @override
+  void initState() {
+    super.initState();
+    _canScanQr = defaultLiveCameraController().isSupported;
+  }
 
   @override
   void dispose() {
@@ -275,7 +282,6 @@ class _EnterCodeState extends State<_EnterCode> {
     final invalid = context.select<PairingSendCubit, bool>(
       (cubit) => cubit.state.invalidCode,
     );
-    final canScanQr = defaultLiveCameraController().isSupported;
     return PairingBody(
       children: [
         Text(
@@ -309,7 +315,7 @@ class _EnterCodeState extends State<_EnterCode> {
         ),
         PairingActions(
           children: [
-            if (canScanQr)
+            if (_canScanQr)
               OutlinedButton.icon(
                 key: const Key('pairing_scan_qr'),
                 onPressed: () => unawaited(_scanQr()),

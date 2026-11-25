@@ -163,7 +163,7 @@ class OnDeviceAiView extends StatelessWidget {
         builder: (context) => _MeteredDialog(
           body: l10n.onDeviceAiMeteredBody(
             name,
-            formatModelSize(l10n, model?.size ?? 0),
+            formatModelSize(l10n, model?.totalSize ?? 0),
           ),
         ),
       );
@@ -363,7 +363,7 @@ class _ModelTile extends StatelessWidget {
     final inUse = model.installed && state.inUse(model.id);
     final percent = (progress * 100).floor();
     final details = [
-      formatModelSize(l10n, catalog.size),
+      formatModelSize(l10n, catalog.totalSize),
       catalog.license,
       if (catalog.languages.isNotEmpty)
         l10n.onDeviceAiLanguages(catalog.languages.length),
@@ -374,7 +374,9 @@ class _ModelTile extends StatelessWidget {
         l10n.onDeviceAiDownloading(percent)
       else if (!model.installed && model.partialBytes > 0)
         l10n.onDeviceAiPaused(
-          (model.partialBytes * 100 / catalog.size).floor(),
+          catalog.totalSize == 0
+              ? 0
+              : (model.partialBytes * 100 / catalog.totalSize).floor(),
         ),
       if (inUse) l10n.onDeviceAiInUse,
     ];
@@ -534,7 +536,9 @@ class _AboutDialog extends StatelessWidget {
               catalog.quantization,
             ),
           ),
-          Text(l10n.onDeviceAiAboutSize(formatModelSize(l10n, catalog.size))),
+          Text(
+            l10n.onDeviceAiAboutSize(formatModelSize(l10n, catalog.totalSize)),
+          ),
           Text(
             l10n.onDeviceAiAboutMemory(
               formatModelSize(l10n, catalog.minRamMb * mebibyte),

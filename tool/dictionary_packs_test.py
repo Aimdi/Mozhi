@@ -388,6 +388,85 @@ class CommandLineTest(unittest.TestCase):
                 any(ex[0] == 'I walked to the bank.' for ex in examples),
                 examples,
             )
+            self.assertEqual(
+                pack.meta['source'], 'Wiktionary + WikDict + Tatoeba',
+            )
+            self.assertEqual(
+                pack.meta['license'],
+                'CC BY-SA 4.0 + CC BY-SA 3.0 + CC BY 2.0 FR',
+            )
+            self.assertIn('WikDict', pack.meta['attribution'])
+            self.assertIn('Attribution-ShareAlike 3.0', pack.meta['attribution'])
+            self.assertIn('Tatoeba', pack.meta['attribution'])
+            self.assertIn('Attribution 2.0 France', pack.meta['attribution'])
+            self.assertEqual(
+                [s['name'] for s in pack.meta['additionalSources']],
+                ['WikDict', 'Tatoeba'],
+            )
+            self.assertEqual(
+                pack.meta['additionalSources'][0]['license'], 'CC BY-SA 3.0',
+            )
+            self.assertEqual(
+                pack.meta['additionalSources'][1]['license'], 'CC BY 2.0 FR',
+            )
+
+    def test_unmatched_wikdict_and_tatoeba_keep_wiktionary_attribution(self):
+        with tempfile.TemporaryDirectory() as directory:
+            wikdict_jsonl = os.path.join(directory, 'empty.jsonl')
+            with open(wikdict_jsonl, 'w', encoding='utf-8') as f:
+                f.write(json.dumps({
+                    'word': 'nonexistentword',
+                    'target': 'fr',
+                    'translation': 'rien',
+                }) + '\n')
+            tatoeba_tsv = os.path.join(directory, 'empty.tsv')
+            with open(tatoeba_tsv, 'w', encoding='utf-8') as f:
+                f.write('nonexistentword\tNo match here.\tAucun.\n')
+            out_path = os.path.join(directory, 'en.mzd')
+            code, _, err = self.run_main(
+                'build', os.path.join(FIXTURES, 'kaikki_en.jsonl'),
+                '--language', 'en', '--output', out_path,
+                '--wikdict', wikdict_jsonl, '--tatoeba', tatoeba_tsv)
+            self.assertEqual(code, 0, err)
+            with open(out_path, 'rb') as f:
+                pack = packs.Pack(f.read())
+            self.assertEqual(pack.meta['source'], 'Wiktionary')
+            self.assertEqual(pack.meta['license'], 'CC BY-SA 4.0')
+            self.assertNotIn('additionalSources', pack.meta)
+            self.assertNotIn('WikDict', pack.meta['attribution'])
+            self.assertNotIn('Tatoeba', pack.meta['attribution'])
+
+    def test_tatoeba_matches_spaceless_cjk_and_thai(self):
+        options = packs.Options(max_examples=2)
+        collected = [
+            ({'w': '猫', 's': [{'g': 'cat'}]}, []),
+            ({'w': '図書館', 's': [{'g': 'library'}]}, []),
+            ({'w': 'แมว', 's': [{'g': 'cat'}]}, []),
+            ({'w': 'cat', 's': [{'g': 'feline'}]}, []),
+        ]
+        pairs = [
+            ('私は猫が好きです。', 'I like cats.'),
+            ('明日図書館へ行きます。', 'I will go to the library tomorrow.'),
+            ('แมวนอนอยู่บนเตียง', 'The cat is sleeping on the bed.'),
+            ('This category has many items.', 'Cette catégorie a beaucoup.'),
+        ]
+        added = packs.merge_tatoeba(collected, ({}, pairs), options)
+        self.assertEqual(added, 3)
+        by_word = {entry['w']: entry for entry, _ in collected}
+        self.assertEqual(
+            by_word['猫']['s'][0]['x'],
+            [['私は猫が好きです。', 'I like cats.']],
+        )
+        self.assertEqual(
+            by_word['図書館']['s'][0]['x'],
+            [['明日図書館へ行きます。', 'I will go to the library tomorrow.']],
+        )
+        self.assertEqual(
+            by_word['แมว']['s'][0]['x'],
+            [['แมวนอนอยู่บนเตียง', 'The cat is sleeping on the bed.']],
+        )
+        # Space-delimited Latin words still require whole-token matches.
+        self.assertNotIn('x', by_word['cat']['s'][0])
 
 
 class DartFixtureTest(unittest.TestCase):

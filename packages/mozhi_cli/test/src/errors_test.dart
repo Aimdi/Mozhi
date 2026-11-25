@@ -57,6 +57,37 @@ void main() {
       );
     });
 
+    test('maps direct MT provider errors', () {
+      final auth = describeError(
+        const DeeplApiException(
+          'Forbidden',
+          kind: MtErrorKind.unauthorized,
+          statusCode: 403,
+        ),
+      );
+      expect(auth.exitCode, ExitCode.unavailable);
+      expect(auth.message, contains('DeepL error (HTTP 403)'));
+      expect(auth.hint, contains('preset deepl'));
+
+      final quota = describeError(
+        const DeeplApiException(
+          'Quota exceeded',
+          kind: MtErrorKind.quotaExceeded,
+          statusCode: 456,
+        ),
+      );
+      expect(quota.hint, contains('quota'));
+
+      final libre = describeError(
+        const LibreTranslateException(
+          'Connection refused',
+          kind: MtErrorKind.network,
+        ),
+      );
+      expect(libre.message, contains('LibreTranslate error'));
+      expect(libre.hint, contains('base URL'));
+    });
+
     test('maps network and argument errors', () {
       expect(
         describeError(TimeoutException('x')).exitCode,

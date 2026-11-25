@@ -88,10 +88,15 @@ class _FileInput extends StatelessWidget {
         child: TabHero(
           icon: Icons.description_outlined,
           title: l10n.documentsHeroTitle,
-          body: l10n.documentsPickHintFormatsPdf(
-            documentSizeLabel(context, cubit.maxPackageBytes),
-            documentSizeLabel(context, cubit.maxBytes),
-          ),
+          body: cubit.pdfSupported
+              ? l10n.documentsPickHintFormatsPdf(
+                  documentSizeLabel(context, cubit.maxPackageBytes),
+                  documentSizeLabel(context, cubit.maxBytes),
+                )
+              : l10n.documentsPickHintFormats(
+                  documentSizeLabel(context, cubit.maxPackageBytes),
+                  documentSizeLabel(context, cubit.maxBytes),
+                ),
           child: FilledButton.icon(
             key: const Key('documents_pick_file'),
             onPressed: loading ? null : () => unawaited(cubit.pickFile()),

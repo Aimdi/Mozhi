@@ -52,14 +52,14 @@
     <string name="tile_live_captions_description">Увімкнути або вимкнути живі субтитри Mozhi</string>
     <string name="live_captions_locked">Mozhi заблоковано</string>
     <!-- Model downloads foreground service (ModelDownloadService). -->
-    <string name="notification_channel_downloads">Model downloads</string>
-    <string name="notification_channel_downloads_description">Shown while Mozhi downloads offline languages, voice or AI models</string>
-    <string name="notification_downloads_title">Downloading model</string>
-    <string name="notification_downloads_cancel">Cancel</string>
+    <string name="notification_channel_downloads">Завантаження моделей</string>
+    <string name="notification_channel_downloads_description">Показується, поки Mozhi завантажує офлайн-мови, голосові або ШІ-моделі</string>
+    <string name="notification_downloads_title">Завантаження моделі</string>
+    <string name="notification_downloads_cancel">Скасувати</string>
 
     <!-- Opt-in offline notification translation (NotificationTranslateService). -->
-    <string name="notification_translate_service_label">Mozhi offline notification translation</string>
-    <string name="notification_channel_translate_notifications">Translated notifications</string>
-    <string name="notification_channel_translate_notifications_description">Offline translations of incoming notifications from other apps</string>
-    <string name="notification_translated_title">Translated notification</string>
+    <string name="notification_translate_service_label">Офлайн-переклад сповіщень Mozhi</string>
+    <string name="notification_channel_translate_notifications">Перекладені сповіщення</string>
+    <string name="notification_channel_translate_notifications_description">Офлайн-переклади вхідних сповіщень з інших застосунків</string>
+    <string name="notification_translated_title">Перекладене сповіщення</string>
 </resources>

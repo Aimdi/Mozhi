@@ -175,7 +175,12 @@ class SettingsBackupSection implements BackupSection, BackupSyncSection {
       if (rTs == null ||
           lTs > rTs ||
           (lTs == rTs && _winsTie(localMap[field], remoteMap[field]))) {
-        out[field] = localMap[field];
+        final value = localMap[field];
+        if (value == null) {
+          out.remove(field);
+        } else {
+          out[field] = value;
+        }
         mergedTs[field] = lTs;
       }
     }
@@ -192,10 +197,11 @@ class SettingsBackupSection implements BackupSection, BackupSyncSection {
     // providers this device explicitly removed stay out of local, while
     // keeping providers from remote that were removed only locally does not
     // resurrect them here thanks to removedProviders).
-    out['providers'] = _mergeProviderMaps(
+    final (mergedProviders, idRemap) = _mergeProviderMaps(
       remoteMap['providers'],
       localMap['providers'],
     );
+    out['providers'] = mergedProviders;
 
     // Converge pinned languages (union by code, sorted deterministically).
     out['pinnedLanguages'] = _mergePinnedMaps(
@@ -203,7 +209,11 @@ class SettingsBackupSection implements BackupSection, BackupSyncSection {
       localMap['pinnedLanguages'],
     );
 
-    final mergedSecrets = _mergeSecretsMaps(remoteSecrets, localSecrets);
+    final mergedSecrets = _mergeSecretsMaps(
+      remoteSecrets,
+      localSecrets,
+      localIdRemap: idRemap,
+    );
     return _canonicalSyncPayload(out, mergedSecrets);
   }
 
@@ -231,12 +241,13 @@ class SettingsBackupSection implements BackupSection, BackupSyncSection {
     };
   }
 
-  static List<Map<String, dynamic>> _mergeProviderMaps(
+  static (List<Map<String, dynamic>>, Map<String, String>) _mergeProviderMaps(
     Object? remoteRaw,
     Object? localRaw,
   ) {
     final byId = <String, Map<String, dynamic>>{};
-    final seenByBaseAndServer = <String>{};
+    final seenByBaseAndServer = <String, String>{};
+    final localIdRemap = <String, String>{};
 
     String baseId(String id, String serverHash) {
       final at = id.lastIndexOf('~');
@@ -265,7 +276,10 @@ class SettingsBackupSection implements BackupSection, BackupSyncSection {
         if (id is! String || id.isEmpty) continue;
         final hash = serverKey(map);
         if (hash != null) {
-          seenByBaseAndServer.add('${baseId(id, hash)}|$hash');
+          seenByBaseAndServer.putIfAbsent(
+            '${baseId(id, hash)}|$hash',
+            () => id,
+          );
         }
         byId.putIfAbsent(id, () => map);
       }
@@ -280,9 +294,12 @@ class SettingsBackupSection implements BackupSection, BackupSyncSection {
         final id = map['id'];
         if (id is! String || id.isEmpty) continue;
         final hash = serverKey(map);
-        if (hash != null &&
-            seenByBaseAndServer.contains('${baseId(id, hash)}|$hash')) {
-          continue;
+        if (hash != null) {
+          final existingId = seenByBaseAndServer['${baseId(id, hash)}|$hash'];
+          if (existingId != null) {
+            if (existingId != id) localIdRemap[id] = existingId;
+            continue;
+          }
         }
         var targetId = id;
         if (byId.containsKey(targetId)) {
@@ -290,15 +307,19 @@ class SettingsBackupSection implements BackupSection, BackupSyncSection {
           targetId = renamedId(baseId(id, hash), hash);
           if (byId.containsKey(targetId)) continue;
           map['id'] = targetId;
+          localIdRemap[id] = targetId;
         }
         if (hash != null) {
-          seenByBaseAndServer.add('${baseId(targetId, hash)}|$hash');
+          seenByBaseAndServer.putIfAbsent(
+            '${baseId(targetId, hash)}|$hash',
+            () => targetId,
+          );
         }
         byId[targetId] = map;
       }
     }
     final ids = byId.keys.toList()..sort();
-    return [for (final id in ids) byId[id]!];
+    return ([for (final id in ids) byId[id]!], localIdRemap);
   }
 
   static List<Map<String, dynamic>> _mergePinnedMaps(
@@ -336,10 +357,11 @@ class SettingsBackupSection implements BackupSection, BackupSyncSection {
 
   static Map<String, dynamic>? _mergeSecretsMaps(
     Map<String, dynamic>? remote,
-    Map<String, dynamic>? local,
-  ) {
+    Map<String, dynamic>? local, {
+    Map<String, String> localIdRemap = const {},
+  }) {
     if (remote == null && local == null) return null;
-    Map<String, dynamic> mergeSub(String key) {
+    Map<String, dynamic> mergeSub(String key, {bool remapIds = false}) {
       final merged = <String, dynamic>{};
       if (remote?[key] is Map) {
         merged.addAll(Map<String, dynamic>.from(remote![key] as Map));
@@ -348,15 +370,16 @@ class SettingsBackupSection implements BackupSection, BackupSyncSection {
         for (final MapEntry(:key, :value) in Map<String, dynamic>.from(
           local![key] as Map,
         ).entries) {
-          merged.putIfAbsent(key, () => value);
+          final targetKey = remapIds ? (localIdRemap[key] ?? key) : key;
+          merged.putIfAbsent(targetKey, () => value);
         }
       }
       final sortedKeys = merged.keys.toList()..sort();
       return {for (final k in sortedKeys) k: merged[k]};
     }
 
-    final apiKeys = mergeSub('apiKeys');
-    final headers = mergeSub('headers');
+    final apiKeys = mergeSub('apiKeys', remapIds: true);
+    final headers = mergeSub('headers', remapIds: true);
     final instanceCredentials = mergeSub('instanceCredentials');
     final out = <String, dynamic>{
       if (apiKeys.isNotEmpty) 'apiKeys': apiKeys,
@@ -610,7 +633,12 @@ class SettingsBackupSection implements BackupSection, BackupSyncSection {
           bTs > lTs ||
           (bTs == lTs && _winsTie(backupJson[field], localJson[field]));
       if (adopt) {
-        localJson[field] = backupJson[field];
+        final value = backupJson[field];
+        if (value == null) {
+          localJson.remove(field);
+        } else {
+          localJson[field] = value;
+        }
         mergedTimestamps[field] = bTs;
         changed = true;
       }

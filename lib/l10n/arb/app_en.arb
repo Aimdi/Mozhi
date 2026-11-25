@@ -14901,5 +14901,81 @@
   "pairingScanQrPermissionDenied": "Camera permission is needed to scan QR codes. You can still type or paste the code.",
   "@pairingScanQrPermissionDenied": {
     "description": "pairingScanQrPermissionDenied"
+  },
+  "imageTranslateZoomIn": "Zoom in",
+  "@imageTranslateZoomIn": {
+    "description": "imageTranslateZoomIn"
+  },
+  "imageTranslateZoomOut": "Zoom out",
+  "@imageTranslateZoomOut": {
+    "description": "imageTranslateZoomOut"
+  },
+  "imageTranslateZoomReset": "Reset zoom",
+  "@imageTranslateZoomReset": {
+    "description": "imageTranslateZoomReset"
+  },
+  "translateRegenerate": "Regenerate translation",
+  "@translateRegenerate": {
+    "description": "translateRegenerate"
+  },
+  "settingsAutoExtras": "Load insights and alternatives automatically",
+  "@settingsAutoExtras": {
+    "description": "settingsAutoExtras"
+  },
+  "settingsAutoExtrasSubtitle": "Fetch word insights and alternative translations after each AI translation",
+  "@settingsAutoExtrasSubtitle": {
+    "description": "settingsAutoExtrasSubtitle"
+  },
+  "documentsFormatYaml": "YAML localization (.yml)",
+  "@documentsFormatYaml": {
+    "description": "documentsFormatYaml"
+  },
+  "documentsFormatToml": "TOML configuration (.toml)",
+  "@documentsFormatToml": {
+    "description": "documentsFormatToml"
+  },
+  "documentsFormatProperties": "Java properties (.properties)",
+  "@documentsFormatProperties": {
+    "description": "documentsFormatProperties"
+  },
+  "documentsFormatTmx": "TMX translation memory (.tmx)",
+  "@documentsFormatTmx": {
+    "description": "documentsFormatTmx"
+  },
+  "practicePersonalizeFailed": "Could not personalize schedule. Please try again.",
+  "@practicePersonalizeFailed": {
+    "description": "SnackBar message shown when FSRS schedule weight optimization fails"
+  },
+  "settingsNotificationTranslateTargetLanguage": "Target language",
+  "@settingsNotificationTranslateTargetLanguage": {
+    "description": "settingsNotificationTranslateTargetLanguage"
+  },
+  "settingsNotificationTranslateTargetFollowApp": "Follow Translate tab",
+  "@settingsNotificationTranslateTargetFollowApp": {
+    "description": "settingsNotificationTranslateTargetFollowApp"
+  },
+  "settingsNotificationTranslateTargetDialogBody": "Choose the language incoming notifications are translated into. By default this follows the Translate tab.",
+  "@settingsNotificationTranslateTargetDialogBody": {
+    "description": "settingsNotificationTranslateTargetDialogBody"
+  },
+  "settingsNotificationTranslateMutedApps": "Muted apps",
+  "@settingsNotificationTranslateMutedApps": {
+    "description": "settingsNotificationTranslateMutedApps"
+  },
+  "settingsNotificationTranslateUnmute": "Unmute",
+  "@settingsNotificationTranslateUnmute": {
+    "description": "settingsNotificationTranslateUnmute"
+  },
+  "settingsNotificationTranslateNotificationsDenied": "Allow notifications for Mozhi so translated notifications can appear.",
+  "@settingsNotificationTranslateNotificationsDenied": {
+    "description": "settingsNotificationTranslateNotificationsDenied"
+  },
+  "pairingScanQrCameraError": "Couldn't start the camera. You can still type or paste the code.",
+  "@pairingScanQrCameraError": {
+    "description": "pairingScanQrCameraError"
+  },
+  "pairingScanQrNotPairingCode": "That's not a Mozhi pairing QR code.",
+  "@pairingScanQrNotPairingCode": {
+    "description": "pairingScanQrNotPairingCode"
   }
 }

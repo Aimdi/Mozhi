@@ -376,6 +376,12 @@ List<SettingsSearchEntry> settingsSearchIndex(
     entry(ai, AiAnchors.assistant, l10n.settingsAssistEngine),
     entry(
       ai,
+      AiAnchors.autoExtras,
+      l10n.settingsAutoExtras,
+      subtitle: l10n.settingsAutoExtrasSubtitle,
+    ),
+    entry(
+      ai,
       AiAnchors.presets,
       l10n.presetsTitle,
       subtitle: l10n.settingsPresetsSubtitle,

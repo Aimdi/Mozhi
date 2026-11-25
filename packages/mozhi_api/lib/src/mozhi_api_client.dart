@@ -277,7 +277,12 @@ class MozhiApiClient {
     if (translations.isEmpty) {
       throw MozhiApiException('$engine returned no translation', uri: uri);
     }
-    return translations.first;
+    final translation = translations.first;
+    if (translation.translatedText.trim().isEmpty) {
+      final label = translation.engine.isEmpty ? engine : translation.engine;
+      throw MozhiApiException('$label returned an empty translation', uri: uri);
+    }
+    return translation;
   }
 
   /// Translates with several engines in one request. An empty [engines]
@@ -298,14 +303,29 @@ class MozhiApiClient {
     if (text.trim().isEmpty) {
       return [for (final engine in engines) _blank(engine, from, to, text)];
     }
-    final (_, translations) = await _postTranslate(
+    final (uri, translations) = await _postTranslate(
       engine: engines.isEmpty ? 'all' : engines.join(','),
       from: from,
       to: to,
       text: text,
       abortTrigger: abortTrigger,
     );
-    return translations;
+    if (translations.isEmpty) return const [];
+    final nonEmpty = [
+      for (final translation in translations)
+        if (translation.translatedText.trim().isNotEmpty) translation,
+    ];
+    if (nonEmpty.isEmpty) {
+      final names = {
+        for (final translation in translations)
+          if (translation.engine.isNotEmpty) translation.engine,
+      };
+      final label = names.isEmpty
+          ? (engines.isEmpty ? 'all' : engines.join(','))
+          : names.join(', ');
+      throw MozhiApiException('$label returned an empty translation', uri: uri);
+    }
+    return nonEmpty;
   }
 
   /// The translation of blank [text], answered without a request.

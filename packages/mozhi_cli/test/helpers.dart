@@ -50,6 +50,27 @@ const claudeProvider = AiProviderConfig(
   apiKey: 'sk-stored',
 );
 
+const deeplMtProvider = AiProviderConfig(
+  id: 'deepl-api',
+  name: 'DeepL API',
+  provider: LlmProvider.openAiCompatible,
+  baseUrl: '',
+  model: '',
+  apiKey: 'dl-key:fx',
+  presetId: 'deepl',
+  service: MtService.deepl,
+);
+
+const libreMtProvider = AiProviderConfig(
+  id: 'libre-local',
+  name: 'LibreLocal',
+  provider: LlmProvider.openAiCompatible,
+  baseUrl: 'http://localhost:5000',
+  model: '',
+  presetId: 'libretranslate',
+  service: MtService.libreTranslate,
+);
+
 const english = Language(code: 'en', name: 'English');
 const french = Language(code: 'fr', name: 'French');
 const german = Language(code: 'de', name: 'German');
@@ -102,6 +123,7 @@ class Harness {
     when(() => console.supportsAnsiEscapes).thenReturn(false);
     when(() => console.terminalColumns).thenReturn(80);
     when(() => console.terminalLines).thenReturn(24);
+    when(() => console.readLines()).thenAnswer((_) => const Stream.empty());
     when(() => repository.activeInstance)
         .thenReturn(MozhiInstance.publicInstances.first);
 
@@ -184,6 +206,12 @@ class Harness {
 void registerFallbacks() {
   registerFallbackValue(Level.info);
   registerFallbackValue(googleEngine);
+  registerFallbackValue(english);
+  registerFallbackValue(DictionaryVerbosity.standard);
+  registerFallbackValue(Formality.automatic);
+  registerFallbackValue(WritingStyle.general);
+  registerFallbackValue(CorrectionLevel.standard);
+  registerFallbackValue(WritingTone.automatic);
   registerFallbackValue(
     const TranslationRequest(text: '', source: english, target: french),
   );

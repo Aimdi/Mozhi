@@ -186,6 +186,46 @@ void main() {
       expect(extract('{x {y [1] [[2]] {"a": 3}}}'), {'a': 3});
     });
 
+    test('finds valid JSON nested inside 200+ non-decoding brackets', () {
+      expect(extract('${'[x ' * 250}{"a": 1}${']' * 250}'), {'a': 1});
+      expect(extract('${'[' * 250}x {"a": 1}${']' * 250}'), {'a': 1});
+      expect(extract('${'{"a": ' * 250}x {"b": 2}${'}' * 250}'), {'b': 2});
+      expect(extract('${'{note [wrap ' * 150}{"ok": true}${' ]}' * 150}'), {
+        'ok': true,
+      });
+      // Preserves left-to-right order even across deeply nested wrappers.
+      expect(extract('${'[x ' * 200}{"first": 1}${']' * 200} {"second": 2}'), {
+        'first': 1,
+      });
+      // Truncated JSON after hundreds of unclosed junk brackets.
+      expect(extract('${'[x ' * 200}{"a": [1, 2'), {
+        'a': [1, 2],
+      });
+    });
+
+    test(
+      'handles deeply nested adversarial bracket floods in bounded time',
+      () {
+        final stopwatch = Stopwatch()..start();
+        expect(extract('${'[x ' * 30000}{"a": 1}${']' * 30000}'), {'a': 1});
+        expect(extract('${'{"a": ' * 25000}x {"b": 1}${'}' * 25000}'), {
+          'b': 1,
+        });
+        expect(
+          () => extract('${'{"a": ' * 25000}x${'}' * 25000}'),
+          throwsFormatException,
+        );
+        expect(
+          () => extract('${'[' * 50000}x${']' * 50000}'),
+          throwsFormatException,
+        );
+        expect(extract('${'[He said "hi ' * 5000}]: {"a": "val [x]"}'), {
+          'a': 'val [x]',
+        });
+        expect(stopwatch.elapsed, lessThan(const Duration(seconds: 5)));
+      },
+    );
+
     test('quotes in prose do not hide the object', () {
       expect(extract('He said "hi. {"a": 1}'), {'a': 1});
       expect(extract('[He said "hi]: {"a": 1}'), {'a': 1});

@@ -61,6 +61,9 @@ class MozhiCliCommandRunner extends CompletionCommandRunner<int> {
       configStoreFactory: configStoreFactory,
     );
     addCommand(TranslateCommand(context));
+    addCommand(DictionaryCommand(context));
+    addCommand(DocumentCommand(context));
+    addCommand(ReplCommand(context));
     addCommand(ProofreadCommand(context));
     addCommand(DetectCommand(context));
     addCommand(EnginesCommand(context));

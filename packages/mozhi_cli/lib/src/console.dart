@@ -8,11 +8,12 @@ import 'dart:io' as io;
 class Console {
   /// Uses the real [io.stdin], [io.stdout] and [io.Platform.environment]
   /// unless replacements are given.
-  new({this._stdin, this._stdout, this._environment});
+  new({this._stdin, this._stdout, this._environment, this._lines});
 
   final io.Stdin? _stdin;
   final io.Stdout? _stdout;
   final Map<String, String>? _environment;
+  final Stream<String>? _lines;
 
   io.Stdin get _in => _stdin ?? io.stdin;
   io.Stdout get _out => _stdout ?? io.stdout;
@@ -48,4 +49,11 @@ class Console {
   /// replaced).
   Future<String> readStdin() =>
       const Utf8Decoder(allowMalformed: true).bind(_in).join();
+
+  /// Reads standard input line by line as UTF-8.
+  Stream<String> readLines() =>
+      _lines ??
+      const Utf8Decoder(allowMalformed: true)
+          .bind(_in)
+          .transform(const LineSplitter());
 }

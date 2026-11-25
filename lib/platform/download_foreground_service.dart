@@ -89,7 +89,9 @@ final class DownloadForegroundCoordinator {
     : _service = service ?? MethodChannelDownloadForegroundService() {
     _cancelSubscription = _service.cancelRequests.listen((_) {
       for (final entry in [..._active.values]) {
-        unawaited(entry.onCancel?.call());
+        final cancel = entry.onCancel;
+        if (cancel == null) continue;
+        unawaited(Future<void>.sync(cancel).catchError((Object _) {}));
       }
     });
   }

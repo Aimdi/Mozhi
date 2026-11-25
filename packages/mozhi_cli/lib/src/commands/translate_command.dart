@@ -69,6 +69,13 @@ class TranslateCommand extends MozhiCommand {
         help: 'How formal the translation should be.',
       )
       ..addOption(
+        'formality-context',
+        valueHelp: 'text',
+        help:
+            'Extra tone notes for --formality, e.g. '
+            '"my boss, but we are on first-name terms".',
+      )
+      ..addOption(
         'style',
         allowed: [
           for (final value in TranslationStyle.values) kebabCase(value.name),
@@ -82,6 +89,18 @@ class TranslateCommand extends MozhiCommand {
         help: 'CEFR reading level of the output (a1 = simplest).',
       )
       ..addOption(
+        'speaker-gender',
+        valueHelp: 'gender',
+        allowed: [for (final value in Gender.values) kebabCase(value.name)],
+        help: 'Grammatical gender of the speaker.',
+      )
+      ..addOption(
+        'addressee-gender',
+        valueHelp: 'gender',
+        allowed: [for (final value in Gender.values) kebabCase(value.name)],
+        help: 'Grammatical gender of the person addressed.',
+      )
+      ..addOption(
         'context',
         valueHelp: 'text',
         help:
@@ -93,7 +112,9 @@ class TranslateCommand extends MozhiCommand {
         abbr: 'g',
         valueHelp: 'term=translation',
         splitCommas: false,
-        help: 'Required translation of a term (repeatable).',
+        help:
+            'Required translation of a term (repeatable; merged with saved '
+            'config glossary).',
       )
       ..addOption(
         'glossary-file',
@@ -106,6 +127,27 @@ class TranslateCommand extends MozhiCommand {
         'instructions',
         valueHelp: 'text',
         help: 'Extra instruction for the model, e.g. "Keep it short".',
+      )
+      ..addSeparator('AI extras (require an AI provider):')
+      ..addFlag(
+        'alternatives',
+        negatable: false,
+        help: 'Show alternative translations and how they differ.',
+      )
+      ..addFlag(
+        'explain',
+        negatable: false,
+        help: 'Explain the translation choices.',
+      )
+      ..addFlag(
+        'insights',
+        negatable: false,
+        help: 'Show notable words, idioms and cultural nuances.',
+      )
+      ..addFlag(
+        'romanize',
+        negatable: false,
+        help: 'Show Latin-script romanization of the translation.',
       );
   }
 
@@ -122,6 +164,12 @@ class TranslateCommand extends MozhiCommand {
   @override
   String get invocation => 'mozhi translate [arguments] [text]';
 
+  bool get _hasExtras =>
+      flag('alternatives') ||
+      flag('explain') ||
+      flag('insights') ||
+      flag('romanize');
+
   @override
   Future<int> run() async {
     final text = await readText();
@@ -130,6 +178,12 @@ class TranslateCommand extends MozhiCommand {
     if (!compare && specs.length > 1) {
       throw const CliException.usage(
         'Only one --engine can be used without --compare.',
+      );
+    }
+    if (compare && _hasExtras) {
+      throw const CliException.usage(
+        'AI extras (--alternatives, --explain, --insights, --romanize) '
+        'cannot be used with --compare.',
       );
     }
     final options = _options();
@@ -161,7 +215,16 @@ class TranslateCommand extends MozhiCommand {
     String targetInput,
     TranslationOptions options,
   ) async {
-    if (engine.isMozhi && !options.isDefault) {
+    if (_hasExtras && !engine.isAi) {
+      throw CliException.usage(
+        'AI extras (--alternatives, --explain, --insights, --romanize) '
+        'require an AI provider, not ${engine.name}.',
+        hint: 'Use --engine ai or --engine ai:<provider>.',
+      );
+    }
+    final hasNonGlossaryOptions =
+        options.copyWith(glossary: const {}) != const TranslationOptions();
+    if (engine.isMozhi && hasNonGlossaryOptions) {
       logger.warn('AI options are ignored by Mozhi engines.');
     }
     var source = resolveLanguage(sourceInput, allowAuto: true);
@@ -174,11 +237,16 @@ class TranslateCommand extends MozhiCommand {
       source = supported.first;
       target = supported.last;
     }
+    final requestOptions = engine.isAi || engine.isMt
+        ? options
+        : options.glossary.isEmpty
+        ? const TranslationOptions()
+        : TranslationOptions(glossary: options.glossary);
     final request = TranslationRequest(
       text: text,
       source: source,
       target: target,
-      options: engine.isAi ? options : const TranslationOptions(),
+      options: requestOptions,
     );
     final stream = repository.translate(engine, request);
     final streaming =
@@ -189,6 +257,20 @@ class TranslateCommand extends MozhiCommand {
     final result = streaming
         ? await _printStreaming(stream)
         : await stream.lastWhere((result) => result.isComplete);
+
+    final alternatives = flag('alternatives')
+        ? await repository.getAlternatives(engine, request, result.text)
+        : null;
+    final insights = flag('insights')
+        ? await repository.getInsights(engine, request, result.text)
+        : null;
+    final explanation = flag('explain')
+        ? await repository.explain(engine, request, result.text).join()
+        : null;
+    final romanization = flag('romanize')
+        ? await repository.romanize(engine, text: result.text, language: target)
+        : null;
+
     if (jsonOutput) {
       printJson(
         translationJson(
@@ -196,11 +278,21 @@ class TranslateCommand extends MozhiCommand {
           source: source,
           target: target,
           instance: engine.isMozhi ? repository.activeInstance?.url : null,
+          alternatives: alternatives,
+          insights: insights,
+          explanation: explanation,
+          romanization: romanization,
         ),
       );
       return ExitCode.success.code;
     }
     if (!streaming) logger.info(result.text);
+    _printExtras(
+      alternatives: alternatives,
+      insights: insights,
+      explanation: explanation,
+      romanization: romanization,
+    );
     if (interactive) {
       if (result.targetTransliteration.isNotEmpty) {
         note(result.targetTransliteration);
@@ -208,6 +300,70 @@ class TranslateCommand extends MozhiCommand {
       note(_summary(engine, repository, source, target, result));
     }
     return ExitCode.success.code;
+  }
+
+  void _printExtras({
+    AlternativeTranslations? alternatives,
+    List<WordInsight>? insights,
+    String? explanation,
+    String? romanization,
+  }) {
+    if (romanization != null && romanization.trim().isNotEmpty) {
+      logger
+        ..info('')
+        ..info(bold('Romanization:'))
+        ..info('  $romanization');
+    }
+    if (alternatives != null) {
+      logger
+        ..info('')
+        ..info(bold('Alternatives:'));
+      if (alternatives.description.isNotEmpty) {
+        logger.info('  ${darkGray.wrap(alternatives.description)}');
+      }
+      if (alternatives.alternatives.isEmpty) {
+        logger.info('  None.');
+      } else {
+        for (final alt in alternatives.alternatives) {
+          final reason = alt.explanation.isEmpty
+              ? ''
+              : ' ${darkGray.wrap('— ${alt.explanation}')}';
+          logger.info('  • ${alt.text}$reason');
+        }
+      }
+    }
+    if (insights != null) {
+      logger
+        ..info('')
+        ..info(bold('Insights:'));
+      if (insights.isEmpty) {
+        logger.info('  None.');
+      } else {
+        for (final insight in insights) {
+          final header = insight.sourceText.isEmpty
+              ? bold(insight.targetText)
+              : '${insight.sourceText} → ${bold(insight.targetText)}';
+          final detail = insight.explanation.isEmpty
+              ? ''
+              : '\n    ${insight.explanation}';
+          logger.info(
+            '  • $header ${darkGray.wrap('(${insight.type})')}$detail',
+          );
+          for (final variation in insight.variations) {
+            final desc = variation.explanation.isEmpty
+                ? ''
+                : ' — ${variation.explanation}';
+            logger.info('    ↳ ${variation.text}$desc');
+          }
+        }
+      }
+    }
+    if (explanation != null && explanation.trim().isNotEmpty) {
+      logger
+        ..info('')
+        ..info(bold('Explanation:'))
+        ..info(explanation.trim());
+    }
   }
 
   /// Prints snapshots as they arrive; returns the final result.
@@ -364,10 +520,18 @@ class TranslateCommand extends MozhiCommand {
       style:
           choice('style', TranslationStyle.values) ?? TranslationStyle.natural,
       formality: choice('formality', Formality.values) ?? Formality.automatic,
+      formalityContext: option('formality-context') ?? '',
       readingLevel:
           choice('reading-level', ReadingLevel.values) ?? ReadingLevel.standard,
+      speakerGender: choice('speaker-gender', Gender.values) ?? Gender.unknown,
+      addresseeGender:
+          choice('addressee-gender', Gender.values) ?? Gender.unknown,
       context: option('context') ?? '',
-      glossary: {..._glossaryFile(), ...parseGlossary(multiOption('glossary'))},
+      glossary: {
+        ...config.glossary,
+        ..._glossaryFile(),
+        ...parseGlossary(multiOption('glossary')),
+      },
       instructions: option('instructions') ?? '',
     );
   }

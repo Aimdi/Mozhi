@@ -446,6 +446,7 @@ void main() {
         '⟨1⟩Ana Diaz:⟨2⟩\nCheck this total',
         'Plain note',
         'Is this final?\nPlease confirm.',
+        '⟨1⟩ yes',
       ]);
       expectRoundTrip(document, bytes, targetLanguage: 'es');
       final output = renderWith(document, {
@@ -453,6 +454,7 @@ void main() {
             '⟨1⟩Ana Diaz:⟨2⟩\nRevisa este total',
         'Plain note': 'Nota',
         'Is this final?\nPlease confirm.': '¿Es definitivo?\nConfírmalo.',
+        '⟨1⟩ yes': 'Sí, ⟨1⟩',
       });
       final legacy = entryText(output, 'xl/comments1.xml');
       expect(legacy, contains('<authors><author>Ana Diaz</author></authors>'));
@@ -470,8 +472,9 @@ void main() {
         'xl/threadedComments/threadedComment1.xml',
       );
       expect(threads, contains('<text>¿Es definitivo?\nConfírmalo.</text>'));
-      // Mentions point into the text: that reply is kept.
-      expect(threads, contains('<text>@Ana Diaz yes</text>'));
+      // Mentioned names are protected and their offsets updated in the reply.
+      expect(threads, contains('<text>Sí, @Ana Diaz</text>'));
+      expect(threads, contains('startIndex="4" length="9"'));
     });
   });
 

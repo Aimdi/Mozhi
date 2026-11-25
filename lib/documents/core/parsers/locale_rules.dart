@@ -189,6 +189,50 @@ List<String>? pluralCategories(String? tag) {
   return _categories[canonical.split('-').first];
 }
 
+/// Maps each gettext `msgstr[0..count-1]` slot to its CLDR plural category
+/// name for languages with more than two forms, or null when not mapped.
+List<String>? gettextPluralCategories(String? tag, int count) {
+  if (count <= 2) return null;
+  final canonical = canonicalLanguageTag(tag);
+  if (canonical == null) return null;
+  final lang = canonical.split('-').first;
+  final categories = _gettextCategories[lang];
+  if (categories != null && categories.length == count) return categories;
+  final cldr = _categories[lang];
+  if (cldr != null && cldr.length == count) return cldr;
+  return null;
+}
+
+const Map<String, List<String>> _gettextCategories = {
+  'ru': ['one', 'few', 'many'],
+  'uk': ['one', 'few', 'many'],
+  'be': ['one', 'few', 'many'],
+  'sr': ['one', 'few', 'many'],
+  'hr': ['one', 'few', 'many'],
+  'bs': ['one', 'few', 'many'],
+  'pl': ['one', 'few', 'many'],
+  'cs': ['one', 'few', 'many'],
+  'sk': ['one', 'few', 'many'],
+  'lt': ['one', 'few', 'many'],
+  'lv': ['one', 'other', 'zero'],
+  'ro': ['one', 'few', 'other'],
+  'sl': ['one', 'two', 'few', 'other'],
+  'gd': ['one', 'two', 'few', 'other'],
+  'ga': ['one', 'two', 'few', 'many', 'other'],
+  'ar': ['zero', 'one', 'two', 'few', 'many', 'other'],
+  'cy': ['zero', 'one', 'two', 'few', 'many', 'other'],
+};
+
+/// Human-readable CLDR plural category hint passed to AI translation engines.
+String pluralCategoryHint(String category) => switch (category) {
+  'zero' => 'CLDR plural category "zero" (quantity 0)',
+  'one' => 'CLDR plural category "one" (singular, e.g. 1)',
+  'two' => 'CLDR plural category "two" (dual, quantity 2)',
+  'few' => 'CLDR plural category "few" (small plural, e.g. 2, 3, 4)',
+  'many' => 'CLDR plural category "many" (large plural, e.g. 5, 10, 20)',
+  _ => 'CLDR plural category "other" (general plural / decimals)',
+};
+
 const _single = 'nplurals=1; plural=0;';
 const _notOne = 'nplurals=2; plural=(n != 1);';
 const _moreThanOne = 'nplurals=2; plural=(n > 1);';

@@ -62,6 +62,12 @@ class OnDeviceLlmClient implements LlmClient {
   /// What [streamChat] fails with for a request with images.
   static const imagesMessage = 'On-device models cannot read images.';
 
+  /// Whether [OnDeviceLlmClient] and the underlying llama.cpp bridge currently
+  /// implement multimodal image inference. Kept `false` until mtmd/projector
+  /// inference is wired end-to-end so image requests are never routed here and
+  /// crashed with [imagesMessage].
+  static const bool supportsMultimodalVision = false;
+
   /// The smallest share of the context a reply must have (an eighth).
   static const _minReplyShare = 8;
 

@@ -52,14 +52,14 @@
     <string name="tile_live_captions_description">Mozhi-இன் நேரலை வசனங்களைத் தொடங்கு அல்லது நிறுத்து</string>
     <string name="live_captions_locked">Mozhi பூட்டப்பட்டுள்ளது</string>
     <!-- Model downloads foreground service (ModelDownloadService). -->
-    <string name="notification_channel_downloads">Model downloads</string>
-    <string name="notification_channel_downloads_description">Shown while Mozhi downloads offline languages, voice or AI models</string>
-    <string name="notification_downloads_title">Downloading model</string>
-    <string name="notification_downloads_cancel">Cancel</string>
+    <string name="notification_channel_downloads">மாடல் பதிவிறக்கங்கள்</string>
+    <string name="notification_channel_downloads_description">ஆஃப்லைன் மொழிகள், குரல் அல்லது AI மாடல்களை Mozhi பதிவிறக்கும்போது காட்டப்படும்</string>
+    <string name="notification_downloads_title">மாடல் பதிவிறக்கப்படுகிறது</string>
+    <string name="notification_downloads_cancel">ரத்துசெய்</string>
 
     <!-- Opt-in offline notification translation (NotificationTranslateService). -->
-    <string name="notification_translate_service_label">Mozhi offline notification translation</string>
-    <string name="notification_channel_translate_notifications">Translated notifications</string>
-    <string name="notification_channel_translate_notifications_description">Offline translations of incoming notifications from other apps</string>
-    <string name="notification_translated_title">Translated notification</string>
+    <string name="notification_translate_service_label">Mozhi ஆஃப்லைன் அறிவிப்பு மொழிபெயர்ப்பு</string>
+    <string name="notification_channel_translate_notifications">மொழிபெயர்க்கப்பட்ட அறிவிப்புகள்</string>
+    <string name="notification_channel_translate_notifications_description">மற்ற ஆப்ஸிலிருந்து வரும் அறிவிப்புகளின் ஆஃப்லைன் மொழிபெயர்ப்புகள்</string>
+    <string name="notification_translated_title">மொழிபெயர்க்கப்பட்ட அறிவிப்பு</string>
 </resources>

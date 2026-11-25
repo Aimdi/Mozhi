@@ -22,6 +22,10 @@ String documentFormatLabel(AppLocalizations l10n, DocumentFormat format) =>
       DocumentFormat.tsv => l10n.documentsFormatTsv,
       DocumentFormat.appleStrings => l10n.documentsFormatAppleStrings,
       DocumentFormat.xcstrings => l10n.documentsFormatXcstrings,
+      DocumentFormat.yaml => l10n.documentsFormatYaml,
+      DocumentFormat.toml => l10n.documentsFormatToml,
+      DocumentFormat.properties => l10n.documentsFormatProperties,
+      DocumentFormat.tmx => l10n.documentsFormatTmx,
       DocumentFormat.docx => l10n.documentsFormatDocx,
       DocumentFormat.pptx => l10n.documentsFormatPptx,
       DocumentFormat.xlsx => l10n.documentsFormatXlsx,
@@ -37,9 +41,13 @@ IconData documentFormatIcon(DocumentFormat? format) => switch (format) {
   DocumentFormat.plainText => Icons.article_outlined,
   DocumentFormat.markdown => Icons.text_snippet_outlined,
   DocumentFormat.srt || DocumentFormat.vtt => Icons.subtitles_outlined,
-  DocumentFormat.json => Icons.data_object,
+  DocumentFormat.json ||
+  DocumentFormat.yaml ||
+  DocumentFormat.toml ||
+  DocumentFormat.properties => Icons.data_object,
   DocumentFormat.html => Icons.code,
   DocumentFormat.xliff ||
+  DocumentFormat.tmx ||
   DocumentFormat.androidStrings ||
   DocumentFormat.po ||
   DocumentFormat.appleStrings ||

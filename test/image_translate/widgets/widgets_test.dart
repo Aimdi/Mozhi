@@ -257,6 +257,67 @@ void main() {
       await tester.pump();
       expect(find.byIcon(Icons.broken_image_outlined), findsOneWidget);
     });
+
+    testWidgets(
+      'provides accessible 48 dp Zoom In, Zoom Out, and Reset Zoom controls',
+      (tester) async {
+        final cubit = mockImageCubit(
+          const ImageTranslateState(status: ImageTranslateStatus.ready)
+              .copyWith(image: () => jpegImage),
+        );
+        await harness.pumpWithCubit(
+          tester,
+          cubit,
+          child: const ImageTranslatePreview(),
+        );
+
+        final zoomIn = find.byKey(const Key('image_translate_zoom_in'));
+        final zoomOut = find.byKey(const Key('image_translate_zoom_out'));
+        final zoomReset = find.byKey(const Key('image_translate_zoom_reset'));
+
+        expect(zoomIn, findsOneWidget);
+        expect(zoomOut, findsOneWidget);
+        expect(zoomReset, findsOneWidget);
+        expect(find.byTooltip('Zoom in'), findsOneWidget);
+        expect(find.byTooltip('Zoom out'), findsOneWidget);
+        expect(find.byTooltip('Reset zoom'), findsOneWidget);
+
+        expect(tester.getSize(zoomIn).width, greaterThanOrEqualTo(48));
+        expect(tester.getSize(zoomIn).height, greaterThanOrEqualTo(48));
+        expect(tester.getSize(zoomOut).width, greaterThanOrEqualTo(48));
+        expect(tester.getSize(zoomOut).height, greaterThanOrEqualTo(48));
+        expect(tester.getSize(zoomReset).width, greaterThanOrEqualTo(48));
+        expect(tester.getSize(zoomReset).height, greaterThanOrEqualTo(48));
+
+        // Initially at 1x: zoom out and reset are disabled.
+        expect(tester.widget<IconButton>(zoomOut).onPressed, isNull);
+        expect(tester.widget<IconButton>(zoomReset).onPressed, isNull);
+        expect(tester.widget<IconButton>(zoomIn).onPressed, isNotNull);
+
+        // Tap Zoom In -> scale increases and Zoom Out / Reset become enabled.
+        await tester.tap(zoomIn);
+        await tester.pump();
+        final viewer = tester.widget<InteractiveViewer>(
+          find.byKey(const Key('image_translate_viewer')),
+        );
+        expect(
+          viewer.transformationController!.value.getMaxScaleOnAxis(),
+          greaterThan(1.0),
+        );
+        expect(tester.widget<IconButton>(zoomOut).onPressed, isNotNull);
+        expect(tester.widget<IconButton>(zoomReset).onPressed, isNotNull);
+
+        // Tap Reset Zoom -> returns to 1.0x.
+        await tester.tap(zoomReset);
+        await tester.pump();
+        expect(
+          viewer.transformationController!.value.getMaxScaleOnAxis(),
+          closeTo(1.0, 1e-6),
+        );
+        expect(tester.widget<IconButton>(zoomOut).onPressed, isNull);
+        expect(tester.widget<IconButton>(zoomReset).onPressed, isNull);
+      },
+    );
   });
 
   group('ImageTranslateResultSection', () {

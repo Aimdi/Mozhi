@@ -183,6 +183,60 @@ void main() {
         expect(h.readConfig().providers.single.config.model, 'qwen3');
         expect(h.stdout, contains('Replaced Ollama'));
       });
+
+      test('adds direct MT providers (DeepL and LibreTranslate)', () async {
+        final code = await h.run([
+          'config',
+          'providers',
+          'add',
+          '--preset',
+          'deepl',
+          '--api-key-env',
+          'DEEPL_API_KEY',
+          '--default',
+        ]);
+        expect(code, 0);
+        final config = h.readConfig();
+        expect(config.engine, 'mt:deepl-api');
+        final entry = config.providers.single;
+        expect(entry.config.service, MtService.deepl);
+        expect(entry.config.baseUrl, isEmpty);
+        expect(entry.config.model, isEmpty);
+        expect(h.stdout, contains('mozhi translate --engine mt:deepl-api'));
+
+        expect(
+          await h.run([
+            'config',
+            'providers',
+            'add',
+            '--preset',
+            'libretranslate',
+            '--base-url',
+            'http://localhost:5000',
+          ]),
+          0,
+        );
+        expect(
+          h.readConfig().providers.last.config.service,
+          MtService.libreTranslate,
+        );
+
+        h.out.clear();
+        expect(await h.run(['config', 'providers', 'list']), 0);
+        expect(h.stdout, contains('deepl-api *'));
+        expect(h.stdout, contains('(official)'));
+
+        expect(
+          await h.run(['config', 'providers', 'models', 'deepl-api']),
+          ExitCode.usage.code,
+        );
+        expect(h.stderr, contains('direct MT service'));
+
+        h.out.clear();
+        expect(await h.run(['config', 'providers', 'rm', 'deepl-api']), 0);
+        expect(h.readConfig().engine, isNull);
+        expect(h.stdout, contains('It was the default engine'));
+      });
     });
 
     test('list shows a table, JSON or a hint', () async {

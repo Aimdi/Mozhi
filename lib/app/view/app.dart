@@ -252,6 +252,7 @@ class _AppState extends State<App> {
         controls: MethodChannelNotificationTranslateControls.instance,
         offline: _deps.offlineTranslator,
         targetLanguage: () => _translateCubit.state.target.code,
+        isLocked: () => _appLock.isLocked,
       )..start();
       // coverage:ignore-end
     }

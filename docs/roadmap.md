@@ -160,7 +160,29 @@ Funnel names are public again; and CI's emulator run now also translates
 with Offline only (checking the app sent nothing), a photo, a text file,
 and cancels a download.
 
-Carried over to later waves:
+Waves 11 to 17 closed most of the remaining roadmap, audit and hands-on
+gaps: Terminal style as the default look, DeepL-style Proofread tones
+and sentence rephrasing, "Improve with Mozhi" text-selection action,
+offline dictionary packs for 20 languages (including non-English gloss
+languages and exact `glossLanguage` metadata), Android foreground model
+downloads, Whisper 8-bit (`q8_0`) voice models, FSRS weight optimization
+(off the UI thread, with undo tombstones and per-weight timestamps),
+pure-Dart in-app QR scanning and per-source fair rate-limiting for
+pairing, Argon2id in a web worker (with buffer zeroing and timeout
+fallback), per-setting sync timestamps and provider secret remapping,
+opt-in offline notification translation (with App Lock guard, target
+language and muted apps), pure-Dart web PDF translation (preserving
+page visuals underneath translated boxes, CJK wrapping and Unicode TTF
+embedding), four new document formats (YAML, TOML, Java `.properties`,
+TMX) plus XLSX `docProps/app.xml` sync, threaded-comment `@mentions`,
+chart text and PPTX slide master/layout placeholders, `WebLlamaEngine`
+OPFS storage and `mmproj` download/verification, `mozhi_cli` v2
+(`dictionary`, `document`, `repl`, saved glossaries, direct MT
+providers), Translate Regenerate & `autoExtras`, legacy web charsets,
+`tool/check_model_downloads.py --mirror`, and 100% localization across
+all 19 languages.
+
+Carried over to later waves (mostly real-device checks and optional features):
 
 - **Store presence:** fresh screenshots, an accurate store text in all
   listing languages, F-Droid per-ABI builds and changelogs.
@@ -173,71 +195,46 @@ Carried over to later waves:
   recognition.
 - **Voice:** speaker detection in Conversation works with the offline
   voice models only; how fast the system recogniser's partial results
-  arrive (the pause that ends a turn) needs a check on real phones.
+  arrive (the pause that ends a turn) needs a check on real phones;
+  measure the CPU variants and quantized models on phones.
 - **Dictionaries:** WikDict translations and Tatoeba example sentences;
-  resuming interrupted downloads; the first pack release (the workflow is
-  ready: its sizes and the kaikki.org URL pattern are checked on the first
-  run); glosses in the pack's own language for non-English packs.
-- **Mirrors:** `tool/check_model_downloads.py --mirror`; the nginx example
-  in the docs is untested.
+  first release check of non-English gloss packs.
+- **Mirrors:** the nginx example in the docs is untested.
 - **Privacy follow-ups:** the personal data shield can't apply to speech
   (documented); the web app can't look Tailscale names up, so a `.ts.net`
   server on your tailnet counts as public there.
 - **Engineering:** file the dart2js miscompile found in wave 3 (a
   nullable local assigned in `catch`, captured by a closure, read from a
   stale temporary after the `try`) with the Dart SDK: the reproduction is
-  in `tool/repro/dart2js_catch_closure/`; the JSON search in AI replies
-  still stops looking into brackets that don't decode after a few dozen
-  nested levels (valid JSON inside more of them is missed).
-- **Backup and sync:** the
-  web app's Argon2id uses lighter settings (19 MiB, 2 passes) than
-  Android's (64 MiB, 3): the web build has no worker to run it in, and in
-  the page 64 MiB takes well over ten seconds on a phone (docs/backup.md);
-  sync not yet tried against real Nextcloud, ownCloud, Synology and
-  rclone servers; with the settings synced, devices whose own settings
-  differ write the file at every sync (settings have no change times).
+  in `tool/repro/dart2js_catch_closure/`.
+- **Backup and sync:** sync not yet tried against real Nextcloud,
+  ownCloud, Synology and rclone servers.
 - **Phone to phone:** check the LAN address choice on real Android 11+
   phones and hotspots, and the local-network permission of newer Android
-  versions; an in-app QR scanner (the camera app opens the link today; it
-  needs a QR decoder without Google code, a new dependency for the owner
-  to choose); a flood of connections from many addresses still holds
-  pairing back while it uses up the minute's budget (a phone retries).
-- **Phrasebook and practice:** the Wikivoyage parser was built on
-  fixtures (check the first release run); **Add to phrasebook** for
-  Transcribe segments; number words of more than one word ("twenty one")
-  in speaking practice; FSRS weights fitted to the user's own reviews.
+  versions.
 - **Shared conversation:** the page is plain `http` (a phone has no
   certificate browsers trust), so others on the same Wi-Fi can read
-  along; each guest browser has its own cookie, so someone who drops it
-  and keeps changing addresses is held back by the per-address and
-  room-wide limits; a guest microphone needs a recogniser that doesn't send speech to the
-  browser's maker.
+  along; a guest microphone needs a recogniser that doesn't send speech
+  to the browser's maker.
 - **On-device AI:** speed and memory measured on real phones (the speed
   table in docs/on-device-ai.md is from published figures); the 2-bit and
   1.25-bit Hy-MT2 files once llama.cpp ships Tencent's STQ kernel (440 MB
   instead of 1.1 GB); GPU and NPU backends (OpenCL on Adreno, Vulkan);
-  on-device AI in the web app (llama.cpp as WebAssembly, models in the
-  browser's private storage); images for the vision-capable models.
-- **Voice:** measure the CPU variants and the quantized models on phones,
-  and try q8_0 models.
+  end-to-end multimodal image inference through `llama.cpp` mtmd once
+  wired to the downloaded `mmproj` files.
 - **Documents:** plural forms beyond the singular (Russian `few` and
-  `many`, Arabic `two`…) get the same plural text in PO and Android files,
-  since the source has only two (review them); a sheet named anywhere
-  formulas can't be rewritten (pivot sources, `INDIRECT` text, form
-  controls, macros) keeps its name, `docProps/app.xml` keeps the old names
-  and other files linking to a renamed sheet need updating; threaded
-  comments that mention people, placeholder prompts on slide masters and
-  layouts, and chart data (a copy of the cells) stay as they are; in the
-  web app a large text file, or one large part of an office file, is still
-  parsed in one go on the UI thread (office files and e-books yield
-  between parts).
+  `many`, Arabic `two`…) still merit human review when source has only
+  two forms; a sheet named anywhere formulas can't be rewritten (pivot
+  sources, `INDIRECT` text, form controls, macros) keeps its name and
+  other files linking to a renamed sheet need updating; in the web app a
+  large text file, or one large part of an office file, is still parsed
+  in one go on the UI thread (office files and e-books yield between
+  parts).
 - **Translate screen:** try the capture timing, the bubble's snapping and
   remove target, and the detection of apps that block screenshots on real
   phones; check the launcher shortcuts' order on Pixel and Samsung
   launchers (Translate screen is fourth, after Translate clipboard, Camera
-  and Conversation; Proofread, sixth, is left out on Android 7 to 9);
-  opt-in translation of incoming notifications with the offline engine
-  only.
+  and Conversation; Proofread, sixth, is left out on Android 7 to 9).
 - **App lock:** try on real phones that Android 11+ asks for a strong
   fingerprint or face (a weak face unlock falls back to the PIN) and the
   caption bar's locked line; the translate screen and a conversation stay
@@ -255,7 +252,7 @@ Carried over to later waves:
   recognition (`PdfRendererPreV`, from an SDK extension, might read them
   on some Android 12 to 14 phones); the page backgrounds drop to about 40 dpi on 200-page
   files; while text recognition waits for a hot phone to cool down, the
-  progress line shows the pages done, not the pause; PDF in the web app.
+  progress line shows the pages done, not the pause.
 - **Live captions:** check on real phones that capture keeps going in the
   background on Android 14 and later with only the media projection
   service type, the caption bar's Open button on Android 15, the consent

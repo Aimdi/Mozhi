@@ -112,13 +112,18 @@ class DictionaryOfflineFooter extends StatelessWidget {
   }
 }
 
-/// The language the definitions of [answer]'s dictionary are written in
-/// (its pack's `glossLanguage` in the catalogue of [packs]), or null when
-/// the catalogue does not list it.
+/// The language the definitions of [answer]'s dictionary are written in:
+/// [OfflineDictionaryAnswer.glossLanguage] carried directly from the pack that
+/// answered, falling back to the catalogue entry for [answer]'s language when
+/// absent.
 String? dictionaryGlossLanguage(
   DictionaryPacks? packs,
   OfflineDictionaryAnswer answer,
-) => packs?.catalog.forLanguage(answer.language).firstOrNull?.glossLanguage;
+) {
+  final exact = answer.glossLanguage?.trim();
+  if (exact != null && exact.isNotEmpty) return exact;
+  return packs?.catalog.forLanguage(answer.language).firstOrNull?.glossLanguage;
+}
 
 /// "Similar words": [words] of the offline dictionaries as chips that look
 /// that word up ([onWordTap]).

@@ -233,10 +233,14 @@ class OfflineSpeech {
     }
     await _cancellable(
       vad.id,
-      (abort) => _install(
-        vad,
-        (received) => onProgress?.call(vad.size == 0 ? 1 : received / vad.size),
-        abort,
+      (abort) => DownloadForegroundCoordinator.instance.track(
+        label: vad.name,
+        onCancel: () async => cancelDownload(vad.id),
+        run: (reportForeground) => _install(vad, (received) {
+          final fraction = vad.size == 0 ? 1.0 : received / vad.size;
+          onProgress?.call(fraction);
+          reportForeground(fraction);
+        }, abort),
       ),
     );
   }

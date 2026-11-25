@@ -3,7 +3,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' show Color, Rect, Size, TextDirection;
 
-import 'package:archive/archive.dart' show Inflate, ZLibDecoder;
+import 'package:archive/archive.dart' show Inflate, ZLibDecoder, ZLibEncoder;
 import 'package:flutter/foundation.dart' show immutable;
 import 'package:mozhi/documents/core/document_format.dart';
 import 'package:mozhi/documents/pdf/pdf_pages.dart';
@@ -23,11 +23,13 @@ class DartPdfPages implements PdfPages {
   new({
     Uint8List? Function(String path)? readBytes,
     void Function(String path, Uint8List bytes)? writeBytes,
+    this._unicodeFontBytes,
   }) : _readBytes = readBytes ?? WebPdfScratch.shared.peek,
        _writeBytes = writeBytes ?? WebPdfScratch.shared.put;
 
   final Uint8List? Function(String path) _readBytes;
   final void Function(String path, Uint8List bytes) _writeBytes;
+  final Uint8List? _unicodeFontBytes;
 
   _PdfDoc? _doc;
   final Map<int, List<PdfTextLine>?> _textCache = {};
@@ -107,7 +109,11 @@ class DartPdfPages implements PdfPages {
   @override
   Future<void> write(String outputPath, List<PdfOutputPage> pages) async {
     try {
-      final bytes = _PdfWriter.build(pages);
+      final bytes = _PdfWriter.build(
+        pages,
+        sourceDoc: _doc,
+        unicodeFontBytes: _unicodeFontBytes,
+      );
       _writeBytes(outputPath, bytes);
     } on PdfWriteException {
       rethrow;
@@ -512,7 +518,8 @@ class _PdfDoc {
     }
   }
 
-  List<PdfTextLine>? extractTextLines(int pageIndex) {
+  Uint8List? extractPageContentStream(int pageIndex) {
+    if (pageIndex < 0 || pageIndex >= pages.length) return null;
     final page = pages[pageIndex];
     final contentsObj = resolve(page.dict['Contents']);
     if (contentsObj == null) return null;
@@ -533,7 +540,13 @@ class _PdfDoc {
       }
     }
     final streamBytes = builder.takeBytes();
-    if (streamBytes.isEmpty) return null;
+    return streamBytes.isEmpty ? null : streamBytes;
+  }
+
+  List<PdfTextLine>? extractTextLines(int pageIndex) {
+    final page = pages[pageIndex];
+    final streamBytes = extractPageContentStream(pageIndex);
+    if (streamBytes == null) return null;
 
     final extractor = _TextExtractor(
       this,
@@ -2154,52 +2167,401 @@ List<double> _multiplyMatrix(List<double> m1, List<double> m2) => [
 ];
 
 // ============================================================================
+// Minimal TrueType Font Parser (for /FontFile2 + CIDFontType2 embedding)
+// ============================================================================
+
+class _TtfFont {
+  const new({
+    required this.bytes,
+    required this.psName,
+    required this.unitsPerEm,
+    required this.xMin,
+    required this.yMin,
+    required this.xMax,
+    required this.yMax,
+    required this.ascent,
+    required this.descent,
+    required this.capHeight,
+    required this.italicAngle,
+    required this.defaultWidth,
+    required this.advanceWidths,
+    required this.cmap,
+  });
+
+  final Uint8List bytes;
+  final String psName;
+  final int unitsPerEm;
+  final int xMin;
+  final int yMin;
+  final int xMax;
+  final int yMax;
+  final int ascent;
+  final int descent;
+  final int capHeight;
+  final double italicAngle;
+  final int defaultWidth;
+  final List<int> advanceWidths;
+  final Map<int, int> cmap;
+
+  int glyphIdFor(int rune) => cmap[rune] ?? 0;
+
+  int widthThousandthsForGid(int gid) {
+    if (advanceWidths.isEmpty) return defaultWidth;
+    final raw = gid < advanceWidths.length
+        ? advanceWidths[gid]
+        : advanceWidths.last;
+    return (raw * 1000 / unitsPerEm).round();
+  }
+
+  double widthThousandthsForRune(int rune) {
+    final gid = cmap[rune];
+    if (gid == null) return _approxGlyphWidth(rune);
+    return widthThousandthsForGid(gid).toDouble();
+  }
+
+  static _TtfFont? tryParse(Uint8List bytes) {
+    if (bytes.length < 12) return null;
+    final data = ByteData.sublistView(bytes);
+    final sfnt = data.getUint32(0);
+    // TrueType (0x00010000 or 'true').
+    if (sfnt != 0x00010000 && sfnt != 0x74727565) return null;
+    final numTables = data.getUint16(4);
+    if (numTables == 0 || 12 + numTables * 16 > bytes.length) return null;
+
+    final tables = <String, ({int offset, int length})>{};
+    for (var i = 0; i < numTables; i++) {
+      final entry = 12 + i * 16;
+      final tag = latin1.decode(Uint8List.sublistView(bytes, entry, entry + 4));
+      final offset = data.getUint32(entry + 8);
+      final length = data.getUint32(entry + 12);
+      if (offset + length <= bytes.length) {
+        tables[tag] = (offset: offset, length: length);
+      }
+    }
+
+    final head = tables['head'];
+    final hhea = tables['hhea'];
+    final maxp = tables['maxp'];
+    final hmtx = tables['hmtx'];
+    final cmapTable = tables['cmap'];
+    if (head == null ||
+        head.length < 54 ||
+        hhea == null ||
+        hhea.length < 36 ||
+        maxp == null ||
+        maxp.length < 6 ||
+        hmtx == null ||
+        cmapTable == null ||
+        cmapTable.length < 4) {
+      return null;
+    }
+
+    final unitsPerEm = data.getUint16(head.offset + 18);
+    if (unitsPerEm == 0) return null;
+    int scale(int v) => (v * 1000 / unitsPerEm).round();
+
+    final xMin = scale(data.getInt16(head.offset + 36));
+    final yMin = scale(data.getInt16(head.offset + 38));
+    final xMax = scale(data.getInt16(head.offset + 40));
+    final yMax = scale(data.getInt16(head.offset + 42));
+
+    final ascent = scale(data.getInt16(hhea.offset + 4));
+    final descent = scale(data.getInt16(hhea.offset + 6));
+    final numHMetrics = data.getUint16(hhea.offset + 34);
+    final numGlyphs = data.getUint16(maxp.offset + 4);
+    if (numHMetrics == 0 || numGlyphs == 0 || numHMetrics * 4 > hmtx.length) {
+      return null;
+    }
+
+    final advanceWidths = List<int>.filled(numHMetrics, 0);
+    for (var i = 0; i < numHMetrics; i++) {
+      advanceWidths[i] = data.getUint16(hmtx.offset + i * 4);
+    }
+
+    var capHeight = ascent;
+    final os2 = tables['OS/2'];
+    if (os2 != null && os2.length >= 90) {
+      final version = data.getUint16(os2.offset);
+      if (version >= 2) {
+        final sCap = data.getInt16(os2.offset + 88);
+        if (sCap > 0) capHeight = scale(sCap);
+      }
+    }
+
+    var italicAngle = 0.0;
+    final post = tables['post'];
+    if (post != null && post.length >= 8) {
+      italicAngle = data.getInt32(post.offset + 4) / 65536.0;
+    }
+
+    final cmap = _parseCmap(data, cmapTable.offset, cmapTable.length);
+    if (cmap == null || cmap.isEmpty) return null;
+
+    final psName =
+        _parsePostScriptName(bytes, data, tables['name']) ?? 'MozhiUnicode';
+    final defaultWidth = (advanceWidths.first * 1000 / unitsPerEm).round();
+
+    return _TtfFont(
+      bytes: bytes,
+      psName: psName,
+      unitsPerEm: unitsPerEm,
+      xMin: xMin,
+      yMin: yMin,
+      xMax: xMax,
+      yMax: yMax,
+      ascent: ascent,
+      descent: descent,
+      capHeight: capHeight,
+      italicAngle: italicAngle,
+      defaultWidth: defaultWidth > 0 ? defaultWidth : 600,
+      advanceWidths: advanceWidths,
+      cmap: cmap,
+    );
+  }
+
+  static Map<int, int>? _parseCmap(ByteData data, int offset, int length) {
+    final numSubtables = data.getUint16(offset + 2);
+    if (4 + numSubtables * 8 > length) return null;
+
+    int? format12Offset;
+    int? format4Offset;
+    for (var i = 0; i < numSubtables; i++) {
+      final rec = offset + 4 + i * 8;
+      final platform = data.getUint16(rec);
+      final encoding = data.getUint16(rec + 2);
+      final subOff = offset + data.getUint32(rec + 4);
+      if (subOff + 4 > offset + length) continue;
+      final format = data.getUint16(subOff);
+      if (format == 12 &&
+          ((platform == 3 && encoding == 10) ||
+              (platform == 0 && encoding == 4))) {
+        format12Offset ??= subOff;
+      } else if (format == 4 &&
+          ((platform == 3 && encoding == 1) || platform == 0)) {
+        format4Offset ??= subOff;
+      }
+    }
+
+    final map = <int, int>{};
+    if (format4Offset != null) {
+      _readFormat4(data, format4Offset, offset + length, map);
+    }
+    if (format12Offset != null) {
+      _readFormat12(data, format12Offset, offset + length, map);
+    }
+    return map;
+  }
+
+  static void _readFormat4(
+    ByteData data,
+    int subOff,
+    int limit,
+    Map<int, int> map,
+  ) {
+    if (subOff + 14 > limit) return;
+    final segCountX2 = data.getUint16(subOff + 6);
+    final segCount = segCountX2 ~/ 2;
+    final endCodesOff = subOff + 14;
+    final startCodesOff = endCodesOff + segCountX2 + 2;
+    final idDeltaOff = startCodesOff + segCountX2;
+    final idRangeOff = idDeltaOff + segCountX2;
+    if (idRangeOff + segCountX2 > limit) return;
+
+    for (var i = 0; i < segCount; i++) {
+      final endCode = data.getUint16(endCodesOff + i * 2);
+      final startCode = data.getUint16(startCodesOff + i * 2);
+      if (startCode == 0xFFFF && endCode == 0xFFFF) break;
+      final idDelta = data.getInt16(idDeltaOff + i * 2);
+      final rangeOff = data.getUint16(idRangeOff + i * 2);
+      for (var cp = startCode; cp <= endCode; cp++) {
+        int gid;
+        if (rangeOff == 0) {
+          gid = (cp + idDelta) & 0xFFFF;
+        } else {
+          final glyphIdxOff =
+              idRangeOff + i * 2 + rangeOff + (cp - startCode) * 2;
+          if (glyphIdxOff + 2 > limit) continue;
+          final rawGid = data.getUint16(glyphIdxOff);
+          gid = rawGid == 0 ? 0 : (rawGid + idDelta) & 0xFFFF;
+        }
+        if (gid != 0) map[cp] = gid;
+      }
+    }
+  }
+
+  static void _readFormat12(
+    ByteData data,
+    int subOff,
+    int limit,
+    Map<int, int> map,
+  ) {
+    if (subOff + 16 > limit) return;
+    final numGroups = data.getUint32(subOff + 12);
+    if (subOff + 16 + numGroups * 12 > limit) return;
+    for (var i = 0; i < numGroups; i++) {
+      final g = subOff + 16 + i * 12;
+      final startChar = data.getUint32(g);
+      final endChar = data.getUint32(g + 4);
+      final startGid = data.getUint32(g + 8);
+      if (endChar < startChar || endChar - startChar > 0x20000) continue;
+      for (var cp = startChar; cp <= endChar; cp++) {
+        map[cp] = startGid + (cp - startChar);
+      }
+    }
+  }
+
+  static String? _parsePostScriptName(
+    Uint8List bytes,
+    ByteData data,
+    ({int offset, int length})? table,
+  ) {
+    if (table == null || table.length < 6) return null;
+    final count = data.getUint16(table.offset + 2);
+    final storageOff = table.offset + data.getUint16(table.offset + 4);
+    if (6 + count * 12 > table.length) return null;
+    for (var i = 0; i < count; i++) {
+      final rec = table.offset + 6 + i * 12;
+      final platform = data.getUint16(rec);
+      final nameId = data.getUint16(rec + 6);
+      if (nameId != 6) continue;
+      final strLen = data.getUint16(rec + 8);
+      final strOff = storageOff + data.getUint16(rec + 10);
+      if (strOff + strLen > table.offset + table.length) continue;
+      final slice = Uint8List.sublistView(bytes, strOff, strOff + strLen);
+      final decoded = platform == 3 || platform == 0
+          ? _decodeUtf16Be(slice)
+          : latin1.decode(slice);
+      final sanitized = decoded.replaceAll(RegExp('[^A-Za-z0-9_-]'), '');
+      if (sanitized.isNotEmpty) return sanitized;
+    }
+    return null;
+  }
+}
+
+// ============================================================================
 // PDF 1.4 Writer
 // ============================================================================
 
+class _LaidOutBlock {
+  const new({required this.block, required this.fontSize, required this.lines});
+
+  final PdfTextBlock block;
+  final double fontSize;
+  final List<String> lines;
+}
+
 abstract final class _PdfWriter {
-  static Uint8List build(List<PdfOutputPage> pages) {
-    // Collect any non-WinAnsi runes across all blocks so we can emit an exact
-    // /ToUnicode CMap on /F2 when needed.
+  static Uint8List build(
+    List<PdfOutputPage> pages, {
+    _PdfDoc? sourceDoc,
+    Uint8List? unicodeFontBytes,
+  }) {
+    final ttf = unicodeFontBytes == null
+        ? null
+        : _TtfFont.tryParse(unicodeFontBytes);
+
+    // Lay out every block once so we know the exact wrapped lines and every
+    // rune that will be emitted via /F2 (including ASCII/WinAnsi runes on
+    // mixed-script lines!).
+    final pageLayouts = <List<_LaidOutBlock>>[];
     final unicodeRunes = <int>{};
     for (final page in pages) {
+      final blocks = <_LaidOutBlock>[];
       for (final block in page.blocks) {
-        for (final rune in block.text.runes) {
-          if (_toWinAnsiByte(rune) == null && rune != 0x0A && rune != 0x0D) {
-            unicodeRunes.add(rune);
+        final text = block.text.trim();
+        if (text.isEmpty || block.rect.width <= 0 || block.rect.height <= 0) {
+          continue;
+        }
+        var fontSize = block.fontSize.isFinite
+            ? block.fontSize.clamp(5.0, 72.0)
+            : 12.0;
+        var lines = _wrapText(text, block.rect.width, fontSize, ttf: ttf);
+        while (lines.length * fontSize * 1.2 > block.rect.height &&
+            fontSize > 4.5) {
+          fontSize *= 0.9;
+          lines = _wrapText(text, block.rect.width, fontSize, ttf: ttf);
+        }
+        blocks.add(
+          _LaidOutBlock(block: block, fontSize: fontSize, lines: lines),
+        );
+        for (final line in lines) {
+          if (line.isEmpty || _isAllWinAnsi(line)) continue;
+          // Register EVERY rune on any /F2 line (including WinAnsi/ASCII) so
+          // /ToUnicode maps mixed-script lines cleanly for copy/select!
+          for (final rune in line.runes) {
+            if (rune != 0x0A && rune != 0x0D) unicodeRunes.add(rune);
           }
         }
       }
+      pageLayouts.add(blocks);
     }
+
     final needsUnicodeFont = unicodeRunes.isNotEmpty;
+    final pool = _PdfObjectPool();
 
-    final objects = <Uint8List>[];
-    // Reserve indices:
-    // 1: Catalog
-    // 2: Pages
-    // 3: /F1 Helvetica (WinAnsiEncoding)
-    // Optional 4, 5, 6: /F2 Type0, CIDFont, ToUnicode CMap
-    const catalogId = 1;
-    const pagesId = 2;
-    const f1Id = 3;
-    final f2Id = needsUnicodeFont ? 4 : null;
-    final cidId = needsUnicodeFont ? 5 : null;
-    final cmapId = needsUnicodeFont ? 6 : null;
+    final catalogId = pool.reserve();
+    final pagesId = pool.reserve();
+    final f1Id = pool.add(
+      latin1.encode(
+        '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica '
+        '/Encoding /WinAnsiEncoding >>',
+      ),
+    );
 
-    final firstPageObjId = needsUnicodeFont ? 7 : 4;
+    int? f2Id;
+    if (needsUnicodeFont) {
+      if (ttf != null) {
+        f2Id = _emitEmbeddedUnicodeFont(pool, ttf, unicodeRunes);
+      } else {
+        final cmapBytes = latin1.encode(_buildToUnicodeCMap(unicodeRunes));
+        final cmapId = pool.add(
+          _streamObject('<< /Length ${cmapBytes.length} >>', cmapBytes),
+        );
+        final cidId = pool.add(
+          latin1.encode(
+            '<< /Type /Font /Subtype /CIDFontType2 /BaseFont /Helvetica '
+            '/CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) '
+            '/Supplement 0 >> /DW 600 >>',
+          ),
+        );
+        f2Id = pool.add(
+          latin1.encode(
+            '<< /Type /Font /Subtype /Type0 /BaseFont /Helvetica '
+            '/Encoding /Identity-H /DescendantFonts [$cidId 0 R] '
+            '/ToUnicode $cmapId 0 R >>',
+          ),
+        );
+      }
+    }
+
+    final clonedObjects = <int, int>{};
     final pageObjIds = <int>[];
-    final pageContentObjects = <Uint8List>[];
-    final pageDictObjects = <Uint8List>[];
 
     for (var i = 0; i < pages.length; i++) {
       final page = pages[i];
-      final contentId = firstPageObjId + i * 2;
-      final pageId = contentId + 1;
-      pageObjIds.add(pageId);
+      final laidOut = pageLayouts[i];
 
-      final stream = _buildPageStream(page);
+      int? bgFormId;
+      if (sourceDoc != null &&
+          page.sourcePage >= 0 &&
+          page.sourcePage < sourceDoc.pages.length) {
+        bgFormId = _buildUnderlayFormXObject(
+          pool: pool,
+          sourceDoc: sourceDoc,
+          sourcePageIndex: page.sourcePage,
+          coveredBlocks: page.blocks,
+          clonedObjects: clonedObjects,
+        );
+      }
+
+      final stream = _buildPageStream(
+        page,
+        laidOut,
+        hasUnderlay: bgFormId != null,
+        ttf: ttf,
+      );
       final streamBytes = latin1.encode(stream);
-      pageContentObjects.add(
+      final contentId = pool.add(
         _streamObject('<< /Length ${streamBytes.length} >>', streamBytes),
       );
       final w = _fmt(page.size.width > 0 ? page.size.width : 612);
@@ -2207,83 +2569,506 @@ abstract final class _PdfWriter {
       final fontDict = needsUnicodeFont
           ? '/F1 $f1Id 0 R /F2 $f2Id 0 R'
           : '/F1 $f1Id 0 R';
-      pageDictObjects.add(
+      final xObjectEntry = bgFormId != null
+          ? ' /XObject << /MozhiBg $bgFormId 0 R >>'
+          : '';
+      final pageId = pool.add(
         latin1.encode(
           '<< /Type /Page /Parent $pagesId 0 R /MediaBox [0 0 $w $h] '
-          '/Resources << /Font << $fontDict >> >> '
+          '/Resources << /Font << $fontDict >>$xObjectEntry >> '
           '/Contents $contentId 0 R >>',
         ),
       );
+      pageObjIds.add(pageId);
     }
 
-    objects
-      ..add(latin1.encode('<< /Type /Catalog /Pages $pagesId 0 R >>'))
-      ..add(
+    pool
+      ..set(
+        catalogId,
+        latin1.encode('<< /Type /Catalog /Pages $pagesId 0 R >>'),
+      )
+      ..set(
+        pagesId,
         latin1.encode(
           '<< /Type /Pages /Kids [${pageObjIds.map((id) => '$id 0 R').join(' ')}] '
           '/Count ${pageObjIds.length} >>',
         ),
-      )
-      ..add(
-        latin1.encode(
-          '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica '
-          '/Encoding /WinAnsiEncoding >>',
-        ),
       );
 
-    if (needsUnicodeFont) {
-      final cmapBytes = latin1.encode(_buildToUnicodeCMap(unicodeRunes));
-      objects
-        ..add(
-          latin1.encode(
-            '<< /Type /Font /Subtype /Type0 /BaseFont /Helvetica '
-            '/Encoding /Identity-H /DescendantFonts [$cidId 0 R] '
-            '/ToUnicode $cmapId 0 R >>',
-          ),
-        )
-        ..add(
-          latin1.encode(
-            '<< /Type /Font /Subtype /CIDFontType2 /BaseFont /Helvetica '
-            '/CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) '
-            '/Supplement 0 >> /DW 600 >>',
-          ),
-        )
-        ..add(_streamObject('<< /Length ${cmapBytes.length} >>', cmapBytes));
-    }
+    return pool.finish(catalogId);
+  }
 
-    for (var i = 0; i < pages.length; i++) {
-      objects
-        ..add(pageContentObjects[i])
-        ..add(pageDictObjects[i]);
-    }
-
-    final out = BytesBuilder(copy: false)
-      ..add(const [0x25, 0x50, 0x44, 0x46, 0x2D, 0x31, 0x2E, 0x34, 0x0A])
-      ..add(const [0x25, 0xE2, 0xE3, 0xCF, 0xD3, 0x0A]);
-
-    final offsets = <int>[0]; // object 0 is always free
-    for (var i = 0; i < objects.length; i++) {
-      offsets.add(out.length);
-      out
-        ..add(latin1.encode('${i + 1} 0 obj\n'))
-        ..add(objects[i])
-        ..add(latin1.encode('\nendobj\n'));
-    }
-
-    final xrefOffset = out.length;
-    out
-      ..add(latin1.encode('xref\n0 ${offsets.length}\n'))
-      ..add(latin1.encode('0000000000 65535 f \n'));
-    for (var i = 1; i < offsets.length; i++) {
-      final off = offsets[i].toString().padLeft(10, '0');
-      out.add(latin1.encode('$off 00000 n \n'));
-    }
-    out.add(
-      latin1.encode(
-        'trailer\n<< /Size ${offsets.length} /Root $catalogId 0 R >>\n'
-        'startxref\n$xrefOffset\n%%EOF\n',
+  static int _emitEmbeddedUnicodeFont(
+    _PdfObjectPool pool,
+    _TtfFont ttf,
+    Set<int> runes,
+  ) {
+    final compressedTtf = const ZLibEncoder().encodeBytes(ttf.bytes);
+    final fontFile2Id = pool.add(
+      _streamObject(
+        '<< /Length ${compressedTtf.length} /Length1 ${ttf.bytes.length} '
+        '/Filter /FlateDecode >>',
+        compressedTtf,
       ),
     );
+    final descriptorId = pool.add(
+      latin1.encode(
+        '<< /Type /FontDescriptor /FontName /${ttf.psName} /Flags 4 '
+        '/FontBBox [${ttf.xMin} ${ttf.yMin} ${ttf.xMax} ${ttf.yMax}] '
+        '/ItalicAngle ${_fmt(ttf.italicAngle)} '
+        '/Ascent ${ttf.ascent} /Descent ${ttf.descent} '
+        '/CapHeight ${ttf.capHeight} /StemV 80 '
+        '/FontFile2 $fontFile2Id 0 R >>',
+      ),
+    );
+
+    // Build /W width array and GID -> Unicode mapping for /ToUnicode.
+    final gidToRune = <int, int>{};
+    for (final rune in runes) {
+      final gid = ttf.glyphIdFor(rune);
+      gidToRune.putIfAbsent(gid, () => rune);
+    }
+    final sortedGids = gidToRune.keys.toList()..sort();
+    final wBuf = StringBuffer('[');
+    for (final gid in sortedGids) {
+      wBuf.write('$gid [${ttf.widthThousandthsForGid(gid)}] ');
+    }
+    wBuf.write(']');
+
+    final cmapBytes = latin1.encode(_buildToUnicodeCMapForGids(gidToRune));
+    final cmapId = pool.add(
+      _streamObject('<< /Length ${cmapBytes.length} >>', cmapBytes),
+    );
+    final cidId = pool.add(
+      latin1.encode(
+        '<< /Type /Font /Subtype /CIDFontType2 /BaseFont /${ttf.psName} '
+        '/CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) '
+        '/Supplement 0 >> '
+        '/FontDescriptor $descriptorId 0 R '
+        '/CIDToGIDMap /Identity '
+        '/DW ${ttf.defaultWidth} '
+        '/W $wBuf >>',
+      ),
+    );
+    return pool.add(
+      latin1.encode(
+        '<< /Type /Font /Subtype /Type0 /BaseFont /${ttf.psName} '
+        '/Encoding /Identity-H /DescendantFonts [$cidId 0 R] '
+        '/ToUnicode $cmapId 0 R >>',
+      ),
+    );
+  }
+
+  /// Copies the source page's visual content stream and resources into a Form
+  /// XObject (`/MozhiBg`), suppressing only top-level text operators inside
+  /// [coveredBlocks] so diagrams, borders, tables and embedded images are
+  /// preserved without leaving duplicate hidden source text underneath.
+  static int? _buildUnderlayFormXObject({
+    required _PdfObjectPool pool,
+    required _PdfDoc sourceDoc,
+    required int sourcePageIndex,
+    required List<PdfTextBlock> coveredBlocks,
+    required Map<int, int> clonedObjects,
+  }) {
+    try {
+      final srcPage = sourceDoc.pages[sourcePageIndex];
+      final rawStream = sourceDoc.extractPageContentStream(sourcePageIndex);
+      if (rawStream == null || rawStream.isEmpty) return null;
+
+      final filteredStream = coveredBlocks.isEmpty
+          ? rawStream
+          : _stripCoveredText(sourceDoc, srcPage, rawStream, coveredBlocks);
+
+      final clonedResources = srcPage.inheritedResources == null
+          ? const <String, Object?>{}
+          : (_cloneValue(
+                  sourceDoc,
+                  srcPage.inheritedResources,
+                  pool,
+                  clonedObjects,
+                  depth: 0,
+                ) as Map<String, Object?>?) ??
+                const <String, Object?>{};
+
+      final compressed = const ZLibEncoder().encodeBytes(filteredStream);
+      final mb = srcPage.mediaBox;
+      final matrix = _underlayMatrix(mb, srcPage.rotate);
+      final formDict = <String, Object?>{
+        'Type': const _PdfName('XObject'),
+        'Subtype': const _PdfName('Form'),
+        'FormType': 1,
+        'BBox': [mb.left, mb.top, mb.right, mb.bottom],
+        'Matrix': matrix,
+        'Resources': clonedResources,
+        'Filter': const _PdfName('FlateDecode'),
+        'Length': compressed.length,
+      };
+      return pool.add(_streamObject(_serializePdfObject(formDict), compressed));
+    } on Object {
+      return null;
+    }
+  }
+
+  static List<double> _underlayMatrix(Rect mb, int rotate) => switch (rotate) {
+    90 => [0, -1, 1, 0, -mb.top, mb.right],
+    180 => [-1, 0, 0, -1, mb.right, mb.bottom],
+    270 => [0, 1, -1, 0, mb.bottom, -mb.left],
+    _ => [1, 0, 0, 1, -mb.left, -mb.top],
+  };
+
+  /// Deep-clones a parsed PDF object (and any indirect objects it references)
+  /// from [sourceDoc] into [pool], memoizing object IDs in [clonedObjects].
+  static Object? _cloneValue(
+    _PdfDoc sourceDoc,
+    Object? value,
+    _PdfObjectPool pool,
+    Map<int, int> clonedObjects, {
+    required int depth,
+  }) {
+    if (depth > DartPdfPages._maxRecursionDepth) return null;
+    if (value is _PdfRef) {
+      final existing = clonedObjects[value.obj];
+      if (existing != null) return _PdfRef(existing, 0);
+      final resolved = sourceDoc.resolve(value);
+      if (resolved == null) return null;
+      final newId = pool.reserve();
+      clonedObjects[value.obj] = newId;
+      if (resolved is _PdfStream) {
+        final dictCopy = <String, Object?>{};
+        for (final entry in resolved.dict.entries) {
+          if (entry.key == 'Length' || entry.key == 'Parent') continue;
+          dictCopy[entry.key] = _cloneValue(
+            sourceDoc,
+            entry.value,
+            pool,
+            clonedObjects,
+            depth: depth + 1,
+          );
+        }
+        dictCopy['Length'] = resolved.rawBytes.length;
+        pool.set(
+          newId,
+          _streamObject(_serializePdfObject(dictCopy), resolved.rawBytes),
+        );
+      } else {
+        final cloned = _cloneValue(
+          sourceDoc,
+          resolved,
+          pool,
+          clonedObjects,
+          depth: depth + 1,
+        );
+        pool.set(newId, latin1.encode(_serializePdfObject(cloned)));
+      }
+      return _PdfRef(newId, 0);
+    }
+    if (value is List<Object?>) {
+      return [
+        for (final item in value)
+          _cloneValue(sourceDoc, item, pool, clonedObjects, depth: depth + 1),
+      ];
+    }
+    if (value is Map<String, Object?>) {
+      return {
+        for (final entry in value.entries)
+          if (entry.key != 'Parent')
+            entry.key: _cloneValue(
+              sourceDoc,
+              entry.value,
+              pool,
+              clonedObjects,
+              depth: depth + 1,
+            ),
+      };
+    }
+    return value;
+  }
+
+  static String _serializePdfObject(Object? value) {
+    if (value == null) return 'null';
+    if (value is bool) return value ? 'true' : 'false';
+    if (value is int) return '$value';
+    if (value is double) return _fmt(value);
+    if (value is _PdfName) return '/${_escapePdfName(value.value)}';
+    if (value is _PdfRef) return '${value.obj} ${value.gen} R';
+    if (value is Uint8List) {
+      final hex = StringBuffer('<');
+      for (final b in value) {
+        hex.write(b.toRadixString(16).toUpperCase().padLeft(2, '0'));
+      }
+      hex.write('>');
+      return hex.toString();
+    }
+    if (value is List<Object?>) {
+      return '[${value.map(_serializePdfObject).join(' ')}]';
+    }
+    if (value is Map<String, Object?>) {
+      final out = StringBuffer('<<');
+      for (final entry in value.entries) {
+        out.write(
+          ' /${_escapePdfName(entry.key)} ${_serializePdfObject(entry.value)}',
+        );
+      }
+      out.write(' >>');
+      return out.toString();
+    }
+    return value.toString();
+  }
+
+  static String _escapePdfName(String name) {
+    final bytes = utf8.encode(name);
+    final out = StringBuffer();
+    for (final b in bytes) {
+      if (b < 0x21 || b > 0x7E || b == 0x23 || _isDelimiter(b)) {
+        out.write('#${b.toRadixString(16).toUpperCase().padLeft(2, '0')}');
+      } else {
+        out.writeCharCode(b);
+      }
+    }
+    return out.toString();
+  }
+
+  /// Returns [streamBytes] with top-level text-showing operators that fall
+  /// inside any translated [coveredBlocks] removed, keeping all vector
+  /// graphics, borders, fills, shading, images (`Do`) and uncovered text.
+  static Uint8List _stripCoveredText(
+    _PdfDoc doc,
+    _PdfPageInfo page,
+    Uint8List streamBytes,
+    List<PdfTextBlock> coveredBlocks,
+  ) {
+    final fonts = doc.resolveDict(page.inheritedResources?['Font']);
+    final reader = _PdfReader(streamBytes, 0);
+    final operands = <Object?>[];
+    var gs = _GraphicsState();
+    final stack = <_GraphicsState>[];
+    var tm = <double>[1, 0, 0, 1, 0, 0];
+    var tlm = <double>[1, 0, 0, 1, 0, 0];
+
+    final edits = <({int start, int end, Uint8List replacement})>[];
+    var stmtStart = 0;
+
+    bool overlapsCovered(Rect rect) {
+      for (final block in coveredBlocks) {
+        final expanded = block.rect.inflate(3);
+        if (expanded.overlaps(rect)) return true;
+      }
+      return false;
+    }
+
+    Rect? measureShow(Uint8List raw, {required bool advanceTm}) {
+      if (raw.isEmpty) return null;
+      final text = gs.font.decode(raw);
+      final widthEm = gs.font.widthThousandths(raw, text);
+      final spaces = ' '.allMatches(text).length;
+      final advanceLocal =
+          (widthEm / 1000.0 * gs.fontSize +
+              gs.charSpace * text.length +
+              gs.wordSpace * spaces) *
+          gs.hScale;
+      Rect? box;
+      if (text.trim().isNotEmpty) {
+        final combined = _multiplyMatrix(tm, gs.ctm);
+        final scaleY = math.sqrt(
+          combined[2] * combined[2] + combined[3] * combined[3],
+        );
+        final scaleX = math.sqrt(
+          combined[0] * combined[0] + combined[1] * combined[1],
+        );
+        final effectiveSize = math.max<double>(
+          1,
+          (gs.fontSize > 0 ? gs.fontSize : 12.0) * (scaleY > 0 ? scaleY : 1.0),
+        );
+        final widthPt = math.max(
+          effectiveSize * 0.3,
+          advanceLocal * (scaleX > 0 ? scaleX : 1.0),
+        );
+        final x = combined[4] - page.mediaBox.left;
+        final yFromBottom = combined[5] - page.mediaBox.top + gs.rise * scaleY;
+        final baselineY = page.mediaBox.height - yFromBottom;
+        box = Rect.fromLTRB(
+          x,
+          baselineY - effectiveSize * 0.85,
+          x + widthPt,
+          baselineY + effectiveSize * 0.25,
+        );
+      }
+      if (advanceTm) {
+        tm = _multiplyMatrix([1, 0, 0, 1, advanceLocal, 0], tm);
+      }
+      return box;
+    }
+
+    while (!reader.isEof) {
+      reader.skipWhitespace();
+      if (reader.isEof) break;
+      if (operands.isEmpty) stmtStart = reader.pos;
+      final before = reader.pos;
+      final token = reader.readObject(allowRef: false);
+      if (reader.pos == before) {
+        reader.pos++;
+        continue;
+      }
+      if (token is! String) {
+        operands.add(token);
+        continue;
+      }
+      final opEnd = reader.pos;
+      switch (token) {
+        case 'BI':
+          // Inline image binary data: keep raw stream verbatim for safety.
+          return streamBytes;
+        case 'q':
+          if (stack.length < 64) stack.add(gs.clone());
+        case 'Q':
+          if (stack.isNotEmpty) gs = stack.removeLast();
+        case 'cm':
+          if (operands.length >= 6) {
+            final m = _matrixFromArgs(operands);
+            if (m != null) gs.ctm = _multiplyMatrix(m, gs.ctm);
+          }
+        case 'BT':
+          tm = [1, 0, 0, 1, 0, 0];
+          tlm = [1, 0, 0, 1, 0, 0];
+        case 'Tf':
+          if (operands.length >= 2) {
+            final name = _asName(operands[operands.length - 2]);
+            final size = _asDouble(operands.last);
+            if (name != null) {
+              final fontObj = fonts?[name];
+              gs.font = fontObj != null
+                  ? doc.resolveFont(fontObj)
+                  : _PdfFont.fallback;
+            }
+            if (size != null && size.isFinite) gs.fontSize = size.abs();
+          }
+        case 'Tc':
+          if (operands.isNotEmpty) gs.charSpace = _asDouble(operands.last) ?? 0;
+        case 'Tw':
+          if (operands.isNotEmpty) gs.wordSpace = _asDouble(operands.last) ?? 0;
+        case 'Tz':
+          if (operands.isNotEmpty) {
+            final scale = _asDouble(operands.last);
+            if (scale != null && scale > 0) gs.hScale = scale / 100.0;
+          }
+        case 'TL':
+          if (operands.isNotEmpty) gs.leading = _asDouble(operands.last) ?? 0;
+        case 'Ts':
+          if (operands.isNotEmpty) gs.rise = _asDouble(operands.last) ?? 0;
+        case 'Tm':
+          if (operands.length >= 6) {
+            final m = _matrixFromArgs(operands);
+            if (m != null) {
+              tm = [...m];
+              tlm = [...m];
+            }
+          }
+        case 'Td':
+          if (operands.length >= 2) {
+            final tx = _asDouble(operands[operands.length - 2]) ?? 0;
+            final ty = _asDouble(operands.last) ?? 0;
+            tlm = _multiplyMatrix([1, 0, 0, 1, tx, ty], tlm);
+            tm = [...tlm];
+          }
+        case 'TD':
+          if (operands.length >= 2) {
+            final tx = _asDouble(operands[operands.length - 2]) ?? 0;
+            final ty = _asDouble(operands.last) ?? 0;
+            gs.leading = -ty;
+            tlm = _multiplyMatrix([1, 0, 0, 1, tx, ty], tlm);
+            tm = [...tlm];
+          }
+        case 'T*':
+          tlm = _multiplyMatrix([1, 0, 0, 1, 0, -gs.leading], tlm);
+          tm = [...tlm];
+        case 'Tj':
+          if (operands.isNotEmpty && operands.last is Uint8List) {
+            final box = measureShow(
+              operands.last! as Uint8List,
+              advanceTm: true,
+            );
+            if (box != null && overlapsCovered(box)) {
+              edits.add((
+                start: stmtStart,
+                end: opEnd,
+                replacement: Uint8List(0),
+              ));
+            }
+          }
+        case 'TJ':
+          if (operands.isNotEmpty && operands.last is List<Object?>) {
+            Rect? union;
+            for (final item in operands.last! as List<Object?>) {
+              if (item is Uint8List) {
+                final box = measureShow(item, advanceTm: true);
+                if (box != null) {
+                  union = union == null ? box : union.expandToInclude(box);
+                }
+              } else if (item is num) {
+                final dx = -item.toDouble() / 1000.0 * gs.fontSize * gs.hScale;
+                tm = _multiplyMatrix([1, 0, 0, 1, dx, 0], tm);
+              }
+            }
+            if (union != null && overlapsCovered(union)) {
+              edits.add((
+                start: stmtStart,
+                end: opEnd,
+                replacement: Uint8List(0),
+              ));
+            }
+          }
+        case "'":
+          tlm = _multiplyMatrix([1, 0, 0, 1, 0, -gs.leading], tlm);
+          tm = [...tlm];
+          if (operands.isNotEmpty && operands.last is Uint8List) {
+            final box = measureShow(
+              operands.last! as Uint8List,
+              advanceTm: true,
+            );
+            if (box != null && overlapsCovered(box)) {
+              edits.add((
+                start: stmtStart,
+                end: opEnd,
+                replacement: latin1.encode('T*'),
+              ));
+            }
+          }
+        case '"':
+          if (operands.length >= 3 && operands.last is Uint8List) {
+            gs
+              ..wordSpace = _asDouble(operands[operands.length - 3]) ?? 0
+              ..charSpace = _asDouble(operands[operands.length - 2]) ?? 0;
+            tlm = _multiplyMatrix([1, 0, 0, 1, 0, -gs.leading], tlm);
+            tm = [...tlm];
+            final box = measureShow(
+              operands.last! as Uint8List,
+              advanceTm: true,
+            );
+            if (box != null && overlapsCovered(box)) {
+              edits.add((
+                start: stmtStart,
+                end: opEnd,
+                replacement: latin1.encode('T*'),
+              ));
+            }
+          }
+      }
+      operands.clear();
+    }
+
+    if (edits.isEmpty) return streamBytes;
+    final out = BytesBuilder(copy: false);
+    var pos = 0;
+    for (final edit in edits) {
+      if (edit.start > pos) {
+        out.add(Uint8List.sublistView(streamBytes, pos, edit.start));
+      }
+      if (edit.replacement.isNotEmpty) out.add(edit.replacement);
+      pos = edit.end;
+    }
+    if (pos < streamBytes.length) {
+      out.add(Uint8List.sublistView(streamBytes, pos));
+    }
     return out.takeBytes();
   }
 
@@ -2297,27 +3082,12 @@ abstract final class _PdfWriter {
 
   static String _buildToUnicodeCMap(Set<int> runes) {
     final sorted = runes.toList()..sort();
-    final buffer = StringBuffer()
-      ..writeln('/CIDInit /ProcSet findresource begin')
-      ..writeln('12 dict begin')
-      ..writeln('begincmap')
-      ..writeln(
-        '/CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) /Supplement 0 >> def',
-      )
-      ..writeln('/CMapName /Adobe-Identity-UCS def')
-      ..writeln('/CMapType 2 def')
-      ..writeln('1 begincodespacerange')
-      ..writeln('<0000> <FFFF>')
-      ..writeln('endcodespacerange');
-
-    // Emit in chunks of at most 100 entries per beginbfchar..endbfchar block.
     final entries = <String>[];
     for (final rune in sorted) {
       if (rune <= 0xFFFF) {
         final hex = rune.toRadixString(16).toUpperCase().padLeft(4, '0');
         entries.add('<$hex> <$hex>');
       } else {
-        // Surrogate pair encoded as two UTF-16 code units.
         final v = rune - 0x10000;
         final hi = (0xD800 + (v >> 10))
             .toRadixString(16)
@@ -2332,6 +3102,54 @@ abstract final class _PdfWriter {
           ..add('<$lo> <$lo>');
       }
     }
+    return _formatToUnicodeCMap(entries);
+  }
+
+  static String _buildToUnicodeCMapForGids(Map<int, int> gidToRune) {
+    final sortedGids = gidToRune.keys.toList()..sort();
+    final entries = <String>[];
+    for (final gid in sortedGids) {
+      final rune = gidToRune[gid]!;
+      final gidHex = (gid & 0xFFFF)
+          .toRadixString(16)
+          .toUpperCase()
+          .padLeft(4, '0');
+      final dstHex = _runeToUtf16BeHex(rune);
+      entries.add('<$gidHex> <$dstHex>');
+    }
+    return _formatToUnicodeCMap(entries);
+  }
+
+  static String _runeToUtf16BeHex(int rune) {
+    if (rune <= 0xFFFF) {
+      return rune.toRadixString(16).toUpperCase().padLeft(4, '0');
+    }
+    final v = rune - 0x10000;
+    final hi = (0xD800 + (v >> 10))
+        .toRadixString(16)
+        .toUpperCase()
+        .padLeft(4, '0');
+    final lo = (0xDC00 + (v & 0x3FF))
+        .toRadixString(16)
+        .toUpperCase()
+        .padLeft(4, '0');
+    return '$hi$lo';
+  }
+
+  static String _formatToUnicodeCMap(List<String> entries) {
+    final buffer = StringBuffer()
+      ..writeln('/CIDInit /ProcSet findresource begin')
+      ..writeln('12 dict begin')
+      ..writeln('begincmap')
+      ..writeln(
+        '/CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) /Supplement 0 >> def',
+      )
+      ..writeln('/CMapName /Adobe-Identity-UCS def')
+      ..writeln('/CMapType 2 def')
+      ..writeln('1 begincodespacerange')
+      ..writeln('<0000> <FFFF>')
+      ..writeln('endcodespacerange');
+
     for (var i = 0; i < entries.length; i += 100) {
       final end = math.min(entries.length, i + 100);
       buffer.writeln('${end - i} beginbfchar');
@@ -2348,57 +3166,63 @@ abstract final class _PdfWriter {
     return buffer.toString();
   }
 
-  static String _buildPageStream(PdfOutputPage page) {
+  static String _buildPageStream(
+    PdfOutputPage page,
+    List<_LaidOutBlock> laidOut, {
+    required bool hasUnderlay,
+    _TtfFont? ttf,
+  }) {
     final pageW = page.size.width > 0 ? page.size.width : 612.0;
     final pageH = page.size.height > 0 ? page.size.height : 792.0;
     final out = StringBuffer()
       ..writeln('1 1 1 rg')
       ..writeln('0 0 ${_fmt(pageW)} ${_fmt(pageH)} re f');
 
-    for (final block in page.blocks) {
-      final text = block.text.trim();
-      if (text.isEmpty || block.rect.width <= 0 || block.rect.height <= 0) {
-        continue;
-      }
+    if (hasUnderlay) {
+      out.writeln('q /MozhiBg Do Q');
+    }
+
+    for (final item in laidOut) {
+      final block = item.block;
+      final fontSize = item.fontSize;
+      final lines = item.lines;
       final rect = block.rect;
-      final bgY = pageH - rect.bottom;
+      final lineHeight = fontSize * 1.2;
+      final coverBottom = math.min(
+        pageH,
+        math.max(rect.bottom, rect.top + lines.length * lineHeight),
+      );
+      final bgY = pageH - coverBottom;
+      final bgH = math.max<double>(0, coverBottom - rect.top);
       out
         ..writeln('${_rgb(block.background)} rg')
         ..writeln(
           '${_fmt(rect.left)} ${_fmt(bgY)} '
-          '${_fmt(rect.width)} ${_fmt(rect.height)} re f',
-        );
-
-      // Fit font size and word-wrap text into rect.
-      var fontSize = block.fontSize.isFinite
-          ? block.fontSize.clamp(5.0, 72.0)
-          : 12.0;
-      var lines = _wrapText(text, rect.width, fontSize);
-      while (lines.length * fontSize * 1.2 > rect.height && fontSize > 4.5) {
-        fontSize *= 0.9;
-        lines = _wrapText(text, rect.width, fontSize);
-      }
-
-      final lineHeight = fontSize * 1.2;
-      out.writeln('${_rgb(block.color)} rg');
+          '${_fmt(rect.width)} ${_fmt(bgH)} re f',
+        )
+        ..writeln('${_rgb(block.color)} rg');
 
       for (var i = 0; i < lines.length; i++) {
         final line = lines[i];
         if (line.isEmpty) continue;
-        final lineW = _measureText(line, fontSize);
+        final isWinAnsi = _isAllWinAnsi(line);
+        final lineW = _measureText(line, fontSize, ttf: isWinAnsi ? null : ttf);
         final x = _alignedX(rect, lineW, block.align, block.direction);
         final baselineY = pageH - (rect.top + fontSize * 0.85 + i * lineHeight);
-        if (_isAllWinAnsi(line)) {
+        if (isWinAnsi) {
           out.writeln(
             'BT /F1 ${_fmt(fontSize)} Tf '
             '1 0 0 1 ${_fmt(x)} ${_fmt(baselineY)} Tm '
             '(${_escapePdfWinAnsi(line)}) Tj ET',
           );
         } else {
+          final hex = ttf != null
+              ? _encodeGidHex(line, ttf)
+              : _encodeUtf16BeHex(line);
           out.writeln(
             'BT /F2 ${_fmt(fontSize)} Tf '
             '1 0 0 1 ${_fmt(x)} ${_fmt(baselineY)} Tm '
-            '<${_encodeUtf16BeHex(line)}> Tj ET',
+            '<$hex> Tj ET',
           );
         }
       }
@@ -2427,38 +3251,192 @@ abstract final class _PdfWriter {
     };
   }
 
-  static List<String> _wrapText(String text, double maxWidth, double fontSize) {
+  /// Wraps [text] to fit [maxWidth] at [fontSize], supporting space-delimited
+  /// words, CJK / Hiragana / Katakana / Hangul / Thai character boundaries,
+  /// and breaking long unbroken tokens (URLs, identifiers) so text never
+  /// overflows the box.
+  static List<String> _wrapText(
+    String text,
+    double maxWidth,
+    double fontSize, {
+    _TtfFont? ttf,
+  }) {
     final out = <String>[];
+    final safeMax = math.max(fontSize * 0.5, maxWidth);
+    final measureTtf = _isAllWinAnsi(text) ? null : ttf;
+
     for (final rawLine in text.replaceAll('\r\n', '\n').split('\n')) {
-      final words = rawLine.split(RegExp(r'\s+'));
+      final segments = _tokenizeForWrap(rawLine);
       final current = StringBuffer();
-      for (final word in words) {
-        if (word.isEmpty) continue;
-        if (current.isEmpty) {
-          current.write(word);
+      var currentWidth = 0.0;
+
+      void flush() {
+        final s = current.toString().trimRight();
+        if (s.isNotEmpty) out.add(s);
+        current.clear();
+        currentWidth = 0.0;
+      }
+
+      for (final seg in segments) {
+        if (seg.isSpace) {
+          if (current.isEmpty) continue;
+          final spaceW = _measureText(' ', fontSize, ttf: measureTtf);
+          current.write(' ');
+          currentWidth += spaceW;
           continue;
         }
-        final candidate = '$current $word';
-        if (_measureText(candidate, fontSize) <= maxWidth) {
-          current
-            ..write(' ')
-            ..write(word);
+        final token = seg.text;
+        final tokenW = _measureText(token, fontSize, ttf: measureTtf);
+        if (current.isEmpty) {
+          if (tokenW <= safeMax) {
+            current.write(token);
+            currentWidth = tokenW;
+          } else {
+            _appendBreakingRunes(
+              token,
+              safeMax,
+              fontSize,
+              measureTtf,
+              current,
+              out,
+              (w) => currentWidth = w,
+            );
+          }
+          continue;
+        }
+        if (currentWidth + tokenW <= safeMax) {
+          current.write(token);
+          currentWidth += tokenW;
         } else {
-          out.add(current.toString());
-          current
-            ..clear()
-            ..write(word);
+          flush();
+          if (tokenW <= safeMax) {
+            current.write(token);
+            currentWidth = tokenW;
+          } else {
+            _appendBreakingRunes(
+              token,
+              safeMax,
+              fontSize,
+              measureTtf,
+              current,
+              out,
+              (w) => currentWidth = w,
+            );
+          }
         }
       }
-      if (current.isNotEmpty) out.add(current.toString());
+      flush();
     }
     return out;
   }
 
-  static double _measureText(String text, double fontSize) {
+  /// Splits [line] into alternating whitespace tokens and wrappable pieces:
+  /// each CJK / Kana / Hangul / Thai character (with any trailing no-start
+  /// punctuation attached) is its own breakable piece, while runs of Latin /
+  /// Cyrillic / Arabic characters stay together as words.
+  static List<({String text, bool isSpace})> _tokenizeForWrap(String line) {
+    final result = <({String text, bool isSpace})>[];
+    final runes = line.runes.toList();
+    var i = 0;
+    while (i < runes.length) {
+      final r = runes[i];
+      if (_isWrapSpace(r)) {
+        while (i < runes.length && _isWrapSpace(runes[i])) {
+          i++;
+        }
+        result.add((text: ' ', isSpace: true));
+        continue;
+      }
+      if (_isBreakableScript(r)) {
+        final piece = StringBuffer()..writeCharCode(r);
+        i++;
+        while (i < runes.length && _isNoStartPunctuation(runes[i])) {
+          piece.writeCharCode(runes[i]);
+          i++;
+        }
+        result.add((text: piece.toString(), isSpace: false));
+        continue;
+      }
+      final word = StringBuffer();
+      while (i < runes.length &&
+          !_isWrapSpace(runes[i]) &&
+          !_isBreakableScript(runes[i])) {
+        word.writeCharCode(runes[i]);
+        i++;
+      }
+      result.add((text: word.toString(), isSpace: false));
+    }
+    return result;
+  }
+
+  static void _appendBreakingRunes(
+    String token,
+    double maxWidth,
+    double fontSize,
+    _TtfFont? ttf,
+    StringBuffer current,
+    List<String> out,
+    void Function(double width) setWidth,
+  ) {
+    var width = 0.0;
+    for (final rune in token.runes) {
+      final ch = String.fromCharCode(rune);
+      final chW = _measureText(ch, fontSize, ttf: ttf);
+      if (current.isNotEmpty && width + chW > maxWidth) {
+        out.add(current.toString());
+        current
+          ..clear()
+          ..write(ch);
+        width = chW;
+      } else {
+        current.write(ch);
+        width += chW;
+      }
+    }
+    setWidth(width);
+  }
+
+  static bool _isWrapSpace(int rune) =>
+      rune == 0x20 || rune == 0x09 || rune == 0x0C || rune == 0x3000;
+
+  static bool _isBreakableScript(int rune) =>
+      (rune >= 0x2E80 && rune <= 0x303F) || // CJK radicals, symbols, punct
+      (rune >= 0x3040 && rune <= 0x30FF) || // Hiragana & Katakana
+      (rune >= 0x31F0 && rune <= 0x31FF) || // Katakana phonetic extensions
+      (rune >= 0x3400 && rune <= 0x4DBF) || // CJK Extension A
+      (rune >= 0x4E00 && rune <= 0x9FFF) || // CJK Unified Ideographs
+      (rune >= 0xF900 && rune <= 0xFAFF) || // CJK Compatibility Ideographs
+      (rune >= 0xAC00 && rune <= 0xD7AF) || // Hangul Syllables
+      (rune >= 0x1100 && rune <= 0x11FF) || // Hangul Jamo
+      (rune >= 0x3130 && rune <= 0x318F) || // Hangul Compatibility Jamo
+      (rune >= 0x0E00 && rune <= 0x0E7F) || // Thai
+      (rune >= 0x0E80 && rune <= 0x0EFF) || // Lao
+      (rune >= 0x1000 && rune <= 0x109F) || // Myanmar
+      (rune >= 0x1780 && rune <= 0x17FF) || // Khmer
+      (rune >= 0xFF00 && rune <= 0xFFEF); // Halfwidth / Fullwidth forms
+
+  static bool _isNoStartPunctuation(int rune) =>
+      rune == 0x3001 || // 、
+      rune == 0x3002 || // 。
+      rune == 0xFF0C || // ，
+      rune == 0xFF0E || // ．
+      rune == 0xFF01 || // ！
+      rune == 0xFF1F || // ？
+      rune == 0xFF1A || // ：
+      rune == 0xFF1B || // ；
+      rune == 0xFF09 || // ）
+      rune == 0x300D || // 」
+      rune == 0x300F || // 』
+      rune == 0x3011 || // 】
+      rune == 0x300B || // 》
+      rune == 0x3009; // 〉
+
+  static double _measureText(String text, double fontSize, {_TtfFont? ttf}) {
     var units = 0.0;
     for (final rune in text.runes) {
-      units += _approxGlyphWidth(rune);
+      units += ttf != null
+          ? ttf.widthThousandthsForRune(rune)
+          : _approxGlyphWidth(rune);
     }
     return units / 1000.0 * fontSize;
   }
@@ -2500,6 +3478,15 @@ abstract final class _PdfWriter {
     return out.toString();
   }
 
+  static String _encodeGidHex(String text, _TtfFont ttf) {
+    final out = StringBuffer();
+    for (final rune in text.runes) {
+      final gid = ttf.glyphIdFor(rune) & 0xFFFF;
+      out.write(gid.toRadixString(16).toUpperCase().padLeft(4, '0'));
+    }
+    return out.toString();
+  }
+
   static String _rgb(Color color) {
     final argb = color.toARGB32();
     final r = ((argb >> 16) & 0xFF) / 255.0;
@@ -2513,6 +3500,55 @@ abstract final class _PdfWriter {
     final s = value.toStringAsFixed(3);
     if (!s.contains('.')) return s;
     return s.replaceFirst(RegExp(r'\.?0+$'), '');
+  }
+}
+
+class _PdfObjectPool {
+  final List<Uint8List> _objects = [];
+
+  int reserve() {
+    _objects.add(Uint8List(0));
+    return _objects.length;
+  }
+
+  int add(Uint8List body) {
+    _objects.add(body);
+    return _objects.length;
+  }
+
+  void set(int id, Uint8List body) {
+    _objects[id - 1] = body;
+  }
+
+  Uint8List finish(int catalogId) {
+    final out = BytesBuilder(copy: false)
+      ..add(const [0x25, 0x50, 0x44, 0x46, 0x2D, 0x31, 0x2E, 0x34, 0x0A])
+      ..add(const [0x25, 0xE2, 0xE3, 0xCF, 0xD3, 0x0A]);
+
+    final offsets = <int>[0]; // object 0 is always free
+    for (var i = 0; i < _objects.length; i++) {
+      offsets.add(out.length);
+      out
+        ..add(latin1.encode('${i + 1} 0 obj\n'))
+        ..add(_objects[i])
+        ..add(latin1.encode('\nendobj\n'));
+    }
+
+    final xrefOffset = out.length;
+    out
+      ..add(latin1.encode('xref\n0 ${offsets.length}\n'))
+      ..add(latin1.encode('0000000000 65535 f \n'));
+    for (var i = 1; i < offsets.length; i++) {
+      final off = offsets[i].toString().padLeft(10, '0');
+      out.add(latin1.encode('$off 00000 n \n'));
+    }
+    out.add(
+      latin1.encode(
+        'trailer\n<< /Size ${offsets.length} /Root $catalogId 0 R >>\n'
+        'startxref\n$xrefOffset\n%%EOF\n',
+      ),
+    );
+    return out.takeBytes();
   }
 }
 
@@ -2568,7 +3604,10 @@ double _approxGlyphWidth(int rune) {
   }
   if (rune == 0x6D || rune == 0x77 || rune == 0x4D || rune == 0x57) return 833;
   if (rune >= 0x41 && rune <= 0x5A) return 667;
-  if (rune >= 0x2E80 && rune <= 0x9FFF || rune >= 0xAC00 && rune <= 0xD7AF) {
+  if ((rune >= 0x2E80 && rune <= 0x9FFF) ||
+      (rune >= 0xAC00 && rune <= 0xD7AF) ||
+      (rune >= 0xF900 && rune <= 0xFAFF) ||
+      (rune >= 0xFF00 && rune <= 0xFFEF)) {
     return 950;
   }
   return 540;

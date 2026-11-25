@@ -1,11 +1,27 @@
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:mozhi/app/fallback_key_value_store.dart';
+import 'package:mozhi/core/key_value_store.dart';
+import 'package:mozhi/settings/data/settings_repository.dart';
 import 'package:mozhi/settings/models/app_settings.dart';
 import 'package:mozhi/settings/view/providers_page.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 import 'helpers.dart';
+
+class _BrokenKeyValueStore implements KeyValueStore {
+  @override
+  Future<String?> read(String key) => Future.error(Exception('no keyring'));
+
+  @override
+  Future<void> write(String key, String value) =>
+      Future.error(Exception('no keyring'));
+
+  @override
+  Future<void> delete(String key) => Future.error(Exception('no keyring'));
+}
 
 const _claude = AiProviderConfig(
   id: 'p1',
@@ -348,6 +364,86 @@ void main() {
     testWidgets('list fits 320dp with large text', (tester) async {
       await pump(tester, size: const Size(320, 900), textScale: 2);
       expect(tester.takeException(), isNull);
+    });
+
+    group('secrets in memory warning banner', () {
+      const warningText =
+          "API keys can't be stored securely on this device; they will be "
+          'kept only for this session.';
+      const secureFooter =
+          'API keys are kept in secure storage on this device and are only '
+          'sent to the provider you configure.';
+
+      testWidgets(
+        'shows persistent warning banner when secure storage fell back',
+        (tester) async {
+          final fallbackStore = FallbackKeyValueStore(_BrokenKeyValueStore());
+          await fallbackStore.probe();
+          expect(fallbackStore.usingFallback, isTrue);
+
+          final repo = SettingsRepository(
+            prefs: MemoryStore(),
+            secrets: fallbackStore,
+          );
+          tester.setScreenSize(const Size(800, 1400));
+          await tester.pumpView(
+            RepositoryProvider<SettingsRepository>.value(
+              value: repo,
+              child: const ProvidersPage(isWeb: false),
+            ),
+            settings: settings,
+            router: router,
+          );
+
+          expect(
+            find.byKey(const Key('providers_secrets_in_memory_banner')),
+            findsOneWidget,
+          );
+          expect(find.text(warningText), findsOneWidget);
+          expect(find.text(secureFooter), findsNothing);
+        },
+      );
+
+      testWidgets('shows banner in empty state too when secretsInMemory', (
+        tester,
+      ) async {
+        when(() => settings.state).thenReturn(const AppSettings());
+        tester.setScreenSize(const Size(800, 1400));
+        await tester.pumpView(
+          const ProvidersPage(isWeb: false, secretsInMemory: true),
+          settings: settings,
+          router: router,
+        );
+        expect(
+          find.byKey(const Key('providers_secrets_in_memory_banner')),
+          findsOneWidget,
+        );
+        expect(find.text(warningText), findsOneWidget);
+      });
+
+      testWidgets('hides warning banner when secure storage works', (
+        tester,
+      ) async {
+        final okStore = FallbackKeyValueStore(MemoryStore());
+        await okStore.probe();
+        expect(okStore.usingFallback, isFalse);
+
+        final repo = SettingsRepository(prefs: MemoryStore(), secrets: okStore);
+        tester.setScreenSize(const Size(800, 1400));
+        await tester.pumpView(
+          RepositoryProvider<SettingsRepository>.value(
+            value: repo,
+            child: const ProvidersPage(isWeb: false),
+          ),
+          settings: settings,
+          router: router,
+        );
+        expect(
+          find.byKey(const Key('providers_secrets_in_memory_banner')),
+          findsNothing,
+        );
+        expect(find.text(secureFooter), findsOneWidget);
+      });
     });
   });
 

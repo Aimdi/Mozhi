@@ -99,7 +99,6 @@ class _ProofreadControlsState extends State<ProofreadControls> {
                     label: l10n.proofreadLevelLabel,
                     container: true,
                     child: SegmentedButton<CorrectionLevel>(
-                      showSelectedIcon: false,
                       segments: [
                         for (final level in CorrectionLevel.values)
                           ButtonSegment(

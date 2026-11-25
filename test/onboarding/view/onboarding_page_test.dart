@@ -114,6 +114,25 @@ void main() {
       handle.dispose();
     });
 
+    testWidgets('announces new step heading and moves focus on transition', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await pumpPage(tester);
+      tester.takeAnnouncements();
+
+      await tapNext(tester);
+      expect(
+        tester.takeAnnouncements(),
+        contains(
+          isAccessibilityAnnouncement('How private should translations be?'),
+        ),
+      );
+      final focused = FocusManager.instance.primaryFocus;
+      expect(focused?.debugLabel, 'onboarding_privacy_heading');
+      handle.dispose();
+    });
+
     group('without an on-device engine (the web)', () {
       setUp(() => when(() => repository.hasOfflineEngine).thenReturn(false));
 

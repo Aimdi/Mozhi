@@ -336,6 +336,156 @@ void main() {
           ExitCode.noInput.code,
         );
       });
+
+      test(
+        'wires formality-context, speaker/addressee gender and saved glossary',
+        () async {
+          h.writeConfig(
+            const CliConfig(
+              providers: [ProviderEntry(ollamaProvider)],
+              glossary: {'cloud': 'Wolke', 'hi': 'servus'},
+            ),
+          );
+          final code = await h.run([
+            'translate',
+            '-e',
+            'ai',
+            '--formality',
+            'more',
+            '--formality-context',
+            'email to my professor',
+            '--speaker-gender',
+            'feminine',
+            '--addressee-gender',
+            'masculine',
+            '-g',
+            'hi=guten Tag',
+            'Hello',
+          ]);
+          expect(code, 0);
+          final request = capturedRequest();
+          expect(request.options.formality, Formality.more);
+          expect(request.options.formalityContext, 'email to my professor');
+          expect(request.options.speakerGender, Gender.feminine);
+          expect(request.options.addresseeGender, Gender.masculine);
+          expect(request.options.glossary, {
+            'cloud': 'Wolke',
+            'hi': 'guten Tag',
+          });
+        },
+      );
+
+      test('supports --alternatives, --explain, --insights, --romanize '
+          'in terminal and JSON', () async {
+        when(() => h.repository.getAlternatives(any(), any(), any()))
+            .thenAnswer(
+              (_) async => const AlternativeTranslations(
+                description: 'Standard polite greeting.',
+                alternatives: [
+                  Alternative(text: 'Guten Tag', explanation: 'more formal'),
+                ],
+              ),
+            );
+        when(() => h.repository.getInsights(any(), any(), any())).thenAnswer(
+          (_) async => const [
+            WordInsight(
+              sourceText: 'Hello',
+              targetText: 'Hallo',
+              explanation: 'Casual greeting.',
+              variations: [Alternative(text: 'Hi', explanation: 'informal')],
+            ),
+          ],
+        );
+        when(() => h.repository.explain(any(), any(), any()))
+            .thenAnswer((_) => Stream.fromIterable(['A common ', 'greeting.']));
+        when(
+          () => h.repository.romanize(
+            any(),
+            text: any(named: 'text'),
+            language: any(named: 'language'),
+          ),
+        ).thenAnswer((_) async => 'ha-lo');
+
+        final code = await h.run([
+          'translate',
+          '-e',
+          'ai',
+          '--alternatives',
+          '--insights',
+          '--explain',
+          '--romanize',
+          'Hello',
+        ]);
+        expect(code, 0);
+        expect(h.stdout, contains('Hallo'));
+        expect(h.stdout, contains('Romanization:'));
+        expect(h.stdout, contains('ha-lo'));
+        expect(h.stdout, contains('Alternatives:'));
+        expect(h.stdout, contains('Guten Tag'));
+        expect(h.stdout, contains('Insights:'));
+        expect(h.stdout, contains('Casual greeting.'));
+        expect(h.stdout, contains('Explanation:'));
+        expect(h.stdout, contains('A common greeting.'));
+
+        h.out.clear();
+        final jsonCode = await h.run([
+          'translate',
+          '-e',
+          'ai',
+          '--json',
+          '--alternatives',
+          '--insights',
+          '--explain',
+          '--romanize',
+          'Hello',
+        ]);
+        expect(jsonCode, 0);
+        final json = h.json()! as Map<String, Object?>;
+        expect(json['romanization'], 'ha-lo');
+        expect(json['explanation'], 'A common greeting.');
+        expect(json['alternatives'], isA<Map<String, Object?>>());
+        expect(json['insights'], hasLength(1));
+      });
+
+      test('rejects AI extras on Mozhi engines or with --compare', () async {
+        expect(
+          await h.run(['translate', '-e', 'google', '--explain', 'Hello']),
+          ExitCode.usage.code,
+        );
+        expect(h.stderr, contains('require an AI provider'));
+
+        h.err.clear();
+        expect(
+          await h.run(['translate', '--compare', '--alternatives', 'Hello']),
+          ExitCode.usage.code,
+        );
+        expect(h.stderr, contains('cannot be used with --compare'));
+      });
+
+      test('translates with a direct MT provider', () async {
+        h.writeConfig(
+          const CliConfig(providers: [ProviderEntry(deeplMtProvider)]),
+        );
+        final code = await h.run([
+          'translate',
+          '-e',
+          'mt',
+          '--formality',
+          'more',
+          '-t',
+          'de',
+          'Hello',
+        ]);
+        expect(code, 0);
+        final captured = verify(
+          () => h.repository.translate(captureAny(), captureAny()),
+        ).captured;
+        expect((captured[0] as TranslationEngine).id, 'mt:deepl-api');
+        expect(
+          (captured[1] as TranslationRequest).options.formality,
+          Formality.more,
+        );
+      });
     });
 
     group('--compare', () {

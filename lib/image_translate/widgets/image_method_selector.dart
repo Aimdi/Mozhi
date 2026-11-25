@@ -38,7 +38,6 @@ class ImageMethodSelector extends StatelessWidget {
               ChoiceChip(
                 key: Key('image_translate_method_${method.id}'),
                 avatar: Icon(imageMethodIcon(method.kind)),
-                showCheckmark: false,
                 // Long names wrap onto a second line rather than end in
                 // "…" on narrow screens.
                 label: Text(imageMethodLabel(l10n, method)),
