@@ -327,18 +327,22 @@ test('a PDF document is translated in the browser and saved as PDF', async ({
   page,
 }) => {
   const errors = collectPageErrors(page);
+  // PdfTextLayer.minCharacters requires at least 20 letters/digits so a real
+  // text-layer page is distinguished from a scanned page with a page number.
+  const pdfSentence = 'Thank you very much for testing Mozhi PDF translation.';
   const chooser = page.waitForEvent('filechooser');
   await page.getByRole('button', { name: 'Choose file' }).click();
   await (await chooser).setFiles({
     name: 'note.pdf',
     mimeType: 'application/pdf',
-    buffer: buildMinimalPdf(TEXT),
+    buffer: buildMinimalPdf(pdfSentence),
   });
   await expect(page.getByText('note.pdf', { exact: true })).toBeVisible();
   await expect(
     page.getByRole('checkbox', { name: 'PDF document' }),
   ).toBeVisible();
   await expect(page.getByRole('checkbox', { name: '1 page' })).toBeVisible();
+  await expect(page.getByText(pdfSentence)).toBeVisible();
 
   await page.getByRole('button', { name: 'Translate', exact: true }).click();
   await expect(page.getByText('Translation complete')).toBeVisible();
