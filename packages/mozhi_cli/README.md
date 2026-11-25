@@ -144,6 +144,17 @@ mozhi document Localizable.xcstrings -e ai -t de --formality less -i
 mozhi document app.xliff strings.xml index.html -t fr --output-dir out/fr
 ```
 
+## Translate web pages
+
+Fetch a web page, extract its readable content (skipping navigation, scripts
+and footers, with SSRF redirect protection), and output clean Markdown or JSON:
+
+```sh
+mozhi web https://example.com/article --to de
+mozhi web https://example.com/article -t fr --bilingual -o article.fr.md
+mozhi web https://example.com/article --dry-run --json
+```
+
 ## Interactive REPL
 
 Start a persistent terminal translation session with slash commands
