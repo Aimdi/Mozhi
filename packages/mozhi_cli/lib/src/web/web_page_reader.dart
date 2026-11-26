@@ -139,7 +139,7 @@ Future<FetchedPage> fetchWebPage(
       }
 
       final charset = response.headers.contentType?.charset?.toLowerCase();
-      final body = _decodeBytes(bytes, charset: charset);
+      final body = decodeWebBytes(bytes, charset: charset);
       return FetchedPage(url: current, body: body, contentType: contentType);
     }
     throw CliException.unavailable('Too many redirects while fetching $uri.');
@@ -164,13 +164,77 @@ bool _isLocalHost(Uri uri) =>
     AiProviderConfig.isLocalHost(uri.host) ||
     TailnetHosts.isTailnetName(uri.host);
 
-String _decodeBytes(List<int> bytes, {String? charset}) {
-  if (charset == 'iso-8859-1' ||
-      charset == 'latin1' ||
-      charset == 'windows-1252') {
-    return latin1.decode(bytes);
+const _win1252C1 = <int>[
+  0x20AC, 0x0081, 0x201A, 0x0192, 0x201E, 0x2026, 0x2020, 0x2021, // 80-87
+  0x02C6, 0x2030, 0x0160, 0x2039, 0x0152, 0x008D, 0x017D, 0x008F, // 88-8F
+  0x0090, 0x2018, 0x2019, 0x201C, 0x201D, 0x2022, 0x2013, 0x2014, // 90-97
+  0x02DC, 0x2122, 0x0161, 0x203A, 0x0153, 0x009D, 0x017E, 0x0178, // 98-9F
+];
+
+final _metaCharset = RegExp(
+  r'''<meta\b[^>]*\bcharset\s*=\s*["']?\s*([A-Za-z0-9._-]+)''',
+  caseSensitive: false,
+);
+
+/// Decodes raw HTTP response [bytes] respecting UTF-8 / UTF-16 BOMs, the HTTP
+/// [charset], `<meta charset>` sniffing in the first 4 KiB, true Windows-1252
+/// (including `0x80`–`0x9F` punctuation), and UTF-8 -> Windows-1252 fallback.
+String decodeWebBytes(List<int> bytes, {String? charset}) {
+  if (bytes.length >= 3 &&
+      bytes[0] == 0xEF &&
+      bytes[1] == 0xBB &&
+      bytes[2] == 0xBF) {
+    return utf8.decode(bytes.sublist(3), allowMalformed: true);
   }
-  return utf8.decode(bytes, allowMalformed: true);
+  if (bytes.length >= 2 && bytes[0] == 0xFE && bytes[1] == 0xFF) {
+    return _decodeUtf16(bytes, 2, bigEndian: true);
+  }
+  if (bytes.length >= 2 && bytes[0] == 0xFF && bytes[1] == 0xFE) {
+    return _decodeUtf16(bytes, 2, bigEndian: false);
+  }
+  final effective = (charset ?? _sniffMetaCharset(bytes))?.toLowerCase();
+  if (effective == 'iso-8859-1' ||
+      effective == 'latin1' ||
+      effective == 'windows-1252' ||
+      effective == 'cp1252' ||
+      effective == 'ascii' ||
+      effective == 'us-ascii') {
+    return _decodeWindows1252(bytes);
+  }
+  if (effective != null && effective != 'utf-8' && effective != 'utf8') {
+    return utf8.decode(bytes, allowMalformed: true);
+  }
+  try {
+    return utf8.decode(bytes);
+  } on FormatException {
+    return _decodeWindows1252(bytes);
+  }
+}
+
+String? _sniffMetaCharset(List<int> bytes) {
+  final limit = bytes.length < 4096 ? bytes.length : 4096;
+  final head = latin1.decode(bytes.sublist(0, limit));
+  return _metaCharset.firstMatch(head)?.group(1);
+}
+
+String _decodeWindows1252(List<int> bytes) {
+  final units = List<int>.filled(bytes.length, 0);
+  for (var i = 0; i < bytes.length; i++) {
+    final b = bytes[i] & 0xFF;
+    units[i] = b >= 0x80 && b <= 0x9F ? _win1252C1[b - 0x80] : b;
+  }
+  return String.fromCharCodes(units);
+}
+
+String _decodeUtf16(List<int> bytes, int offset, {required bool bigEndian}) {
+  final count = (bytes.length - offset) ~/ 2;
+  final units = List<int>.filled(count, 0);
+  for (var i = 0; i < count; i++) {
+    final a = bytes[offset + i * 2] & 0xFF;
+    final b = bytes[offset + i * 2 + 1] & 0xFF;
+    units[i] = bigEndian ? (a << 8) | b : (b << 8) | a;
+  }
+  return String.fromCharCodes(units);
 }
 
 final _titlePattern = RegExp(

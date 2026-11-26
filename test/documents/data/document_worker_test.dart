@@ -250,6 +250,146 @@ void main() {
       ];
       expect(coop.render(translations), sync.render(translations));
     });
+
+    test(
+      'chunks large Apple .strings identically to sync parseDocument',
+      () async {
+        final entries = List.generate(
+          60,
+          (i) =>
+              '/* Comment with ; inside $i */\n'
+              '"key_$i" = "Hello world ; number $i with %@";',
+        );
+        final text = '\uFEFF// Header\n${entries.join('\n')}\n';
+        var yields = 0;
+        final coop = await parseTextCooperatively(
+          parseDocument,
+          text,
+          DocumentFormat.appleStrings,
+          chunkThreshold: 400,
+          chunkSize: 300,
+          yieldTurn: () async {
+            yields++;
+            await Future<void>.delayed(Duration.zero);
+          },
+        );
+        final sync = parseDocument(text, DocumentFormat.appleStrings);
+
+        expect(yields, greaterThanOrEqualTo(3));
+        expect(coop.segments, sync.segments);
+        expect(coop.render(), text);
+        final translations = [
+          for (final s in sync.segments) s.text.toUpperCase(),
+        ];
+        expect(coop.render(translations), sync.render(translations));
+      },
+    );
+
+    test(
+      'chunks large TOML identically to sync parseDocument across tables',
+      () async {
+        final sections = [
+          'title = "Top level"\n',
+          ...List.generate(
+            30,
+            (i) =>
+                '[section_$i]\n'
+                'label = "Section $i label"\n'
+                'body = """\n[not_a_table]\nLine $i\n"""\n'
+                'items = [\n  "Item $i a",\n  "Item $i b",\n]\n',
+          ),
+        ];
+        final text = sections.join('\n');
+        var yields = 0;
+        final coop = await parseTextCooperatively(
+          parseDocument,
+          text,
+          DocumentFormat.toml,
+          chunkThreshold: 400,
+          chunkSize: 300,
+          yieldTurn: () async {
+            yields++;
+            await Future<void>.delayed(Duration.zero);
+          },
+        );
+        final sync = parseDocument(text, DocumentFormat.toml);
+
+        expect(yields, greaterThanOrEqualTo(3));
+        expect(coop.segments, sync.segments);
+        expect(coop.render(), text);
+        final translations = [
+          for (final s in sync.segments) s.text.toUpperCase(),
+        ];
+        expect(coop.render(translations), sync.render(translations));
+      },
+    );
+
+    test('chunks large YAML files identically to sync parseDocument', () async {
+      final buf = StringBuffer('# Localization catalogue\n');
+      for (var i = 0; i < 40; i++) {
+        buf
+          ..writeln('section_$i:')
+          ..writeln('  title: "Hello section $i"')
+          ..writeln('  body: |')
+          ..writeln('    First line of section $i.')
+          ..writeln('    not_a_key: still inside block scalar $i')
+          ..writeln('  multiline: "Line one of $i')
+          ..writeln('    still_quoted: not a split point"')
+          ..writeln('  tags: [')
+          ..writeln('    "Welcome $i",')
+          ..writeln('    "Goodbye $i"')
+          ..writeln('  ]')
+          ..writeln('  count: $i')
+          ..writeln();
+      }
+      final text = buf.toString();
+      var yields = 0;
+      final coop = await parseTextCooperatively(
+        parseDocument,
+        text,
+        DocumentFormat.yaml,
+        chunkThreshold: 400,
+        chunkSize: 400,
+        yieldTurn: () async {
+          yields++;
+          await Future<void>.delayed(Duration.zero);
+        },
+      );
+      final sync = parseDocument(text, DocumentFormat.yaml);
+
+      expect(yields, greaterThanOrEqualTo(3));
+      expect(coop.segments, sync.segments);
+      expect(coop.render(), text);
+      final translations = [
+        for (final s in sync.segments) s.text.toUpperCase(),
+      ];
+      expect(coop.render(translations), sync.render(translations));
+    });
+
+    test('keeps single-root Rails YAML intact in one chunk', () async {
+      final buf = StringBuffer('en:\n');
+      for (var i = 0; i < 40; i++) {
+        buf.writeln('  key_$i: "Greeting number $i"');
+      }
+      final text = buf.toString();
+      var yields = 0;
+      final coop = await parseTextCooperatively(
+        parseDocument,
+        text,
+        DocumentFormat.yaml,
+        chunkThreshold: 200,
+        chunkSize: 200,
+        yieldTurn: () async {
+          yields++;
+          await Future<void>.delayed(Duration.zero);
+        },
+      );
+      final sync = parseDocument(text, DocumentFormat.yaml);
+
+      expect(yields, 1);
+      expect(coop.segments, sync.segments);
+      expect(coop.render(), text);
+    });
   });
 
   group('OfficePackage async cooperative yielding', () {

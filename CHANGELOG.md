@@ -3,6 +3,51 @@
 All notable changes to Mozhi, by release tag on GitHub (pre-releases end
 in `-rc.N`).
 
+## Unreleased (Wave 22)
+
+### Added & Improved
+
+- **`mozhi_cli` document stdin piping, deduplication & web charset decoding**:
+  `mozhi document` now accepts `-` (or piped stdin with no file argument)
+  with `--format` for Unix pipelines, and automatically deduplicates
+  repeated segment strings across single files and multi-file batches so
+  identical strings are only translated once (reporting `uniqueSegments`
+  in `--json`). `mozhi web` now handles UTF-8/UTF-16 BOMs, `<meta charset>`
+  sniffing, and true Windows-1252 (`0x80`–`0x9F` smart quotes/dashes/euro)
+  decoding with UTF-8 -> Windows-1252 fallback.
+
+## Unreleased (Wave 21)
+
+### Added & Improved
+
+- **Cooperative web parsing for YAML**: extended `parseTextCooperatively`
+  to chunk large `.yaml`/`.yml` files safely at 0-indent mapping keys and
+  `---` document boundaries outside block scalars (`|`/`>`), multiline
+  quoted strings, and flow collections (8 text formats total: `.txt`,
+  `.md`, `.srt`, `.vtt`, `.properties`, `.strings`, `.toml`, `.yaml`/`.yml`,
+  plus multi-part Office & EPUB).
+- **`mozhi repl` `/compare` command**: added `/compare` (alias `/cmp`) to
+  compare translations side-by-side across selected or all Mozhi engines
+  in interactive REPL sessions, either for new text or the last
+  translation.
+- **Playwright Web E2E coverage**: added Chromium/Firefox/WebKit end-to-end
+  tests for TOML (`.toml`), Java `.properties`, and pure-Dart Web PDF
+  (`.pdf`) upload, translation, and file download in
+  `e2e/tests/documents_formats.spec.js`.
+
+## Unreleased (Wave 20)
+
+### Added & Improved
+
+- **Cooperative web parsing for `.strings` & `.toml`**: extended
+  `parseTextCooperatively` to chunk large Apple `.strings` and TOML
+  files safely across comments, quoted strings, multiline strings, and
+  table headers (7 text formats total: `.txt`, `.md`, `.srt`, `.vtt`,
+  `.properties`, `.strings`, `.toml`, plus multi-part Office & EPUB).
+- **`mozhi_cli` glossary import/export**: added `mozhi config glossary
+  import <file>` (`--replace`, supporting `key=value`, TSV, and CSV) and
+  `mozhi config glossary export` (`--format txt|tsv|csv|json`, `-o`).
+
 ## Unreleased (Wave 19)
 
 ### Added & Improved

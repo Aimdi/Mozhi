@@ -431,6 +431,10 @@ class ReplSession {
           });
           return true;
 
+        case '/compare' || '/cmp':
+          await _handleCompare(arg);
+          return true;
+
         default:
           output.writeln('Unknown command "$cmd". Type /help for commands.');
           return true;
@@ -484,6 +488,79 @@ class ReplSession {
         output.writeln(
           'Usage: /glossary <list|add term=translation|remove term|clear>',
         );
+    }
+  }
+
+  Future<void> _handleCompare(String arg) async {
+    final specs = <String>[];
+    var text = arg;
+    if (arg.isNotEmpty) {
+      final space = arg.indexOf(RegExp(r'\s'));
+      final first = space < 0 ? arg : arg.substring(0, space);
+      if (first.contains(',')) {
+        specs.addAll(
+          first.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty),
+        );
+        text = space < 0 ? '' : arg.substring(space + 1).trim();
+      }
+    }
+    if (text.isEmpty) {
+      final previous = lastRequest?.text;
+      if (previous == null) {
+        output.writeln(
+          'Translate something first or pass text: '
+          '/compare [engine1,engine2] <text>',
+        );
+        return;
+      }
+      text = previous;
+    }
+
+    final engines = specs.isEmpty
+        ? (await repository.getEngines()).where((e) => e.isMozhi).toList()
+        : [for (final spec in specs) resolveEngine(spec, providers)];
+    if (engines.isEmpty) {
+      output.writeln('No engines available to compare.');
+      return;
+    }
+
+    final options = engines.any((e) => e.isAi || e.isMt)
+        ? TranslationOptions(
+            style: style,
+            formality: formality,
+            context: context,
+            glossary: Map<String, String>.unmodifiable(glossary),
+          )
+        : glossary.isEmpty
+        ? const TranslationOptions()
+        : TranslationOptions(
+            glossary: Map<String, String>.unmodifiable(glossary),
+          );
+    final request = TranslationRequest(
+      text: text,
+      source: source,
+      target: target,
+      options: options,
+    );
+
+    TranslationResult? firstSuccess;
+    await for (final entry in repository.compare(engines, request)) {
+      final result = entry.result;
+      if (result == null) {
+        output.writeln(
+          '  ✗ ${_bold(entry.name)}: ${describeError(entry.error!).message}',
+        );
+      } else {
+        firstSuccess ??= result;
+        output.writeln('  ${_bold(entry.name)}: ${result.text}');
+      }
+    }
+    if (firstSuccess != null) {
+      if (firstSuccess.detectedSource case final detected?) {
+        lastDetectedSource = detected;
+      }
+      lastRequest = request;
+      lastTranslation = firstSuccess.text;
     }
   }
 
@@ -559,6 +636,7 @@ Commands:
   /insights            Show word insights for the last translation (AI)
   /romanize            Romanize the last translation (AI)
   /check               Back-translate and check meaning of the last result (AI)
+  /compare [e1,e2] [text] Compare translations across engines
   /proofread <text>    Proofread text using an AI provider
   /dict <word>         Look up a word using an AI provider
   /status              Show current session settings

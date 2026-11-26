@@ -142,6 +142,7 @@ mozhi document subtitles.srt -t fr --in-place -j 4
 mozhi document strings.toml -t es --dry-run --json
 mozhi document Localizable.xcstrings -e ai -t de --formality less -i
 mozhi document app.xliff strings.xml index.html -t fr --output-dir out/fr
+cat locales/en.yaml | mozhi document - --format yaml -t de > locales/de.yaml
 ```
 
 ## Translate web pages
@@ -160,7 +161,7 @@ mozhi web https://example.com/article --dry-run --json
 Start a persistent terminal translation session with slash commands
 (`/from`, `/to`, `/swap`, `/engine`, `/formality`, `/style`, `/context`,
 `/glossary`, `/alt`, `/explain`, `/insights`, `/romanize`, `/check`,
-`/proofread`, `/dict`, `/status`, `/help`, `/quit`):
+`/compare`, `/proofread`, `/dict`, `/status`, `/help`, `/quit`):
 
 ```sh
 mozhi repl --to de --style natural --context "Release notes"
@@ -221,6 +222,8 @@ mozhi config path
 mozhi config glossary add "cloud=Cloud"
 mozhi config glossary list
 mozhi config glossary remove "cloud"
+mozhi config glossary import terms.csv
+mozhi config glossary export --format csv -o terms.csv
 ```
 
 ### AI & MT providers

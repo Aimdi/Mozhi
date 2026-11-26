@@ -261,5 +261,85 @@ void main() {
         ExitCode.usage.code,
       );
     });
+
+    test('deduplicates repeated segments across files in a batch', () async {
+      final xmlFile = File('${h.directory.path}/dup.xml')
+        ..writeAsStringSync(
+          '<resources><string name="hi">Hello</string> '
+          '<string name="again">Hello</string></resources>\n',
+        );
+      final outDir = '${h.directory.path}/dedup_out';
+      final code = await h.run([
+        'document',
+        '-f',
+        'en',
+        '-t',
+        'de',
+        '--output-dir',
+        outDir,
+        '--json',
+        jsonFile.path,
+        xmlFile.path,
+      ]);
+      expect(code, ExitCode.success.code);
+      final json = h.json()! as Map<String, Object?>;
+      expect(json['totalSegments'], 4);
+      expect(json['uniqueSegments'], 2);
+      expect(json['totalTranslated'], 4);
+      // "Hello" appears 3 times across both files, "Goodbye" once -> 2 calls!
+      verify(() => h.repository.translate(any(), any())).called(2);
+      expect(
+        File('$outDir/dup.xml').readAsStringSync(),
+        contains('<string name="again">[de] Hello</string>'),
+      );
+    });
+
+    test(
+      'reads stdin via "-" or piped input and rejects invalid flags',
+      () async {
+        when(() => h.console.stdinHasTerminal).thenReturn(false);
+        when(() => h.console.readStdin())
+            .thenAnswer((_) async => 'greeting = Hello\nclosing = Goodbye\n');
+
+        final explicit = await h.run([
+          'document',
+          '-',
+          '--format',
+          'properties',
+          '-f',
+          'en',
+          '-t',
+          'fr',
+        ]);
+        expect(explicit, ExitCode.success.code);
+        expect(h.written.toString(), contains('greeting = [fr] Hello'));
+        expect(h.written.toString(), contains('closing = [fr] Goodbye'));
+
+        final implicit = await h.run([
+          'document',
+          '--format',
+          'properties',
+          '-f',
+          'en',
+          '-t',
+          'fr',
+          '--json',
+        ]);
+        expect(implicit, ExitCode.success.code);
+        final json = h.json()! as Map<String, Object?>;
+        expect(json['file'], '-');
+        expect(json['format'], 'properties');
+        expect(json['uniqueSegments'], 2);
+
+        expect(
+          await h.run(['document', '-', '-i', '-t', 'fr']),
+          ExitCode.usage.code,
+        );
+        expect(
+          await h.run(['document', '-', jsonFile.path, '-t', 'fr']),
+          ExitCode.usage.code,
+        );
+      },
+    );
   });
 }

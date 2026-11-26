@@ -43,8 +43,9 @@ Future<ParsedDocument> parseTextInBackground(
 
 /// Cooperatively parses [text] on the current isolate, yielding to the event
 /// loop before parsing and between safe structural chunks for large text,
-/// Markdown (`.md`), subtitle (`.srt`, `.vtt`) and `.properties` files
-/// (> [chunkThreshold]) without changing the parse result.
+/// Markdown (`.md`), subtitle (`.srt`, `.vtt`), `.properties`, `.strings`,
+/// `.toml` and `.yaml`/`.yml` files (> [chunkThreshold]) without changing the
+/// parse result.
 Future<ParsedDocument> parseTextCooperatively(
   TextDocumentParser parser,
   String text,
@@ -74,6 +75,9 @@ Future<ParsedDocument> parseTextCooperatively(
     DocumentFormat.vtt => _splitPlainTextChunks(text, chunkSize),
     DocumentFormat.markdown => _splitMarkdownChunks(text, chunkSize),
     DocumentFormat.properties => _splitPropertiesChunks(text, chunkSize),
+    DocumentFormat.appleStrings => _splitAppleStringsChunks(text, chunkSize),
+    DocumentFormat.toml => _splitTomlChunks(text, chunkSize),
+    DocumentFormat.yaml => _splitYamlChunks(text, chunkSize),
     _ => [text],
   };
   if (chunks.length <= 1) {
@@ -113,7 +117,382 @@ bool _supportsCooperativeChunking(DocumentFormat format) =>
     format == DocumentFormat.markdown ||
     format == DocumentFormat.srt ||
     format == DocumentFormat.vtt ||
-    format == DocumentFormat.properties;
+    format == DocumentFormat.properties ||
+    format == DocumentFormat.appleStrings ||
+    format == DocumentFormat.toml ||
+    format == DocumentFormat.yaml;
+
+final _yamlBlockScalarHeader = RegExp(
+  r':(?:[ \t]+(?:[&*!]\S+[ \t]+)*|[ \t]+)[|>][+-]?[1-9]?[+-]?(?:[ \t]+#.*)?[ \t]*$',
+);
+
+bool _isYamlTopLevelCutLine(String content) {
+  if (content.isEmpty) return false;
+  if (content == '---' ||
+      content.startsWith('--- ') ||
+      content.startsWith('---\t')) {
+    return true;
+  }
+  final first = content.codeUnitAt(0);
+  if (first == 0x20 || first == 0x09 || first == 0x23 || first == 0x2D) {
+    return false;
+  }
+  // Quoted key `"key":` or `'key':`
+  if (first == 0x22 || first == 0x27) {
+    var i = 1;
+    while (i < content.length) {
+      final c = content.codeUnitAt(i);
+      if (first == 0x22 && c == 0x5C && i + 1 < content.length) {
+        i += 2;
+        continue;
+      }
+      if (first == 0x27 &&
+          c == 0x27 &&
+          i + 1 < content.length &&
+          content.codeUnitAt(i + 1) == 0x27) {
+        i += 2;
+        continue;
+      }
+      if (c == first) {
+        var j = i + 1;
+        while (j < content.length &&
+            (content.codeUnitAt(j) == 0x20 || content.codeUnitAt(j) == 0x09)) {
+          j++;
+        }
+        return j < content.length &&
+            content.codeUnitAt(j) == 0x3A &&
+            (j + 1 == content.length ||
+                content.codeUnitAt(j + 1) == 0x20 ||
+                content.codeUnitAt(j + 1) == 0x09);
+      }
+      i++;
+    }
+    return false;
+  }
+  // Plain key: `key:` followed by end-of-line or space/tab (no flow openers).
+  for (var i = 0; i < content.length; i++) {
+    final c = content.codeUnitAt(i);
+    if (c == 0x5B || c == 0x7B || c == 0x23) return false;
+    if (c == 0x3A &&
+        (i + 1 == content.length ||
+            content.codeUnitAt(i + 1) == 0x20 ||
+            content.codeUnitAt(i + 1) == 0x09)) {
+      return i > 0;
+    }
+  }
+  return false;
+}
+
+/// Splits a YAML file into chunks of about [targetSize] characters, cutting
+/// only immediately before a 0-indent mapping key or `---` document marker
+/// outside block scalars, multiline quoted strings, and flow collections.
+List<String> _splitYamlChunks(String text, int targetSize) {
+  final hasCrlf = text.contains('\r\n');
+  if (hasCrlf && text.replaceAll('\r\n', '').contains('\n')) {
+    // Mixed line endings could shift dominantLineBreak inside block scalars.
+    return [text];
+  }
+
+  final chunks = <String>[];
+  final length = text.length;
+  var chunkStart = 0;
+  var pos = 0;
+  var bracketDepth = 0;
+  var braceDepth = 0;
+  var inDoubleQuote = false;
+  var inSingleQuote = false;
+  var inBlockScalar = false;
+  var blockParentIndent = -1;
+
+  while (pos < length) {
+    final nl = text.indexOf('\n', pos);
+    final lineEnd = nl < 0 ? length : nl + 1;
+    final contentEnd = nl < 0
+        ? length
+        : (nl > pos && text.codeUnitAt(nl - 1) == 0x0D ? nl - 1 : nl);
+    final content = text.substring(pos, contentEnd);
+    final trimmed = content.trim();
+    var indent = 0;
+    while (indent < content.length && content.codeUnitAt(indent) == 0x20) {
+      indent++;
+    }
+    final isBlank = trimmed.isEmpty;
+
+    if (inBlockScalar && !isBlank && indent <= blockParentIndent) {
+      inBlockScalar = false;
+    }
+
+    if (!inBlockScalar &&
+        !inDoubleQuote &&
+        !inSingleQuote &&
+        bracketDepth == 0 &&
+        braceDepth == 0 &&
+        pos > chunkStart &&
+        pos - chunkStart >= targetSize &&
+        text.codeUnitAt(pos) != 0xFEFF &&
+        (!hasCrlf || text.indexOf('\n', pos) != -1) &&
+        _isYamlTopLevelCutLine(content)) {
+      chunks.add(text.substring(chunkStart, pos));
+      chunkStart = pos;
+    }
+
+    if (!inBlockScalar && !isBlank) {
+      for (var i = 0; i < content.length; i++) {
+        final c = content.codeUnitAt(i);
+        if (inDoubleQuote) {
+          if (c == 0x5C && i + 1 < content.length) {
+            i++;
+          } else if (c == 0x22) {
+            inDoubleQuote = false;
+          }
+          continue;
+        }
+        if (inSingleQuote) {
+          if (c == 0x27) {
+            if (i + 1 < content.length && content.codeUnitAt(i + 1) == 0x27) {
+              i++;
+            } else {
+              inSingleQuote = false;
+            }
+          }
+          continue;
+        }
+        if (c == 0x23 &&
+            (i == 0 ||
+                content.codeUnitAt(i - 1) == 0x20 ||
+                content.codeUnitAt(i - 1) == 0x09)) {
+          break;
+        }
+        if (c == 0x22) {
+          inDoubleQuote = true;
+        } else if (c == 0x27) {
+          inSingleQuote = true;
+        } else if (c == 0x5B) {
+          bracketDepth++;
+        } else if (c == 0x5D && bracketDepth > 0) {
+          bracketDepth--;
+        } else if (c == 0x7B) {
+          braceDepth++;
+        } else if (c == 0x7D && braceDepth > 0) {
+          braceDepth--;
+        }
+      }
+      if (!inDoubleQuote &&
+          !inSingleQuote &&
+          bracketDepth == 0 &&
+          braceDepth == 0 &&
+          _yamlBlockScalarHeader.hasMatch(content)) {
+        inBlockScalar = true;
+        blockParentIndent = indent;
+      }
+    }
+
+    pos = lineEnd;
+  }
+
+  if (chunkStart < length) {
+    chunks.add(text.substring(chunkStart));
+  }
+  return chunks;
+}
+
+/// Splits an Apple `.strings` file into chunks of about [targetSize]
+/// characters, cutting only right after a statement-terminating `;` outside
+/// strings and comments (and never right before `<?xml`, `<plist`, or a BOM).
+List<String> _splitAppleStringsChunks(String text, int targetSize) {
+  final head = text.trimLeft().replaceFirst('\uFEFF', '');
+  if (head.startsWith('<?xml') || head.startsWith('<plist')) return [text];
+
+  final chunks = <String>[];
+  final length = text.length;
+  var chunkStart = 0;
+  var i = 0;
+
+  while (i < length) {
+    final unit = text.codeUnitAt(i);
+    if (unit == 0x22) {
+      // Quoted string
+      i++;
+      while (i < length) {
+        final c = text.codeUnitAt(i);
+        if (c == 0x5C && i + 1 < length) {
+          i += 2;
+          continue;
+        }
+        i++;
+        if (c == 0x22) break;
+      }
+      continue;
+    }
+    if (unit == 0x2F && i + 1 < length) {
+      final next = text.codeUnitAt(i + 1);
+      if (next == 0x2A) {
+        final end = text.indexOf('*/', i + 2);
+        if (end < 0) break;
+        i = end + 2;
+        continue;
+      }
+      if (next == 0x2F) {
+        final nl = text.indexOf('\n', i + 2);
+        if (nl < 0) break;
+        i = nl + 1;
+        continue;
+      }
+    }
+    i++;
+    if (unit == 0x3B && i < length && i - chunkStart >= targetSize) {
+      // Advance past trailing spaces and one newline so chunks split cleanly
+      // on line boundaries without leaving leading newlines.
+      var cut = i;
+      while (cut < length &&
+          (text.codeUnitAt(cut) == 0x20 || text.codeUnitAt(cut) == 0x09)) {
+        cut++;
+      }
+      if (cut < length && text.codeUnitAt(cut) == 0x0D) cut++;
+      if (cut < length && text.codeUnitAt(cut) == 0x0A) cut++;
+      if (cut < length && text.codeUnitAt(cut) != 0xFEFF) {
+        final nextHead = text
+            .substring(cut, cut + 8 > length ? length : cut + 8)
+            .trimLeft();
+        if (!nextHead.startsWith('<?xml') && !nextHead.startsWith('<plist')) {
+          chunks.add(text.substring(chunkStart, cut));
+          chunkStart = cut;
+          i = cut;
+        }
+      }
+    }
+  }
+  if (chunkStart < length) {
+    chunks.add(text.substring(chunkStart));
+  }
+  return chunks;
+}
+
+/// Splits a TOML file into chunks of about [targetSize] characters, cutting
+/// only immediately before a top-level `[table]` or `[[array.of.tables]]`
+/// header outside multiline strings and nested brackets/braces.
+List<String> _splitTomlChunks(String text, int targetSize) {
+  final chunks = <String>[];
+  final length = text.length;
+  var chunkStart = 0;
+  var i = 0;
+  var bracketDepth = 0;
+  var braceDepth = 0;
+  var atLineStart = true;
+
+  while (i < length) {
+    final unit = text.codeUnitAt(i);
+    if (atLineStart) {
+      if (unit == 0x20 || unit == 0x09) {
+        i++;
+        continue;
+      }
+      if (unit == 0x5B &&
+          bracketDepth == 0 &&
+          braceDepth == 0 &&
+          i > chunkStart &&
+          i - chunkStart >= targetSize &&
+          text.codeUnitAt(i) != 0xFEFF) {
+        // Cut right at the start of this line (back up over leading indent).
+        var lineStart = i;
+        while (lineStart > chunkStart &&
+            (text.codeUnitAt(lineStart - 1) == 0x20 ||
+                text.codeUnitAt(lineStart - 1) == 0x09)) {
+          lineStart--;
+        }
+        if (lineStart > chunkStart) {
+          chunks.add(text.substring(chunkStart, lineStart));
+          chunkStart = lineStart;
+        }
+      }
+      atLineStart = false;
+    }
+
+    if (unit == 0x0A) {
+      atLineStart = true;
+      i++;
+      continue;
+    }
+    if (unit == 0x23) {
+      // # comment to end of line
+      final nl = text.indexOf('\n', i + 1);
+      if (nl < 0) break;
+      i = nl + 1;
+      atLineStart = true;
+      continue;
+    }
+    if (unit == 0x22) {
+      if (text.startsWith('"""', i)) {
+        i += 3;
+        while (i < length) {
+          if (text.codeUnitAt(i) == 0x5C && i + 1 < length) {
+            i += 2;
+            continue;
+          }
+          if (text.startsWith('"""', i)) {
+            i += 3;
+            while (i < length && text.codeUnitAt(i) == 0x22) {
+              i++;
+            }
+            break;
+          }
+          i++;
+        }
+      } else {
+        i++;
+        while (i < length) {
+          final c = text.codeUnitAt(i);
+          if (c == 0x5C && i + 1 < length) {
+            i += 2;
+            continue;
+          }
+          i++;
+          if (c == 0x22 || c == 0x0A) {
+            if (c == 0x0A) atLineStart = true;
+            break;
+          }
+        }
+      }
+      continue;
+    }
+    if (unit == 0x27) {
+      if (text.startsWith("'''", i)) {
+        final close = text.indexOf("'''", i + 3);
+        if (close < 0) break;
+        i = close + 3;
+        while (i < length && text.codeUnitAt(i) == 0x27) {
+          i++;
+        }
+      } else {
+        i++;
+        while (i < length) {
+          final c = text.codeUnitAt(i);
+          i++;
+          if (c == 0x27 || c == 0x0A) {
+            if (c == 0x0A) atLineStart = true;
+            break;
+          }
+        }
+      }
+      continue;
+    }
+    if (unit == 0x5B) {
+      bracketDepth++;
+    } else if (unit == 0x5D && bracketDepth > 0) {
+      bracketDepth--;
+    } else if (unit == 0x7B) {
+      braceDepth++;
+    } else if (unit == 0x7D && braceDepth > 0) {
+      braceDepth--;
+    }
+    i++;
+  }
+
+  if (chunkStart < length) {
+    chunks.add(text.substring(chunkStart));
+  }
+  return chunks;
+}
 
 final _mdQuotePrefix = RegExp(r'^(?:[ \t]*>[ \t]?)+');
 final _mdFenceOpen = RegExp(r'^[ \t]*(?:(`{3,})[^`]*|(~{3,}).*)$');

@@ -1,8 +1,11 @@
+import 'dart:io' as io;
+
 import 'package:args/command_runner.dart';
 import 'package:mason_logger/mason_logger.dart';
 import 'package:mozhi_cli/src/cli_context.dart';
 import 'package:mozhi_cli/src/commands/mozhi_command.dart';
 import 'package:mozhi_cli/src/errors.dart';
+import 'package:mozhi_cli/src/output/json_output.dart';
 import 'package:mozhi_cli/src/output/table.dart';
 import 'package:mozhi_cli/src/resolvers.dart';
 
@@ -12,6 +15,8 @@ class GlossaryCommand extends Command<int> {
     addSubcommand(GlossaryListCommand(context));
     addSubcommand(GlossaryAddCommand(context));
     addSubcommand(GlossaryRemoveCommand(context));
+    addSubcommand(GlossaryImportCommand(context));
+    addSubcommand(GlossaryExportCommand(context));
   }
 
   @override
@@ -180,6 +185,190 @@ class GlossaryRemoveCommand extends MozhiCommand {
       'Removed ${terms.length} glossary '
       '${terms.length == 1 ? 'entry' : 'entries'}.',
     );
+    return ExitCode.success.code;
+  }
+}
+
+/// `mozhi config glossary import <file>`: import glossary pairs from a file.
+class GlossaryImportCommand extends MozhiCommand {
+  new(super.context) {
+    argParser.addFlag(
+      'replace',
+      negatable: false,
+      help: 'Replace existing saved glossary terms instead of merging.',
+    );
+  }
+
+  @override
+  String get name => 'import';
+
+  @override
+  String get description =>
+      'Import saved glossary pairs from a key=value, TSV, or CSV file.';
+
+  @override
+  String get invocation => 'mozhi config glossary import [arguments] <file>';
+
+  @override
+  Future<int> run() async {
+    if (args.rest.length != 1) {
+      throw CliException.usage(
+        'Expected one glossary file path.',
+        hint: 'Usage: $invocation',
+      );
+    }
+    final path = args.rest.single;
+    final List<String> lines;
+    try {
+      lines = io.File(path).readAsLinesSync();
+    } on io.FileSystemException catch (error) {
+      throw CliException(
+        'Cannot read glossary file $path: ${error.message}',
+        exitCode: ExitCode.noInput,
+      );
+    }
+    final isCsv = path.toLowerCase().endsWith('.csv');
+    final entries = <String, String>{};
+    for (final rawLine in lines) {
+      final line = rawLine.trim();
+      if (line.isEmpty || line.startsWith('#')) continue;
+      if (isCsv) {
+        final cells = _splitCsvPair(line);
+        if (cells == null) continue;
+        final (term, translation) = cells;
+        if (entries.isEmpty &&
+            term.toLowerCase() == 'term' &&
+            (translation.toLowerCase() == 'translation' ||
+                translation.toLowerCase() == 'target')) {
+          continue;
+        }
+        if (term.isNotEmpty && translation.isNotEmpty) {
+          entries[term] = translation;
+        }
+      } else {
+        final normalized = line.contains('\t') && !line.contains('=')
+            ? line.replaceFirst('\t', '=')
+            : line;
+        entries.addAll(parseGlossary([normalized]));
+      }
+    }
+    final next = flag('replace') ? entries : {...config.glossary, ...entries};
+    saveConfig(config.withGlossary(next));
+    logger.success(
+      'Imported ${entries.length} glossary '
+      '${entries.length == 1 ? 'entry' : 'entries'} (${next.length} total).',
+    );
+    return ExitCode.success.code;
+  }
+
+  static (String, String)? _splitCsvPair(String line) {
+    final cells = <String>[];
+    final buf = StringBuffer();
+    var inQuotes = false;
+    for (var i = 0; i < line.length; i++) {
+      final ch = line[i];
+      if (inQuotes) {
+        if (ch == '"') {
+          if (i + 1 < line.length && line[i + 1] == '"') {
+            buf.write('"');
+            i++;
+          } else {
+            inQuotes = false;
+          }
+        } else {
+          buf.write(ch);
+        }
+      } else if (ch == '"' && buf.isEmpty) {
+        inQuotes = true;
+      } else if (ch == ',') {
+        cells.add(buf.toString().trim());
+        buf.clear();
+      } else {
+        buf.write(ch);
+      }
+    }
+    cells.add(buf.toString().trim());
+    if (cells.length < 2) return null;
+    return (cells[0], cells[1]);
+  }
+}
+
+/// `mozhi config glossary export`: export saved glossary pairs.
+class GlossaryExportCommand extends MozhiCommand {
+  new(super.context) {
+    argParser
+      ..addOption(
+        'format',
+        allowed: const ['txt', 'tsv', 'csv', 'json'],
+        defaultsTo: 'txt',
+        help: 'Output format (txt = term=translation, tsv, csv, json).',
+      )
+      ..addOption(
+        'output',
+        abbr: 'o',
+        valueHelp: 'file',
+        help: 'Write the exported glossary to this file instead of stdout.',
+      );
+  }
+
+  @override
+  String get name => 'export';
+
+  @override
+  String get description => 'Export saved glossary pairs to stdout or a file.';
+
+  @override
+  Future<int> run() async {
+    final entries = config.glossary;
+    final format = option('format')!;
+    final outputPath = option('output');
+    final keys = entries.keys.toList()..sort();
+
+    final String rendered;
+    if (format == 'json') {
+      if (outputPath == null) {
+        printJson({for (final k in keys) k: entries[k]});
+        return ExitCode.success.code;
+      }
+      rendered = '${encodeJson({for (final k in keys) k: entries[k]})}\n';
+    } else if (format == 'tsv') {
+      final body = [for (final k in keys) '$k\t${entries[k]}'].join('\n');
+      rendered = keys.isEmpty ? '' : '$body\n';
+    } else if (format == 'csv') {
+      String q(String s) =>
+          s.contains(',') || s.contains('"') || s.contains('\n')
+          ? '"${s.replaceAll('"', '""')}"'
+          : s;
+      final body = [
+        'term,translation',
+        for (final k in keys) '${q(k)},${q(entries[k]!)}',
+      ].join('\n');
+      rendered = '$body\n';
+    } else {
+      final body = [for (final k in keys) '$k=${entries[k]}'].join('\n');
+      rendered = keys.isEmpty ? '' : '$body\n';
+    }
+
+    if (outputPath != null) {
+      try {
+        final file = io.File(outputPath);
+        if (!file.parent.existsSync()) {
+          file.parent.createSync(recursive: true);
+        }
+        file.writeAsStringSync(rendered);
+      } on io.FileSystemException catch (error) {
+        throw CliException(
+          'Cannot write glossary file $outputPath: ${error.message}',
+          exitCode: ExitCode.cantCreate,
+        );
+      }
+      logger.success(
+        'Exported ${keys.length} glossary '
+        '${keys.length == 1 ? 'entry' : 'entries'} → $outputPath',
+      );
+    } else {
+      logger.write(rendered);
+    }
     return ExitCode.success.code;
   }
 }

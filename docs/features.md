@@ -2157,7 +2157,7 @@ accent, dark and light.
 | On-device AI | ✓ (64-bit phones with enough memory) | |
 | On-device text recognition | ✓ (Tesseract; ML Kit in the Play variant) | |
 | Live camera (translation over the camera picture) | ✓ (a camera; Camera2) | |
-| Office documents, e-books, localisation files and HTML | ✓ | ✓ (large `.txt`, `.md`, `.srt`, `.vtt`, `.properties`, Office & EPUB files yield cooperatively) |
+| Office documents, e-books, localisation files and HTML | ✓ | ✓ (large `.txt`, `.md`, `.srt`, `.vtt`, `.properties`, `.strings`, `.toml`, Office & EPUB files yield cooperatively) |
 | PDF documents (translated PDF and text) | ✓ (native renderer + OCR) | ✓ (digital PDFs with embedded text; scanned PDFs need Android OCR) |
 | Translate screen, floating bubble | ✓ | |
 | App lock | ✓ (with a screen lock set) | |
