@@ -390,6 +390,41 @@ void main() {
       expect(coop.segments, sync.segments);
       expect(coop.render(), text);
     });
+
+    test('cooperatively parses CSV and TSV identically', () async {
+      for (final format in [DocumentFormat.csv, DocumentFormat.tsv]) {
+        final sep = format == DocumentFormat.tsv ? '\t' : ',';
+        final buf = StringBuffer('id${sep}title${sep}notes\n');
+        for (var i = 0; i < 2200; i++) {
+          final note = format == DocumentFormat.csv && i % 5 == 0
+              ? '"Line 1, item $i\nLine 2 ""quoted"""'
+              : 'Detailed description for row $i';
+          buf.writeln('SKU-$i${sep}Product name $i$sep$note');
+        }
+        final text = buf.toString();
+        var yields = 0;
+        final coop = await parseTextCooperatively(
+          parseDocument,
+          text,
+          format,
+          chunkThreshold: 500,
+          yieldTurn: () async {
+            yields++;
+            await Future<void>.delayed(Duration.zero);
+          },
+        );
+        final sync = parseDocument(text, format);
+
+        expect(yields, greaterThanOrEqualTo(3));
+        expect(coop.format, sync.format);
+        expect(coop.segments, sync.segments);
+        expect(coop.render(), text);
+        final translations = [
+          for (final s in sync.segments) s.text.toUpperCase(),
+        ];
+        expect(coop.render(translations), sync.render(translations));
+      }
+    });
   });
 
   group('OfficePackage async cooperative yielding', () {

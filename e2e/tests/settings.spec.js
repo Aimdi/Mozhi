@@ -154,3 +154,24 @@ test('the dark theme and its look persist after a reload', async ({
   ).toBeVisible();
   await expect.poll(() => meanLuminance(page)).toBeLessThan(100);
 });
+
+test('switching App language syncs <html lang> and persists across reload', async ({
+  page,
+}) => {
+  await openApp(page, '/settings/general');
+  await expect(
+    page.getByRole('heading', { name: 'General', exact: true }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: /^App language/ }).click();
+  await page.getByText('Deutsch', { exact: true }).click();
+
+  await expect
+    .poll(() => page.evaluate(() => document.documentElement.lang))
+    .toBe('de');
+
+  await page.reload();
+  await openApp(page, '/settings/general');
+  await expect
+    .poll(() => page.evaluate(() => document.documentElement.lang))
+    .toBe('de');
+});

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:mason_logger/mason_logger.dart';
@@ -511,6 +512,33 @@ void main() {
           (captured[1] as TranslationRequest).options.formality,
           Formality.more,
         );
+      });
+
+      test('writes plain text and JSON to --output (-o) file', () async {
+        final txtPath = '${h.directory.path}/nested/out.txt';
+        expect(
+          await h.run(['translate', '-t', 'de', '-o', txtPath, 'Hello']),
+          0,
+        );
+        expect(File(txtPath).readAsStringSync(), 'Hallo\n');
+
+        final jsonPath = '${h.directory.path}/nested/out.json';
+        expect(
+          await h.run([
+            'translate',
+            '-t',
+            'de',
+            '--json',
+            '-o',
+            jsonPath,
+            'Hello',
+          ]),
+          0,
+        );
+        final decoded = jsonDecode(
+          File(jsonPath).readAsStringSync(),
+        ) as Map<String, Object?>;
+        expect(decoded['text'], 'Hallo');
       });
     });
 

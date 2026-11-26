@@ -3,6 +3,22 @@
 All notable changes to Mozhi, by release tag on GitHub (pre-releases end
 in `-rc.N`).
 
+## Unreleased (Wave 23)
+
+### Added & Improved
+
+- **Cooperative web parsing for CSV & TSV**: added `parseDelimitedAsync`
+  and wired `DocumentFormat.csv` / `DocumentFormat.tsv` into
+  `parseTextCooperatively` so large spreadsheets yield cleanly to the
+  browser event loop while guaranteeing bit-for-bit parity with
+  `parseDelimited` (10 text formats total + multi-part Office & EPUB).
+- **`mozhi translate --output (-o)`**: write translated text, JSON, or
+  `--compare` output directly to a UTF-8 file (creating parent directories
+  as needed).
+- **Playwright Web E2E `<html lang>` sync**: added an end-to-end test in
+  `e2e/tests/settings.spec.js` verifying WCAG `document.documentElement.lang`
+  synchronization when switching App language and across reloads.
+
 ## Unreleased (Wave 22)
 
 ### Added & Improved

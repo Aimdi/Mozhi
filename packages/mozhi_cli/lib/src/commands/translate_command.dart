@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io' as io;
 
 import 'package:mason_logger/mason_logger.dart';
@@ -60,6 +61,12 @@ class TranslateCommand extends MozhiCommand {
         negatable: false,
         help:
             'Print the result (with transliterations, synonyms, ...) as JSON.',
+      )
+      ..addOption(
+        'output',
+        abbr: 'o',
+        valueHelp: 'file',
+        help: 'Write the translation (or JSON output) to this UTF-8 file.',
       )
       ..addSeparator('AI options (ignored by Mozhi engines):')
       ..addOption(
@@ -256,10 +263,12 @@ class TranslateCommand extends MozhiCommand {
       target: target,
       options: requestOptions,
     );
+    final outputPath = option('output');
     final stream = repository.translate(engine, request);
     final streaming =
         engine.isAi &&
         !jsonOutput &&
+        outputPath == null &&
         flag('stream') &&
         console.supportsAnsiEscapes;
     final result = streaming
@@ -291,19 +300,31 @@ class TranslateCommand extends MozhiCommand {
         : null;
 
     if (jsonOutput) {
-      printJson(
-        translationJson(
-          result,
-          source: source,
-          target: target,
-          instance: engine.isMozhi ? repository.activeInstance?.url : null,
-          alternatives: alternatives,
-          insights: insights,
-          explanation: explanation,
-          romanization: romanization,
-          meaningCheck: meaningCheck,
-        ),
+      final payload = translationJson(
+        result,
+        source: source,
+        target: target,
+        instance: engine.isMozhi ? repository.activeInstance?.url : null,
+        alternatives: alternatives,
+        insights: insights,
+        explanation: explanation,
+        romanization: romanization,
+        meaningCheck: meaningCheck,
       );
+      if (outputPath != null) {
+        _writeOutputFile(
+          outputPath,
+          '${const JsonEncoder.withIndent('  ').convert(payload)}\n',
+        );
+        logger.success('Wrote JSON translation → $outputPath');
+      } else {
+        printJson(payload);
+      }
+      return ExitCode.success.code;
+    }
+    if (outputPath != null) {
+      _writeOutputFile(outputPath, '${result.text}\n');
+      logger.success('Wrote translation → $outputPath');
       return ExitCode.success.code;
     }
     if (!streaming) logger.info(result.text);
@@ -519,22 +540,66 @@ class TranslateCommand extends MozhiCommand {
       ),
       options: options,
     );
+    final outputPath = option('output');
     final entries = <String, CompareEntry>{};
     await for (final entry in repository.compare(engines, request)) {
       entries[entry.id] = entry;
-      if (!jsonOutput) _printEntry(entry);
+      if (!jsonOutput && outputPath == null) _printEntry(entry);
     }
     if (jsonOutput) {
-      printJson([
+      final payload = [
         for (final engine in engines)
           if (entries[engine.id] case final entry?) compareJson(entry),
-      ]);
+      ];
+      if (outputPath != null) {
+        _writeOutputFile(
+          outputPath,
+          '${const JsonEncoder.withIndent('  ').convert(payload)}\n',
+        );
+        logger.success('Wrote JSON comparison → $outputPath');
+      } else {
+        printJson(payload);
+      }
+    } else if (outputPath != null) {
+      final buf = StringBuffer();
+      for (final engine in engines) {
+        final entry = entries[engine.id];
+        if (entry == null) continue;
+        final result = entry.result;
+        if (result == null) {
+          buf.writeln(
+            '✗ ${entry.name}: ${describeError(entry.error!).message}',
+          );
+        } else {
+          buf
+            ..writeln(entry.name)
+            ..writeln(result.text)
+            ..writeln();
+        }
+      }
+      _writeOutputFile(outputPath, buf.toString());
+      logger.success('Wrote comparison → $outputPath');
     }
     if (entries.values.any((entry) => entry.isSuccess)) {
       return ExitCode.success.code;
     }
     logger.err('Every engine failed.');
     return ExitCode.unavailable.code;
+  }
+
+  void _writeOutputFile(String path, String content) {
+    try {
+      final file = io.File(path);
+      if (!file.parent.existsSync()) {
+        file.parent.createSync(recursive: true);
+      }
+      file.writeAsStringSync(content);
+    } on io.FileSystemException catch (error) {
+      throw CliException(
+        'Cannot write output file $path: ${error.message}',
+        exitCode: ExitCode.cantCreate,
+      );
+    }
   }
 
   void _printEntry(CompareEntry entry) {

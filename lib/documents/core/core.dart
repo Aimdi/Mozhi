@@ -14,6 +14,7 @@ export 'document_format.dart';
 export 'document_parser.dart';
 export 'document_translator.dart';
 export 'parsed_document.dart';
+export 'parsers/delimited_parser.dart';
 export 'parsers/json_parser.dart';
 export 'parsers/markdown_parser.dart';
 export 'parsers/plain_text_parser.dart';

@@ -44,8 +44,8 @@ Future<ParsedDocument> parseTextInBackground(
 /// Cooperatively parses [text] on the current isolate, yielding to the event
 /// loop before parsing and between safe structural chunks for large text,
 /// Markdown (`.md`), subtitle (`.srt`, `.vtt`), `.properties`, `.strings`,
-/// `.toml` and `.yaml`/`.yml` files (> [chunkThreshold]) without changing the
-/// parse result.
+/// `.toml`, `.yaml`/`.yml`, and CSV/TSV (`.csv`, `.tsv`) files
+/// (> [chunkThreshold]) without changing the parse result.
 Future<ParsedDocument> parseTextCooperatively(
   TextDocumentParser parser,
   String text,
@@ -58,9 +58,19 @@ Future<ParsedDocument> parseTextCooperatively(
 }) async {
   final pause = yieldTurn ?? _yield;
   await pause();
-  if (!identical(parser, parseDocument) ||
-      text.length <= chunkThreshold ||
-      !_supportsCooperativeChunking(format)) {
+  if (!identical(parser, parseDocument) || text.length <= chunkThreshold) {
+    return _invokeParser(
+      parser,
+      text,
+      format,
+      targetLanguage: targetLanguage,
+      expandPlurals: expandPlurals,
+    );
+  }
+  if (format == DocumentFormat.csv || format == DocumentFormat.tsv) {
+    return await parseDelimitedAsync(text, format, yieldTurn: pause);
+  }
+  if (!_supportsCooperativeChunking(format)) {
     return _invokeParser(
       parser,
       text,

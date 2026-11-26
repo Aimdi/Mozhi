@@ -51,6 +51,27 @@ ParsedDocument parseDelimited(String text, DocumentFormat format) {
   return _DelimitedParser(text, format).parse();
 }
 
+/// Cooperatively parses CSV/TSV ([DocumentFormat.csv], [DocumentFormat.tsv])
+/// on the current isolate, yielding via [yieldTurn] every [yieldEvery] rows so
+/// large spreadsheets do not freeze the web UI thread while producing the exact
+/// same [ParsedDocument] as [parseDelimited].
+Future<ParsedDocument> parseDelimitedAsync(
+  String text,
+  DocumentFormat format, {
+  int yieldEvery = 1000,
+  Future<void> Function()? yieldTurn,
+}) async {
+  assert(
+    format == DocumentFormat.csv || format == DocumentFormat.tsv,
+    'not a delimited format: $format',
+  );
+  checkDocumentLength(text, format.name.toUpperCase());
+  return await _DelimitedParser(text, format).parseAsync(
+    yieldEvery: yieldEvery,
+    yieldTurn: yieldTurn ?? () => Future<void>.delayed(Duration.zero),
+  );
+}
+
 class _Field {
   new(
     this.start,
@@ -231,51 +252,137 @@ class _DelimitedParser {
     final nodes = NodeList()..text(text.substring(0, start));
     var position = start;
     for (var row = 0; row < records.length; row++) {
-      final record = records[row];
-      for (var column = 0; column < record.fields.length; column++) {
-        final field = record.fields[column];
-        nodes.text(text.substring(position, field.start));
-        position = field.end;
-        final raw = text.substring(field.start, field.end);
-        if ((header && row == 0) ||
-            !translated[column] ||
-            field.malformed ||
-            field.kind != _Kind.text) {
-          nodes.text(raw);
-          continue;
-        }
-        // A source cell that already starts like a formula is the file's
-        // own; any other translation must not become one.
-        final guard = !_startsLikeFormula(field.value);
-        final content = builder.content(
-          protect(field.value, LocalisationPatterns.text),
-          label: '${columnName(column)}:${row + 1}',
-          lineBreak: lineBreak,
-        );
-        if (!hasSegment(content)) {
-          nodes.text(raw);
-          continue;
-        }
-        nodes.addAll([
-          EncodedNode(
-            raw: raw,
-            children: content,
-            encode: (value) => _encode(
-              value,
-              quoted: field.quoted,
-              delimiter: delimiter,
-              quoteAllowed: format == DocumentFormat.csv || anyQuoted,
-              guardFormula: guard,
-            ),
-          ),
-        ]);
-      }
-      nodes.text(text.substring(position, record.end));
-      position = record.end;
+      position = _emitRow(
+        records[row],
+        row: row,
+        position: position,
+        header: header,
+        translated: translated,
+        columnName: columnName,
+        delimiter: delimiter,
+        anyQuoted: anyQuoted,
+        lineBreak: lineBreak,
+        nodes: nodes,
+      );
     }
     nodes.text(text.substring(position));
     builder.add(nodes.nodes);
     return builder.build(format);
+  }
+
+  Future<ParsedDocument> parseAsync({
+    required int yieldEvery,
+    required Future<void> Function() yieldTurn,
+  }) async {
+    final start = text.startsWith('\uFEFF') ? 1 : 0;
+    final delimiter = format == DocumentFormat.tsv
+        ? '\t'
+        : _guessDelimiter(start);
+    final records = await _recordsAsync(
+      start,
+      delimiter,
+      yieldEvery: yieldEvery,
+      yieldTurn: yieldTurn,
+    );
+    final anyQuoted = records.any(
+      (record) => record.fields.any((field) => field.quoted),
+    );
+    final lineBreak = _lineBreak(records);
+
+    final header = _hasHeader(records);
+    final columns = records.fold(
+      0,
+      (count, record) =>
+          record.fields.length > count ? record.fields.length : count,
+    );
+    final translated = <bool>[];
+    for (var column = 0; column < columns; column++) {
+      if (column > 0 && column % 8 == 0) await yieldTurn();
+      translated.add(_translatedColumn(records, column, skipFirst: header));
+    }
+    String columnName(int column) {
+      if (header && column < records.first.fields.length) {
+        final name = records.first.fields[column].value.trim();
+        if (name.isNotEmpty) return name;
+      }
+      return '${column + 1}';
+    }
+
+    final nodes = NodeList()..text(text.substring(0, start));
+    var position = start;
+    for (var row = 0; row < records.length; row++) {
+      if (row > 0 && row % yieldEvery == 0) await yieldTurn();
+      position = _emitRow(
+        records[row],
+        row: row,
+        position: position,
+        header: header,
+        translated: translated,
+        columnName: columnName,
+        delimiter: delimiter,
+        anyQuoted: anyQuoted,
+        lineBreak: lineBreak,
+        nodes: nodes,
+      );
+    }
+    nodes.text(text.substring(position));
+    builder.add(nodes.nodes);
+    return builder.build(format);
+  }
+
+  int _emitRow(
+    _Record record, {
+    required int row,
+    required int position,
+    required bool header,
+    required List<bool> translated,
+    required String Function(int) columnName,
+    required String delimiter,
+    required bool anyQuoted,
+    required String lineBreak,
+    required NodeList nodes,
+  }) {
+    var pos = position;
+    for (var column = 0; column < record.fields.length; column++) {
+      final field = record.fields[column];
+      nodes.text(text.substring(pos, field.start));
+      pos = field.end;
+      final raw = text.substring(field.start, field.end);
+      if ((header && row == 0) ||
+          !translated[column] ||
+          field.malformed ||
+          field.kind != _Kind.text) {
+        nodes.text(raw);
+        continue;
+      }
+      // A source cell that already starts like a formula is the file's
+      // own; any other translation must not become one.
+      final guard = !_startsLikeFormula(field.value);
+      final content = builder.content(
+        protect(field.value, LocalisationPatterns.text),
+        label: '${columnName(column)}:${row + 1}',
+        lineBreak: lineBreak,
+      );
+      if (!hasSegment(content)) {
+        nodes.text(raw);
+        continue;
+      }
+      nodes.addAll([
+        EncodedNode(
+          raw: raw,
+          children: content,
+          encode: (value) => _encode(
+            value,
+            quoted: field.quoted,
+            delimiter: delimiter,
+            quoteAllowed: format == DocumentFormat.csv || anyQuoted,
+            guardFormula: guard,
+          ),
+        ),
+      ]);
+    }
+    nodes.text(text.substring(pos, record.end));
+    return record.end;
   }
 
   String _guessDelimiter(int start) {
@@ -301,74 +408,100 @@ class _DelimitedParser {
     final records = <_Record>[];
     final length = text.length;
     var pos = start;
-    bool isEnd(String char) =>
-        char == delimiter || char == '\n' || char == '\r';
     while (pos < length) {
-      final fields = <_Field>[];
-      while (true) {
-        final fieldStart = pos;
-        if (pos < length && text[pos] == '"') {
-          final value = StringBuffer();
-          var i = pos + 1;
-          while (true) {
-            if (i >= length) {
-              final line = '\n'
-                  .allMatches(text.substring(0, fieldStart))
-                  .length;
-              throw DocumentParseException(
-                '${format.name.toUpperCase()}: the quoted field starting on '
-                'line ${line + 1} is not closed',
-              );
-            }
-            final char = text[i];
-            if (char == '"') {
-              if (i + 1 < length && text[i + 1] == '"') {
-                value.write('"');
-                i += 2;
-                continue;
-              }
-              i++;
-              break;
-            }
-            value.write(char);
-            i++;
-          }
-          var end = i;
-          while (end < length && !isEnd(text[end])) {
-            end++;
-          }
-          fields.add(
-            _Field(
-              fieldStart,
-              end,
-              value.toString(),
-              quoted: true,
-              malformed: end > i,
-            ),
-          );
-          pos = end;
-        } else {
-          var end = pos;
-          while (end < length && !isEnd(text[end])) {
-            end++;
-          }
-          fields.add(_Field(pos, end, text.substring(pos, end)));
-          pos = end;
-        }
-        if (pos < length && text[pos] == delimiter) {
-          pos++;
-          continue;
-        }
-        break;
-      }
-      if (pos < length && text[pos] == '\r') {
-        pos += pos + 1 < length && text[pos + 1] == '\n' ? 2 : 1;
-      } else if (pos < length && text[pos] == '\n') {
-        pos++;
-      }
-      records.add(_Record(fields, pos));
+      final record = _readRecord(pos, delimiter);
+      records.add(record);
+      pos = record.end;
     }
     return records;
+  }
+
+  Future<List<_Record>> _recordsAsync(
+    int start,
+    String delimiter, {
+    required int yieldEvery,
+    required Future<void> Function() yieldTurn,
+  }) async {
+    final records = <_Record>[];
+    final length = text.length;
+    var pos = start;
+    var count = 0;
+    while (pos < length) {
+      if (count > 0 && count % yieldEvery == 0) await yieldTurn();
+      final record = _readRecord(pos, delimiter);
+      records.add(record);
+      pos = record.end;
+      count++;
+    }
+    return records;
+  }
+
+  _Record _readRecord(int start, String delimiter) {
+    final length = text.length;
+    var pos = start;
+    bool isEnd(String char) =>
+        char == delimiter || char == '\n' || char == '\r';
+    final fields = <_Field>[];
+    while (true) {
+      final fieldStart = pos;
+      if (pos < length && text[pos] == '"') {
+        final value = StringBuffer();
+        var i = pos + 1;
+        while (true) {
+          if (i >= length) {
+            final line = '\n'.allMatches(text.substring(0, fieldStart)).length;
+            throw DocumentParseException(
+              '${format.name.toUpperCase()}: the quoted field starting on '
+              'line ${line + 1} is not closed',
+            );
+          }
+          final char = text[i];
+          if (char == '"') {
+            if (i + 1 < length && text[i + 1] == '"') {
+              value.write('"');
+              i += 2;
+              continue;
+            }
+            i++;
+            break;
+          }
+          value.write(char);
+          i++;
+        }
+        var end = i;
+        while (end < length && !isEnd(text[end])) {
+          end++;
+        }
+        fields.add(
+          _Field(
+            fieldStart,
+            end,
+            value.toString(),
+            quoted: true,
+            malformed: end > i,
+          ),
+        );
+        pos = end;
+      } else {
+        var end = pos;
+        while (end < length && !isEnd(text[end])) {
+          end++;
+        }
+        fields.add(_Field(pos, end, text.substring(pos, end)));
+        pos = end;
+      }
+      if (pos < length && text[pos] == delimiter) {
+        pos++;
+        continue;
+      }
+      break;
+    }
+    if (pos < length && text[pos] == '\r') {
+      pos += pos + 1 < length && text[pos + 1] == '\n' ? 2 : 1;
+    } else if (pos < length && text[pos] == '\n') {
+      pos++;
+    }
+    return _Record(fields, pos);
   }
 
   String _lineBreak(List<_Record> records) {
