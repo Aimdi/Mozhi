@@ -689,6 +689,193 @@ void main() {
           expect(await fixture.practice.reviewLogs(), [log1, log2]);
         },
       );
+
+      test('undo records tombstones so undone reviews and new cards do not '
+          'resurrect on sync', () async {
+        final deviceA = PracticeFixture(favorites: [favorite('1')]);
+        final deviceB = PracticeFixture(favorites: [favorite('1')]);
+
+        final fresh = (await deviceA.practice.deck(appLanguage: 'en'))
+            .items
+            .first
+            .card;
+        final t1 = deviceA.clock.now.toUtc();
+        final log1 = PracticeReviewLog(
+          cardKey: fresh.id,
+          rating: FsrsRating.good,
+          elapsedDays: 0,
+          state: FsrsState.newCard,
+          reviewedAt: t1,
+        );
+        final card1 = _reviewed(fresh, t1);
+        await deviceA.practice.review(card1, log1);
+
+        // Sync Device A -> Device B before undo.
+        final syncedBeforeUndo = await deviceA.practice.exportBackup();
+        await deviceB.practice.restoreBackup(
+          syncedBeforeUndo,
+          version: 1,
+          merge: true,
+        );
+        expect(await deviceB.practice.reviewLogs(), [log1]);
+        expect((await deviceB.practice.cards())[fresh.id], card1);
+
+        // Device A undoes the first review of the card.
+        deviceA.clock.advance(const Duration(seconds: 5));
+        await deviceA.practice.undoReview(fresh, log1);
+        expect(await deviceA.practice.reviewLogs(), isEmpty);
+        expect(await deviceA.practice.cards(), isEmpty);
+
+        // Merging Device B's older state into Device A must NOT resurrect
+        // the undone review log or the card.
+        final backupB = await deviceB.practice.exportBackup();
+        await deviceA.practice.restoreBackup(backupB, version: 1, merge: true);
+        expect(await deviceA.practice.reviewLogs(), isEmpty);
+        expect(await deviceA.practice.cards(), isEmpty);
+
+        // Merging Device A's tombstone into Device B deletes both there too.
+        final backupA = await deviceA.practice.exportBackup();
+        expect(backupA['reviewTombstones'], isA<Map<String, Object?>>());
+        await deviceB.practice.restoreBackup(backupA, version: 1, merge: true);
+        expect(await deviceB.practice.reviewLogs(), isEmpty);
+        expect(await deviceB.practice.cards(), isEmpty);
+
+        // Undoing a second review keeps the first review and blocks only
+        // the second review from resurrecting on sync.
+        deviceA.clock.advance(const Duration(minutes: 1));
+        final t2 = deviceA.clock.now.toUtc();
+        final keptLog = PracticeReviewLog(
+          cardKey: fresh.id,
+          rating: FsrsRating.good,
+          elapsedDays: 0,
+          state: FsrsState.newCard,
+          reviewedAt: t2,
+        );
+        final cardAfterFirst = _reviewed(fresh, t2);
+        await deviceA.practice.review(cardAfterFirst, keptLog);
+
+        deviceA.clock.advance(const Duration(minutes: 10));
+        final t3 = deviceA.clock.now.toUtc();
+        final undoneLog = PracticeReviewLog(
+          cardKey: fresh.id,
+          rating: FsrsRating.again,
+          elapsedDays: 10 / (24 * 60),
+          state: FsrsState.learning,
+          reviewedAt: t3,
+        );
+        final cardAfterSecond = _reviewed(cardAfterFirst, t3);
+        await deviceA.practice.review(cardAfterSecond, undoneLog);
+
+        await deviceB.practice.restoreBackup(
+          await deviceA.practice.exportBackup(),
+          version: 1,
+          merge: true,
+        );
+        expect(await deviceB.practice.reviewLogs(), [keptLog, undoneLog]);
+
+        deviceA.clock.advance(const Duration(seconds: 5));
+        await deviceA.practice.undoReview(
+          cardAfterFirst.touched(deviceA.clock.now),
+          undoneLog,
+        );
+        await deviceA.practice.restoreBackup(
+          await deviceB.practice.exportBackup(),
+          version: 1,
+          merge: true,
+        );
+        expect(await deviceA.practice.reviewLogs(), [keptLog]);
+        await deviceB.practice.restoreBackup(
+          await deviceA.practice.exportBackup(),
+          version: 1,
+          merge: true,
+        );
+        expect(await deviceB.practice.reviewLogs(), [keptLog]);
+      });
+
+      test(
+        'merges customWeights independently via customWeightsUpdatedAt',
+        () async {
+          final weightsA = [for (var i = 0; i < 19; i++) (i + 1) * 0.25];
+          final weightsB = [for (var i = 0; i < 19; i++) (i + 1) * 0.3];
+
+          final deviceA = PracticeFixture();
+          final deviceB = PracticeFixture();
+
+          // Device A personalizes FSRS weights at T0.
+          await deviceA.practice.saveSettings(
+            PracticeSettings(customWeights: weightsA),
+          );
+          final savedA = await deviceA.practice.settings();
+          expect(savedA.customWeights, weightsA);
+          expect(savedA.customWeightsUpdatedAt, isNotNull);
+
+          // Device B changes newCardsPerDay later at T0 + 10 min (without
+          // touching customWeights).
+          deviceB.clock.advance(const Duration(minutes: 10));
+          await deviceB.practice.saveSettings(
+            const PracticeSettings(newCardsPerDay: 25),
+          );
+          final savedB = await deviceB.practice.settings();
+          expect(savedB.customWeights, isNull);
+          expect(savedB.customWeightsUpdatedAt, isNull);
+
+          // Merging B into A must take newCardsPerDay=25 WITHOUT clobbering
+          // Device A's customWeights.
+          await deviceA.practice.restoreBackup(
+            await deviceB.practice.exportBackup(),
+            version: 1,
+            merge: true,
+          );
+          final mergedA = await deviceA.practice.settings();
+          expect(mergedA.newCardsPerDay, 25);
+          expect(mergedA.customWeights, weightsA);
+
+          // Merging A into B brings customWeights to B while keeping 25/day.
+          await deviceB.practice.restoreBackup(
+            await deviceA.practice.exportBackup(),
+            version: 1,
+            merge: true,
+          );
+          final mergedB = await deviceB.practice.settings();
+          expect(mergedB.newCardsPerDay, 25);
+          expect(mergedB.customWeights, weightsA);
+
+          // Device B fits newer weights at T0 + 20 min; Device A edits
+          // typeAnswers at T0 + 30 min. Merging keeps both!
+          deviceB.clock.advance(const Duration(minutes: 10));
+          await deviceB.practice.saveSettings(
+            mergedB.copyWith(customWeights: () => weightsB),
+          );
+          deviceA.clock.advance(const Duration(minutes: 30));
+          await deviceA.practice.saveSettings(
+            mergedA.copyWith(typeAnswers: true),
+          );
+          await deviceA.practice.restoreBackup(
+            await deviceB.practice.exportBackup(),
+            version: 1,
+            merge: true,
+          );
+          final mergedBoth = await deviceA.practice.settings();
+          expect(mergedBoth.typeAnswers, isTrue);
+          expect(mergedBoth.customWeights, weightsB);
+
+          // Resetting weights on Device B at T0 + 40 min propagates cleanly.
+          deviceB.clock.advance(const Duration(minutes: 20));
+          await deviceB.practice.saveSettings(
+            (await deviceB.practice.settings()).copyWith(
+              customWeights: () => null,
+            ),
+          );
+          await deviceA.practice.restoreBackup(
+            await deviceB.practice.exportBackup(),
+            version: 1,
+            merge: true,
+          );
+          final afterReset = await deviceA.practice.settings();
+          expect(afterReset.typeAnswers, isTrue);
+          expect(afterReset.customWeights, isNull);
+        },
+      );
     });
   });
 }

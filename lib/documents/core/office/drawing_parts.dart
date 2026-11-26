@@ -17,9 +17,10 @@ import 'package:mozhi/documents/core/office/xml_source.dart';
 ///
 /// Runs with other formatting (including hyperlinks, which DrawingML keeps
 /// in the run properties) keep it through placeholders; fields such as
-/// slide numbers and dates and embedded math are kept as they are. Chart
-/// data (cached values and series names, `c:v`) is not translated: it is
-/// a copy of the cells, which Office reads again.
+/// slide numbers and dates and embedded math are kept as they are. Inline
+/// chart text (`<c:tx><c:v>`, `<c:strLit>`, and `<c:strCache>` not backed
+/// by a workbook cell formula `<c:f>`) is translated, while formula-linked
+/// chart caches stay in sync with their cells.
 final class DrawingPartBuilder extends PartBuilder {
   new(
     super.document,
@@ -69,7 +70,56 @@ final class DrawingPartBuilder extends PartBuilder {
 
   @override
   bool isParagraph(SourceElement element) =>
-      element.isA(Ns.drawing, 'p') && _translates(element);
+      (element.isA(Ns.drawing, 'p') || _isInlineChartText(element)) &&
+      _translates(element);
+
+  /// Whether [element] holds inline/embedded chart text not backed by a
+  /// workbook cell formula (`<c:f>` / `<cx:f>`):
+  /// - literal `<c:tx><c:v>…</c:v></c:tx>`
+  /// - `<c:strLit><c:pt><c:v>…</c:v></c:pt></c:strLit>`
+  /// - `<c:strCache>` / `<c:multiLvlStrCache>` whose parent reference has no
+  ///   `<c:f>` formula
+  /// - `<cx:strDim>` `<cx:pt>` when `<cx:strDim>` has no `<cx:f>` formula
+  static bool _isInlineChartText(SourceElement element) {
+    if (element.elements.isNotEmpty || element.isSelfClosing) return false;
+    if (element.isA(Ns.chart, 'v')) {
+      final parent = element.parent;
+      if (parent == null) return false;
+      if (parent.isA(Ns.chart, 'tx')) return true;
+      if (!parent.isA(Ns.chart, 'pt')) return false;
+      final container = parent.parent;
+      if (container == null) return false;
+      if (container.isA(Ns.chart, 'strLit')) return true;
+      if (container.isA(Ns.chart, 'strCache')) {
+        final ref = container.parent;
+        return ref == null || !_hasChartFormula(ref, Ns.chart);
+      }
+      if (container.isA(Ns.chart, 'lvl')) {
+        final cache = container.parent;
+        if (cache != null && cache.isA(Ns.chart, 'multiLvlStrCache')) {
+          final ref = cache.parent;
+          return ref == null || !_hasChartFormula(ref, Ns.chart);
+        }
+      }
+      return false;
+    }
+    if (element.isA(Ns.chartEx, 'pt')) {
+      final lvl = element.parent;
+      final dim = lvl?.parent;
+      if (lvl != null &&
+          lvl.isA(Ns.chartEx, 'lvl') &&
+          dim != null &&
+          dim.isA(Ns.chartEx, 'strDim')) {
+        return !_hasChartFormula(dim, Ns.chartEx);
+      }
+    }
+    return false;
+  }
+
+  static bool _hasChartFormula(SourceElement element, Set<String> ns) {
+    final formula = element.child(ns, 'f');
+    return formula != null && formula.text.trim().isNotEmpty;
+  }
 
   @override
   LanguageMarkKind? languageMark(SourceElement element) =>
@@ -81,6 +131,11 @@ final class DrawingPartBuilder extends PartBuilder {
 
   @override
   List<PartNode>? paragraph(SourceElement element) {
+    if (_isInlineChartText(element)) {
+      return slotOrPlain(element, [
+        TextAtom(element.text.replaceAll('\r\n', '\n'), RunContext.plain),
+      ], writer: const _ChartTextWriter());
+    }
     final children = element.elements.toList();
     final properties =
         children.isNotEmpty && children.first.isA(Ns.drawing, 'pPr')
@@ -134,6 +189,19 @@ final class DrawingPartBuilder extends PartBuilder {
           styleKey(properties, ignoredAttributes: _ignored),
           whole(properties),
         );
+}
+
+final class _ChartTextWriter extends RunWriter {
+  const new();
+
+  @override
+  void writeText(
+    StringBuffer out,
+    String text,
+    RunStyle style,
+    WriterState state,
+    PartRenderer renderer,
+  ) => out.write(escapeXmlText(text));
 }
 
 /// Writes DrawingML runs: `a:r` with `a:t`, and `a:br` (with the run

@@ -78,9 +78,9 @@ abstract class MozhiCommand extends Command<int> {
   );
 
   /// Adds `--instance`.
-  void addInstanceOption() => argParser.addOption(
+  void addInstanceOption({bool withAbbr = true}) => argParser.addOption(
     'instance',
-    abbr: 'i',
+    abbr: withAbbr ? 'i' : null,
     valueHelp: 'url',
     help:
         'Mozhi instance to use instead of the configured one '
@@ -95,8 +95,9 @@ abstract class MozhiCommand extends Command<int> {
     help:
         help ??
         'Translation engine: a Mozhi engine (google, deepl, yandex, '
-            'reverso, libre, mymemory, duckduckgo or mozhi:<id>), or '
-            'ai / ai:<provider> for a configured AI provider. '
+            'reverso, libre, mymemory, duckduckgo or mozhi:<id>), '
+            'ai / ai:<provider> for a configured AI provider, or '
+            'mt / mt:<provider> for a configured direct MT provider. '
             'Default: the configured engine, else mozhi:google.',
   );
 

@@ -115,6 +115,7 @@ class AppSettings extends Equatable {
     this.conversation = const ConversationPreferences(),
     this.instantTranslate = true,
     this.instantTranslateAi = true,
+    this.autoExtras = false,
     this.saveHistory = true,
     this.showTransliteration = true,
     this.recentLanguages = const [],
@@ -190,6 +191,7 @@ class AppSettings extends Equatable {
           _bool(json['instantTranslate']) ?? defaults.instantTranslate,
       instantTranslateAi:
           _bool(json['instantTranslateAi']) ?? defaults.instantTranslateAi,
+      autoExtras: _bool(json['autoExtras']) ?? defaults.autoExtras,
       saveHistory: _bool(json['saveHistory']) ?? defaults.saveHistory,
       showTransliteration:
           _bool(json['showTransliteration']) ?? defaults.showTransliteration,
@@ -348,6 +350,11 @@ class AppSettings extends Equatable {
   /// tokens). On by default, like Kagi: translation is automatic for every
   /// online engine, and the go button translates at once.
   final bool instantTranslateAi;
+
+  /// Automatically load word insights and alternative translations in the
+  /// background after an AI translation finishes. Off by default to avoid
+  /// unexpected extra requests.
+  final bool autoExtras;
   final bool saveHistory;
   final bool showTransliteration;
 
@@ -555,6 +562,7 @@ class AppSettings extends Equatable {
     ConversationPreferences? conversation,
     bool? instantTranslate,
     bool? instantTranslateAi,
+    bool? autoExtras,
     bool? saveHistory,
     bool? showTransliteration,
     List<Language>? recentLanguages,
@@ -611,6 +619,7 @@ class AppSettings extends Equatable {
       conversation: conversation ?? this.conversation,
       instantTranslate: instantTranslate ?? this.instantTranslate,
       instantTranslateAi: instantTranslateAi ?? this.instantTranslateAi,
+      autoExtras: autoExtras ?? this.autoExtras,
       saveHistory: saveHistory ?? this.saveHistory,
       showTransliteration: showTransliteration ?? this.showTransliteration,
       recentLanguages: recentLanguages ?? this.recentLanguages,
@@ -688,6 +697,7 @@ class AppSettings extends Equatable {
       'conversation': conversation.toJson(),
       'instantTranslate': instantTranslate,
       'instantTranslateAi': instantTranslateAi,
+      'autoExtras': autoExtras,
       'saveHistory': saveHistory,
       'showTransliteration': showTransliteration,
       'recentLanguages': [
@@ -752,6 +762,7 @@ class AppSettings extends Equatable {
     conversation,
     instantTranslate,
     instantTranslateAi,
+    autoExtras,
     saveHistory,
     showTransliteration,
     recentLanguages,

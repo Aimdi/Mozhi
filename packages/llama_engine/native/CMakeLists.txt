@@ -147,7 +147,11 @@ endforeach()
 set(GGML_CPU_ARM_ARCH "" CACHE STRING "Set by mozhi_llama" FORCE)
 # name=-march value of each extra variant (arm64 only).
 set(_variants "")
-if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64|amd64)$")
+if(EMSCRIPTEN)
+  _mozhi_force(GGML_SSE42 OFF)
+  _mozhi_force(GGML_CPU_REPACK OFF)
+  set(_cpu "wasm32+simd128")
+elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64|amd64)$")
   _mozhi_force(GGML_SSE42 ON)
   set(_cpu "x86-64+sse4.2")
 elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
@@ -308,14 +312,43 @@ function(_mozhi_shim target cpu)
   endif()
 endfunction()
 
-_mozhi_shim(mozhi_llama "${_cpu}")
-foreach(_variant IN LISTS _variants)
-  string(REPLACE "=" ";" _parts "${_variant}")
-  list(GET _parts 0 _name)
-  list(GET _parts 1 _march)
-  _mozhi_cpu_variant(${_name} ${_march})
-  _mozhi_shim(mozhi_llama_${_name} "${_march}" VARIANT ${_name})
-endforeach()
+if(EMSCRIPTEN)
+  # WebAssembly build (packages/llama_engine/tool/build_wasm.sh): emits
+  # llama-engine.js and llama-engine.wasm exporting loadMozhiLlama and FS for
+  # web/llama/worker.js. Native Android/Linux builds take the else() branch.
+  add_executable(mozhi_llama_wasm EXCLUDE_FROM_ALL src/mozhi_llama.cc)
+  set_target_properties(mozhi_llama_wasm PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+    OUTPUT_NAME "llama-engine"
+    SUFFIX ".js")
+  target_include_directories(mozhi_llama_wasm PRIVATE
+    "${CMAKE_CURRENT_BINARY_DIR}/generated")
+  target_compile_definitions(mozhi_llama_wasm PRIVATE
+    MOZHI_LLAMA_ENGINE_VERSION="${_engine_version}"
+    MOZHI_LLAMA_CPU="${_cpu}")
+  target_compile_options(mozhi_llama_wasm PRIVATE -msimd128)
+  target_link_libraries(mozhi_llama_wasm PRIVATE llama)
+  target_link_options(mozhi_llama_wasm PRIVATE
+    -msimd128
+    -sMODULARIZE=1
+    -sEXPORT_NAME=loadMozhiLlama
+    -sALLOW_MEMORY_GROWTH=1
+    -sFORCE_FILESYSTEM=1
+    -sNO_EXIT_RUNTIME=1
+    -sENVIRONMENT=worker
+    "-sEXPORTED_RUNTIME_METHODS=['FS','ccall','cwrap','UTF8ToString','stringToUTF8','lengthBytesUTF8']"
+    "-sEXPORTED_FUNCTIONS=['_malloc','_free','_mozhi_llama_abi_version','_mozhi_llama_version','_mozhi_llama_cpu_features','_mozhi_llama_json_grammar','_mozhi_llama_model_load','_mozhi_llama_model_free','_mozhi_llama_model_info','_mozhi_llama_chat_format','_mozhi_llama_chat_tokenize','_mozhi_llama_tokenize_count','_mozhi_llama_chat_generate_begin','_mozhi_llama_generate_begin','_mozhi_llama_generate_next','_mozhi_llama_generate_end','_mozhi_llama_generate_stats','_mozhi_llama_cancel','_mozhi_llama_free_string','_mozhi_llama_last_error']")
+else()
+  _mozhi_shim(mozhi_llama "${_cpu}")
+  foreach(_variant IN LISTS _variants)
+    string(REPLACE "=" ";" _parts "${_variant}")
+    list(GET _parts 0 _name)
+    list(GET _parts 1 _march)
+    _mozhi_cpu_variant(${_name} ${_march})
+    _mozhi_shim(mozhi_llama_${_name} "${_march}" VARIANT ${_name})
+  endforeach()
+endif()
 
 # android/build.gradle lists the arm64-v8a variants as targets for every ABI
 # (the Android Gradle plugin may check each ABI's targets). On x86_64 an

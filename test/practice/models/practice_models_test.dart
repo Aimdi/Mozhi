@@ -125,17 +125,43 @@ void main() {
 
     test('round-trips valid custom FSRS weights and rejects invalid ones', () {
       final weights = [for (var i = 0; i < 19; i++) (i + 1) * 0.25];
-      final settings = PracticeSettings(customWeights: weights);
+      final weightsAt = DateTime.utc(2026, 10, 23, 12);
+      final settings = PracticeSettings(
+        customWeights: weights,
+        customWeightsUpdatedAt: weightsAt,
+      );
       expect(settings.hasCustomWeights, isTrue);
       expect(settings.effectiveWeights, weights);
       final json = settings.toJson();
       expect(json['fsrsWeights'], weights);
+      expect(json['customWeightsUpdatedAt'], weightsAt.toIso8601String());
       expect(PracticeSettings.fromJson(json), settings);
 
-      final cleared = settings.copyWith(customWeights: () => null);
+      // Backwards-compatible with older backups lacking customWeightsUpdatedAt
+      // or using the legacy fsrsWeightsUpdatedAt key.
+      final withoutTimestamp = Map<String, Object?>.from(json)
+        ..remove('customWeightsUpdatedAt');
+      expect(
+        PracticeSettings.fromJson(withoutTimestamp).customWeightsUpdatedAt,
+        isNull,
+      );
+      expect(
+        PracticeSettings.fromJson({
+          ...withoutTimestamp,
+          'fsrsWeightsUpdatedAt': weightsAt.toIso8601String(),
+        }).customWeightsUpdatedAt,
+        weightsAt,
+      );
+
+      final cleared = settings.copyWith(
+        customWeights: () => null,
+        customWeightsUpdatedAt: () => null,
+      );
       expect(cleared.customWeights, isNull);
+      expect(cleared.customWeightsUpdatedAt, isNull);
       expect(cleared.hasCustomWeights, isFalse);
       expect(cleared.toJson().containsKey('fsrsWeights'), isFalse);
+      expect(cleared.toJson().containsKey('customWeightsUpdatedAt'), isFalse);
 
       // Wrong length, non-numeric, or non-finite values are ignored.
       expect(

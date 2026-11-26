@@ -369,6 +369,9 @@ class SettingsCubit extends Cubit<AppSettings> {
   void setInstantTranslateAi({required bool enabled}) =>
       _apply((s) => s.copyWith(instantTranslateAi: enabled));
 
+  void setAutoExtras({required bool enabled}) =>
+      _apply((s) => s.copyWith(autoExtras: enabled));
+
   void setSaveHistory({required bool enabled}) =>
       _apply((s) => s.copyWith(saveHistory: enabled));
 

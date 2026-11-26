@@ -324,16 +324,53 @@ const _vTypesNs = {
 
 /// The extended properties part (`docProps/app.xml`) of a workbook whose
 /// sheets may be renamed: updates only the worksheet entries of
-/// `<TitlesOfParts>` (located via the `Worksheets` pair in `<HeadingPairs>`)
-/// while leaving named ranges and other entries untouched.
+/// `<TitlesOfParts>` (located via the localised worksheet heading pair in
+/// `<HeadingPairs>`, or by matching the slice whose entries match the
+/// workbook's sheet names) while leaving named ranges and other entries
+/// untouched.
 final class AppPropertiesPartBuilder extends PartBuilder {
   new(super.document, super.table, this._sheetNames)
-    : _worksheetTitles = _findWorksheetTitles(document.root);
+    : _worksheetTitles = _findWorksheetTitles(document.root, _sheetNames);
 
   final SheetNames _sheetNames;
   final Set<SourceElement> _worksheetTitles;
 
-  static Set<SourceElement> _findWorksheetTitles(SourceElement root) {
+  /// Known localised Excel `<HeadingPairs>` labels for the Worksheets slice
+  /// (lower-case).
+  static const _worksheetHeadingLabels = {
+    'worksheets', // English
+    'arbeitsblätter', // German
+    'feuilles de calcul', // French
+    'hojas de cálculo', // Spanish
+    'fogli di lavoro', // Italian
+    'planilhas', // Portuguese (BR)
+    'folhas de cálculo', // Portuguese (PT)
+    'werkbladen', // Dutch
+    'листы', // Russian
+    'аркуші', // Ukrainian
+    'arkusze', // Polish
+    'listy', // Czech / Slovak
+    'kalkylblad', // Swedish
+    'regneark', // Norwegian / Danish
+    'laskentataulukot', // Finnish
+    'çalışma sayfaları', // Turkish
+    'ワークシート', // Japanese
+    '工作表', // Chinese
+    '워크시트', // Korean
+    'أوراق العمل', // Arabic
+    'munkalapok', // Hungarian
+    'foi de lucru', // Romanian
+    'φύλλα εργασίας', // Greek
+    'גיליונות עבודה', // Hebrew
+    'lembar kerja', // Indonesian
+    'trang tính', // Vietnamese
+    'เวิร์กชีต', // Thai
+  };
+
+  static Set<SourceElement> _findWorksheetTitles(
+    SourceElement root,
+    SheetNames sheetNames,
+  ) {
     final result = Set<SourceElement>.identity();
     if (!root.isA(_extendedPropertiesNs, 'Properties')) return result;
     final headingPairs = root.child(_extendedPropertiesNs, 'HeadingPairs');
@@ -348,24 +385,70 @@ final class AppPropertiesPartBuilder extends PartBuilder {
       for (final child in pairVector.elements)
         if (child.isA(_vTypesNs, 'variant')) child,
     ];
-    final ranges = <(int, int)>[];
+    final pairs = <({String label, int start, int end, int count})>[];
     var offset = 0;
     for (var i = 0; i + 1 < variants.length; i += 2) {
       final label = variants[i].child(_vTypesNs, 'lpstr')?.text.trim();
       final countText = variants[i + 1].child(_vTypesNs, 'i4')?.text.trim();
       final count = countText == null ? null : int.tryParse(countText);
       if (label == null || count == null || count < 0) return result;
-      if (label == 'Worksheets' && count > 0) {
-        ranges.add((offset, offset + count));
-      }
+      pairs.add((
+        label: label,
+        start: offset,
+        end: offset + count,
+        count: count,
+      ));
       offset += count;
     }
-    if (ranges.isEmpty) return result;
+    if (pairs.isEmpty) return result;
 
     final titles = [
       for (final child in titleVector.elements)
         if (child.isA(_vTypesNs, 'lpstr')) child,
     ];
+
+    // 1. Match known localised Excel worksheet heading labels.
+    final ranges = <(int, int)>[
+      for (final pair in pairs)
+        if (pair.count > 0 &&
+            _worksheetHeadingLabels.contains(pair.label.toLowerCase()))
+          (pair.start, pair.end),
+    ];
+
+    // 2. Fallback for any other locale: match the slice whose count equals the
+    // workbook sheet count and whose entries match the workbook's sheet names.
+    if (ranges.isEmpty) {
+      final expectedCount = sheetNames.sheets.length;
+      final expectedKeys = [for (final s in sheetNames.sheets) s.key];
+      final expectedSet = expectedKeys.toSet();
+      final exactMatches = <(int, int)>[];
+      final countMatches = <(int, int)>[];
+      for (final pair in pairs) {
+        if (pair.count != expectedCount || pair.end > titles.length) continue;
+        final sliceKeys = [
+          for (var i = pair.start; i < pair.end; i++)
+            titles[i].text.toLowerCase(),
+        ];
+        var sameOrder = true;
+        for (var i = 0; i < expectedCount; i++) {
+          if (sliceKeys[i] != expectedKeys[i]) {
+            sameOrder = false;
+            break;
+          }
+        }
+        if (sameOrder) {
+          exactMatches.add((pair.start, pair.end));
+        } else if (sliceKeys.every(expectedSet.contains)) {
+          countMatches.add((pair.start, pair.end));
+        }
+      }
+      if (exactMatches.isNotEmpty) {
+        ranges.addAll(exactMatches);
+      } else if (countMatches.length == 1) {
+        ranges.addAll(countMatches);
+      }
+    }
+
     for (final (start, end) in ranges) {
       for (var i = start; i < end && i < titles.length; i++) {
         result.add(titles[i]);

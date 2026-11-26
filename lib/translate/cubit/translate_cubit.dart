@@ -2095,6 +2095,21 @@ class TranslateCubit extends Cubit<TranslateState> {
     return _translate(userAsked: true);
   }
 
+  /// Re-runs the current translation bypassing the in-memory translation cache
+  /// (and any history memory match) so the engine generates a fresh result.
+  /// Does nothing when there is no input, no engine, or a translation is
+  /// already running.
+  Future<void> regenerate() {
+    _debounceTimer?.cancel();
+    if (state.engine == null ||
+        state.input.trim().isEmpty ||
+        state.status == TranslateStatus.translating) {
+      return Future.value();
+    }
+    if (state.compareMode) return runCompare();
+    return _translate(userAsked: true, refresh: true);
+  }
+
   /// [translate] was asked for while the engines were loading: completed
   /// once the translation it then starts finishes (or the engines failed).
   Completer<void>? _translateWhenReady;
@@ -2259,6 +2274,7 @@ class TranslateCubit extends Cubit<TranslateState> {
     bool external = false,
     bool extraTargets = true,
     bool userAsked = false,
+    bool refresh = false,
     AllInstancesFailedException? googleFailed,
   }) {
     final main = _translateMain(
@@ -2269,6 +2285,7 @@ class TranslateCubit extends Cubit<TranslateState> {
       auto: auto,
       external: external,
       userAsked: userAsked,
+      refresh: refresh,
       googleFailed: googleFailed,
       // After consent: the same translation, now asked for by the user
       // (straight with DuckDuckGo when Google had failed on every server).
@@ -2279,6 +2296,7 @@ class TranslateCubit extends Cubit<TranslateState> {
         smartSwap: smartSwap,
         extraTargets: extraTargets,
         userAsked: true,
+        refresh: refresh,
         googleFailed: googleFailed,
       ),
     );
@@ -2324,6 +2342,7 @@ class TranslateCubit extends Cubit<TranslateState> {
     bool auto = false,
     bool external = false,
     bool userAsked = false,
+    bool refresh = false,
     AllInstancesFailedException? googleFailed,
   }) {
     final selected = engine ?? state.engine;
@@ -2425,6 +2444,7 @@ class TranslateCubit extends Cubit<TranslateState> {
         results = _duckDuckGoAfter(
           googleFailed,
           request,
+          refresh: refresh,
           onSwitch: switchedToDuckDuckGo,
         );
       } else {
@@ -2433,12 +2453,14 @@ class TranslateCubit extends Cubit<TranslateState> {
           _onDeviceThenOnline(
             selected,
             request,
+            refresh: refresh,
             onRouted: (source, online) {
               fromOnDevice = true;
               onDeviceSource = source;
               routedTo = online;
             },
           ),
+          refresh: refresh,
           translatedBy: () => routedTo ?? selected,
           onSwitch: switchedToDuckDuckGo,
         );
@@ -2447,6 +2469,7 @@ class TranslateCubit extends Cubit<TranslateState> {
         selected,
         request,
         results,
+        refresh: refresh,
         onFallback: (value) => fallback = value,
         translatedBy: () => routedTo ?? selected,
       );
@@ -2566,7 +2589,28 @@ class TranslateCubit extends Cubit<TranslateState> {
       request.target,
     );
     _autoRomanize();
+    _autoLoadExtras(engine, result);
     unawaited(loadUncertainty());
+  }
+
+  /// Automatically loads word insights and alternative translations in the
+  /// background when `AppSettings.autoExtras` is enabled and an AI
+  /// translation finishes.
+  void _autoLoadExtras(TranslationEngine engine, TranslationResult result) {
+    if (!_settings.state.autoExtras || !state.hasExtras) return;
+    final actual =
+        state.engines.where((e) => e.id == result.engineId).firstOrNull ??
+        engine;
+    if (!actual.isAi) return;
+    final assist = state.assistEngine;
+    if (assist == null) return;
+    if (state.instantResult && _sparesDevice(assist)) return;
+    if (state.insightsStatus == ExtraStatus.idle) {
+      unawaited(loadInsights());
+    }
+    if (state.alternativesStatus == ExtraStatus.idle) {
+      unawaited(loadAlternatives());
+    }
   }
 
   /// In Offline first, the online engine the app asks about when the
@@ -2648,8 +2692,11 @@ class TranslateCubit extends Cubit<TranslateState> {
     TranslationRequest request, {
     required void Function(String? onDeviceSource, TranslationEngine online)
     onRouted,
+    bool refresh = false,
   }) {
-    final local = _repository.translate(selected, request);
+    final local = refresh
+        ? _repository.translate(selected, request, refresh: true)
+        : _repository.translate(selected, request);
     final online = selected.id == state.engine?.id
         ? onlineFallbackOf(state, _settings.state)
         : null;
@@ -2679,7 +2726,9 @@ class TranslateCubit extends Cubit<TranslateState> {
       onRouted(_recognisedSource(error, request), online);
       final Stream<TranslationResult> remote;
       try {
-        remote = _repository.translate(online, mapped);
+        remote = refresh
+            ? _repository.translate(online, mapped, refresh: true)
+            : _repository.translate(online, mapped);
       } on Object catch (error, stackTrace) {
         return fail(error, stackTrace);
       }
@@ -2788,6 +2837,7 @@ class TranslateCubit extends Cubit<TranslateState> {
     TranslationRequest request,
     Stream<TranslationResult> results, {
     required TranslationEngine Function() translatedBy,
+    bool refresh = false,
     void Function(
       TranslationEngine duckDuckGo,
       AllInstancesFailedException failure,
@@ -2817,8 +2867,13 @@ class TranslateCubit extends Cubit<TranslateState> {
                 )) {
               return fail(error, stackTrace);
             }
-            subscription = _duckDuckGoAfter(error, request, onSwitch: onSwitch)
-                .listen(
+            subscription =
+                _duckDuckGoAfter(
+                  error,
+                  request,
+                  refresh: refresh,
+                  onSwitch: onSwitch,
+                ).listen(
                   controller.add,
                   onError: fail,
                   onDone: () => unawaited(controller.close()),
@@ -2852,6 +2907,7 @@ class TranslateCubit extends Cubit<TranslateState> {
   Stream<TranslationResult> _duckDuckGoAfter(
     AllInstancesFailedException failure,
     TranslationRequest request, {
+    bool refresh = false,
     void Function(
       TranslationEngine duckDuckGo,
       AllInstancesFailedException failure,
@@ -2878,7 +2934,9 @@ class TranslateCubit extends Cubit<TranslateState> {
       if (mapped == null) return fail(failure);
       final Stream<TranslationResult> results;
       try {
-        results = _repository.translate(duckDuckGo, mapped);
+        results = refresh
+            ? _repository.translate(duckDuckGo, mapped, refresh: true)
+            : _repository.translate(duckDuckGo, mapped);
       } on Object catch (error, stackTrace) {
         return fail(error, stackTrace);
       }
@@ -2969,6 +3027,7 @@ class TranslateCubit extends Cubit<TranslateState> {
     Stream<TranslationResult> results, {
     required void Function(TranslationFallback fallback) onFallback,
     TranslationEngine Function()? translatedBy,
+    bool refresh = false,
   }) {
     late final StreamController<TranslationResult> controller;
     StreamSubscription<TranslationResult>? subscription;
@@ -2997,7 +3056,9 @@ class TranslateCubit extends Cubit<TranslateState> {
       candidates = candidates.sublist(1);
       final Stream<TranslationResult> stream;
       try {
-        stream = _repository.translate(engine, request);
+        stream = refresh
+            ? _repository.translate(engine, request, refresh: true)
+            : _repository.translate(engine, request);
       } on Object {
         return tryNext();
       }

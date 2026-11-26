@@ -76,6 +76,63 @@ void main() {
       );
     });
 
+    test('guards supportsVision so models with mmproj never advertise vision '
+        'unless the engine supports multimodal inference', () async {
+      final base = catalogModel('gemma-vision');
+      final visionModel = LlamaCatalogModel(
+        id: base.id,
+        name: base.name,
+        url: base.url,
+        size: base.size,
+        sha256: base.sha256,
+        role: base.role,
+        family: 'gemma4',
+        promptProfile: base.promptProfile,
+        displayName: base.displayName,
+        parameters: base.parameters,
+        quantization: base.quantization,
+        minRamMb: base.minRamMb,
+        recommendedRamMb: base.recommendedRamMb,
+        license: base.license,
+        licenseUrl: base.licenseUrl,
+        sourceUrl: base.sourceUrl,
+        mmproj: LlamaProjectorFile(
+          name: 'mmproj-gemma.gguf',
+          url: Uri.parse('https://models.example/mmproj-gemma.gguf'),
+          size: 1024,
+          sha256: 'b' * 64,
+        ),
+      );
+      expect(visionModel.supportsVision, isTrue);
+      // Default runtime does NOT support multimodal image inference.
+      expect(OnDeviceAi.providerFor(visionModel).supportsVision, isFalse);
+
+      final visionModels = FakeOnDeviceModels(
+        catalog: LlamaModelCatalog(models: [visionModel]),
+        assistantModel: visionModel.id,
+      );
+      final guarded = OnDeviceAi(
+        models: visionModels,
+        engine: FakeLlamaEngine(),
+      );
+      addTearDown(guarded.dispose);
+      expect(guarded.providers.single.supportsVision, isFalse);
+
+      // Only when the engine explicitly supports multimodal vision AND the
+      // model has mmproj does AiProviderConfig.supportsVision become true.
+      expect(
+        OnDeviceAi.providerFor(
+          visionModel,
+          engineSupportsVision: true,
+        ).supportsVision,
+        isTrue,
+      );
+      expect(
+        OnDeviceAi.providerFor(base, engineSupportsVision: true).supportsVision,
+        isFalse,
+      );
+    });
+
     test('follow the selection', () async {
       final changes = <List<AiProviderConfig>>[];
       ai.providersChanges.listen(changes.add);

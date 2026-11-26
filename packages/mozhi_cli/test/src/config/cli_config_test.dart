@@ -60,9 +60,12 @@ void main() {
         source: 'fr',
         target: 'de',
         providers: [ProviderEntry(ollamaProvider)],
+        glossary: {'cloud': 'Wolke'},
       );
       final parsed = CliConfig.fromJson(config.toJson());
       expect(parsed.toJson(), config.toJson());
+      expect(parsed.glossary, {'cloud': 'Wolke'});
+      expect(parsed.withGlossary(const {'a': 'b'}).glossary, {'a': 'b'});
       for (final key in ConfigKey.values) {
         expect(parsed.valueOf(key), config.valueOf(key));
         expect(parsed.withValue(key, null).valueOf(key), isNull);

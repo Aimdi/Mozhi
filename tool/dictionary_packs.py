@@ -56,6 +56,16 @@ LICENSE_URL = 'https://creativecommons.org/licenses/by-sa/4.0/'
 SOURCE = 'Wiktionary'
 EXTRACTOR = 'wiktextract (kaikki.org)'
 
+WIKDICT_SOURCE = 'WikDict'
+WIKDICT_URL = 'https://www.wikdict.com/'
+WIKDICT_LICENSE = 'CC BY-SA 3.0'
+WIKDICT_LICENSE_URL = 'https://creativecommons.org/licenses/by-sa/3.0/'
+
+TATOEBA_SOURCE = 'Tatoeba'
+TATOEBA_URL = 'https://tatoeba.org/'
+TATOEBA_LICENSE = 'CC BY 2.0 FR'
+TATOEBA_LICENSE_URL = 'https://creativecommons.org/licenses/by/2.0/fr/'
+
 # English names as kaikki.org spells them in its per-language URLs.
 KAIKKI_NAMES = {
     'af': 'Afrikaans', 'ar': 'Arabic', 'bg': 'Bulgarian', 'ca': 'Catalan',
@@ -525,6 +535,21 @@ def merge_wikdict(collected, wikdict_map, options):
 
 
 _WORD_TOKEN = re.compile(r'[^\W\d_]+', re.UNICODE)
+_NO_SPACE_RUN = re.compile(
+    '['
+    '\u3005-\u3007'  # CJK iteration / ideographic zero marks (々, 〆, 〇)
+    '\u3040-\u309f'  # Hiragana
+    '\u30a0-\u30ff'  # Katakana (includes prolonged sound mark ー)
+    '\u31f0-\u31ff'  # Katakana Phonetic Extensions
+    '\u3400-\u4dbf'  # CJK Unified Ideographs Extension A
+    '\u4e00-\u9fff'  # CJK Unified Ideographs
+    '\uf900-\ufaff'  # CJK Compatibility Ideographs
+    '\u0e00-\u0e7f'  # Thai
+    '\u0e80-\u0eff'  # Lao
+    '\u1780-\u17ff'  # Khmer
+    '\u1000-\u109f'  # Myanmar
+    ']+'
+)
 
 
 def read_tatoeba(path):
@@ -565,9 +590,29 @@ def read_tatoeba(path):
 
 def merge_tatoeba(collected, tatoeba_data, options):
     """Attaches short Tatoeba example sentences to senses that still have room
-    (`< options.max_examples`)."""
+    (`< options.max_examples`).
+
+    Indexes space-delimited word tokens as well as character n-grams over
+    space-less script runs (CJK, Japanese kana, Thai, Lao, Khmer, Myanmar) so
+    space-less sentences match headwords accurately.
+    """
     by_word, pairs = tatoeba_data
+    needed_keys = set()
+    needed_nospace_keys = set()
+    for entry, _ in collected:
+        senses = entry.get('s') or []
+        if not senses or len(senses[0].get('x') or ()) >= options.max_examples:
+            continue
+        key = fold(entry['w'])
+        if not key:
+            continue
+        needed_keys.add(key)
+        if _NO_SPACE_RUN.search(key):
+            needed_nospace_keys.add(key)
+    nospace_lengths = sorted({len(k) for k in needed_nospace_keys})
+
     token_index = {}
+    bucket_limit = max(1, options.max_examples * 3)
     for sentence, translation in pairs:
         clean_s = _clean(sentence, options.max_example_chars)
         clean_t = _clean(translation, options.max_example_chars)
@@ -575,11 +620,26 @@ def merge_tatoeba(collected, tatoeba_data, options):
             continue
         if not _valid(clean_s + clean_t):
             continue
-        for token in {fold(m.group(0)) for m in _WORD_TOKEN.finditer(clean_s)}:
-            if token:
-                bucket = token_index.setdefault(token, [])
-                if len(bucket) < options.max_examples * 3:
-                    bucket.append((clean_s, clean_t))
+        matched = set()
+        for m in _WORD_TOKEN.finditer(clean_s):
+            token = fold(m.group(0))
+            if token in needed_keys:
+                matched.add(token)
+        if nospace_lengths:
+            for m in _NO_SPACE_RUN.finditer(clean_s):
+                run = fold(m.group(0))
+                run_len = len(run)
+                for length in nospace_lengths:
+                    if length > run_len:
+                        break
+                    for i in range(run_len - length + 1):
+                        sub = run[i:i + length]
+                        if sub in needed_nospace_keys:
+                            matched.add(sub)
+        for token in matched:
+            bucket = token_index.setdefault(token, [])
+            if len(bucket) < bucket_limit:
+                bucket.append((clean_s, clean_t))
 
     added_count = 0
     for entry, _ in collected:
@@ -648,7 +708,8 @@ def _entry_record(entry):
 
 def write_pack(entries, language, name='', gloss_language='en', snapshot='',
                targets=(), source_url='https://en.wiktionary.org/',
-               attribution=None, block_size=BLOCK_SIZE):
+               attribution=None, block_size=BLOCK_SIZE,
+               include_wikdict=False, include_tatoeba=False):
     """The bytes of a pack of [entries] ((entry, forms) pairs) and its
     statistics. The layout matches DictionaryPackWriter (Dart)."""
     table = fold_table(text for entry, forms in entries
@@ -769,19 +830,46 @@ def write_pack(entries, language, name='', gloss_language='en', snapshot='',
     data += blocks_bytes
     body = bytes(data)
 
+    sources = [SOURCE]
+    licenses = [LICENSE]
+    additional_sources = []
+    if include_wikdict:
+        sources.append(WIKDICT_SOURCE)
+        licenses.append(WIKDICT_LICENSE)
+        additional_sources.append({
+            'name': WIKDICT_SOURCE,
+            'url': WIKDICT_URL,
+            'license': WIKDICT_LICENSE,
+            'licenseUrl': WIKDICT_LICENSE_URL,
+        })
+    if include_tatoeba:
+        sources.append(TATOEBA_SOURCE)
+        licenses.append(TATOEBA_LICENSE)
+        additional_sources.append({
+            'name': TATOEBA_SOURCE,
+            'url': TATOEBA_URL,
+            'license': TATOEBA_LICENSE,
+            'licenseUrl': TATOEBA_LICENSE_URL,
+        })
+    source_label = ' + '.join(sources)
+    license_label = ' + '.join(licenses)
+
     if attribution is None:
-        attribution = default_attribution(name or language, snapshot,
-                                          source_url)
+        attribution = default_attribution(
+            name or language, snapshot, source_url,
+            include_wikdict=include_wikdict,
+            include_tatoeba=include_tatoeba,
+        )
     metadata = {
         'format': FORMAT,
         'language': language,
         'glossLanguage': gloss_language,
         'name': name,
-        'source': SOURCE,
+        'source': source_label,
         'sourceUrl': source_url,
         'extractor': EXTRACTOR,
         'snapshot': snapshot,
-        'license': LICENSE,
+        'license': license_label,
         'licenseUrl': LICENSE_URL,
         'attribution': attribution,
         'targets': sorted(targets),
@@ -796,6 +884,8 @@ def write_pack(entries, language, name='', gloss_language='en', snapshot='',
         'dataLength': len(body),
         'sha256': hashlib.sha256(body).hexdigest(),
     }
+    if additional_sources:
+        metadata['additionalSources'] = additional_sources
     meta = json.dumps(metadata, ensure_ascii=False,
                       separators=(',', ':')).encode('utf-8')
     pack = MAGIC + struct.pack('<HHI', FORMAT, 0, len(meta)) + meta + body
@@ -812,9 +902,10 @@ def write_pack(entries, language, name='', gloss_language='en', snapshot='',
     return pack, stats
 
 
-def default_attribution(name, snapshot, source_url):
+def default_attribution(name, snapshot, source_url,
+                        include_wikdict=False, include_tatoeba=False):
     when = f' on {snapshot}' if snapshot else ''
-    return (
+    parts = [
         f'{name} entries from Wiktionary ({source_url}), by Wiktionary '
         f'contributors, available under the Creative Commons '
         f'Attribution-ShareAlike 4.0 licence ({LICENSE_URL}) and the GNU '
@@ -822,7 +913,22 @@ def default_attribution(name, snapshot, source_url):
         f'(https://github.com/tatuylonen/wiktextract, kaikki.org){when}. '
         'Changes: shortened to definitions, pronunciation, examples, '
         'synonyms, related words, short etymologies and translations; '
-        'inflected forms point to their lemma.')
+        'inflected forms point to their lemma.'
+    ]
+    if include_wikdict:
+        parts.append(
+            f'Additional bilingual translations from {WIKDICT_SOURCE} '
+            f'({WIKDICT_URL}), available under the Creative Commons '
+            f'Attribution-ShareAlike 3.0 licence ({WIKDICT_LICENSE_URL}).'
+        )
+    if include_tatoeba:
+        parts.append(
+            f'Additional example sentences from {TATOEBA_SOURCE} '
+            f'({TATOEBA_URL}), by Tatoeba contributors, available under the '
+            f'Creative Commons Attribution 2.0 France licence '
+            f'({TATOEBA_LICENSE_URL}).'
+        )
+    return ' '.join(parts)
 
 
 # --- Reading packs (dump, catalogue, tests) ---------------------------------
@@ -1066,17 +1172,23 @@ def main(argv=None):
         if not collected:
             print(f'{args.input}: no entries', file=sys.stderr)
             return 1
+        wikdict_added = 0
         for wikdict_path in args.wikdict:
             wd = read_wikdict(wikdict_path, default_target=args.wikdict_target or None)
-            merge_wikdict(collected, wd, options)
+            wikdict_added += merge_wikdict(collected, wd, options)
+        tatoeba_added = 0
         for tatoeba_path in args.tatoeba:
-            merge_tatoeba(collected, read_tatoeba(tatoeba_path), options)
+            tatoeba_added += merge_tatoeba(
+                collected, read_tatoeba(tatoeba_path), options,
+            )
         used = sorted({code for entry, _ in collected
                        for code in entry.get('t', {})})
         pack, stats = write_pack(
             collected, args.language, name=name or (first[0] if first else ''),
             gloss_language=args.gloss_language, snapshot=args.snapshot,
-            targets=used, source_url=args.source_url)
+            targets=used, source_url=args.source_url,
+            include_wikdict=wikdict_added > 0,
+            include_tatoeba=tatoeba_added > 0)
         with open(args.output, 'wb') as f:
             f.write(pack)
         _report(stats, sys.stderr)

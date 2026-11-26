@@ -1806,6 +1806,15 @@ class _OutputCardState extends State<OutputCard>
         AddToPhrasebookButton(
           draft: complete ? translationPhraseDraft(state) : null,
         ),
+      if (state.isAiEngine)
+        XActionButton(
+          key: const Key('translate_regenerate_button'),
+          tooltip: l10n.translateRegenerate,
+          icon: Icons.refresh,
+          onPressed: complete && !state.isPending
+              ? () => unawaited(context.read<TranslateCubit>().regenerate())
+              : null,
+        ),
     ];
   }
 

@@ -1038,6 +1038,76 @@ void main() {
         );
         expect(store.values, isEmpty);
       });
+
+      test(
+        'throws a FormatException when JSON exceeds maxImportBytes',
+        () async {
+          final oversized = ' ' * (HistoryRepository.defaultMaxImportBytes + 1);
+          await expectLater(
+            repository.importJson(oversized),
+            throwsA(
+              isA<FormatException>().having(
+                (e) => e.message,
+                'message',
+                contains('maximum size'),
+              ),
+            ),
+          );
+          expect(store.values, isEmpty);
+        },
+      );
+
+      test(
+        'throws a FormatException when entries exceed maxImportEntries',
+        () async {
+          final limited = HistoryRepository(
+            store: store,
+            keyStore: _keys,
+            maxImportEntries: 3,
+          );
+          final json = jsonEncode([
+            for (var i = 0; i < 4; i++) _entry('$i').toJson(),
+          ]);
+          await expectLater(
+            limited.importJson(json),
+            throwsA(
+              isA<FormatException>().having(
+                (e) => e.message,
+                'message',
+                contains('maximum of 3 entries'),
+              ),
+            ),
+          );
+          expect(store.values, isEmpty);
+        },
+      );
+
+      test(
+        'throws a FormatException when favourites exceed maxImportFavorites',
+        () async {
+          final limited = HistoryRepository(
+            store: store,
+            keyStore: _keys,
+            maxImportFavorites: 2,
+          );
+          await limited.add(_entry('existing', isFavorite: true));
+          final json = jsonEncode([
+            _entry('f1', isFavorite: true).toJson(),
+            _entry('f2', isFavorite: true).toJson(),
+          ]);
+          await expectLater(
+            limited.importJson(json),
+            throwsA(
+              isA<FormatException>().having(
+                (e) => e.message,
+                'message',
+                contains('maximum of 2 favourites'),
+              ),
+            ),
+          );
+          expect(await limited.load(), [_entry('existing', isFavorite: true)]);
+        },
+      );
     });
 
     group('retention', () {

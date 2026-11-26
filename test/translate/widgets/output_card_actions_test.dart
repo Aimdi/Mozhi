@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:mozhi/platform/web_share.dart';
 import 'package:mozhi/translate/widgets/output_card.dart';
 import 'package:mozhi/translate/widgets/terminal_chrome.dart';
@@ -203,6 +204,29 @@ void main() {
       for (final frame in tester.widgetList(frames)) {
         expect(tester.getSize(find.byWidget(frame)), const Size.square(48));
       }
+    });
+
+    testWidgets('shows Regenerate button for AI translations and triggers '
+        'regenerate()', (tester) async {
+      final harness = TranslateHarness(state: translatedState(engine: claude));
+      when(harness.translate.regenerate).thenAnswer((_) async {});
+      await harness.pump(
+        tester,
+        size: const Size(800, 900),
+        child: const Align(
+          alignment: Alignment.topLeft,
+          child: SizedBox(width: 600, child: OutputCard()),
+        ),
+      );
+      await tester.pump();
+
+      final button = find.byKey(const Key('translate_regenerate_button'));
+      expect(button, findsOneWidget);
+      expect(find.byTooltip('Regenerate translation'), findsOneWidget);
+
+      await tester.tap(button);
+      await tester.pump();
+      verify(harness.translate.regenerate).called(1);
     });
   });
 

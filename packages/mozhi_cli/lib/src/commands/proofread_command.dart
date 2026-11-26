@@ -1,6 +1,5 @@
 import 'package:mason_logger/mason_logger.dart';
 import 'package:mozhi_cli/src/commands/mozhi_command.dart';
-import 'package:mozhi_cli/src/errors.dart';
 import 'package:mozhi_cli/src/output/json_output.dart';
 import 'package:mozhi_cli/src/resolvers.dart';
 import 'package:translation_repository/translation_repository.dart';
@@ -131,32 +130,10 @@ class ProofreadCommand extends MozhiCommand {
     return ExitCode.success.code;
   }
 
-  TranslationEngine _engine() {
-    final spec = option('engine');
-    if (spec != null) {
-      final engine = resolveEngine(spec, providers);
-      if (!engine.isAi) {
-        throw CliException.usage(
-          'Proofreading needs an AI provider, not ${engine.name}.',
-          hint: 'Use --engine ai or --engine ai:<provider>.',
-        );
-      }
-      return engine;
-    }
-    final configured = config.engine;
-    if (configured != null) {
-      final engine = resolveEngine(configured, providers);
-      if (engine.isAi) return engine;
-    }
-    final first = providers.firstOrNull;
-    if (first == null) {
-      throw const CliException.usage(
-        'Proofreading needs an AI provider and none is configured.',
-        hint:
-            'Add one, e.g.: mozhi config providers add --preset ollama '
-            '--model gemma3',
-      );
-    }
-    return aiEngine(first);
-  }
+  TranslationEngine _engine() => resolveAiEngine(
+    option('engine'),
+    config,
+    providers,
+    feature: 'Proofreading',
+  );
 }

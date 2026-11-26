@@ -27,17 +27,15 @@ const pairingHandshakeTimeout = Duration(seconds: 10);
 ///   messages complete within [handshakeTimeout] (one deadline for all of
 ///   it); [connection] then completes with its channel, and the listener
 ///   closes the others and stops listening.
-/// * Handshakes started (connections taken on) are limited per minute:
-///   [maxAddressHandshakesPerMinute] from one address, and
-///   [maxHandshakesPerMinute] in all for addresses that started one in
-///   that minute already. A connection beyond them is closed at once and
-///   not counted (neither from its address nor in all), so the limits only
-///   hold back a flood while it lasts, and the work a flood makes the
-///   phone do (a key agreement each) stays small. The first connection
-///   of an address that started none in the last minute is always taken
-///   on (the limits then count it): a flood from a few addresses that
-///   uses up the budget in all cannot keep the real phone out, and one
-///   from many addresses gets one key agreement per address and minute.
+/// * Handshakes started (connections taken on) are limited per minute with
+///   per-source fair bucketing: at most [maxAddressHandshakesPerMinute] from
+///   one address, and once [maxHandshakesPerMinute] have started across all
+///   addresses, each source is limited to its fair share
+///   (`max(1, maxHandshakesPerMinute ~/ activeSources)`). A connection beyond
+///   those limits is closed at once and not counted, so the limits only hold
+///   back a flood while it lasts, a flood from a few addresses cannot starve a
+///   legitimate peer out of its fair share, and an address's first handshake in
+///   the minute is always taken on.
 /// * Up to [maxPending] connections set up at once, at most
 ///   [maxPendingPerAddress] from one address: a further one from that
 ///   address closes its oldest one (a device that opens many loses its
@@ -160,11 +158,14 @@ class PairingListener {
   late final Timer _expiry;
   final Completer<PairingChannel> _result = Completer();
 
+  /// Maximum distinct source buckets tracked in memory at once.
+  static const _maxTrackedAddresses = 256;
+
   /// The connections setting up, oldest first.
   final List<_Pending> _pending = [];
 
-  /// When the handshakes of the last minute started, and from where.
-  final List<(DateTime, String)> _started = [];
+  /// Per-source timestamps of handshakes started in the last minute.
+  final Map<String, List<DateTime>> _startedByAddress = {};
 
   /// Wrong codes by address, and in all.
   final Map<String, int> _failures = {};
@@ -188,12 +189,33 @@ class PairingListener {
     }
     final now = _now();
     final since = now.subtract(const Duration(minutes: 1));
-    _started.removeWhere((start) => !start.$1.isAfter(since));
-    final fromHere = _started.where((start) => start.$2 == from).length;
-    // Refused ones count nowhere; an address's first in the minute always
-    // gets in.
-    if (fromHere >= maxAddressHandshakesPerMinute ||
-        (fromHere > 0 && _started.length >= maxHandshakesPerMinute)) {
+    var totalStarted = 0;
+    final emptyBuckets = <String>[];
+    for (final MapEntry(:key, :value) in _startedByAddress.entries) {
+      value.removeWhere((timestamp) => !timestamp.isAfter(since));
+      if (value.isEmpty) {
+        emptyBuckets.add(key);
+      } else {
+        totalStarted += value.length;
+      }
+    }
+    emptyBuckets.forEach(_startedByAddress.remove);
+    final fromHere = _startedByAddress[from]?.length ?? 0;
+    if (fromHere >= maxAddressHandshakesPerMinute) {
+      socket.destroy();
+      return;
+    }
+    // Fair per-source bucketing: once the global per-minute budget is full,
+    // each source gets its fair share (at least 1) so flooders cannot starve
+    // legitimate peers out of the budget.
+    final activeSources =
+        _startedByAddress.length +
+        (_startedByAddress.containsKey(from) ? 0 : 1);
+    final fairShare = (maxHandshakesPerMinute ~/ activeSources).clamp(
+      1,
+      maxAddressHandshakesPerMinute,
+    );
+    if (totalStarted >= maxHandshakesPerMinute && fromHere >= fairShare) {
       socket.destroy();
       return;
     }
@@ -211,10 +233,27 @@ class PairingListener {
       }
       _drop(oldest);
     }
-    _started.add((now, from));
+    if (!_startedByAddress.containsKey(from) &&
+        _startedByAddress.length >= _maxTrackedAddresses) {
+      _evictOldestBucket();
+    }
+    (_startedByAddress[from] ??= []).add(now);
     final pending = _Pending(socket, from, now);
     _pending.add(pending);
     unawaited(_accept(pending));
+  }
+
+  void _evictOldestBucket() {
+    String? oldestKey;
+    DateTime? oldestSeen;
+    for (final MapEntry(:key, :value) in _startedByAddress.entries) {
+      final latest = value.last;
+      if (oldestSeen == null || latest.isBefore(oldestSeen)) {
+        oldestSeen = latest;
+        oldestKey = key;
+      }
+    }
+    if (oldestKey != null) _startedByAddress.remove(oldestKey);
   }
 
   /// Of the connections that had [minSetupTime], the oldest of the

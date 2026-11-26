@@ -322,63 +322,118 @@ class DocumentTranslator {
     required TranslationOptions options,
     required _CancelToken cancel,
   }) async {
-    Future<String> translateFrom(Language source, String text) =>
-        _translateText(
+    Future<String> translateFrom(
+      Language source,
+      String text, {
+      String? contextInstruction,
+    }) => _translateText(
+      engine,
+      TranslationRequest(
+        text: text,
+        source: source,
+        target: target,
+        options: _options(
           engine,
-          TranslationRequest(
-            text: text,
-            source: source,
-            target: target,
-            options: _options(engine, options, text),
-          ),
-          cancel,
-          language,
-        );
+          options,
+          text,
+          contextInstruction: contextInstruction,
+        ),
+      ),
+      cancel,
+      language,
+    );
 
     /// The translation of [text]; null when its language cannot be told
     /// and none is known from earlier chunks (it is kept as it is).
-    Future<String?> translate(String text) async {
+    Future<String?> translate(String text, {String? contextInstruction}) async {
       final source = language.source;
       try {
-        return await translateFrom(source, text);
+        return await translateFrom(
+          source,
+          text,
+          contextInstruction: contextInstruction,
+        );
       } on SourceLanguageRequiredException {
         if (!source.isAuto) rethrow;
         final known = language.detected;
         if (known == null) return null;
-        return await translateFrom(_languageOf(known), text);
+        return await translateFrom(
+          _languageOf(known),
+          text,
+          contextInstruction: contextInstruction,
+        );
       }
     }
 
     final originals = [for (final unit in chunk.units) unit.text];
-    final batch = await translate(chunk.payload);
+    final batch = await translate(
+      chunk.payload,
+      contextInstruction: _chunkContextInstruction(chunk),
+    );
     if (batch == null) return originals;
     if (chunk.units.length == 1) return [batch];
     final split = chunk.split(batch);
     if (split != null) return split;
     // Alignment lost: translate unit by unit.
     return [
-      for (final unit in chunk.units) await translate(unit.text) ?? unit.text,
+      for (final unit in chunk.units)
+        await translate(
+              unit.text,
+              contextInstruction: _unitContextInstruction(unit),
+            ) ??
+            unit.text,
     ];
+  }
+
+  static String? _chunkContextInstruction(Chunk chunk) {
+    if (chunk.units.length == 1) {
+      return _unitContextInstruction(chunk.units.single);
+    }
+    final hints = <String>[];
+    for (var i = 0; i < chunk.units.length; i++) {
+      final hint = chunk.units[i].contextHint;
+      if (hint != null && hint.isNotEmpty) {
+        final marker =
+            '${BatchCodec.markerOpen}${i + 1}${BatchCodec.markerClose}';
+        hints.add('$marker is for $hint');
+      }
+    }
+    if (hints.isEmpty) return null;
+    return 'Use the grammatical plural form specified for each marked item: '
+        '${hints.join('; ')}.';
+  }
+
+  static String? _unitContextInstruction(TranslationUnit unit) {
+    final hint = unit.contextHint;
+    if (hint == null || hint.isEmpty) return null;
+    return 'Translate using the grammatical form for $hint.';
   }
 
   static TranslationOptions _options(
     TranslationEngine engine,
     TranslationOptions options,
-    String text,
-  ) {
-    final needsInstruction =
+    String text, {
+    String? contextInstruction,
+  }) {
+    final needsMarkerInstruction =
         engine.isAi &&
         (text.contains(BatchCodec.markerOpen) ||
             text.contains(placeholderOpen));
+    final pluralHint =
+        engine.isAi &&
+            contextInstruction != null &&
+            contextInstruction.isNotEmpty
+        ? contextInstruction
+        : null;
     final instructions = options.instructions.trim();
+    final parts = [
+      if (needsMarkerInstruction) markerInstruction,
+      ?pluralHint,
+      if (instructions.isNotEmpty) instructions,
+    ];
     return options.copyWith(
       preserveFormatting: true,
-      instructions: needsInstruction
-          ? [
-              markerInstruction,
-              if (instructions.isNotEmpty) instructions,
-            ].join(' ')
-          : options.instructions,
+      instructions: parts.isEmpty ? options.instructions : parts.join(' '),
     );
   }
 

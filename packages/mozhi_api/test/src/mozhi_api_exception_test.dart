@@ -35,6 +35,50 @@ void main() {
           );
         });
       });
+
+      const deterministic500s = [
+        'Target language code invalid',
+        'target language code invalid: xx',
+        'Source language code invalid',
+        'SOURCE LANGUAGE CODE INVALID',
+        'Engine does not exist or has been disabled.',
+        'engine does not exist',
+        'Engine bing not supported or implemented',
+        "Engine deepl doesn't support TTS.",
+        'Engine deepl does not support TTS',
+      ];
+      for (final message in deterministic500s) {
+        test('is false for deterministic HTTP 500 "$message"', () {
+          expect(
+            MozhiApiException(message, statusCode: 500).isRetryable,
+            isFalse,
+          );
+        });
+      }
+
+      const retryable500s = [
+        'Post "https://translate.googleapis.com/?q=Target language code invalid": EOF',
+        'Get "https://deepl.example/?text=Engine does not exist": timeout',
+        'ErrTransport: Engine does not exist',
+        'runtime error: invalid memory address',
+        'Instance has been rate limited',
+        'upstream timeout',
+      ];
+      for (final message in retryable500s) {
+        test('stays true for transient/upstream HTTP 500 "$message"', () {
+          expect(
+            MozhiApiException(message, statusCode: 500).isRetryable,
+            isTrue,
+          );
+        });
+      }
+
+      test('keeps network errors retryable regardless of message', () {
+        expect(
+          const MozhiApiException('Engine does not exist').isRetryable,
+          isTrue,
+        );
+      });
     });
 
     group('toString', () {

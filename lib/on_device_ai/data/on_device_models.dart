@@ -283,7 +283,8 @@ class OnDeviceModels {
     if (!overMeteredNetwork && await wifiOnly() && await _isMetered()) {
       throw const OnDeviceModelMeteredException();
     }
-    final download = _Download(model.size)..listeners.addAll([?onProgress]);
+    final download = _Download(model.totalSize)
+      ..listeners.addAll([?onProgress]);
     download.future = _download(model, download);
     _downloads[id] = download;
     try {
@@ -306,7 +307,9 @@ class OnDeviceModels {
         onProgress: (progress) {
           download.report(progress.receivedBytes);
           reportForeground(
-            model.size == 0 ? 1 : progress.receivedBytes / model.size,
+            progress.totalBytes == 0
+                ? 1
+                : progress.receivedBytes / progress.totalBytes,
           );
         },
       ),

@@ -85,6 +85,7 @@ class CliConfig {
     this.source,
     this.target,
     this.providers = const [],
+    this.glossary = const {},
   });
 
   /// Tolerant: unknown keys and wrongly typed values are ignored. Throws
@@ -96,6 +97,7 @@ class CliConfig {
     }
 
     final providers = json['providers'];
+    final glossary = json['glossary'];
     return CliConfig(
       instance: string('instance'),
       engine: string('engine'),
@@ -108,6 +110,16 @@ class CliConfig {
                   ProviderEntry.fromJson(provider),
             ]
           : const [],
+      glossary: glossary is Map
+          ? {
+              for (final MapEntry(:key, :value) in glossary.entries)
+                if (key is String &&
+                    value is String &&
+                    key.trim().isNotEmpty &&
+                    value.trim().isNotEmpty)
+                  key.trim(): value.trim(),
+            }
+          : const {},
     );
   }
 
@@ -115,7 +127,7 @@ class CliConfig {
   /// instances are used, with failover.
   final String? instance;
 
-  /// Default engine spec, e.g. `mozhi:google` or `ai:claude`.
+  /// Default engine spec, e.g. `mozhi:google`, `ai:claude`, or `mt:deepl`.
   final String? engine;
 
   /// Default source language code or name.
@@ -124,6 +136,10 @@ class CliConfig {
   /// Default target language code or name.
   final String? target;
   final List<ProviderEntry> providers;
+
+  /// Saved default glossary pairs (`sourceTerm -> targetTerm`) merged into
+  /// translation requests.
+  final Map<String, String> glossary;
 
   /// Engine used when none is given.
   static const defaultEngine = 'mozhi:google';
@@ -145,6 +161,7 @@ class CliConfig {
     source: key == ConfigKey.source ? value : source,
     target: key == ConfigKey.target ? value : target,
     providers: providers,
+    glossary: glossary,
   );
 
   CliConfig withProviders(List<ProviderEntry> providers) => CliConfig(
@@ -153,6 +170,16 @@ class CliConfig {
     source: source,
     target: target,
     providers: List.unmodifiable(providers),
+    glossary: glossary,
+  );
+
+  CliConfig withGlossary(Map<String, String> glossary) => CliConfig(
+    instance: instance,
+    engine: engine,
+    source: source,
+    target: target,
+    providers: providers,
+    glossary: Map.unmodifiable(glossary),
   );
 
   /// Finds a provider by id or (case-insensitive) name.
@@ -178,5 +205,6 @@ class CliConfig {
     'target': ?target,
     if (providers.isNotEmpty)
       'providers': [for (final provider in providers) provider.toJson()],
+    if (glossary.isNotEmpty) 'glossary': Map<String, String>.of(glossary),
   };
 }

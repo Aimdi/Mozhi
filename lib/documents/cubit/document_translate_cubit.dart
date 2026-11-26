@@ -179,6 +179,16 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
   /// The target language the current text document was parsed for.
   String? _parsedTarget;
 
+  /// Whether the current text document was parsed with expanded plural forms
+  /// (enabled for AI engines).
+  bool _parsedExpandPlurals = false;
+
+  /// Whether PDF translation is supported on this platform (Android and web).
+  // Read-only query; it changes nothing.
+  // ignore: prefer_void_public_cubit_methods
+  bool get pdfSupported =>
+      _pdfTranslator?.isSupported ?? defaultPdfPages().isSupported;
+
   /// Whether engine/languages still mirror the translate screen.
   bool _followTranslate = true;
   int _languagesRequest = 0;
@@ -632,14 +642,27 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
     }
     final document = next.document;
     final format = next.format;
+    final expandPlurals = next.engine?.isAi ?? false;
+    final pluralFormat =
+        format == DocumentFormat.po || format == DocumentFormat.androidStrings;
+    final needsReparse =
+        target != _parsedTarget ||
+        (pluralFormat && expandPlurals != _parsedExpandPlurals);
     if (document == null ||
         format == null ||
         !format.usesTargetLanguage ||
-        target == _parsedTarget) {
+        !needsReparse) {
       return next;
     }
     // A document that can't take the target keeps its last parse.
-    return _parsed(next, next.text, format, target, keepOnFailure: true);
+    return _parsed(
+      next,
+      next.text,
+      format,
+      target,
+      expandPlurals: expandPlurals,
+      keepOnFailure: true,
+    );
   }
 
   /// [next] with [text] parsed as [format] for [target]: right away for
@@ -651,30 +674,47 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
     String text,
     DocumentFormat format,
     String? target, {
+    bool expandPlurals = false,
     bool keepOnFailure = false,
   }) {
     final request = ++_textRequest;
     if (text.length < backgroundBytes) {
       return _withText(
         next,
-        () => _parser(text, format, targetLanguage: target),
+        () => expandPlurals && identical(_parser, parseDocument)
+            ? parseDocument(
+                text,
+                format,
+                targetLanguage: target,
+                expandPlurals: true,
+              )
+            : _parser(text, format, targetLanguage: target),
         format,
         target,
+        expandPlurals: expandPlurals,
         keepOnFailure: keepOnFailure,
       );
     }
     unawaited(
-      _parseTextInBackground(text, format, target).then((parse) {
+      _parseTextInBackground(
+        text,
+        format,
+        target,
+        expandPlurals: expandPlurals,
+      ).then((parse) {
         if (isClosed || request != _textRequest) return;
         final parsed = _withText(
           state,
           parse,
           format,
           target,
+          expandPlurals: expandPlurals,
           keepOnFailure: keepOnFailure,
         );
         // The target changed while the text was parsed.
-        final current = _targetLanguage(parsed.target) == target;
+        final current =
+            _targetLanguage(parsed.target) == target &&
+            (parsed.engine?.isAi ?? false) == expandPlurals;
         emit(current ? parsed : _retargeted(parsed));
       }),
     );
@@ -690,14 +730,16 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
   Future<ParsedDocument Function()> _parseTextInBackground(
     String text,
     DocumentFormat format,
-    String? target,
-  ) async {
+    String? target, {
+    required bool expandPlurals,
+  }) async {
     try {
       final document = await parseTextInBackground(
         _parser,
         text,
         format,
         targetLanguage: target,
+        expandPlurals: expandPlurals,
       );
       return () => document;
     } on Object catch (error, stackTrace) {
@@ -711,6 +753,7 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
     ParsedDocument Function() parse,
     DocumentFormat format,
     String? target, {
+    required bool expandPlurals,
     required bool keepOnFailure,
   }) {
     final ParsedDocument document;
@@ -736,6 +779,7 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
       );
     }
     _parsedTarget = target;
+    _parsedExpandPlurals = expandPlurals;
     return base.copyWith(
       status: DocumentStatus.ready,
       document: () => document,
@@ -849,7 +893,15 @@ class DocumentTranslateCubit extends Cubit<DocumentTranslateState> {
       packagedDocument: () => null,
       pdf: () => null,
     );
-    emit(_parsed(next, text, format, _targetLanguage(base.target)));
+    emit(
+      _parsed(
+        next,
+        text,
+        format,
+        _targetLanguage(base.target),
+        expandPlurals: base.engine?.isAi ?? false,
+      ),
+    );
   }
 
   // ---------------------------------------------------------------------

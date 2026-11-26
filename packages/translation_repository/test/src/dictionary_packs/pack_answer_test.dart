@@ -16,6 +16,7 @@ void main() {
     test('merges the entries of a headword', () async {
       final answer = (await reader.define('house', target: 'de'))!;
       expect(answer.language, 'en');
+      expect(answer.glossLanguage, 'en');
       expect(answer.attribution, reader.header.attribution);
       expect(answer.inflectedForm, isNull);
       expect(answer.otherLemmas, isEmpty);
@@ -113,6 +114,28 @@ void main() {
     test('is null for unknown words', () async {
       expect(await reader.define('zebra'), isNull);
       expect(await reader.define(''), isNull);
+    });
+
+    test('carries exact glossLanguage from the pack header', () async {
+      final germanWriter =
+          DictionaryPackWriter(
+            language: 'es',
+            glossLanguage: 'de',
+            name: 'Spanish',
+          )..add(
+            const DictionaryPackEntry(
+              word: 'gato',
+              partOfSpeech: 'noun',
+              senses: [DictionaryPackSense(gloss: 'Katze')],
+            ),
+          );
+      final germanPack = germanWriter.build();
+      final germanReader = await DictionaryPackReader.open(
+        MemoryDictionaryPackSource(germanPack),
+      );
+      final answer = (await germanReader.define('gato'))!;
+      expect(answer.language, 'es');
+      expect(answer.glossLanguage, 'de');
     });
   });
 

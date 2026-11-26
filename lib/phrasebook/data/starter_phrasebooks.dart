@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:mozhi/core/key_value_store.dart';
 import 'package:mozhi/phrasebook/models/starter_phrasebook.dart';
+import 'package:mozhi/platform/download_foreground_service.dart';
 import 'package:mozhi/platform/free_space.dart';
 import 'package:translation_repository/translation_repository.dart'
     show Sha256, gzipDecode;
@@ -205,7 +206,13 @@ class StarterPhrasebooks {
     if (existing != null && existing.sha256 == pack.sha256) return;
     // Stored as base64 (a third larger) next to the app's settings.
     await ensureFreeSpace(pack.size * 2, freeSpace: _freeSpace);
-    final bytes = await _downloadFromAny(pack, onProgress);
+    final bytes = await DownloadForegroundCoordinator.instance.track(
+      label: pack.name,
+      run: (reportForeground) => _downloadFromAny(pack, (fraction) {
+        onProgress?.call(fraction);
+        reportForeground(fraction);
+      }),
+    );
     final installedAt = _clock();
     final StarterPhrasebook parsed;
     try {

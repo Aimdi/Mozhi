@@ -50,7 +50,6 @@ class _PresetOptionsFormState extends State<PresetOptionsForm> {
         _Label(l10n.translateOptionsStyle),
         SegmentedButton<TranslationStyle>(
           key: const Key('preset_form_style'),
-          showSelectedIcon: false,
           segments: [
             ButtonSegment(
               value: TranslationStyle.natural,

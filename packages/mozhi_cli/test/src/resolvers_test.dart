@@ -47,6 +47,34 @@ void main() {
         _usage('Unknown AI provider "x"'),
       );
     });
+
+    test('resolves direct MT providers and keeps ai/mt separate', () {
+      const mixed = [deeplMtProvider, ollamaProvider, libreMtProvider];
+      expect(resolveEngine('ai', mixed).id, 'ai:local');
+      expect(resolveEngine('mt', mixed).id, 'mt:deepl-api');
+      expect(resolveEngine('mt:libre-local', mixed).id, 'mt:libre-local');
+      expect(resolveEngine('deepl-api', mixed).id, 'mt:deepl-api');
+      expect(
+        () => resolveEngine('ai:deepl-api', mixed),
+        throwsA(
+          isA<CliException>()
+              .having((e) => e.message, 'message', contains('direct MT'))
+              .having((e) => e.hint, 'hint', contains('mt:deepl-api')),
+        ),
+      );
+      expect(
+        () => resolveEngine('mt:local', mixed),
+        throwsA(
+          isA<CliException>()
+              .having((e) => e.message, 'message', contains('AI provider'))
+              .having((e) => e.hint, 'hint', contains('ai:local')),
+        ),
+      );
+      expect(
+        () => resolveEngine('mt', [ollamaProvider]),
+        _usage('No direct MT'),
+      );
+    });
   });
 
   group('resolveLanguage', () {

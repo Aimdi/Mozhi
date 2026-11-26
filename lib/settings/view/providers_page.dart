@@ -2,10 +2,12 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:mozhi/app/fallback_key_value_store.dart';
 import 'package:mozhi/app/theme.dart';
 import 'package:mozhi/core/widgets/app_bar_title.dart';
 import 'package:mozhi/l10n/l10n.dart';
 import 'package:mozhi/settings/cubit/settings_cubit.dart';
+import 'package:mozhi/settings/data/settings_repository.dart';
 import 'package:mozhi/settings/view/provider_editor_page.dart';
 import 'package:mozhi/settings/view/widgets/settings_section.dart';
 import 'package:translation_repository/translation_repository.dart';
@@ -13,14 +15,22 @@ import 'package:translation_repository/translation_repository.dart';
 /// Lists the configured AI providers and machine translation services.
 ///
 /// On the web ([isWeb]) it says that API keys only last for the browser
-/// session (they are kept in `sessionStorage`).
+/// session (they are kept in `sessionStorage`). When secure storage fell back
+/// to in-memory storage ([secretsInMemory], auto-detected from
+/// [SettingsRepository.secrets] when null), a persistent warning banner tells
+/// the user that API keys will not persist across restarts.
 class ProvidersPage extends StatelessWidget {
-  const new({super.key, this.isWeb = kIsWeb});
+  const new({super.key, this.isWeb = kIsWeb, this.secretsInMemory});
 
   final bool isWeb;
 
+  /// Overrides whether secure storage fell back to memory-only storage.
+  /// When null, inspected from the provided [SettingsRepository].
+  final bool? secretsInMemory;
+
   @override
-  Widget build(BuildContext context) => ProvidersView(isWeb: isWeb);
+  Widget build(BuildContext context) =>
+      ProvidersView(isWeb: isWeb, secretsInMemory: secretsInMemory);
 }
 
 /// Location of the provider editor for [providerId] or [presetId].
@@ -30,10 +40,26 @@ String providerEditorLocation({String? providerId, String? presetId}) => Uri(
 ).toString();
 
 class ProvidersView extends StatelessWidget {
-  const new({super.key, this.isWeb = kIsWeb});
+  const new({super.key, this.isWeb = kIsWeb, this.secretsInMemory});
 
   /// Whether the app runs in a browser, where API keys are session-only.
   final bool isWeb;
+
+  /// Overrides whether secure storage fell back to memory-only storage.
+  final bool? secretsInMemory;
+
+  bool _isSecretsInMemory(BuildContext context) {
+    if (secretsInMemory case final value?) return value;
+    try {
+      final repo = context.read<SettingsRepository>();
+      return switch (repo.secrets) {
+        final FallbackKeyValueStore store => store.usingFallback,
+        _ => false,
+      };
+    } on ProviderNotFoundException {
+      return false;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -41,6 +67,7 @@ class ProvidersView extends StatelessWidget {
     final providers = context.select<SettingsCubit, List<AiProviderConfig>>(
       (cubit) => cubit.state.providers,
     );
+    final inMemory = _isSecretsInMemory(context);
     return Scaffold(
       appBar: AppBar(title: AppBarTitle(l10n.settingsProvidersTitle)),
       floatingActionButton: providers.isEmpty
@@ -58,6 +85,7 @@ class ProvidersView extends StatelessWidget {
               padding: padding,
               child: Column(
                 children: [
+                  if (inMemory) const _SecretsInMemoryBanner(),
                   const _EmptyState(),
                   if (isWeb)
                     _FooterNote(
@@ -71,6 +99,7 @@ class ProvidersView extends StatelessWidget {
           return ListView(
             padding: padding,
             children: [
+              if (inMemory) const _SecretsInMemoryBanner(),
               for (final provider in providers)
                 _ProviderTile(key: ValueKey(provider.id), provider: provider),
               if (isWeb)
@@ -78,7 +107,7 @@ class ProvidersView extends StatelessWidget {
                   icon: Icons.schedule_outlined,
                   text: l10n.settingsProvidersWebNote,
                 )
-              else
+              else if (!inMemory)
                 _FooterNote(
                   icon: Icons.lock_outline,
                   text: l10n.settingsProvidersFooter,
@@ -86,6 +115,53 @@ class ProvidersView extends StatelessWidget {
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+/// Persistent warning shown when the platform's secure storage fell back to
+/// in-memory storage, so API keys will not persist across restarts.
+class _SecretsInMemoryBanner extends StatelessWidget {
+  const new();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: MergeSemantics(
+        child: DecoratedBox(
+          key: const Key('providers_secrets_in_memory_banner'),
+          decoration: BoxDecoration(
+            color: colors.errorContainer,
+            borderRadius: AppLook.of(context).cardRadius,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.warning_amber_rounded,
+                  size: 20,
+                  color: colors.onErrorContainer,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    l10n.appSecureStorageUnavailable,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: colors.onErrorContainer,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

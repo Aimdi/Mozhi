@@ -187,17 +187,31 @@ class PdfPagesPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             // on a duplicated descriptor so text-layer extraction works
             // before Android 15 (best effort; falls back to OCR when absent).
             if (Build.VERSION.SDK_INT in TextLayer.PRE_V_MIN_SDK until TextLayer.SDK) {
-                try {
-                    val dup = opened.dup()
-                    val preV = TextLayer.openPreV(dup)
-                    if (preV != null) {
-                        preVDescriptor = dup
-                        preVRenderer = preV
-                    } else {
-                        dup.close()
+                val dup = try {
+                    opened.dup()
+                } catch (e: IOException) {
+                    null
+                }
+                if (dup != null) {
+                    var adopted = false
+                    try {
+                        val preV = TextLayer.openPreV(dup)
+                        if (preV != null) {
+                            preVDescriptor = dup
+                            preVRenderer = preV
+                            adopted = true
+                        }
+                    } catch (e: Exception) {
+                        // No SDK extension or unsupported PDF feature; OCR fallback.
+                    } finally {
+                        if (!adopted) {
+                            try {
+                                dup.close()
+                            } catch (e: IOException) {
+                                // Ignore close failure on best-effort cleanup.
+                            }
+                        }
                     }
-                } catch (e: Exception) {
-                    // No SDK extension or unsupported PDF feature; OCR fallback.
                 }
             }
             val count = pdf.pageCount

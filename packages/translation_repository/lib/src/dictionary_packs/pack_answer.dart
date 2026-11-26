@@ -85,6 +85,7 @@ extension DictionaryPackAnswers on DictionaryPackReader {
       entry: mergePackEntries(chosen, target: target),
       language: header.language,
       attribution: header.attribution,
+      glossLanguage: header.glossLanguage.isEmpty ? null : header.glossLanguage,
       inflectedForm: inflectedForm,
       otherLemmas: List.unmodifiable(others),
     );

@@ -385,7 +385,7 @@ void main() {
         );
         expect(log.existsSync(), isFalse, reason: 'no debugger was started');
       },
-      skip: Platform.isLinux ? false : 'Linux only',
+      skip: Platform.isLinux ? null : 'Linux only',
     );
 
     test('generates the script: whole characters, then the end', () {

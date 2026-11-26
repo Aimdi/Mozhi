@@ -37,7 +37,16 @@ import 'package:translation_repository/translation_repository.dart'
 ///
 /// Throws [DocumentParseException] for malformed XML, entity declarations,
 /// or a root element other than `<resources>`.
-ParsedDocument parseAndroidStrings(String text, {String? targetLanguage}) {
+///
+/// When [expandPlurals] is true and [targetLanguage] has more than two CLDR
+/// plural categories (e.g. Russian `one`/`few`/`many`/`other` or Arabic's six
+/// categories), each target `<item quantity="...">` receives its own segment
+/// annotated with its plural category in [Segment.contextHint].
+ParsedDocument parseAndroidStrings(
+  String text, {
+  String? targetLanguage,
+  bool expandPlurals = false,
+}) {
   final tree = parseXmlTree(text, format: 'Android strings');
   if (tree.root.localName != 'resources') {
     throw DocumentParseException(
@@ -51,6 +60,7 @@ ParsedDocument parseAndroidStrings(String text, {String? targetLanguage}) {
     tree,
     pluralCategories(targetLanguage),
     oneIsOnlyOne: oneIsOnlyOne,
+    expandPlurals: expandPlurals,
   ).parse();
 }
 
@@ -81,8 +91,12 @@ const _styleTags = {
 final _reference = RegExp(r'^[@?][\w.:+-]*(?:/[\w.$]+|[\w.]|\$[\w.$]*)$');
 
 class _AndroidParser {
-  new(this.tree, this.quantities, {required this.oneIsOnlyOne})
-    : source = tree.source;
+  new(
+    this.tree,
+    this.quantities, {
+    required this.oneIsOnlyOne,
+    this.expandPlurals = false,
+  }) : source = tree.source;
 
   final XmlTree tree;
   final String source;
@@ -95,6 +109,10 @@ class _AndroidParser {
   /// (English, German, Polish, Arabic), not numbers such as 21, 31 or 0
   /// (Russian, Ukrainian, Serbian, French).
   final bool oneIsOnlyOne;
+
+  /// Whether target languages with >2 plural categories emit one distinct
+  /// segment per target category with a plural [Segment.contextHint].
+  final bool expandPlurals;
   final DocumentBuilder builder = DocumentBuilder();
   int _pairs = 0;
 
@@ -148,6 +166,11 @@ class _AndroidParser {
         return _value(element, label: name);
       case 'string-array' || 'plurals':
         final plurals = element.localName == 'plurals';
+        if (plurals && expandPlurals) {
+          if (_expandedPlurals(element, name) case final expanded?) {
+            return expanded;
+          }
+        }
         final nodes = NodeList();
         final values = <XmlElement, List<DocNode>>{};
         var position = element.outerStart;
@@ -155,10 +178,13 @@ class _AndroidParser {
         for (final item in element.elements) {
           nodes.text(source.substring(position, item.outerStart));
           if (item.localName == 'item') {
-            final quantity = item.attribute(source, 'quantity');
+            final quantity = item.attribute(source, 'quantity')?.trim();
             final value = _value(
               item,
               label: plurals ? '$name:$quantity' : '$name[$index]',
+              contextHint: plurals && quantity != null
+                  ? pluralCategoryHint(quantity)
+                  : null,
             );
             values[item] = value;
             nodes.addAll(value);
@@ -176,6 +202,77 @@ class _AndroidParser {
       default:
         return whole;
     }
+  }
+
+  /// Builds distinct segments for each CLDR plural category of [quantities]
+  /// when [expandPlurals] is enabled and the target language has >2 plural
+  /// categories, attaching each category's [Segment.contextHint].
+  List<DocNode>? _expandedPlurals(XmlElement element, String? name) {
+    final target = quantities;
+    if (target == null || target.length <= 2 || element.end == null) {
+      return null;
+    }
+    final items = element.elements.toList();
+    if (items.isEmpty || items.any((item) => item.localName != 'item')) {
+      return null;
+    }
+    final byQuantity = <String, XmlElement>{};
+    for (final item in items) {
+      final quantity = item.attribute(source, 'quantity')?.trim();
+      if (quantity == null || item.end == null) return null;
+      byQuantity.putIfAbsent(quantity, () => item);
+    }
+    final oneItem = byQuantity['one'];
+    final otherItem = byQuantity['other'];
+    final useOtherForOne =
+        !oneIsOnlyOne &&
+        oneItem != null &&
+        otherItem != null &&
+        target.contains('one') &&
+        _placeholders(otherItem).difference(_placeholders(oneItem)).isNotEmpty;
+    if (!useOtherForOne &&
+        byQuantity.length == target.length &&
+        target.every(byQuantity.containsKey)) {
+      return null;
+    }
+    final fallback = otherItem ?? items.last;
+    final separator = items.length > 1
+        ? source.substring(items[0].outerEnd, items[1].outerStart)
+        : source.substring(element.contentStart, items.first.outerStart);
+    final indentation = separator.trim().isEmpty
+        ? separator
+        : _lastLineBreak(separator);
+    final nodes = NodeList()
+      ..text(source.substring(element.outerStart, items.first.outerStart));
+    for (var i = 0; i + 1 < items.length; i++) {
+      final between = source.substring(
+        items[i].outerEnd,
+        items[i + 1].outerStart,
+      );
+      if (between.trim().isNotEmpty) {
+        nodes.text('${between.trim()}$indentation');
+      }
+    }
+    for (final (i, quantity) in target.indexed) {
+      final item = quantity == 'one' && useOtherForOne
+          ? otherItem
+          : (byQuantity[quantity] ?? fallback);
+      final value = _value(
+        item,
+        label: '$name:$quantity',
+        contextHint: pluralCategoryHint(quantity),
+      );
+      nodes
+        ..text(i == 0 ? '' : indentation)
+        ..text(setAttributes(source, item.start, {'quantity': quantity}))
+        ..addAll(value.sublist(1, value.length - 1))
+        ..text(item.end!.raw(source));
+    }
+    nodes.text(source.substring(items.last.outerEnd, element.outerEnd));
+    final outer = _outer(element);
+    return [
+      EncodedNode(raw: outer, children: nodes.nodes, encode: (xml) => xml),
+    ];
   }
 
   /// The `<plurals>` [element] with the target language's quantities
@@ -285,7 +382,11 @@ class _AndroidParser {
   }
 
   /// Nodes for a string value element.
-  List<DocNode> _value(XmlElement element, {String? label}) {
+  List<DocNode> _value(
+    XmlElement element, {
+    String? label,
+    String? contextHint,
+  }) {
     if (element.end == null) return [TextNode(_outer(element))];
     final formatted = element.attribute(source, 'formatted') != 'false';
     final cdata = _cdataOnly(element);
@@ -325,6 +426,7 @@ class _AndroidParser {
       inlines,
       escape: escape,
       label: label,
+      contextHint: contextHint,
       accept: (text) =>
           looksLikeNaturalLanguage(text) && !_reference.hasMatch(text.trim()),
       repair: (fragment) => repairInlineTags(fragment, html: false),

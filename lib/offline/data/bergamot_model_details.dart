@@ -104,7 +104,7 @@ class BergamotModelDetails
     // Registered in `downloads` before the call returns.
     final running = translator.downloadLanguage(code, wifiOnly: wifiOnly);
     await DownloadForegroundCoordinator.instance.track(
-      label: code,
+      label: LanguageCatalog.nameOf(code),
       onCancel: () => translator.cancelDownload(code),
       run: (reportForeground) async {
         final subscription = translator.downloads[code]?.progressChanges.listen(

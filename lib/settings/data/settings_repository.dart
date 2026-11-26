@@ -166,9 +166,9 @@ class SettingsRepository {
       if (_loadFailed) throw const SettingsUnavailableException();
       final next = change(current);
       if (next == current) return current;
-      await _save(next);
+      final stamped = await _save(next);
       _viewStored = false;
-      return next;
+      return stamped;
     });
   }
 
@@ -290,21 +290,25 @@ class SettingsRepository {
   }
 
   /// Stamps any synced preference field that changed compared to [previous]
-  /// (unless [settings] already carries a newer timestamp for that field,
-  /// e.g. from a sync merge or restore).
+  /// (or [const AppSettings()] on a fresh install), preserving timestamps from
+  /// [previous] for unchanged fields unless [settings] already carries a newer
+  /// timestamp for that field (e.g. from a sync merge or restore).
   static AppSettings _withTimestamps(
     AppSettings? previous,
     AppSettings settings,
   ) {
-    if (previous == null) return settings;
-    final prevJson = previous.toJson();
+    final baseline = previous ?? const AppSettings();
+    final prevJson = baseline.toJson();
     final nextJson = settings.toJson();
-    final timestamps = <String, int>{...settings.settingTimestamps};
-    var changed = false;
+    final timestamps = <String, int>{
+      ...?previous?.settingTimestamps,
+      ...settings.settingTimestamps,
+    };
+    var changed = !_sameTimestamps(timestamps, settings.settingTimestamps);
     final now = clock().toUtc().millisecondsSinceEpoch;
     for (final field in SettingsBackupSection.syncedPreferenceFields) {
       if (jsonEncode(prevJson[field]) == jsonEncode(nextJson[field])) continue;
-      final prevTs = previous.settingTimestamps[field];
+      final prevTs = baseline.settingTimestamps[field];
       final nextTs = settings.settingTimestamps[field];
       if (nextTs != null && nextTs != prevTs) continue;
       timestamps[field] = now;
@@ -315,6 +319,14 @@ class SettingsRepository {
         : settings;
   }
 
+  static bool _sameTimestamps(Map<String, int> a, Map<String, int> b) {
+    if (a.length != b.length) return false;
+    for (final MapEntry(:key, :value) in a.entries) {
+      if (b[key] != value) return false;
+    }
+    return true;
+  }
+
   /// Runs [action] after the saves and updates called before it.
   Future<T> _queued<T>(Future<T> Function() action) {
     final result = _pendingSave.then((_) => action());
@@ -322,7 +334,7 @@ class SettingsRepository {
     return result;
   }
 
-  Future<void> _save(AppSettings settings) async {
+  Future<AppSettings> _save(AppSettings settings) async {
     // Storage errors propagate: never overwrite what could not be read.
     final previous = _decode(await prefs.read(settingsKey));
     if (_loadFailed) {
@@ -373,6 +385,7 @@ class SettingsRepository {
       for (final provider in [...?previous?.providers])
         if (staleIds.contains(provider.id)) provider,
     ], present: settings.providers);
+    return stamped;
   }
 
   /// Adds [removed] to [removedProviders] and forgets those [present]

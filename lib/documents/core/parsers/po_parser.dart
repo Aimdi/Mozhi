@@ -49,9 +49,22 @@ import 'package:translation_repository/translation_repository.dart'
 /// gets one.
 ///
 /// Throws [DocumentParseException] for lines that are not PO syntax.
-ParsedDocument parsePo(String text, {String? targetLanguage}) {
+///
+/// When [expandPlurals] is true and the target language has more than two
+/// plural forms (e.g. Russian `one`/`few`/`many` or Arabic's six forms),
+/// each target plural form receives its own segment annotated with its CLDR
+/// plural category in [Segment.contextHint].
+ParsedDocument parsePo(
+  String text, {
+  String? targetLanguage,
+  bool expandPlurals = false,
+}) {
   checkDocumentLength(text, 'PO');
-  return _PoParser(text, canonicalLanguageTag(targetLanguage)).parse();
+  return _PoParser(
+    text,
+    canonicalLanguageTag(targetLanguage),
+    expandPlurals: expandPlurals,
+  ).parse();
 }
 
 final _keyword = RegExp(
@@ -109,10 +122,12 @@ class _Entry {
 }
 
 class _PoParser {
-  new(this.text, this.target) : lines = splitLines(text);
+  new(this.text, this.target, {this.expandPlurals = false})
+    : lines = splitLines(text);
 
   final String text;
   final String? target;
+  final bool expandPlurals;
   final List<SourceLine> lines;
   final DocumentBuilder builder = DocumentBuilder();
 
@@ -405,11 +420,16 @@ class _PoParser {
     }
 
     final label = entry.field('msgctxt')?.value.toString();
-    List<DocNode> segment(String value) {
+    List<DocNode> segment(
+      String value, {
+      String? segmentLabel,
+      String? contextHint,
+    }) {
       if (value.contains('\u0000')) return [TextNode(value)];
       return builder.content(
         protect(value, pattern),
-        label: label,
+        label: segmentLabel ?? label,
+        contextHint: contextHint,
         accept: looksLikeNaturalLanguage,
         escape: escape,
       );
@@ -425,15 +445,6 @@ class _PoParser {
       // A catalogue keyed by identifiers: translate the existing text.
       singularSource = msgstrs.first.value.toString();
     }
-    final children = <DocNode>[
-      ...segment(singularSource),
-      if (plural != null) ...[
-        const TextNode('\u0000'),
-        ...segment(plural.value.toString()),
-      ],
-    ];
-    if (!hasSegment(children)) return whole;
-
     final first = msgstrs.first.start;
     final last = msgstrs.last.end;
     final ending = lines[last - 1].ending;
@@ -441,12 +452,59 @@ class _PoParser {
     String field(String keyword, String value) =>
         _format(keyword, value, multiLine: multiLine);
 
+    final count = forms?.count ?? msgstrs.length;
+    final one = forms?.formFor(1) ?? 0;
+    final expandedCategories = plural != null && expandPlurals
+        ? gettextPluralCategories(target, count)
+        : null;
+
+    final List<DocNode> children;
     final String Function(String) encode;
     if (plural == null) {
+      children = segment(singularSource);
       encode = (value) => '${field('msgstr', value)}$ending';
+    } else if (expandedCategories != null) {
+      final pluralSource = plural.value.toString();
+      final singularForm =
+          forms == null ||
+              singularOnlyOne ||
+              _tokens(
+                pluralSource,
+                pattern,
+              ).difference(_tokens(singularSource, pattern)).isEmpty
+          ? one
+          : -1;
+      children = <DocNode>[];
+      for (var k = 0; k < count; k++) {
+        if (k > 0) children.add(const TextNode('\u0000'));
+        final category = expandedCategories[k];
+        final sourceText = k == singularForm ? singularSource : pluralSource;
+        final segLabel = label == null ? category : '$label:$category';
+        children.addAll(
+          segment(
+            sourceText,
+            segmentLabel: segLabel,
+            contextHint: pluralCategoryHint(category),
+          ),
+        );
+      }
+      encode = (value) {
+        final parts = value.split('\u0000');
+        final renderedForms = [
+          for (var k = 0; k < count; k++)
+            field('msgstr[$k]', k < parts.length ? parts[k] : parts.last),
+        ];
+        return '${renderedForms.join(_lineBreak)}$ending';
+      };
     } else {
-      final count = forms?.count ?? msgstrs.length;
-      final one = forms?.formFor(1) ?? 0;
+      children = <DocNode>[
+        ...segment(singularSource, contextHint: pluralCategoryHint('one')),
+        const TextNode('\u0000'),
+        ...segment(
+          plural.value.toString(),
+          contextHint: pluralCategoryHint('other'),
+        ),
+      ];
       // "One file" / "%d files": a form that also counts 21 needs the
       // number.
       final singularForm =
@@ -462,16 +520,17 @@ class _PoParser {
         final parts = value.split('\u0000');
         final singular = parts.first;
         final other = parts.length > 1 ? parts[1] : parts.first;
-        final forms = [
+        final renderedForms = [
           for (var k = 0; k < count; k++)
             field(
               'msgstr[$k]',
               count > 1 && k == singularForm ? singular : other,
             ),
         ];
-        return '${forms.join(_lineBreak)}$ending';
+        return '${renderedForms.join(_lineBreak)}$ending';
       };
     }
+    if (!hasSegment(children)) return whole;
     final msgstrNode = EncodedNode(
       raw: joinLines(lines, first, last),
       children: children,

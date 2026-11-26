@@ -280,7 +280,18 @@ void main() {
 
         await repository.save(settings);
 
-        expect(await repository.load(), equals(settings));
+        final loaded = await repository.load();
+        expect(loaded.copyWith(settingTimestamps: const {}), equals(settings));
+        expect(
+          loaded.settingTimestamps.keys,
+          containsAll([
+            'appLocale',
+            'hapticFeedback',
+            'tabOrder',
+            'rememberQuality',
+            'multilineInput',
+          ]),
+        );
       });
 
       test('reads a stored privacy mode as is', () async {
@@ -337,10 +348,14 @@ void main() {
 
         final raw = prefs.values[SettingsRepository.settingsKey]!;
         expect(raw, isNot(contains('key-a')));
+        final decoded = AppSettings.fromJson(
+          jsonDecode(raw) as Map<String, dynamic>,
+        );
         expect(
-          AppSettings.fromJson(jsonDecode(raw) as Map<String, dynamic>),
+          decoded.copyWith(settingTimestamps: const {}),
           equals(settings.copyWith(providers: [_provider('a')])),
         );
+        expect(decoded.settingTimestamps, contains('seedColor'));
       });
 
       test('stores API keys and deletes cleared ones', () async {
@@ -492,8 +507,12 @@ void main() {
 
           expect(repository.loadFailed, isFalse);
           expect(prefs.writes, 1);
+          final loaded = await SettingsRepository(
+            prefs: prefs,
+            secrets: secrets,
+          ).load();
           expect(
-            await SettingsRepository(prefs: prefs, secrets: secrets).load(),
+            loaded.copyWith(settingTimestamps: const {}),
             equals(const AppSettings(seedColor: 1)),
           );
         });
@@ -560,7 +579,65 @@ void main() {
 
         await expectLater(failed, throwsStateError);
         await succeeded;
-        expect(await repository.load(), equals(next));
+        final loaded = await repository.load();
+        expect(loaded.copyWith(settingTimestamps: const {}), equals(next));
+      });
+
+      group('synced preference timestamps', () {
+        tearDown(() => SettingsRepository.clock = DateTime.now);
+
+        test('stamps the first preference change on a fresh install', () async {
+          final t1 = DateTime.utc(2026, 11, 24, 12);
+          SettingsRepository.clock = () => t1;
+
+          await repository.save(const AppSettings(themeMode: ThemeMode.dark));
+          final loaded = await repository.load();
+
+          expect(
+            loaded.settingTimestamps,
+            equals({'themeMode': t1.millisecondsSinceEpoch}),
+          );
+        });
+
+        test(
+          'preserves previous settingTimestamps for unchanged fields on save',
+          () async {
+            final t1 = DateTime.utc(2026, 11, 24, 12);
+            final t2 = DateTime.utc(2026, 11, 24, 13);
+            SettingsRepository.clock = () => t1;
+            await repository.save(const AppSettings(themeMode: ThemeMode.dark));
+
+            // Save again with empty settingTimestamps changing another field.
+            SettingsRepository.clock = () => t2;
+            await repository.save(
+              const AppSettings(
+                themeMode: ThemeMode.dark,
+                hapticFeedback: false,
+              ),
+            );
+            final loaded = await repository.load();
+
+            expect(loaded.settingTimestamps, {
+              'themeMode': t1.millisecondsSinceEpoch,
+              'hapticFeedback': t2.millisecondsSinceEpoch,
+            });
+          },
+        );
+
+        test('update() returns stamped settings with new timestamps', () async {
+          final t1 = DateTime.utc(2026, 11, 24, 14);
+          SettingsRepository.clock = () => t1;
+
+          final updated = await repository.update(
+            (current) => current.copyWith(themeMode: ThemeMode.light),
+          );
+
+          expect(
+            updated.settingTimestamps,
+            equals({'themeMode': t1.millisecondsSinceEpoch}),
+          );
+          expect(await repository.load(), equals(updated));
+        });
       });
     });
     group('secrets in the settings', () {

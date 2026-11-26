@@ -170,11 +170,17 @@ class HistoryRepository {
     this.maxEntries = 1000,
     this.maxStoredLength = 1000000,
     this.maxTextLength = defaultMaxTextLength,
+    this.maxImportBytes = defaultMaxImportBytes,
+    this.maxImportEntries = defaultMaxImportEntries,
+    this.maxImportFavorites = defaultMaxImportFavorites,
     this.refinementWindow = const Duration(seconds: 30),
     this.maxTombstones = 10000,
     this.tombstoneMaxAge = const Duration(days: 180),
     DateTime Function()? clock,
   }) : assert(maxTextLength > 0, 'maxTextLength must be positive'),
+       assert(maxImportBytes > 0, 'maxImportBytes must be positive'),
+       assert(maxImportEntries > 0, 'maxImportEntries must be positive'),
+       assert(maxImportFavorites > 0, 'maxImportFavorites must be positive'),
        store = store ?? PreferencesStore(),
        cipher = cipher ?? const HistoryCipher(),
        _clock = clock ?? DateTime.now;
@@ -186,6 +192,15 @@ class HistoryRepository {
   /// The default [maxTextLength] (the app's): longer transcripts are saved
   /// in parts (`TranscriptHistory`).
   static const defaultMaxTextLength = 20000;
+
+  /// Maximum UTF-8 byte size accepted by [importJson] (5 MiB).
+  static const int defaultMaxImportBytes = 5 * 1024 * 1024;
+
+  /// Maximum number of JSON elements accepted by [importJson].
+  static const defaultMaxImportEntries = 5000;
+
+  /// Maximum number of favourite entries allowed across an [importJson] merge.
+  static const defaultMaxImportFavorites = 2000;
 
   /// Key in [store] that unreadable history is moved to by
   /// [discardUnreadable].
@@ -239,6 +254,15 @@ class HistoryRepository {
 
   /// Maximum stored length of an entry's `text` and `translation` each.
   final int maxTextLength;
+
+  /// Maximum UTF-8 byte size accepted by [importJson].
+  final int maxImportBytes;
+
+  /// Maximum number of JSON elements accepted by [importJson].
+  final int maxImportEntries;
+
+  /// Maximum number of favourites allowed when importing with [importJson].
+  final int maxImportFavorites;
 
   /// How far apart in time an entry may be from the newest one to be
   /// treated as a typing refinement of it (see [add]).
@@ -544,7 +568,21 @@ class HistoryRepository {
   /// least one valid entry (or is empty). JSON written before entries had
   /// a kind imports as translations.
   Future<HistoryImport> importJson(String json, {Duration? maxAge}) async {
-    final imported = _decodeStrict(json).map(_limited).toList();
+    if (_utf8ByteLength(json) > maxImportBytes) {
+      throw FormatException(
+        'History import exceeds the maximum size of $maxImportBytes bytes',
+      );
+    }
+    final imported = _decodeStrict(
+      json,
+      maxEntries: maxImportEntries,
+    ).map(_limited).toList();
+    final importedFavorites = imported.where((e) => e.isFavorite).length;
+    if (importedFavorites > maxImportFavorites) {
+      throw FormatException(
+        'History import exceeds the maximum of $maxImportFavorites favourites',
+      );
+    }
     var fresh = const <HistoryEntry>[];
     var expired = 0;
     final entries = await _mutate(maxAge: maxAge, (entries) {
@@ -583,8 +621,15 @@ class HistoryRepository {
       }
       fresh = _withoutExpired(added, maxAge);
       expired = added.length - fresh.length;
-      return [...merged, ...fresh]
-        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      final combined = [...merged, ...fresh];
+      final totalFavorites = combined.where((e) => e.isFavorite).length;
+      if (totalFavorites > maxImportFavorites) {
+        throw FormatException(
+          'History import exceeds the maximum of '
+          '$maxImportFavorites favourites',
+        );
+      }
+      return combined..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     });
     final kept = {for (final entry in entries) entry.id};
     return HistoryImport(
@@ -1300,10 +1345,40 @@ class HistoryRepository {
     }
   }
 
-  static List<HistoryEntry> _decodeStrict(String raw) {
+  /// Computes the UTF-8 byte length of [value] without allocating a buffer.
+  static int _utf8ByteLength(String value) {
+    var bytes = 0;
+    for (var i = 0; i < value.length; i++) {
+      final unit = value.codeUnitAt(i);
+      if (unit <= 0x7F) {
+        bytes += 1;
+      } else if (unit <= 0x7FF) {
+        bytes += 2;
+      } else if (_isHighSurrogate(unit) &&
+          i + 1 < value.length &&
+          value.codeUnitAt(i + 1) >= 0xDC00 &&
+          value.codeUnitAt(i + 1) <= 0xDFFF) {
+        bytes += 4;
+        i++;
+      } else {
+        bytes += 3;
+      }
+    }
+    return bytes;
+  }
+
+  static List<HistoryEntry> _decodeStrict(
+    String raw, {
+    required int maxEntries,
+  }) {
     final json = jsonDecode(raw);
     if (json is! List) {
       throw const FormatException('Expected a JSON array of history entries');
+    }
+    if (json.length > maxEntries) {
+      throw FormatException(
+        'History import exceeds the maximum of $maxEntries entries',
+      );
     }
     final entries = _parseEntries(json);
     if (entries.isEmpty && json.isNotEmpty) {

@@ -24,14 +24,22 @@ Future<ParsedDocument> parseTextInBackground(
   String text,
   DocumentFormat format, {
   String? targetLanguage,
+  bool expandPlurals = false,
 }) => kIsWeb
     ? parseTextCooperatively(
         parser,
         text,
         format,
         targetLanguage: targetLanguage,
+        expandPlurals: expandPlurals,
       )
-    : compute(_parseText, (parser, text, format, targetLanguage));
+    : compute(_parseText, (
+        parser,
+        text,
+        format,
+        targetLanguage,
+        expandPlurals,
+      ));
 
 /// Cooperatively parses [text] on the current isolate, yielding to the event
 /// loop before parsing and between blank-line-delimited chunks for large
@@ -41,6 +49,7 @@ Future<ParsedDocument> parseTextCooperatively(
   String text,
   DocumentFormat format, {
   String? targetLanguage,
+  bool expandPlurals = false,
   int chunkThreshold = webTextChunkThreshold,
   int chunkSize = webTextChunkSize,
   Future<void> Function()? yieldTurn,
@@ -50,7 +59,13 @@ Future<ParsedDocument> parseTextCooperatively(
   if (!identical(parser, parseDocument) ||
       format != DocumentFormat.plainText ||
       text.length <= chunkThreshold) {
-    return parser(text, format, targetLanguage: targetLanguage);
+    return _invokeParser(
+      parser,
+      text,
+      format,
+      targetLanguage: targetLanguage,
+      expandPlurals: expandPlurals,
+    );
   }
   final chunks = _splitPlainTextChunks(text, chunkSize);
   if (chunks.length <= 1) {
@@ -198,9 +213,31 @@ Future<Uint8List> renderPackageInBackground(
     ? document.renderAsync(translations)
     : compute(_render, (document, translations));
 
+ParsedDocument _invokeParser(
+  TextDocumentParser parser,
+  String text,
+  DocumentFormat format, {
+  required bool expandPlurals,
+  String? targetLanguage,
+}) => expandPlurals && identical(parser, parseDocument)
+    ? parseDocument(
+        text,
+        format,
+        targetLanguage: targetLanguage,
+        expandPlurals: true,
+      )
+    : parser(text, format, targetLanguage: targetLanguage);
+
 ParsedDocument _parseText(
-  (TextDocumentParser parser, String text, DocumentFormat format, String?) job,
-) => job.$1(job.$2, job.$3, targetLanguage: job.$4);
+  (TextDocumentParser parser, String text, DocumentFormat format, String?, bool)
+  job,
+) => _invokeParser(
+  job.$1,
+  job.$2,
+  job.$3,
+  targetLanguage: job.$4,
+  expandPlurals: job.$5,
+);
 
 PackagedDocument _parsePackage(
   (Uint8List bytes, DocumentFormat format, String? target) job,

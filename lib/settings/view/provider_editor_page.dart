@@ -328,10 +328,38 @@ class _ProviderEditorViewState extends State<ProviderEditorView> {
     _ => false,
   };
 
+  /// Known preset attribution headers stripped when a provider's host changes.
+  static const _stalePresetHeaderNames = {'http-referer', 'x-title'};
+
+  static String _hostOf(String url) {
+    final trimmed = url.trim();
+    if (trimmed.isEmpty) return '';
+    return (Uri.tryParse(trimmed)?.host ?? '').toLowerCase();
+  }
+
   /// Custom headers: the saved provider's, else the preset's (no built-in
-  /// preset adds any).
-  Map<String, String> get _headers =>
-      _existing?.headers ?? _preset?.headers ?? const {};
+  /// preset adds any). When the base URL host changes from the saved
+  /// provider's (or preset's) host, stale preset headers (`HTTP-Referer`,
+  /// `X-Title`, and any headers inherited from the preset) are stripped so
+  /// they are never leaked to a different host.
+  Map<String, String> get _headers {
+    final baseHeaders = _existing?.headers ?? _preset?.headers ?? const {};
+    if (baseHeaders.isEmpty) return const {};
+    final originalUrl = _existing?.baseUrl ?? _preset?.baseUrl ?? '';
+    final originalHost = _hostOf(originalUrl);
+    final currentHost = _hostOf(_normalizedBaseUrl());
+    if (originalHost == currentHost) return baseHeaders;
+    final presetHeaderNames = {
+      ..._stalePresetHeaderNames,
+      for (final key in (_originalPreset?.headers ?? const {}).keys)
+        key.toLowerCase(),
+      for (final key in (_preset?.headers ?? const {}).keys) key.toLowerCase(),
+    };
+    return {
+      for (final MapEntry(:key, :value) in baseHeaders.entries)
+        if (!presetHeaderNames.contains(key.toLowerCase())) key: value,
+    };
+  }
 
   String? _required(String? value) => (value == null || value.trim().isEmpty)
       ? context.l10n.settingsProviderRequired

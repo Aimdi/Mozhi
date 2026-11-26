@@ -804,5 +804,80 @@ void main() {
         expect(putCount(server), puts);
       },
     );
+
+    test(
+      'renamed colliding providers preserve API keys and headers across sync',
+      () async {
+        final server = _server();
+        final a = _Device(config: _everything.copyWith(includeSecrets: true));
+        final b = _Device(config: _everything.copyWith(includeSecrets: true));
+        final cloud = _provider('p1', 'https://ai.example.org/v1').copyWith(
+          apiKey: 'secret-cloud-key',
+          headers: const {'X-Cloud': 'one'},
+        );
+        final local = _provider('p1', 'http://ollama.lan:11434/v1').copyWith(
+          apiKey: 'secret-local-key',
+          headers: const {'X-Local': 'two'},
+        );
+        await a.settings.save(AppSettings(providers: [cloud]));
+        await b.settings.save(AppSettings(providers: [local]));
+
+        await _rounds([a, b], server, key, rounds: 2);
+
+        final onA = (await a.settings.read()).providers;
+        final onB = (await b.settings.read()).providers;
+        expect(onA, hasLength(2));
+        expect(onB, hasLength(2));
+
+        final localOnA = onA.firstWhere((p) => p.baseUrl == local.baseUrl);
+        expect(localOnA.id, isNot('p1'));
+        expect(localOnA.apiKey, 'secret-local-key');
+        expect(localOnA.headers, {'X-Local': 'two'});
+
+        final cloudOnB = onB.firstWhere((p) => p.baseUrl == cloud.baseUrl);
+        expect(cloudOnB.id, isNot('p1'));
+        expect(cloudOnB.apiKey, 'secret-cloud-key');
+        expect(cloudOnB.headers, {'X-Cloud': 'one'});
+      },
+    );
+
+    test(
+      'clearing a nullable synced preference omits null keys and converges',
+      () async {
+        final server = _server();
+        final a = _Device();
+        final b = _Device();
+        addTearDown(() => SettingsRepository.clock = DateTime.now);
+
+        SettingsRepository.clock = () => DateTime.utc(2026, 11, 20, 10);
+        await a.settings.save(const AppSettings(appLocale: 'de'));
+        await _rounds([a, b], server, key, rounds: 1);
+        expect((await b.settings.read()).appLocale, 'de');
+
+        // A resets appLocale back to system default (null).
+        SettingsRepository.clock = () => DateTime.utc(2026, 11, 20, 11);
+        await a.settings.save(
+          (await a.settings.load()).copyWith(appLocale: () => null),
+        );
+        await _rounds([a, b], server, key, rounds: 1);
+
+        expect((await a.settings.read()).appLocale, isNull);
+        expect((await b.settings.read()).appLocale, isNull);
+
+        // Verify the remote sync payload does not contain an explicit null key.
+        final snapshot = await testCodec.decryptWithKey(
+          server.files[_filePath]!,
+          key,
+        );
+        final settingsPayload =
+            (snapshot.sections['settings']!.data! as Map)['settings'] as Map;
+        expect(settingsPayload.containsKey('appLocale'), isFalse);
+
+        // Further sync rounds perform zero writes.
+        final settled = putCount(server);
+        await _rounds([a, b], server, key, rounds: 2);
+        expect(putCount(server), settled);
+      },
+    );
   });
 }

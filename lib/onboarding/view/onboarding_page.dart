@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/semantics.dart' show SemanticsService;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
@@ -142,13 +143,28 @@ class _OnboardingViewState extends State<OnboardingView> {
   late final PageController _controller = PageController(
     initialPage: _pageOf(context.read<OnboardingCubit>().state),
   );
+  final Map<OnboardingStep, FocusNode> _headingFocusNodes = {
+    for (final step in OnboardingStep.values)
+      step: FocusNode(debugLabel: 'onboarding_${step.name}_heading'),
+  };
 
   /// The page of [state]'s step among its steps.
   static int _pageOf(OnboardingState state) =>
       state.steps.indexOf(state.step).clamp(0, state.steps.length - 1);
 
+  static String _stepHeading(AppLocalizations l10n, OnboardingStep step) =>
+      switch (step) {
+        OnboardingStep.welcome => l10n.onboardingWelcomeTitle,
+        OnboardingStep.privacy => l10n.onboardingPrivacyTitle,
+        OnboardingStep.languages => l10n.onboardingLanguagesTitle,
+        OnboardingStep.service => l10n.onboardingOnlineTitle,
+      };
+
   @override
   void dispose() {
+    for (final node in _headingFocusNodes.values) {
+      node.dispose();
+    }
     _controller.dispose();
     super.dispose();
   }
@@ -180,15 +196,37 @@ class _OnboardingViewState extends State<OnboardingView> {
 
   void _showStep(OnboardingState state) {
     FocusManager.instance.primaryFocus?.unfocus();
-    if (!_controller.hasClients) return;
+    final heading = _stepHeading(context.l10n, state.step);
+    unawaited(
+      SemanticsService.sendAnnouncement(
+        View.of(context),
+        heading,
+        Directionality.of(context),
+      ),
+    );
+    void focusStepHeading() {
+      if (!mounted) return;
+      if (context.read<OnboardingCubit>().state.step != state.step) return;
+      _headingFocusNodes[state.step]?.requestFocus();
+    }
+
+    if (!_controller.hasClients) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => focusStepHeading());
+      return;
+    }
     final page = _pageOf(state);
     if (MediaQuery.disableAnimationsOf(context)) {
       _controller.jumpToPage(page);
+      WidgetsBinding.instance.addPostFrameCallback((_) => focusStepHeading());
     } else {
-      _controller.animateToPage(
-        page,
-        duration: const Duration(milliseconds: 400),
-        curve: Curves.easeInOutCubicEmphasized,
+      unawaited(
+        _controller
+            .animateToPage(
+              page,
+              duration: const Duration(milliseconds: 400),
+              curve: Curves.easeInOutCubicEmphasized,
+            )
+            .then((_) => focusStepHeading()),
       );
     }
   }
@@ -239,20 +277,24 @@ class _OnboardingViewState extends State<OnboardingView> {
               physics: const NeverScrollableScrollPhysics(),
               children: [
                 for (final page in steps)
-                  switch (page) {
-                    OnboardingStep.welcome => WelcomeStep(
-                      onRestore: _hasBackups ? _restoreBackup : null,
-                    ),
-                    OnboardingStep.privacy => const PrivacyStep(),
-                    OnboardingStep.languages => const OnboardingKeepAlive(
-                      child: LanguagesStep(),
-                    ),
-                    OnboardingStep.service => OnboardingKeepAlive(
-                      child: ServiceStep(
-                        onOpenAiSettings: () => _finish(AppRoutes.providers),
+                  Focus(
+                    focusNode: _headingFocusNodes[page],
+                    skipTraversal: true,
+                    child: switch (page) {
+                      OnboardingStep.welcome => WelcomeStep(
+                        onRestore: _hasBackups ? _restoreBackup : null,
                       ),
-                    ),
-                  },
+                      OnboardingStep.privacy => const PrivacyStep(),
+                      OnboardingStep.languages => const OnboardingKeepAlive(
+                        child: LanguagesStep(),
+                      ),
+                      OnboardingStep.service => OnboardingKeepAlive(
+                        child: ServiceStep(
+                          onOpenAiSettings: () => _finish(AppRoutes.providers),
+                        ),
+                      ),
+                    },
+                  ),
               ],
             ),
           ),

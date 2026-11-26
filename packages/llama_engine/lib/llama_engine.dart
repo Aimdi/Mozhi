@@ -12,5 +12,6 @@ export 'src/engine/engine_factory.dart';
 export 'src/engine/llama_engine.dart';
 export 'src/engine/web/llama_worker.dart';
 export 'src/engine/web/web_llama_engine.dart';
+export 'src/engine/web/web_llama_model_manager.dart';
 export 'src/model_manager.dart';
 export 'src/model_source.dart';

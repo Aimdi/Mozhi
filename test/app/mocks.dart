@@ -137,6 +137,7 @@ class TestEnvironment {
     : storedSettings = settings {
     stubTranslationRepository(translationRepository);
     // The settings cubit writes its changes to the stored settings.
+    when(() => settingsRepository.secrets).thenReturn(secrets);
     when(() => settingsRepository.update(any())).thenAnswer((invocation) async {
       final change =
           invocation.positionalArguments.single

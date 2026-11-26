@@ -534,18 +534,53 @@ void main() {
         expect(await closedSoon(beyond), everyElement(isTrue));
         // The ones setting up have had their time.
         time = time.add(const Duration(seconds: 3));
-        // A new address gets one, and no second while the budget is used up.
-        final newcomer = await rawSocket(
-          listener.code.port,
-          source: '127.0.0.50',
-        );
-        final second = await rawSocket(
-          listener.code.port,
-          source: '127.0.0.50',
-        );
-        expect(await closedSoon([second]), [isTrue]);
-        newcomer.destroy();
+        // A new address gets its fair share (30 ~/ 6 = 5) despite the flooders
+        // exhausting the global budget, then is refused beyond that share.
+        final newcomerSockets = <Socket>[];
+        for (var i = 0; i < 5; i++) {
+          newcomerSockets.add(
+            await rawSocket(listener.code.port, source: '127.0.0.50'),
+          );
+        }
+        final sixth = await rawSocket(listener.code.port, source: '127.0.0.50');
+        expect(await closedSoon([sixth]), [isTrue]);
+        for (final s in newcomerSockets) {
+          s.destroy();
+        }
         // The real phone, turned away by nothing, gets through.
+        final sender = await connectPairing(
+          listener.code,
+          policy: loopbackPolicy,
+          retryDelays: const [],
+          retryInterval: null,
+        );
+        channels
+          ..add(sender)
+          ..add(await listener.connection);
+        expect(sender.sas, hasLength(6));
+      });
+
+      test('distributed flood does not starve a retrying legitimate peer out '
+          'of its fair share', () async {
+        var time = DateTime(2026);
+        final listener = await listen(
+          maxPending: 10,
+          maxHandshakesPerMinute: 12,
+          now: () => time,
+        );
+        // Three flooders consume 4 handshakes each (total 12 == global budget).
+        for (var round = 0; round < 4; round++) {
+          await flood(listener.code.port, 3);
+        }
+        time = time.add(const Duration(seconds: 3));
+
+        // Legitimate peer (127.0.0.1) fails its first attempt (e.g. dropped)
+        // and immediately retries: with fair share 12 ~/ 4 = 3 it still
+        // connects instead of being starved for a minute.
+        final dropped = await rawSocket(listener.code.port);
+        dropped.destroy();
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+
         final sender = await connectPairing(
           listener.code,
           policy: loopbackPolicy,

@@ -261,6 +261,50 @@ void main() {
       await pumpSheet(tester);
       expect(find.text('Nothing found for “gato”.'), findsOneWidget);
     });
+
+    testWidgets(
+      'shows exact glossLanguage from the answering pack even with multiple '
+      'packs for the same language',
+      (tester) async {
+        dictionary.answers = {
+          'gato': const OfflineDictionaryAnswer(
+            entry: gatoEntry,
+            language: 'es',
+            attribution: wiktionary,
+            glossLanguage: 'de',
+          ),
+        };
+        final packs = DictionaryPacks(
+          catalog: DictionaryPackCatalog([
+            DictionaryPackInfo(
+              id: 'es',
+              language: 'es',
+              name: 'Spanish',
+              url: Uri.https('example.org', '/es.mzd'),
+              size: 100,
+              sha256: 'a' * 64,
+            ),
+            DictionaryPackInfo(
+              id: 'es-de',
+              language: 'es',
+              name: 'Spanish (German)',
+              url: Uri.https('example.org', '/es-de.mzd'),
+              size: 100,
+              sha256: 'b' * 64,
+              glossLanguage: 'de',
+            ),
+          ]),
+          storage: MemoryDictionaryPackStorage(),
+          httpClient: MockClient((_) async => http.Response('', 404)),
+        );
+        addTearDown(packs.close);
+        await pumpSheet(tester, packs: packs);
+        expect(
+          find.text('From Wiktionary · CC BY-SA 4.0 · Definitions in German'),
+          findsOneWidget,
+        );
+      },
+    );
   });
 
   group('a word the dictionaries miss', () {

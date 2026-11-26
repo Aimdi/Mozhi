@@ -45,6 +45,19 @@ enum DocumentFormat {
   /// Xcode string catalogues (`.xcstrings`, JSON).
   xcstrings(['xcstrings'], 'application/json', 'xcstrings'),
 
+  /// YAML localisation files (`.yml`, `.yaml`: Rails i18n, i18next, Hugo,
+  /// MkDocs).
+  yaml(['yml', 'yaml'], 'application/yaml', 'yml'),
+
+  /// TOML configuration and localisation files (`.toml`: Hugo, Rust).
+  toml(['toml'], 'application/toml', 'toml'),
+
+  /// Java `.properties` resource bundles.
+  properties(['properties'], 'text/x-java-properties', 'properties'),
+
+  /// TMX (Translation Memory eXchange) XML files.
+  tmx(['tmx'], 'application/x-tmx+xml', 'tmx'),
+
   /// Word documents (Office Open XML).
   docx(
     ['docx'],
@@ -100,7 +113,8 @@ enum DocumentFormat {
       this == po ||
       this == xcstrings ||
       this == html ||
-      this == androidStrings;
+      this == androidStrings ||
+      this == tmx;
 
   /// Whether files of this format are not text (ZIP packages: office
   /// documents and e-books; and PDFs): they are read and written as bytes,
@@ -188,12 +202,15 @@ enum DocumentFormat {
     }
     if (_isAppleStrings(trimmed)) return appleStrings;
     if (_isTsv(trimmed)) return tsv;
+    if (_isToml(trimmed)) return toml;
     final weak = _markdownWeak.allMatches(trimmed).length;
     if (strong > 0 || weak >= 2) return markdown;
+    if (_isProperties(trimmed)) return properties;
+    if (_isYaml(trimmed)) return yaml;
     return plainText;
   }
 
-  /// HTML, XLIFF or Android strings from the first element of [text].
+  /// HTML, XLIFF, TMX or Android strings from the first element of [text].
   static DocumentFormat? _sniffMarkup(String text, {required bool markdown}) {
     // Moves through the text without copying it (linear time for a text
     // full of declarations and comments).
@@ -214,6 +231,7 @@ enum DocumentFormat {
         ? name.substring(name.indexOf(':') + 1)
         : name;
     if (local == 'xliff') return xliff;
+    if (local == 'tmx') return tmx;
     if (local == 'resources') return androidStrings;
     if (name == 'html') return html;
     if (markdown || !_htmlElements.contains(name)) return null;
@@ -264,6 +282,78 @@ enum DocumentFormat {
     return lines.every((line) => '\t'.allMatches(line).length == tabs) &&
         lines.any(_innerTab.hasMatch);
   }
+
+  static bool _isToml(String text) {
+    final lines = text
+        .split(RegExp(r'\r?\n'))
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty && !line.startsWith('#'))
+        .toList();
+    if (lines.length < 2) return false;
+    var hasTable = false;
+    var assignments = 0;
+    for (final line in lines) {
+      if (_tomlTableHeader.hasMatch(line)) {
+        hasTable = true;
+      } else if (_tomlAssignment.hasMatch(line)) {
+        assignments++;
+      } else {
+        return false;
+      }
+    }
+    return hasTable && assignments >= 1;
+  }
+
+  static bool _isProperties(String text) {
+    final lines = text
+        .split(RegExp(r'\r?\n'))
+        .map((line) => line.trim())
+        .where(
+          (line) =>
+              line.isNotEmpty && !line.startsWith('#') && !line.startsWith('!'),
+        )
+        .toList();
+    if (lines.length < 2) return false;
+    return lines.every(_propertiesLine.hasMatch);
+  }
+
+  static bool _isYaml(String text) {
+    final rawLines = text.split(RegExp(r'\r?\n'));
+    final lines = [
+      for (final line in rawLines)
+        if (line.trim().isNotEmpty && !line.trimLeft().startsWith('#')) line,
+    ];
+    if (lines.isEmpty) return false;
+    var start = 0;
+    final hasDocMarker = lines.first.trim() == '---';
+    if (hasDocMarker) start = 1;
+    if (lines.length - start < (hasDocMarker ? 1 : 2)) return false;
+    var mappings = 0;
+    for (var i = start; i < lines.length; i++) {
+      final line = lines[i];
+      if (line.trim() == '...') continue;
+      if (_yamlMappingLine.hasMatch(line)) {
+        mappings++;
+      } else if (!_yamlSequenceOrIndent.hasMatch(line)) {
+        return false;
+      }
+    }
+    return mappings >= (hasDocMarker ? 1 : 2);
+  }
+
+  static final _tomlTableHeader = RegExp(
+    r'^\[\[?[A-Za-z0-9_.-]+\]?\]\s*(?:#.*)?$',
+  );
+  static final _tomlAssignment = RegExp(
+    r'''^[A-Za-z0-9_.-]+\s*=\s*(?:"(?:[^"\\]|\\.)*"|'(?:[^'])*'|true|false|[-+]?\d[\d_.eE+-]*|\[.*\]|\{.*\})\s*(?:#.*)?$''',
+  );
+  static final _propertiesLine = RegExp(
+    r'^[A-Za-z0-9_.-]+(?:\.[A-Za-z0-9_-]+)+\s*[=:]\s*\S',
+  );
+  static final _yamlMappingLine = RegExp(
+    r'^[ ]*[A-Za-z_][\w.-]*:(?:[ \t]+\S.*|[ \t]*)$',
+  );
+  static final _yamlSequenceOrIndent = RegExp(r'^[ ]*-[ \t]+\S');
 
   // `(?:\[…\]\s*)?>` rather than `(?:\[…\])?\s*>`: the spaces before
   // `>` are part of `[^>\[]*` unless there is an internal subset.
@@ -403,13 +493,16 @@ String translatedFileName(
   final stem = dot > 0 ? name.substring(0, dot) : name;
   final extension = dot > 0 ? name.substring(dot + 1) : format.defaultExtension;
 
-  if (extension.toLowerCase() == 'arb') {
+  if (extension.toLowerCase() == 'arb' || format == DocumentFormat.properties) {
     final match = _arbLocale.firstMatch(stem);
     if (match != null) {
       return '${match.group(1)}${code.replaceAll('-', '_')}.$extension';
     }
   }
-  if (format == DocumentFormat.json && _localeStem.hasMatch(stem)) {
+  if ((format == DocumentFormat.json ||
+          format == DocumentFormat.yaml ||
+          format == DocumentFormat.toml) &&
+      _localeStem.hasMatch(stem)) {
     return '$code.$extension';
   }
   final inner = stem.lastIndexOf('.');

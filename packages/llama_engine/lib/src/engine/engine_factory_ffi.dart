@@ -6,6 +6,7 @@ import 'package:llama_engine/src/engine/cpu_variant_guard.dart';
 import 'package:llama_engine/src/engine/ffi/bindings.dart';
 import 'package:llama_engine/src/engine/ffi/isolate_engine.dart';
 import 'package:llama_engine/src/engine/llama_engine.dart';
+import 'package:llama_engine/src/engine/web/llama_worker.dart';
 
 /// Whether the native engine can run here: Android on arm64-v8a or x86_64
 /// (the library is built for them; there is no 32-bit build). Other
@@ -101,3 +102,10 @@ LlamaCpuVariant? _variantOf(String library) => switch (library) {
   LlamaBindings.i8mmLibraryName => LlamaCpuVariant.i8mm,
   _ => null,
 };
+
+/// No browser worker on native platforms (see `engine_factory_web.dart`).
+LlamaWorkerChannel? openLlamaWorker({String url = defaultLlamaWorkerUrl}) =>
+    null;
+
+/// No browser persistent storage on native platforms.
+Future<bool> requestPersistentLlamaStorage() async => false;

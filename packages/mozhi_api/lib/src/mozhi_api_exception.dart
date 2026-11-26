@@ -15,16 +15,48 @@ class MozhiApiException implements Exception {
   /// and the request size limits every stock Fiber instance shares.
   static const _requestErrors = {400, 413, 414, 431};
 
+  /// Deterministic Mozhi server validation errors that the Go server reports
+  /// as HTTP 500 (every instance would repeat them, so failing over cannot
+  /// help).
+  static final _deterministicServerErrors = [
+    RegExp('target language code invalid', caseSensitive: false),
+    RegExp('source language code invalid', caseSensitive: false),
+    RegExp('engine does not exist', caseSensitive: false),
+    RegExp('not supported or implemented', caseSensitive: false),
+    RegExp("(?:doesn'?t|does not) support TTS", caseSensitive: false),
+  ];
+
+  /// Upstream transport/runtime errors forwarded by Mozhi whose body may echo
+  /// the user's text; never classify those as deterministic input errors.
+  static final _upstreamFailure = RegExp(
+    r'^(?:(?:Post|Get|Put)\s+"|ErrTransport\b|runtime error\b|instance has been rate limited)',
+    caseSensitive: false,
+  );
+
   /// Whether retrying against another instance could plausibly succeed.
   ///
   /// True for network errors, timeouts and every status except 400, 413,
-  /// 414 and 431, which any instance would repeat. Mozhi reports engine
-  /// failures, including an unsupported language, as 500; any other 3xx or
-  /// 4xx (403 challenge pages, 404 parked domains, 401 basic auth, 405, 408,
-  /// 429, a redirected POST) comes from whatever sits in front of that one
-  /// instance.
-  bool get isRetryable =>
-      statusCode == null || !_requestErrors.contains(statusCode);
+  /// 414 and 431 (which any instance would repeat) and Mozhi's deterministic
+  /// HTTP 500 validation errors (invalid language code, unknown/disabled
+  /// engine, unsupported operation or TTS). Any other 3xx, 4xx or 5xx
+  /// (403 challenge pages, 404 parked domains, 401 basic auth, 405, 408,
+  /// 429, a redirected POST, transient upstream 500s) comes from that one
+  /// instance or its upstream connection.
+  bool get isRetryable {
+    final code = statusCode;
+    if (code == null) return true;
+    if (_requestErrors.contains(code)) return false;
+    if (code == 500 && _isDeterministicServerError(message)) return false;
+    return true;
+  }
+
+  static bool _isDeterministicServerError(String message) {
+    final trimmed = message.trim();
+    if (_upstreamFailure.hasMatch(trimmed)) return false;
+    return _deterministicServerErrors.any(
+      (pattern) => pattern.hasMatch(trimmed),
+    );
+  }
 
   /// Includes [uri] without user info, query and fragment, so credentials
   /// and the user's text (`/api/tts?text=…`) never reach logs.

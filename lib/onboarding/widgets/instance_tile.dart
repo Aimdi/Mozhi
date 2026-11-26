@@ -129,8 +129,8 @@ class PingIndicator extends StatelessWidget {
             icon: Icons.speed,
           ),
           if (ping.viaFallback)
-            Tooltip(
-              key: const Key('onboarding_ping_via_fallback'),
+            _AccessibleTooltipBadge(
+              tooltipKey: const Key('onboarding_ping_via_fallback'),
               message: l10n.onboardingServiceViaDuckDuckGoTooltip,
               child: OnboardingBadge(
                 label: l10n.onboardingServiceViaDuckDuckGo,
@@ -155,7 +155,7 @@ class PingIndicator extends StatelessWidget {
           children: badges,
         );
       case PingStatus.failure:
-        return Tooltip(
+        return _AccessibleTooltipBadge(
           message: ping.error ?? '',
           child: OnboardingBadge(
             label: l10n.onboardingServiceUnreachable,
@@ -170,7 +170,7 @@ class PingIndicator extends StatelessWidget {
           icon: Icons.timer_off_outlined,
         );
       case PingStatus.noTranslation:
-        return Tooltip(
+        return _AccessibleTooltipBadge(
           message: ping.error ?? '',
           child: OnboardingBadge(
             label: l10n.onboardingServiceNoTranslation,
@@ -179,5 +179,44 @@ class PingIndicator extends StatelessWidget {
           ),
         );
     }
+  }
+}
+
+/// Wraps a status badge so its tooltip/error details are keyboard-focusable
+/// and exposed via Semantics for screen readers.
+class _AccessibleTooltipBadge extends StatelessWidget {
+  const new({required this.message, required this.child, this.tooltipKey});
+
+  final Key? tooltipKey;
+  final String message;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final trimmed = message.trim();
+    if (trimmed.isEmpty) {
+      return Tooltip(key: tooltipKey, message: message, child: child);
+    }
+    return Tooltip(
+      key: tooltipKey,
+      message: message,
+      triggerMode: TooltipTriggerMode.tap,
+      child: Builder(
+        builder: (tooltipContext) => MergeSemantics(
+          child: Focus(
+            onFocusChange: (focused) {
+              if (focused) {
+                tooltipContext
+                    .findAncestorStateOfType<TooltipState>()
+                    ?.ensureTooltipVisible();
+              } else {
+                Tooltip.dismissAllToolTips();
+              }
+            },
+            child: Semantics(hint: trimmed, child: child),
+          ),
+        ),
+      ),
+    );
   }
 }

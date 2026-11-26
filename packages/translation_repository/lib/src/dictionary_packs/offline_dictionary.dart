@@ -11,6 +11,7 @@ final class OfflineDictionaryAnswer {
     required this.entry,
     required this.language,
     required this.attribution,
+    this.glossLanguage,
     this.inflectedForm,
     this.otherLemmas = const [],
   });
@@ -20,6 +21,10 @@ final class OfflineDictionaryAnswer {
   /// The language of the word (the dictionary's language code, e.g. `es`).
   final String language;
   final DictionaryAttribution attribution;
+
+  /// The language the definitions are written in (from the pack header's
+  /// `glossLanguage`, e.g. `en` or `de`), when known.
+  final String? glossLanguage;
 
   /// The text that was looked up, when [entry] is the word it is an
   /// inflected form of (`went`, answered with `go`); null when [entry] is
@@ -35,6 +40,7 @@ final class OfflineDictionaryAnswer {
       other.entry == entry &&
       other.language == language &&
       other.attribution == attribution &&
+      other.glossLanguage == glossLanguage &&
       other.inflectedForm == inflectedForm &&
       const ListEquality<String>().equals(other.otherLemmas, otherLemmas);
 
@@ -43,6 +49,7 @@ final class OfflineDictionaryAnswer {
     entry,
     language,
     attribution,
+    glossLanguage,
     inflectedForm,
     const ListEquality<String>().hash(otherLemmas),
   );

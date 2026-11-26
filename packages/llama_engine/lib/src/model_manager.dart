@@ -107,10 +107,12 @@ final class LlamaDownloadProgress {
 
   final LlamaCatalogModel model;
 
-  /// Bytes on disk so far (resumed bytes count).
+  /// Bytes on disk so far (resumed bytes count; includes companion mmproj when
+  /// present).
   final int receivedBytes;
 
-  /// [LlamaCatalogModel.size].
+  /// [LlamaCatalogModel.totalSize] (main weights plus optional companion
+  /// mmproj).
   final int totalBytes;
 
   double get fraction => totalBytes == 0 ? 1 : receivedBytes / totalBytes;
@@ -124,6 +126,9 @@ final class InstalledLlamaModel {
     required this.path,
     required this.sizeBytes,
     required this.sha256,
+    this.projectorPath,
+    this.projectorSizeBytes,
+    this.projectorSha256,
   });
 
   /// [LlamaCatalogModel.id].
@@ -132,15 +137,41 @@ final class InstalledLlamaModel {
   /// Absolute path of the `.gguf` file (what the engine loads).
   final String path;
 
-  /// Bytes on disk.
+  /// Bytes of the main `.gguf` file on disk.
   final int sizeBytes;
 
-  /// The SHA-256 the file was verified against when it was installed.
+  /// The SHA-256 the main file was verified against when it was installed.
   final String sha256;
 
-  /// Whether this is exactly [model] (same id and file).
-  bool matches(LlamaCatalogModel model) =>
-      model.id == id && model.sha256 == sha256 && model.size == sizeBytes;
+  /// Absolute path of the companion multimodal projector (`.gguf` mmproj)
+  /// file when installed alongside [path]; null for text-only models.
+  final String? projectorPath;
+
+  /// Bytes of the companion projector file on disk, when installed.
+  final int? projectorSizeBytes;
+
+  /// The SHA-256 the companion projector file was verified against, when
+  /// installed.
+  final String? projectorSha256;
+
+  /// Whether a companion multimodal projector is installed for this model.
+  bool get hasProjector => projectorPath != null;
+
+  /// Combined installed size in bytes (main weights plus optional projector).
+  int get totalSizeBytes => sizeBytes + (projectorSizeBytes ?? 0);
+
+  /// Whether this is exactly [model] (same id, main file, and companion
+  /// projector when [model] declares one).
+  bool matches(LlamaCatalogModel model) {
+    if (model.id != id || model.sha256 != sha256 || model.size != sizeBytes) {
+      return false;
+    }
+    final mmproj = model.mmproj;
+    if (mmproj == null) return true;
+    return projectorPath != null &&
+        projectorSha256 == mmproj.sha256 &&
+        projectorSizeBytes == mmproj.size;
+  }
 
   @override
   bool operator ==(Object other) =>
@@ -148,10 +179,21 @@ final class InstalledLlamaModel {
       other.id == id &&
       other.path == path &&
       other.sizeBytes == sizeBytes &&
-      other.sha256 == sha256;
+      other.sha256 == sha256 &&
+      other.projectorPath == projectorPath &&
+      other.projectorSizeBytes == projectorSizeBytes &&
+      other.projectorSha256 == projectorSha256;
 
   @override
-  int get hashCode => Object.hash(id, path, sizeBytes, sha256);
+  int get hashCode => Object.hash(
+    id,
+    path,
+    sizeBytes,
+    sha256,
+    projectorPath,
+    projectorSizeBytes,
+    projectorSha256,
+  );
 
   @override
   String toString() => 'InstalledLlamaModel($id)';
@@ -336,7 +378,19 @@ class LlamaModelManager {
   /// engine loads); null when it is not installed.
   Future<String?> pathOf(String id) async => (await installedModel(id))?.path;
 
-  /// Whether exactly [model] (same file) is installed.
+  /// The path of the companion multimodal projector (`.gguf` mmproj) file of
+  /// the installed model [id]; null when the model is not installed or has no
+  /// projector.
+  Future<String?> projectorPath(String id) async =>
+      (await installedModel(id))?.projectorPath;
+
+  /// Whether the installed model [id] has its companion multimodal projector
+  /// installed on disk.
+  Future<bool> isProjectorInstalled(String id) async =>
+      (await projectorPath(id)) != null;
+
+  /// Whether exactly [model] (same file, and projector when declared) is
+  /// installed.
   Future<bool> isInstalled(LlamaCatalogModel model) async =>
       (await installedModel(model.id))?.matches(model) ?? false;
 
@@ -344,11 +398,19 @@ class LlamaModelManager {
   bool isInstalling(String id) => _installing.containsKey(id);
 
   /// Bytes already downloaded of an interrupted download of [model] (0
-  /// when none), which [install] resumes when it downloads from the same
-  /// URL (else it starts over).
+  /// when none), including any companion projector partial download, which
+  /// [install] resumes when it downloads from the same URL (else it starts
+  /// over).
   Future<int> partialBytes(LlamaCatalogModel model) async {
     _checkSafe(model.id);
-    final part = _partFile(model);
+    var total = await _partialLength(_partFile(model.id, model.name));
+    if (model.mmproj case final mmproj?) {
+      total += await _partialLength(_partFile(model.id, mmproj.name));
+    }
+    return total;
+  }
+
+  static Future<int> _partialLength(File part) async {
     try {
       return part.existsSync() ? await part.length() : 0;
     } on FileSystemException {
@@ -357,14 +419,26 @@ class LlamaModelManager {
   }
 
   /// Throws a [LlamaInsufficientSpaceException] when a download of [model]
-  /// would not fit now (what is left to download plus a margin, see
-  /// [requiredSpace]): for asking before anything else (a metered network
-  /// prompt). [install] checks again. Passes without a `freeSpace`.
+  /// would not fit now (what is left to download across the main weights and
+  /// optional companion projector, plus a margin, see [requiredSpace]): for
+  /// asking before anything else (a metered network prompt). [install] checks
+  /// again. Passes without a `freeSpace`.
   Future<void> checkSpace(LlamaCatalogModel model) async {
     _checkSafe(model.id);
-    final part = _partFile(model);
-    final existing = part.existsSync() ? await _lengthOf(part) : 0;
-    await _checkSpace(model, model.size - existing.clamp(0, model.size));
+    final mainPart = _partFile(model.id, model.name);
+    var existing = mainPart.existsSync()
+        ? (await _lengthOf(mainPart)).clamp(0, model.size)
+        : 0;
+    if (model.mmproj case final mmproj?) {
+      final projPart = _partFile(model.id, mmproj.name);
+      existing += projPart.existsSync()
+          ? (await _lengthOf(projPart)).clamp(0, mmproj.size)
+          : 0;
+    }
+    await _checkSpace(
+      model,
+      model.totalSize - existing.clamp(0, model.totalSize),
+    );
   }
 
   /// Downloads and installs [model], replacing another file installed
@@ -426,6 +500,8 @@ class LlamaModelManager {
   ) async {
     final named = <LlamaCatalogModel, List<_ImportInput>>{};
     final sized = <LlamaCatalogModel, List<_ImportInput>>{};
+    final namedProj = <LlamaCatalogModel, List<_ImportInput>>{};
+    final sizedProj = <LlamaCatalogModel, List<_ImportInput>>{};
     final unmatched = <File>[];
     for (final input in inputs) {
       final name = input.name.toLowerCase();
@@ -436,21 +512,36 @@ class LlamaModelManager {
         (named[byName] ??= []).add(input);
         continue;
       }
+      final byProjName = catalog.models
+          .where((model) => model.mmproj?.name.toLowerCase() == name)
+          .firstOrNull;
+      if (byProjName != null) {
+        (namedProj[byProjName] ??= []).add(input);
+        continue;
+      }
       final length = await input.length();
       final bySize = catalog.models
           .where((model) => model.size == length)
           .firstOrNull;
-      if (bySize == null) {
-        unmatched.add(input.file);
-      } else {
+      if (bySize != null) {
         (sized[bySize] ??= []).add(input);
+        continue;
+      }
+      final byProjSize = catalog.models
+          .where((model) => model.mmproj?.size == length)
+          .firstOrNull;
+      if (byProjSize != null) {
+        (sizedProj[byProjSize] ??= []).add(input);
+      } else {
+        unmatched.add(input.file);
       }
     }
 
     final outcomes = <LlamaImportOutcome>[];
     for (final model in catalog.models) {
       final candidates = [...?named[model], ...?sized[model]];
-      if (candidates.isEmpty) continue;
+      final projCandidates = [...?namedProj[model], ...?sizedProj[model]];
+      if (candidates.isEmpty && projCandidates.isEmpty) continue;
       if (await isInstalled(model)) {
         outcomes.add(
           LlamaImportOutcome(
@@ -462,20 +553,56 @@ class LlamaModelManager {
       }
       final damaged = <File>[];
       LlamaImportOutcome? outcome;
-      for (final input in candidates) {
-        final result = await _importFile(model, input);
-        if (result == null) {
-          // Not the model's file: damaged when it was named like it, a
-          // file of the same size that is something else otherwise.
-          if (named[model]?.contains(input) ?? false) {
-            damaged.add(input.file);
-          } else {
-            unmatched.add(input.file);
+      if (model.mmproj case final mmproj?) {
+        if (candidates.isEmpty) {
+          // Only a projector file was supplied without the main weights.
+          for (final input in projCandidates) {
+            if (namedProj[model]?.contains(input) ?? false) {
+              damaged.add(input.file);
+            } else {
+              unmatched.add(input.file);
+            }
+          }
+          if (damaged.isNotEmpty) {
+            outcomes.add(
+              LlamaImportOutcome(
+                model: model,
+                status: LlamaImportStatus.failed,
+                damaged: List.unmodifiable(damaged),
+                error: StateError(
+                  'Missing main model file ${model.name} for ${mmproj.name}',
+                ),
+              ),
+            );
           }
           continue;
         }
-        outcome = result;
-        break;
+        outcome = await _importWithProjector(
+          model,
+          mmproj,
+          candidates: candidates,
+          namedMain: named[model] ?? const [],
+          projCandidates: projCandidates,
+          namedProj: namedProj[model] ?? const [],
+          damaged: damaged,
+          unmatched: unmatched,
+        );
+      } else {
+        for (final input in candidates) {
+          final result = await _importFile(model, input);
+          if (result == null) {
+            // Not the model's file: damaged when it was named like it, a
+            // file of the same size that is something else otherwise.
+            if (named[model]?.contains(input) ?? false) {
+              damaged.add(input.file);
+            } else {
+              unmatched.add(input.file);
+            }
+            continue;
+          }
+          outcome = result;
+          break;
+        }
       }
       if (outcome != null) {
         outcomes.add(outcome);
@@ -533,16 +660,16 @@ class LlamaModelManager {
     if (_ownsClient) _client.close();
   }
 
-  File _partFile(LlamaCatalogModel model) =>
-      File(p.join(_downloadsDirectory.path, model.id, '${model.name}.part'));
+  File _partFile(String modelId, String fileName) =>
+      File(p.join(_downloadsDirectory.path, modelId, '$fileName.part'));
 
   /// Where the bytes of [_partFile] came from (see [_PartSource]).
-  File _sourceFile(LlamaCatalogModel model) =>
-      File('${_partFile(model).path}.source');
+  File _sourceFile(String modelId, String fileName) =>
+      File('${_partFile(modelId, fileName).path}.source');
 
-  Future<void> _deletePart(LlamaCatalogModel model) async {
-    await _deleteQuietly(_partFile(model));
-    await _deleteQuietly(_sourceFile(model));
+  Future<void> _deletePart(String modelId, String fileName) async {
+    await _deleteQuietly(_partFile(modelId, fileName));
+    await _deleteQuietly(_sourceFile(modelId, fileName));
   }
 
   Future<InstalledLlamaModel> _install(
@@ -553,11 +680,12 @@ class LlamaModelManager {
     final current = await installedModel(model.id);
     if (current != null && current.matches(model)) return current;
 
+    final totalBytes = model.totalSize;
     void report(int bytes) => onProgress?.call(
       LlamaDownloadProgress(
         model: model,
         receivedBytes: bytes,
-        totalBytes: model.size,
+        totalBytes: totalBytes,
       ),
     );
 
@@ -566,15 +694,30 @@ class LlamaModelManager {
       // A resumed download needs room for the rest; one that starts over
       // deletes the part first.
       await checkSpace(model);
-      final downloaded = await _download(
-        model,
+      final mainSpec = _FileDownloadSpec.main(model);
+      final downloaded = await _downloadFile(
+        mainSpec,
         report,
         cancelled.future,
         mirror: mirror,
         fallbackToDefault: fallbackToDefault,
       );
+      File? downloadedProjector;
+      if (model.mmproj case final mmproj?) {
+        final projSpec = _FileDownloadSpec.projector(model.id, mmproj);
+        downloadedProjector = await _downloadFile(
+          projSpec,
+          (projBytes) => report(model.size + projBytes),
+          cancelled.future,
+          mirror: mirror,
+          fallbackToDefault: fallbackToDefault,
+        );
+      }
       return await _installStaged(model, (staging) async {
         await downloaded.rename(p.join(staging.path, model.name));
+        if (downloadedProjector case final proj?) {
+          await proj.rename(p.join(staging.path, model.mmproj!.name));
+        }
       });
     } finally {
       if (identical(_cancels[model.id], cancelled)) _cancels.remove(model.id);
@@ -625,28 +768,28 @@ class LlamaModelManager {
     }
   }
 
-  /// Downloads [model] into its `.part` file (resuming a partial download
-  /// from the same URL) from [mirror] or the catalog's URL (see
-  /// [llamaDownloadUrls]) and verifies its size and SHA-256. Stops with a
-  /// [LlamaDownloadCancelledException] when [cancelled] completes.
-  Future<File> _download(
-    LlamaCatalogModel model,
+  /// Downloads [spec] into its `.part` file (resuming a partial download
+  /// from the same URL) from [mirror] or the catalog's URL and verifies its
+  /// size and SHA-256. Stops with a [LlamaDownloadCancelledException] when
+  /// [cancelled] completes.
+  Future<File> _downloadFile(
+    _FileDownloadSpec spec,
     void Function(int bytes) report,
     Future<void> cancelled, {
     Uri? mirror,
     bool fallbackToDefault = false,
   }) async {
-    final part = _partFile(model);
+    final part = _partFile(spec.modelId, spec.name);
     await part.parent.create(recursive: true);
     var existing = part.existsSync() ? part.lengthSync() : 0;
-    if (existing > model.size) {
-      await _deletePart(model);
+    if (existing > spec.size) {
+      await _deletePart(spec.modelId, spec.name);
       existing = 0;
     }
     // Where the bytes on disk came from; null when unknown (then they are
     // only used when complete: the checksum decides).
     final recorded = existing > 0
-        ? await _PartSource.read(_sourceFile(model), model)
+        ? await _PartSource.read(_sourceFile(spec.modelId, spec.name), spec)
         : null;
 
     var received = 0;
@@ -654,9 +797,9 @@ class LlamaModelManager {
     var source = recorded?.mirror;
     final FileDigest digest;
 
-    if (existing < model.size) {
+    if (existing < spec.size) {
       final (response, from, resumed) = await _request(
-        model,
+        spec,
         existing,
         recorded,
         cancelled,
@@ -673,8 +816,8 @@ class LlamaModelManager {
       } on Object catch (error) {
         unawaited(response.stream.listen(null).cancel());
         throw LlamaDownloadException(
-          model.id,
-          '${model.name}${_from(source)}: $error',
+          spec.modelId,
+          '${spec.name}${_from(source)}: $error',
           mirror: source,
         );
       }
@@ -687,13 +830,13 @@ class LlamaModelManager {
         } else {
           // From the start: no byte of another source is kept.
           try {
-            await _deletePart(model);
-            await from.write(_sourceFile(model), model);
+            await _deletePart(spec.modelId, spec.name);
+            await from.write(_sourceFile(spec.modelId, spec.name), spec);
           } on Object catch (error) {
             unawaited(response.stream.listen(null).cancel());
             throw LlamaDownloadException(
-              model.id,
-              '${model.name}${_from(source)}: $error',
+              spec.modelId,
+              '${spec.name}${_from(source)}: $error',
               mirror: source,
             );
           }
@@ -709,11 +852,10 @@ class LlamaModelManager {
           );
           await for (final chunk in chunks) {
             received += chunk.length;
-            if (received > model.size) {
+            if (received > spec.size) {
               throw LlamaChecksumException(
-                model.id,
-                '${model.name}${_from(source)}: more than ${model.size} '
-                'bytes',
+                spec.modelId,
+                '${spec.name}${_from(source)}: more than ${spec.size} bytes',
                 mirror: source,
               );
             }
@@ -723,22 +865,22 @@ class LlamaModelManager {
           }
         } on LlamaChecksumException {
           await sink.close();
-          await _deletePart(model);
+          await _deletePart(spec.modelId, spec.name);
           rethrow;
         } on _Cancelled {
           // Stopped by the user: keep the part for resuming.
           await sink.close();
           throw LlamaDownloadCancelledException(
-            model.id,
-            '${model.name}${_from(source)}: cancelled',
+            spec.modelId,
+            '${spec.name}${_from(source)}: cancelled',
             mirror: source,
           );
         } on Object catch (error) {
           // Interrupted: keep the part for resuming.
           await sink.close();
           throw LlamaDownloadException(
-            model.id,
-            '${model.name}${_from(source)}: $error',
+            spec.modelId,
+            '${spec.name}${_from(source)}: $error',
             mirror: source,
           );
         }
@@ -754,43 +896,42 @@ class LlamaModelManager {
       report(received);
     }
 
-    if (_mismatch(model, digest) case final mismatch?) {
-      await _deletePart(model);
+    if (_mismatchSpec(spec, digest) case final mismatch?) {
+      await _deletePart(spec.modelId, spec.name);
       throw LlamaChecksumException(
-        model.id,
-        '${model.name}${_from(source)}: $mismatch',
+        spec.modelId,
+        '${spec.name}${_from(source)}: $mismatch',
         mirror: source,
       );
     }
     return part;
   }
 
-  /// Null when [digest] is [model]'s file (size and SHA-256), else what
+  /// Null when [digest] matches [expectedSize] and [expectedSha256], else what
   /// differs.
-  static String? _mismatch(LlamaCatalogModel model, FileDigest digest) =>
-      digest.size == model.size && digest.sha256 == model.sha256
+  static String? _mismatchValues(
+    int expectedSize,
+    String expectedSha256,
+    FileDigest digest,
+  ) => digest.size == expectedSize && digest.sha256 == expectedSha256
       ? null
       : 'got ${digest.size} bytes with SHA-256 ${digest.sha256}, '
-            'expected ${model.size} bytes with SHA-256 ${model.sha256}';
+            'expected $expectedSize bytes with SHA-256 $expectedSha256';
 
-  /// Sends the request for [model] to each URL of [llamaDownloadUrls] in
-  /// turn until one answers with its contents: the response, where it came
-  /// from, and whether it continues the [existing] bytes on disk. Those
-  /// are resumed (`Range`) only from the URL [recorded] for them, and only
-  /// a 206 whose `Content-Range` starts at byte [existing] continues them;
-  /// any other 206 is asked again from the start. Throws the last URL's
-  /// [LlamaDownloadException], or a [LlamaDownloadCancelledException] when
-  /// [cancelled] completes first.
+  static String? _mismatchSpec(_FileDownloadSpec spec, FileDigest digest) =>
+      _mismatchValues(spec.size, spec.sha256, digest);
+
+  /// Sends the request for [spec] to each URL in turn until one answers with
+  /// its contents.
   Future<(http.StreamedResponse, _PartSource, bool)> _request(
-    LlamaCatalogModel model,
+    _FileDownloadSpec spec,
     int existing,
     _PartSource? recorded,
     Future<void> cancelled, {
     required Uri? mirror,
     required bool fallbackToDefault,
   }) async {
-    final urls = llamaDownloadUrls(
-      model,
+    final urls = spec.downloadUrls(
       mirror: mirror,
       fallbackToDefault: fallbackToDefault,
     );
@@ -823,8 +964,8 @@ class LlamaModelManager {
             ),
           );
           throw LlamaDownloadCancelledException(
-            model.id,
-            '${model.name}${_from(source)}: cancelled',
+            spec.modelId,
+            '${spec.name}${_from(source)}: cancelled',
             mirror: source,
           );
         }
@@ -834,15 +975,15 @@ class LlamaModelManager {
       } on Object catch (error) {
         if (!last) continue;
         throw LlamaDownloadException(
-          model.id,
-          '${model.name}${_from(source)}: $error',
+          spec.modelId,
+          '${spec.name}${_from(source)}: $error',
           mirror: source,
         );
       }
       final status = response.statusCode;
       if (status == 200) return (response, origin, false);
       final partial = status == 206 && offset > 0;
-      if (partial && _rangeStart(response, model) == offset) {
+      if (partial && _rangeStart(response, spec.size) == offset) {
         return (response, origin, true);
       }
       // Drain so the connection can be reused.
@@ -855,7 +996,7 @@ class LlamaModelManager {
       }
       if (last) {
         throw LlamaDownloadException(
-          model.id,
+          spec.modelId,
           'HTTP $status for $url',
           statusCode: status,
           mirror: source,
@@ -866,11 +1007,8 @@ class LlamaModelManager {
 
   /// The first byte of a 206 [response] (`Content-Range: bytes F-L/T`),
   /// or null when the header is missing, malformed or for a file of
-  /// another size than [model]'s.
-  static int? _rangeStart(
-    http.StreamedResponse response,
-    LlamaCatalogModel model,
-  ) {
+  /// another size than [expectedSize].
+  static int? _rangeStart(http.StreamedResponse response, int expectedSize) {
     final header = response.headers.entries
         .where((entry) => entry.key.toLowerCase() == 'content-range')
         .firstOrNull
@@ -882,7 +1020,7 @@ class LlamaModelManager {
     final first = int.parse(match[1]!);
     final lastByte = int.parse(match[2]!);
     final total = int.tryParse(match[3]!);
-    if (lastByte < first || (total != null && total != model.size)) {
+    if (lastByte < first || (total != null && total != expectedSize)) {
       return null;
     }
     return first;
@@ -950,6 +1088,121 @@ class LlamaModelManager {
     );
   }
 
+  /// Installs [model] and its companion [mmproj] when both files are supplied
+  /// and match their catalog size and SHA-256.
+  Future<LlamaImportOutcome?> _importWithProjector(
+    LlamaCatalogModel model,
+    LlamaProjectorFile mmproj, {
+    required List<_ImportInput> candidates,
+    required List<_ImportInput> namedMain,
+    required List<_ImportInput> projCandidates,
+    required List<_ImportInput> namedProj,
+    required List<File> damaged,
+    required List<File> unmatched,
+  }) async {
+    if (projCandidates.isEmpty) {
+      return LlamaImportOutcome(
+        model: model,
+        status: LlamaImportStatus.failed,
+        error: StateError(
+          'Missing vision projector file ${mmproj.name} for ${model.id}',
+        ),
+      );
+    }
+    try {
+      _checkSafe(model.id);
+      if (_installing[model.id] case final running?) {
+        try {
+          await running;
+        } on Object {
+          // Installed from the files below.
+        }
+      }
+      if (await isInstalled(model)) {
+        return LlamaImportOutcome(
+          model: model,
+          status: LlamaImportStatus.alreadyInstalled,
+        );
+      }
+      await _exclusive(
+        model,
+        () => _installStaged(model, (staging) async {
+          var mainOk = false;
+          for (final input in candidates) {
+            final length = await input.length();
+            if (length != null && length != model.size) {
+              if (namedMain.contains(input)) {
+                damaged.add(input.file);
+              } else {
+                unmatched.add(input.file);
+              }
+              continue;
+            }
+            final target = File(p.join(staging.path, model.name));
+            if (await input.stage(
+              this,
+              model,
+              target,
+              expectedSize: model.size,
+              expectedSha256: model.sha256,
+            )) {
+              mainOk = true;
+              break;
+            }
+            if (namedMain.contains(input)) {
+              damaged.add(input.file);
+            } else {
+              unmatched.add(input.file);
+            }
+          }
+          if (!mainOk) throw const _NotTheModel();
+
+          var projOk = false;
+          for (final input in projCandidates) {
+            final length = await input.length();
+            if (length != null && length != mmproj.size) {
+              if (namedProj.contains(input)) {
+                damaged.add(input.file);
+              } else {
+                unmatched.add(input.file);
+              }
+              continue;
+            }
+            final target = File(p.join(staging.path, mmproj.name));
+            if (await input.stage(
+              this,
+              model,
+              target,
+              expectedSize: mmproj.size,
+              expectedSha256: mmproj.sha256,
+            )) {
+              projOk = true;
+              break;
+            }
+            if (namedProj.contains(input)) {
+              damaged.add(input.file);
+            } else {
+              unmatched.add(input.file);
+            }
+          }
+          if (!projOk) throw const _NotTheModel();
+        }),
+      );
+      return LlamaImportOutcome(
+        model: model,
+        status: LlamaImportStatus.installed,
+      );
+    } on _NotTheModel {
+      return null;
+    } on Object catch (error) {
+      return LlamaImportOutcome(
+        model: model,
+        status: LlamaImportStatus.failed,
+        error: error,
+      );
+    }
+  }
+
   /// Installs [model] from [input] when its size and SHA-256 match; null
   /// when they do not (or it cannot be read).
   Future<LlamaImportOutcome?> _importFile(
@@ -979,7 +1232,13 @@ class LlamaModelManager {
         model,
         () => _installStaged(model, (staging) async {
           final target = File(p.join(staging.path, model.name));
-          if (!await input.stage(this, model, target)) {
+          if (!await input.stage(
+            this,
+            model,
+            target,
+            expectedSize: model.size,
+            expectedSha256: model.sha256,
+          )) {
             throw const _NotTheModel();
           }
         }),
@@ -1023,6 +1282,12 @@ class LlamaModelManager {
     'name': model.name,
     'size': model.size,
     'sha256': model.sha256,
+    if (model.mmproj case final mmproj?)
+      'mmproj': {
+        'name': mmproj.name,
+        'size': mmproj.size,
+        'sha256': mmproj.sha256,
+      },
   };
 
   Future<List<InstalledLlamaModel>> _scan() async {
@@ -1058,11 +1323,29 @@ class LlamaModelManager {
       }
       final file = File(p.join(directory.path, name));
       if (await file.length() != size) return null;
+
+      String? projectorPath;
+      int? projectorSize;
+      String? projectorSha256;
+      if (json['mmproj'] case final Map<String, Object?> mmprojJson) {
+        final projName = mmprojJson['name']! as String;
+        final projSize = mmprojJson['size']! as int;
+        final projSha = mmprojJson['sha256']! as String;
+        if (p.basename(projName) != projName) return null;
+        final projFile = File(p.join(directory.path, projName));
+        if (await projFile.length() != projSize) return null;
+        projectorPath = projFile.path;
+        projectorSize = projSize;
+        projectorSha256 = projSha;
+      }
       return InstalledLlamaModel(
         id: id,
         path: file.path,
         sizeBytes: size,
         sha256: digest,
+        projectorPath: projectorPath,
+        projectorSizeBytes: projectorSize,
+        projectorSha256: projectorSha256,
       );
     } on Object {
       return null;
@@ -1098,6 +1381,51 @@ class LlamaModelManager {
   }
 }
 
+/// One file belonging to a catalog model (either the main `.gguf` weights or
+/// its companion multimodal projector `.gguf`).
+@immutable
+final class _FileDownloadSpec {
+  const new({
+    required this.modelId,
+    required this.name,
+    required this.size,
+    required this.sha256,
+    required this.downloadUrls,
+  });
+
+  factory main(LlamaCatalogModel model) => _FileDownloadSpec(
+    modelId: model.id,
+    name: model.name,
+    size: model.size,
+    sha256: model.sha256,
+    downloadUrls: ({mirror, fallbackToDefault = false}) => llamaDownloadUrls(
+      model,
+      mirror: mirror,
+      fallbackToDefault: fallbackToDefault,
+    ),
+  );
+
+  factory projector(String modelId, LlamaProjectorFile projector) =>
+      _FileDownloadSpec(
+        modelId: modelId,
+        name: projector.name,
+        size: projector.size,
+        sha256: projector.sha256,
+        downloadUrls: ({mirror, fallbackToDefault = false}) =>
+            llamaProjectorDownloadUrls(
+              projector,
+              mirror: mirror,
+              fallbackToDefault: fallbackToDefault,
+            ),
+      );
+
+  final String modelId;
+  final String name;
+  final int size;
+  final String sha256;
+  final List<Uri> Function({Uri? mirror, bool fallbackToDefault}) downloadUrls;
+}
+
 /// Where the bytes of a partial download came from: the URL, and the
 /// mirror it belongs to (null: the catalog's URL). Stored next to the
 /// `.part` file with the catalog's size and SHA-256 of the file, so a
@@ -1112,24 +1440,24 @@ final class _PartSource {
   /// Whether [other] is this source.
   bool sameAs(_PartSource? other) => other != null && other.url == url;
 
-  Future<void> write(File file, LlamaCatalogModel model) => file.writeAsString(
+  Future<void> write(File file, _FileDownloadSpec spec) => file.writeAsString(
     jsonEncode({
       'url': url.toString(),
       'mirror': mirror?.toString(),
-      'size': model.size,
-      'sha256': model.sha256,
+      'size': spec.size,
+      'sha256': spec.sha256,
     }),
     flush: true,
   );
 
-  /// The source recorded in [file] for [model]'s file; null when there is
+  /// The source recorded in [file] for [spec]'s file; null when there is
   /// none (or it cannot be read, or it was for another file).
-  static Future<_PartSource?> read(File file, LlamaCatalogModel model) async {
+  static Future<_PartSource?> read(File file, _FileDownloadSpec spec) async {
     try {
       final json = jsonDecode(await file.readAsString());
       if (json is! Map<String, Object?> ||
-          json['size'] != model.size ||
-          json['sha256'] != model.sha256) {
+          json['size'] != spec.size ||
+          json['sha256'] != spec.sha256) {
         return null;
       }
       final mirror = json['mirror'];
@@ -1164,13 +1492,15 @@ sealed class _ImportInput {
   /// Its size; -1 when it cannot be read, null when unknown.
   Future<int?> length();
 
-  /// Writes [model]'s file from this input into [target] (in staging) and
-  /// verifies it: false when it is not [model]'s file.
+  /// Writes a model or projector file from this input into [target] (in
+  /// staging) and verifies it against [expectedSize] and [expectedSha256].
   Future<bool> stage(
     LlamaModelManager manager,
     LlamaCatalogModel model,
-    File target,
-  );
+    File target, {
+    required int expectedSize,
+    required String expectedSha256,
+  });
 }
 
 final class _FileInput extends _ImportInput {
@@ -1192,13 +1522,25 @@ final class _FileInput extends _ImportInput {
   Future<bool> stage(
     LlamaModelManager manager,
     LlamaCatalogModel model,
-    File target,
-  ) async {
+    File target, {
+    required int expectedSize,
+    required String expectedSha256,
+  }) async {
     final hashing = manager.hashing;
     try {
       if (move) {
-        final digest = await hashing.hashFile(file.path, maxBytes: model.size);
-        if (LlamaModelManager._mismatch(model, digest) != null) return false;
+        final digest = await hashing.hashFile(
+          file.path,
+          maxBytes: expectedSize,
+        );
+        if (LlamaModelManager._mismatchValues(
+              expectedSize,
+              expectedSha256,
+              digest,
+            ) !=
+            null) {
+          return false;
+        }
         try {
           await file.rename(target.path);
           return true;
@@ -1206,13 +1548,18 @@ final class _FileInput extends _ImportInput {
           // Another file system: copied (and hashed again) below.
         }
       }
-      await manager._checkSpace(model, model.size);
+      await manager._checkSpace(model, expectedSize);
       final copied = await hashing.copyFile(
         file.path,
         target.path,
-        maxBytes: model.size,
+        maxBytes: expectedSize,
       );
-      return LlamaModelManager._mismatch(model, copied) == null;
+      return LlamaModelManager._mismatchValues(
+            expectedSize,
+            expectedSha256,
+            copied,
+          ) ==
+          null;
     } on FileSystemException catch (error) {
       // The file cannot be read: not the model (a full disk is a failure).
       if (error.path == file.path) return false;
@@ -1239,15 +1586,22 @@ final class _SourceInput extends _ImportInput {
   Future<bool> stage(
     LlamaModelManager manager,
     LlamaCatalogModel model,
-    File target,
-  ) async {
-    await manager._checkSpace(model, model.size);
-    final written = await source.copyTo(target, maxBytes: model.size);
-    if (written != model.size) return false;
+    File target, {
+    required int expectedSize,
+    required String expectedSha256,
+  }) async {
+    await manager._checkSpace(model, expectedSize);
+    final written = await source.copyTo(target, maxBytes: expectedSize);
+    if (written != expectedSize) return false;
     final digest = await manager.hashing.hashFile(
       target.path,
-      maxBytes: model.size,
+      maxBytes: expectedSize,
     );
-    return LlamaModelManager._mismatch(model, digest) == null;
+    return LlamaModelManager._mismatchValues(
+          expectedSize,
+          expectedSha256,
+          digest,
+        ) ==
+        null;
   }
 }

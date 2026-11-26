@@ -13,6 +13,8 @@ extension type _Worker._(JSObject _) implements JSObject {
   external void postMessage(JSAny? message);
   external JSFunction? get onmessage;
   external set onmessage(JSFunction? handler);
+  external JSFunction? get onmessageerror;
+  external set onmessageerror(JSFunction? handler);
   external JSFunction? get onerror;
   external set onerror(JSFunction? handler);
   external void terminate();
@@ -26,11 +28,12 @@ extension type _MessageEvent._(JSObject _) implements JSObject {
 external String? get _baseUri;
 
 const _workerRelativePath = 'backup/argon2_worker.js';
+const _workerTimeout = Duration(seconds: 60);
 
 final _Argon2WorkerClient _client = _Argon2WorkerClient();
 
 /// Runs RFC 9106 Argon2id inside `web/backup/argon2_worker.js` off the UI
-/// thread. Returns `null` when `Worker` is unavailable or the worker fails,
+/// thread. Returns `null` when `Worker` is unavailable, stalls, or fails,
 /// so callers can fall back to inline `DartArgon2id`.
 Future<Uint8List?> deriveArgon2idInWorker({
   required List<int> passphraseBytes,
@@ -48,10 +51,17 @@ Future<Uint8List?> deriveArgon2idInWorker({
   hashLength: hashLength,
 );
 
+final class _PendingRequest {
+  new(this.completer, this.timer);
+
+  final Completer<Uint8List?> completer;
+  final Timer timer;
+}
+
 final class _Argon2WorkerClient {
   _Worker? _worker;
   var _nextId = 1;
-  final Map<int, Completer<Uint8List?>> _pending = {};
+  final Map<int, _PendingRequest> _pending = {};
 
   Future<Uint8List?> derive({
     required List<int> passphraseBytes,
@@ -71,7 +81,13 @@ final class _Argon2WorkerClient {
       return Future.value();
     }
     final id = _nextId++;
-    final completer = _pending[id] = Completer<Uint8List?>();
+    final completer = Completer<Uint8List?>();
+    final timer = Timer(_workerTimeout, () {
+      if (_pending.remove(id) == null) return;
+      _resetWorker();
+      if (!completer.isCompleted) completer.complete(null);
+    });
+    _pending[id] = _PendingRequest(completer, timer);
     final message = JSObject()
       ..['id'] = id.toJS
       ..['op'] = 'derive'.toJS
@@ -84,6 +100,7 @@ final class _Argon2WorkerClient {
     try {
       worker.postMessage(message);
     } on Object {
+      timer.cancel();
       _pending.remove(id);
       return Future.value();
     }
@@ -94,11 +111,14 @@ final class _Argon2WorkerClient {
     final url = _resolveWorkerUrl();
     return _Worker(url.toJS)
       ..onmessage = ((_MessageEvent event) => _receive(event.data)).toJS
-      ..onerror = ((JSObject _) {
-        _worker?.terminate();
-        _worker = null;
-        _failAll();
-      }).toJS;
+      ..onmessageerror = ((JSObject _) => _resetWorker()).toJS
+      ..onerror = ((JSObject _) => _resetWorker()).toJS;
+  }
+
+  void _resetWorker() {
+    _worker?.terminate();
+    _worker = null;
+    _failAll();
   }
 
   void _receive(JSAny? data) {
@@ -106,8 +126,11 @@ final class _Argon2WorkerClient {
     final object = data as JSObject;
     final rawId = object['id'];
     if (rawId == null || !rawId.isA<JSNumber>()) return;
-    final completer = _pending.remove((rawId as JSNumber).toDartInt);
-    if (completer == null) return;
+    final request = _pending.remove((rawId as JSNumber).toDartInt);
+    if (request == null) return;
+    request.timer.cancel();
+    final completer = request.completer;
+    if (completer.isCompleted) return;
 
     final rawOk = object['ok'];
     if (rawOk != null &&
@@ -125,8 +148,9 @@ final class _Argon2WorkerClient {
   void _failAll() {
     final pending = [..._pending.values];
     _pending.clear();
-    for (final completer in pending) {
-      if (!completer.isCompleted) completer.complete(null);
+    for (final request in pending) {
+      request.timer.cancel();
+      if (!request.completer.isCompleted) request.completer.complete(null);
     }
   }
 

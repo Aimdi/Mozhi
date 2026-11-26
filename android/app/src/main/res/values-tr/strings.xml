@@ -52,14 +52,14 @@
     <string name="tile_live_captions_description">Mozhi canlı altyazısını başlat veya durdur</string>
     <string name="live_captions_locked">Mozhi kilitli</string>
     <!-- Model downloads foreground service (ModelDownloadService). -->
-    <string name="notification_channel_downloads">Model downloads</string>
-    <string name="notification_channel_downloads_description">Shown while Mozhi downloads offline languages, voice or AI models</string>
-    <string name="notification_downloads_title">Downloading model</string>
-    <string name="notification_downloads_cancel">Cancel</string>
+    <string name="notification_channel_downloads">Model indirmeleri</string>
+    <string name="notification_channel_downloads_description">Mozhi çevrimdışı dilleri, ses veya yapay zekâ modellerini indirirken gösterilir</string>
+    <string name="notification_downloads_title">Model indiriliyor</string>
+    <string name="notification_downloads_cancel">İptal</string>
 
     <!-- Opt-in offline notification translation (NotificationTranslateService). -->
-    <string name="notification_translate_service_label">Mozhi offline notification translation</string>
-    <string name="notification_channel_translate_notifications">Translated notifications</string>
-    <string name="notification_channel_translate_notifications_description">Offline translations of incoming notifications from other apps</string>
-    <string name="notification_translated_title">Translated notification</string>
+    <string name="notification_translate_service_label">Mozhi çevrimdışı bildirim çevirisi</string>
+    <string name="notification_channel_translate_notifications">Çevrilen bildirimler</string>
+    <string name="notification_channel_translate_notifications_description">Diğer uygulamalardan gelen bildirimlerin çevrimdışı çevirileri</string>
+    <string name="notification_translated_title">Çevrilmiş bildirim</string>
 </resources>

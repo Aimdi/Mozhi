@@ -57,6 +57,29 @@ CliException describeError(Object error) => switch (error) {
         _ => null,
       },
     ),
+  MtApiException(:final fullMessage, :final statusCode, :final kind) =>
+    CliException.unavailable(
+      '${error is DeeplApiException
+          ? 'DeepL'
+          : error is LibreTranslateException
+          ? 'LibreTranslate'
+          : 'MT provider'} '
+      'error${statusCode == null ? '' : ' (HTTP $statusCode)'}: $fullMessage',
+      hint: switch (kind) {
+        MtErrorKind.unauthorized =>
+          'Check the API key: mozhi config providers add --preset '
+              '${error is DeeplApiException ? 'deepl' : 'libretranslate'} '
+              '--api-key-env <VARIABLE> --force',
+        MtErrorKind.quotaExceeded =>
+          'Your translation character quota has been reached.',
+        MtErrorKind.rateLimited =>
+          'The service is rate limiting requests; wait and retry.',
+        MtErrorKind.network || MtErrorKind.timeout =>
+          'Check your connection and the configured base URL.',
+        MtErrorKind.notFound => 'Check the configured base URL.',
+        _ => null,
+      },
+    ),
   MozhiApiException(:final message, :final statusCode, :final uri) =>
     CliException.unavailable(
       'Mozhi instance error${statusCode == null ? '' : ' (HTTP $statusCode)'}'

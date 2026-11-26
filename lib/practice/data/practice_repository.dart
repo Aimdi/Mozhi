@@ -230,11 +230,41 @@ class PracticeRepository {
   Future<PracticeSettings> settings() async =>
       (await _synchronized(_current)).settings;
 
-  /// Stores [settings] (stamped with the time).
-  Future<void> saveSettings(PracticeSettings settings) => _mutate(
-    (progress) =>
-        progress.settings = settings.copyWith(updatedAt: _clock().toUtc()),
-  );
+  /// Stores [settings] (stamping [PracticeSettings.updatedAt] and
+  /// [PracticeSettings.customWeightsUpdatedAt] independently according to
+  /// which fields changed).
+  Future<void> saveSettings(PracticeSettings settings) => _mutate((progress) {
+    final now = _clock().toUtc();
+    final previous = progress.settings;
+    final weightsChanged = !listEquals(
+      previous.customWeights,
+      settings.customWeights,
+    );
+    final otherChanged = !_sameGeneralSettings(previous, settings);
+    final nextUpdatedAt = otherChanged || !weightsChanged
+        ? now
+        : settings.updatedAt ?? previous.updatedAt;
+    final nextWeightsUpdatedAt = weightsChanged
+        ? now
+        : settings.customWeightsUpdatedAt ?? previous.customWeightsUpdatedAt;
+    progress.settings = PracticeSettings(
+      collectionIds: settings.collectionIds,
+      directions: settings.directions,
+      newCardsPerDay: settings.newCardsPerDay,
+      desiredRetention: settings.desiredRetention,
+      typeAnswers: settings.typeAnswers,
+      customWeights: settings.customWeights,
+      customWeightsUpdatedAt: nextWeightsUpdatedAt,
+      updatedAt: nextUpdatedAt,
+    );
+  });
+
+  static bool _sameGeneralSettings(PracticeSettings a, PracticeSettings b) =>
+      setEquals(a.collectionIds, b.collectionIds) &&
+      setEquals(a.directions, b.directions) &&
+      a.newCardsPerDay == b.newCardsPerDay &&
+      a.desiredRetention == b.desiredRetention &&
+      a.typeAnswers == b.typeAnswers;
 
   /// The deck for [appLanguage] (the app's language, see [userLanguageOf])
   /// with [settings] (default: the stored ones), at the current time;
@@ -354,25 +384,30 @@ class PracticeRepository {
           progress.cards[card.id] = card;
         }
         progress.tombstones.remove(card.id);
+        progress.reviewTombstones.remove(log.tombstoneKey);
         progress.reviews.add(log);
       }, refresh: true);
 
-  /// Restores [card] after undoing a review and removes [undone] from the
-  /// stored review logs when present.
+  /// Restores [card] after undoing a review, removes [undone] from the
+  /// stored review logs when present, and records tombstones so the undone
+  /// review (and an undone first review of a card) does not resurrect on sync.
   Future<void> undoReview(PracticeCard card, PracticeReviewLog undone) =>
       _mutate((progress) {
+        final now = _clock().toUtc();
         if (card.isNew) {
           progress.cards.remove(card.id);
+          progress.tombstones[card.id] = now;
         } else {
           progress.cards[card.id] = card;
+          progress.tombstones.remove(card.id);
         }
-        progress.tombstones.remove(card.id);
         for (var i = progress.reviews.length - 1; i >= 0; i--) {
           if (progress.reviews[i] == undone) {
             progress.reviews.removeAt(i);
             break;
           }
         }
+        progress.reviewTombstones[undone.tombstoneKey] = now;
       }, refresh: true);
 
   /// The stored review logs, oldest first.
@@ -466,7 +501,9 @@ class PracticeRepository {
         ..tombstones.clear()
         ..tombstones.addAll(next.tombstones)
         ..reviews.clear()
-        ..reviews.addAll(next.reviews);
+        ..reviews.addAll(next.reviews)
+        ..reviewTombstones.clear()
+        ..reviewTombstones.addAll(next.reviewTombstones);
     }, refresh: true);
   }
 
@@ -641,16 +678,19 @@ class PracticeRepository {
   }
 }
 
-/// The stored document: settings, reviewed cards, tombstones and review logs.
+/// The stored document: settings, reviewed cards, tombstones, review logs and
+/// undone-review tombstones.
 final class _Progress {
   new({
     this.settings = const PracticeSettings(),
     Map<String, PracticeCard>? cards,
     Map<String, DateTime>? tombstones,
     List<PracticeReviewLog>? reviews,
+    Map<String, DateTime>? reviewTombstones,
   }) : cards = cards ?? {},
        tombstones = tombstones ?? {},
-       reviews = reviews ?? [];
+       reviews = reviews ?? [],
+       reviewTombstones = reviewTombstones ?? {};
 
   factory fromJson(Map<String, Object?> json) {
     final settings = json['settings'];
@@ -686,6 +726,15 @@ final class _Progress {
         }
       }
     }
+    final reviewTombstones = <String, DateTime>{};
+    if (json['reviewTombstones'] case final Map<Object?, Object?> map) {
+      for (final MapEntry(:key, :value) in map.entries) {
+        final time = value is String ? DateTime.tryParse(value) : null;
+        if (key is String && time != null) {
+          reviewTombstones[key] = time.toUtc();
+        }
+      }
+    }
     return _Progress(
       settings: settings is Map
           ? PracticeSettings.fromJson(Map<String, Object?>.from(settings))
@@ -693,6 +742,7 @@ final class _Progress {
       cards: cards,
       tombstones: tombstones,
       reviews: reviews,
+      reviewTombstones: reviewTombstones,
     );
   }
 
@@ -719,12 +769,43 @@ final class _Progress {
     }
     final mine = local.settings.updatedAt;
     final theirs = incoming.settings.updatedAt;
-    final settings = theirs != null && (mine == null || theirs.isAfter(mine))
+    final baseSettings =
+        theirs != null && (mine == null || theirs.isAfter(mine))
         ? incoming.settings
         : local.settings;
-    final reviews = <PracticeReviewLog>[...local.reviews];
-    final seen = local.reviews.toSet();
-    for (final log in incoming.reviews) {
+    final myWeightsAt = _weightsTimestamp(local.settings);
+    final theirWeightsAt = _weightsTimestamp(incoming.settings);
+    final bool useIncomingWeights;
+    if (theirWeightsAt != null) {
+      useIncomingWeights =
+          myWeightsAt == null || theirWeightsAt.isAfter(myWeightsAt);
+    } else if (myWeightsAt != null) {
+      useIncomingWeights = false;
+    } else {
+      useIncomingWeights =
+          incoming.settings.customWeights != null &&
+          local.settings.customWeights == null;
+    }
+    final weightsSource = useIncomingWeights
+        ? incoming.settings
+        : local.settings;
+    final settings = baseSettings.copyWith(
+      customWeights: () => weightsSource.customWeights,
+      customWeightsUpdatedAt: () => weightsSource.customWeightsUpdatedAt,
+    );
+
+    final reviewTombstones = {...local.reviewTombstones};
+    for (final MapEntry(:key, :value) in incoming.reviewTombstones.entries) {
+      final existing = reviewTombstones[key];
+      if (existing == null || value.isAfter(existing)) {
+        reviewTombstones[key] = value;
+      }
+    }
+    final reviews = <PracticeReviewLog>[];
+    final seen = <PracticeReviewLog>{};
+    for (final log in [...local.reviews, ...incoming.reviews]) {
+      final deleted = reviewTombstones[log.tombstoneKey];
+      if (deleted != null && !deleted.isBefore(log.reviewedAt)) continue;
       if (seen.add(log)) reviews.add(log);
     }
     reviews.sort((a, b) => a.reviewedAt.compareTo(b.reviewedAt));
@@ -733,19 +814,26 @@ final class _Progress {
       cards: cards,
       tombstones: tombstones,
       reviews: reviews,
+      reviewTombstones: reviewTombstones,
     );
   }
+
+  static DateTime? _weightsTimestamp(PracticeSettings settings) =>
+      settings.customWeightsUpdatedAt ??
+      (settings.customWeights != null ? settings.updatedAt : null);
 
   PracticeSettings settings;
   final Map<String, PracticeCard> cards;
   final Map<String, DateTime> tombstones;
   final List<PracticeReviewLog> reviews;
+  final Map<String, DateTime> reviewTombstones;
 
   _Progress copy() => _Progress(
     settings: settings,
     cards: {...cards},
     tombstones: {...tombstones},
     reviews: [...reviews],
+    reviewTombstones: {...reviewTombstones},
   );
 
   /// Drops tombstones older than [maxAge] at [now], keeps at most
@@ -753,16 +841,25 @@ final class _Progress {
   /// [maxReviews].
   void prune(DateTime now, Duration maxAge, int maxTombstones, int maxReviews) {
     final cutoff = now.subtract(maxAge);
-    tombstones.removeWhere((_, time) => time.isBefore(cutoff));
-    if (tombstones.length > maxTombstones) {
-      final sorted = tombstones.entries.toList()
-        ..sort((a, b) => b.value.compareTo(a.value));
-      tombstones
-        ..clear()
-        ..addEntries(sorted.take(maxTombstones));
-    }
+    _pruneTombstones(tombstones, cutoff, maxTombstones);
+    _pruneTombstones(reviewTombstones, cutoff, maxTombstones);
     if (reviews.length > maxReviews) {
       reviews.removeRange(0, reviews.length - maxReviews);
+    }
+  }
+
+  static void _pruneTombstones(
+    Map<String, DateTime> map,
+    DateTime cutoff,
+    int maxEntries,
+  ) {
+    map.removeWhere((_, time) => time.isBefore(cutoff));
+    if (map.length > maxEntries) {
+      final sorted = map.entries.toList()
+        ..sort((a, b) => b.value.compareTo(a.value));
+      map
+        ..clear()
+        ..addEntries(sorted.take(maxEntries));
     }
   }
 
@@ -776,5 +873,10 @@ final class _Progress {
     },
     if (reviews.isNotEmpty)
       'reviews': [for (final log in reviews) log.toJson()],
+    if (reviewTombstones.isNotEmpty)
+      'reviewTombstones': {
+        for (final MapEntry(:key, :value) in reviewTombstones.entries)
+          key: value.toUtc().toIso8601String(),
+      },
   };
 }

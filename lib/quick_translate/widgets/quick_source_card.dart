@@ -111,7 +111,9 @@ class _QuickSourceCardState extends State<QuickSourceCard> {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(4, 0, 4, 12),
                   child: AnimatedSize(
-                    duration: const Duration(milliseconds: 200),
+                    duration: MediaQuery.disableAnimationsOf(context)
+                        ? Duration.zero
+                        : const Duration(milliseconds: 200),
                     curve: Curves.easeOutCubic,
                     alignment: AlignmentDirectional.topStart,
                     child: Text(

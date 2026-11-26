@@ -3,6 +3,87 @@
 All notable changes to Mozhi, by release tag on GitHub (pre-releases end
 in `-rc.N`).
 
+## Unreleased (Wave 17)
+
+### Added
+
+- **Four new document & localization formats**: full round-trip support
+  for **YAML** (`.yml`, `.yaml`), **TOML** (`.toml`), **Java
+  `.properties`**, and **TMX** (`.tmx`) translation memories, keeping
+  comments, keys, indentation, escapes and placeholders intact.
+- **Richer Office & PDF translation**: XLSX sheet renames now sync
+  `docProps/app.xml`; threaded comments with `@mentions` translate
+  around protected mentions and update mention offsets; PPTX slide
+  masters/layouts and XLSX chart titles/labels are translated; plural
+  entries pass CLDR grammatical form hints to AI translators; web PDF
+  output preserves original page visuals underneath translated boxes,
+  wraps CJK/no-space text cleanly, maps mixed-script `/ToUnicode`, and
+  supports embedding Unicode TrueType fonts.
+- **`mozhi_cli` v2**: added `mozhi dictionary`, `mozhi document`
+  (`.txt`, `.md`, `.json`, `.arb`, `.srt`, `.vtt`, `.po`, `.properties`,
+  `.yml`/`.yaml`, `.csv`/`.tsv`), interactive `mozhi repl`,
+  `mozhi config glossary` defaults, direct MT providers (DeepL /
+  LibreTranslate), and `--formality-context`, `--speaker-gender`,
+  `--addressee-gender`, `--alternatives`, `--explain`, `--insights`,
+  and `--romanize` on `mozhi translate`.
+- **Translate UX**: added a **Regenerate** button on the output card to
+  bypass cache and request a fresh translation, plus an opt-in
+  **Load insights and alternatives automatically** setting for AI
+  translations.
+- **Web Translate legacy charsets**: pure-Dart decoders for
+  `windows-1250/1251/1252/1253/1254/1256`,
+  `iso-8859-2/5/7/9`, `koi8-r`, and `koi8-u`.
+- **On-device AI & model tooling**: wired `WebLlamaEngine` with OPFS
+  storage (`WebLlamaModelManager`) in the web app, added full `mmproj`
+  projector download/SHA-256 verification/resume/delete and `totalSize`
+  accounting in `llama_engine`, and added `--mirror` and `--only llm` to
+  `tool/check_model_downloads.py`.
+- **Offline notification translation controls**: added dedicated target
+  language picker, muted-apps management, and Android 13+ notification
+  permission guidance.
+- **Complete localization**: translated all 43 new Flutter UI strings
+  and 8 Android native notification strings across all 18 non-English
+  locales (19 languages total).
+
+### Fixed & Hardened
+
+- **Notification translation & App Lock**: locked Mozhi never translates
+  or posts notifications; fixed case-insensitive / `zh-CN` offline
+  language matching and direction checks; skipped secret, foreground,
+  non-clearable, and non-message Android notifications.
+- **Downloads & Pairing**: fixed `ModelDownloadService` lifecycle/cancel
+  edge cases and added per-source fair rate-limiting buckets in pairing
+  so distributed floods cannot starve legitimate peers.
+- **Backup, Sync & Argon2id**: fresh installs now stamp the very first
+  preference change; colliding provider IDs remap their secrets during
+  merge; unset nullable fields no longer emit explicit `null` keys;
+  Argon2id web worker zeros sensitive buffers in `finally`, falls back
+  cleanly on timeout/`onmessageerror`, and runs in CI.
+- **Practice & Dictionaries**: FSRS weight optimization now runs off the
+  UI thread via `compute`, surfaces errors via SnackBar, persists undo
+  tombstones across sync, and tracks `customWeightsUpdatedAt`
+  independently; `OfflineDictionaryAnswer` carries exact `glossLanguage`
+  and `tool/dictionary_packs.py` supports non-English gloss languages.
+- **Security & Accessibility**: `deploy/docker-compose.yml` binds Ollama
+  to `127.0.0.1` by default; changing a provider's host strips stale
+  preset headers; `HistoryRepository.importJson` enforces safe size and
+  entry caps; AI providers page warns when secure storage falls back to
+  memory; added WCAG page titles & `<html lang>` syncing, keyboard zoom
+  controls on image preview, focusable `OfflineEngineBadge`, and
+  onboarding step announcements.
+- **API & Parsers**: `mozhi_api` treats empty translations for non-blank
+  input as retryable errors and stops failover on deterministic HTTP 500
+  errors; AI JSON extraction now handles arbitrarily nested brackets;
+  fixed `ParcelFileDescriptor` leak on Android `PdfPagesPlugin.kt`.
+
+## 0.2.0-rc.3
+
+Wave 16: Android foreground model downloads service, on-device AI/voice
+improvements (Whisper q8_0 models, `WebLlamaEngine` foundation), pure-Dart
+web PDF reader/writer, FSRS schedule weight optimizer, pure-Dart in-app QR
+scanner for phone-to-phone pairing, Argon2id web worker, per-setting sync
+timestamps, and opt-in offline notification translation.
+
 ## 0.2.0-rc.2
 
 A round of fixes from eight testers using the real app (74 problems found,

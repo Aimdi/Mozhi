@@ -362,6 +362,28 @@ void main() {
       await cubit.close();
     });
 
+    test('surfaces optimizer errors to onError and BlocObserver', () async {
+      final fixture = PracticeFixture(favorites: [favorite('1')]);
+      final cubit = PracticeCubit(
+        repository: fixture.practice,
+        appLanguage: 'en',
+        clock: fixture.clock.call,
+        optimizer: (_) =>
+            Future<FsrsOptimizationResult>.error(StateError('isolate failed')),
+      );
+      await cubit.load();
+      Object? surfacedError;
+      FsrsOptimizationResult? surfacedResult;
+      await cubit.optimizeSchedule(
+        onResult: (value) => surfacedResult = value,
+        onError: (error) => surfacedError = error,
+      );
+      expect(surfacedResult, isNull);
+      expect(surfacedError, isA<StateError>());
+      expect(cubit.state.settings.hasCustomWeights, isFalse);
+      await cubit.close();
+    });
+
     group('with failing storage', () {
       late _MockPractice practice;
       late _MockPhrasebook phrasebook;

@@ -111,6 +111,18 @@ Future<void> settle(WidgetTester tester) async {
   await tester.pump(const Duration(milliseconds: 400));
 }
 
+/// Waits real wall-clock time for background isolate FSRS optimization to
+/// finish before calling `pumpAndSettle` while the progress spinner animates.
+Future<void> _waitForOptimization(WidgetTester tester) async {
+  for (var i = 0; i < 300; i++) {
+    await tester.pump();
+    if (find.textContaining('better fit').evaluate().isNotEmpty) return;
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 50)),
+    );
+  }
+}
+
 /// Scrolls [finder] into view.
 Future<void> bringIntoView(WidgetTester tester, Finder finder) async {
   await tester.ensureVisible(finder);
@@ -898,6 +910,7 @@ void main() {
     expect(find.textContaining('60 reviews'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('practice_personalize_run')));
+    await _waitForOptimization(tester);
     await settle(tester);
     expect(find.textContaining('better fit'), findsOneWidget);
     final resetTile = find.byKey(const Key('practice_reset_weights'));
