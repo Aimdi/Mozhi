@@ -3,10 +3,12 @@ import 'dart:io';
 
 import 'package:mason_logger/mason_logger.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:mozhi_cli/src/cli_context.dart';
 import 'package:mozhi_cli/src/command_runner.dart';
 import 'package:mozhi_cli/src/config/cli_config.dart';
 import 'package:mozhi_cli/src/config/config_store.dart';
 import 'package:mozhi_cli/src/console.dart';
+import 'package:mozhi_cli/src/web/web_page_reader.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 class MockLogger extends Mock implements Logger;
@@ -141,6 +143,7 @@ class Harness {
           Process.runSync('chmod', [mode, path]);
         },
       ),
+      webPageFetcher: (uri) => webFetcher(uri),
     );
   }
 
@@ -152,6 +155,7 @@ class Harness {
   late final MockProgress progress;
   late final List<(String, String)> chmods;
   late final MozhiCliCommandRunner runner;
+  WebPageFetcherFn webFetcher = fetchWebPage;
   final Map<String, String> environment = {};
   int repositoriesCreated = 0;
 

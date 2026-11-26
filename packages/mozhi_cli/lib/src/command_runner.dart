@@ -32,6 +32,7 @@ class MozhiCliCommandRunner extends CompletionCommandRunner<int> {
     Console? console,
     RepositoryFactory? repositoryFactory,
     ConfigStoreFactory? configStoreFactory,
+    WebPageFetcherFn? webPageFetcher,
   }) : _logger = logger ?? Logger(),
        super(executableName, description) {
     argParser
@@ -59,10 +60,12 @@ class MozhiCliCommandRunner extends CompletionCommandRunner<int> {
       console: console,
       repositoryFactory: repositoryFactory,
       configStoreFactory: configStoreFactory,
+      webPageFetcher: webPageFetcher,
     );
     addCommand(TranslateCommand(context));
     addCommand(DictionaryCommand(context));
     addCommand(DocumentCommand(context));
+    addCommand(WebCommand(context));
     addCommand(ReplCommand(context));
     addCommand(ProofreadCommand(context));
     addCommand(DetectCommand(context));

@@ -77,10 +77,20 @@ class _ThinkTagSink implements EventSink<String> {
 /// Incremental state machine behind [ThinkTagFilter].
 class _ThinkTagParser {
   /// Opening tags (lower case) of the blocks that are removed.
-  static const _openingTags = ['<think>', '<thinking>', '<reasoning>'];
+  static const _openingTags = [
+    '<think>',
+    '<thinking>',
+    '<thought>',
+    '<reasoning>',
+  ];
 
   /// Closing tags (lower case) matching [_openingTags].
-  static const _closingTags = ['</think>', '</thinking>', '</reasoning>'];
+  static const _closingTags = [
+    '</think>',
+    '</thinking>',
+    '</thought>',
+    '</reasoning>',
+  ];
 
   static const List<String> _allTags = [..._openingTags, ..._closingTags];
 

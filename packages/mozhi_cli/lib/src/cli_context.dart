@@ -4,6 +4,7 @@ import 'package:mason_logger/mason_logger.dart';
 import 'package:mozhi_api/mozhi_api.dart';
 import 'package:mozhi_cli/src/config/config_store.dart';
 import 'package:mozhi_cli/src/console.dart';
+import 'package:mozhi_cli/src/web/web_page_reader.dart';
 import 'package:translation_repository/translation_repository.dart';
 
 /// Creates the repository a command talks to.
@@ -12,6 +13,9 @@ typedef RepositoryFactory = TranslationRepository Function();
 /// Creates the configuration store for a file path.
 typedef ConfigStoreFactory = ConfigStore Function(String path);
 
+/// Fetches a web page for `mozhi web`.
+typedef WebPageFetcherFn = Future<FetchedPage> Function(Uri uri);
+
 /// Services shared by all commands.
 class CliContext {
   new({
@@ -19,14 +23,17 @@ class CliContext {
     Console? console,
     RepositoryFactory? repositoryFactory,
     ConfigStoreFactory? configStoreFactory,
+    WebPageFetcherFn? webPageFetcher,
   }) : console = console ?? Console(),
        repositoryFactory = repositoryFactory ?? defaultRepository,
-       configStoreFactory = configStoreFactory ?? _defaultStore;
+       configStoreFactory = configStoreFactory ?? _defaultStore,
+       webPageFetcher = webPageFetcher ?? fetchWebPage;
 
   final Logger logger;
   final Console console;
   final RepositoryFactory repositoryFactory;
   final ConfigStoreFactory configStoreFactory;
+  final WebPageFetcherFn webPageFetcher;
 
   /// Upper bound for each Mozhi request.
   static const mozhiTimeout = Duration(seconds: 20);

@@ -3,6 +3,26 @@
 All notable changes to Mozhi, by release tag on GitHub (pre-releases end
 in `-rc.N`).
 
+## Unreleased (Wave 19)
+
+### Added & Improved
+
+- **Complete WHATWG single-byte web charsets**: added pure-Dart decoders
+  for `windows-1255` & `iso-8859-8` (Hebrew), `windows-1257` &
+  `iso-8859-4`/`iso-8859-13` (Baltic), `windows-1258` (Vietnamese),
+  `windows-874` / `tis-620` / `iso-8859-11` (Thai), and `iso-8859-6`
+  (Arabic) in Web Translate.
+- **`<thought>` reasoning tag filtering**: extended `ThinkTagFilter` in
+  `llm_api` to strip `<thought>...</thought>` blocks emitted by Gemma 4 /
+  Gemini reasoning setups alongside `<think>`, `<thinking>`, and
+  `<reasoning>`.
+- **`mozhi_cli` web page translator & REPL AI extras**: added
+  `mozhi web <url>` (alias `page`/`url`) with SSRF redirect protection,
+  readable `<article>`/`<main>` extraction, parallel block translation
+  (`-j`), `--bilingual`, `--dry-run`, `--output`, and `--json`; added
+  `/alt`, `/explain`, `/insights`, `/romanize`, and `/check` slash
+  commands on the last translation in `mozhi repl`.
+
 ## Unreleased (Wave 18)
 
 ### Added & Improved
