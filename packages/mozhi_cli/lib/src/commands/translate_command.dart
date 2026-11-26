@@ -148,6 +148,13 @@ class TranslateCommand extends MozhiCommand {
         'romanize',
         negatable: false,
         help: 'Show Latin-script romanization of the translation.',
+      )
+      ..addFlag(
+        'check-meaning',
+        negatable: false,
+        help:
+            'Back-translate and check for meaning differences (verdict and '
+            'flagged issues).',
       );
   }
 
@@ -168,7 +175,8 @@ class TranslateCommand extends MozhiCommand {
       flag('alternatives') ||
       flag('explain') ||
       flag('insights') ||
-      flag('romanize');
+      flag('romanize') ||
+      flag('check-meaning');
 
   @override
   Future<int> run() async {
@@ -270,6 +278,17 @@ class TranslateCommand extends MozhiCommand {
     final romanization = flag('romanize')
         ? await repository.romanize(engine, text: result.text, language: target)
         : null;
+    final meaningCheck = flag('check-meaning')
+        ? await repository.checkMeaning(
+            engine,
+            source: text,
+            translation: result.text,
+            sourceLanguage: result.detectedSource != null && source.isAuto
+                ? resolveLanguage(result.detectedSource!)
+                : source,
+            targetLanguage: target,
+          )
+        : null;
 
     if (jsonOutput) {
       printJson(
@@ -282,6 +301,7 @@ class TranslateCommand extends MozhiCommand {
           insights: insights,
           explanation: explanation,
           romanization: romanization,
+          meaningCheck: meaningCheck,
         ),
       );
       return ExitCode.success.code;
@@ -292,6 +312,7 @@ class TranslateCommand extends MozhiCommand {
       insights: insights,
       explanation: explanation,
       romanization: romanization,
+      meaningCheck: meaningCheck,
     );
     if (interactive) {
       if (result.targetTransliteration.isNotEmpty) {
@@ -307,12 +328,35 @@ class TranslateCommand extends MozhiCommand {
     List<WordInsight>? insights,
     String? explanation,
     String? romanization,
+    MeaningCheck? meaningCheck,
   }) {
     if (romanization != null && romanization.trim().isNotEmpty) {
       logger
         ..info('')
         ..info(bold('Romanization:'))
         ..info('  $romanization');
+    }
+    if (meaningCheck != null) {
+      final verdictLabel = switch (meaningCheck.verdict) {
+        MeaningVerdict.same => green.wrap('Same meaning'),
+        MeaningVerdict.minor => yellow.wrap('Minor differences'),
+        MeaningVerdict.major => red.wrap('Meaning differs'),
+      };
+      logger
+        ..info('')
+        ..info('${bold('Meaning check:')} $verdictLabel');
+      if (meaningCheck.backTranslation.isNotEmpty) {
+        logger.info('  Back-translation: ${meaningCheck.backTranslation}');
+      }
+      for (final issue in meaningCheck.issues) {
+        final type = issue.type.name.replaceAll('_', ' ');
+        final suggestion = issue.suggestion.isEmpty
+            ? ''
+            : ' (suggestion: ${issue.suggestion})';
+        logger.info(
+          '  • ${darkGray.wrap('[$type]')} ${issue.problem}$suggestion',
+        );
+      }
     }
     if (alternatives != null) {
       logger

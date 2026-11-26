@@ -143,3 +143,21 @@ test('the Tools area stays open for the next translation', async ({
   await expect(page.getByRole('heading', { name: 'Learn', exact: true }))
     .toBeVisible();
 });
+
+test('regenerate bypasses cache and requests a fresh AI translation', async ({
+  page,
+}) => {
+  const requests = recordAiRequests(page);
+  await translate(page);
+  const countBefore = requests.length;
+
+  const regenerate = page.getByRole('button', {
+    name: 'Regenerate translation',
+    exact: true,
+  });
+  await expect(regenerate).toBeVisible();
+  await regenerate.click();
+
+  await expect.poll(() => requests.length).toBeGreaterThan(countBefore);
+  await expect.poll(() => copiedTranslation(page)).toBe(TRANSLATION);
+});

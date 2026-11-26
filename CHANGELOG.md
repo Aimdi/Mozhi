@@ -3,6 +3,59 @@
 All notable changes to Mozhi, by release tag on GitHub (pre-releases end
 in `-rc.N`).
 
+## Unreleased (Wave 19)
+
+### Added & Improved
+
+- **Complete WHATWG single-byte web charsets**: added pure-Dart decoders
+  for `windows-1255` & `iso-8859-8` (Hebrew), `windows-1257` &
+  `iso-8859-4`/`iso-8859-13` (Baltic), `windows-1258` (Vietnamese),
+  `windows-874` / `tis-620` / `iso-8859-11` (Thai), and `iso-8859-6`
+  (Arabic) in Web Translate.
+- **`<thought>` reasoning tag filtering**: extended `ThinkTagFilter` in
+  `llm_api` to strip `<thought>...</thought>` blocks emitted by Gemma 4 /
+  Gemini reasoning setups alongside `<think>`, `<thinking>`, and
+  `<reasoning>`.
+- **`mozhi_cli` web page translator & REPL AI extras**: added
+  `mozhi web <url>` (alias `page`/`url`) with SSRF redirect protection,
+  readable `<article>`/`<main>` extraction, parallel block translation
+  (`-j`), `--bilingual`, `--dry-run`, `--output`, and `--json`; added
+  `/alt`, `/explain`, `/insights`, `/romanize`, and `/check` slash
+  commands on the last translation in `mozhi repl`.
+
+## Unreleased (Wave 18)
+
+### Added & Improved
+
+- **Play variant ML Kit photo overlay**: implemented `TextRecognitionLayout`
+  in `MlKitTextRecognitionService` with bounding boxes, multi-line joining,
+  tilt angle extraction (line angles on Android, corner-point fallback on
+  iOS), alignment classification, RTL detection, and sampled
+  background/foreground colours so the Play variant gets the same
+  in-place photo overlay as the default Tesseract build.
+- **Tilted image overlay hit-testing**: `TranslatedImageOverlay` now
+  rotates tilted paragraphs with `Transform.rotate` (avoiding double
+  rotation in `OverlayLabel.paint`) so pointer hit-testing and
+  screen-reader bounds match the visual rotated box.
+- **Cooperative web parsing for Markdown, subtitles & `.properties`**:
+  extended `parseTextCooperatively` beyond plain text to yield between
+  safe structural chunks on large `.md` (preserving frontmatter, fenced
+  code, math, HTML comments, raw HTML, indented code, and list state),
+  `.srt`, `.vtt`, and Java `.properties` files without altering parse
+  results.
+- **`mozhi_cli` full format parity, batch mode, concurrency & richer REPL**:
+  added pure-Dart `.toml`, `.tmx`, `.html`/`.htm`, Android `strings.xml`,
+  Apple `.strings`, Xcode `.xcstrings`, and `.xliff`/`.xlf` handlers
+  (matching all 18 text/localization formats in the app), multi-file batch
+  translation (`--output-dir` / `--in-place`), parallel segment translation
+  (`--concurrency` / `-j 1..8`), and AI options (`--formality`, `--style`,
+  `--reading-level`, `--context`, `--instructions`) to `mozhi document`;
+  added `/glossary`, `/style`, and `/context` commands (plus `--style` /
+  `--context` flags) to `mozhi repl`; added `e2e/unit/argon2_worker.test.js`,
+  `e2e/unit/web_llama_worker.test.js`, and Playwright E2E specs for YAML,
+  TMX, and Translate Regenerate; synced `README.md`, `docs/features.md`, and
+  `packages/mozhi_cli/README.md`.
+
 ## Unreleased (Wave 17)
 
 ### Added

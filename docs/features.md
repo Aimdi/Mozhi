@@ -1144,8 +1144,10 @@ result. Supported formats:
 | SubRip subtitles | `.srt` | Numbering and timestamps |
 | WebVTT subtitles | `.vtt` | Header, notes, styles, timings and cue settings |
 | JSON / ARB string tables | `.json`, `.arb` | Keys, `@` metadata and ICU placeholders/plurals; only string values are translated |
+| YAML, TOML and Java properties | `.yml`, `.yaml`, `.toml`, `.properties` | Keys, comments, tables, quotes, indentation, escapes and multiline/continuation blocks |
 | HTML and XHTML pages | `.html`, `.htm`, `.xhtml` | Markup, attributes, scripts, styles, code and `pre`; text, the title, `alt`/`title`/`placeholder`/`aria-label` and meta descriptions are translated |
 | XLIFF 1.2 and 2.x | `.xlf`, `.xliff` | Sources, notes, IDs, inline codes and `<seg-source>` segmentation; sources are translated into targets |
+| Translation Memory eXchange | `.tmx` | XML structure, header and existing language variants; source `<tuv>` segments are translated into the target language `<tuv>` |
 | Android string resources | `strings.xml` | Names, `translatable="false"`, `<xliff:g>`, styling tags, escapes and format arguments; strings, string arrays and plurals (with the target language's quantities) are translated |
 | Gettext catalogues | `.po`, `.pot` | Header, comments, references, flags, contexts, obsolete entries and placeholders; `msgid`s are translated into `msgstr`s, plurals with the target language's forms |
 | CSV and TSV tables | `.csv`, `.tsv`, `.tab` | Quoting, the header row, and columns of numbers, dates, URLs, e-mail addresses and IDs |
@@ -1153,10 +1155,10 @@ result. Supported formats:
 | Xcode string catalogues | `.xcstrings` | Every other language, comments, extraction state and variations; the target language is added |
 | Word documents | `.docx` | Paragraph and character formatting, styles, lists, tables, headers and footers, footnotes, endnotes, comments, text boxes, links, fields, images (their alternative text is translated) and tracked changes |
 | PowerPoint presentations | `.pptx` | Slides, speaker notes, comments, tables, text boxes, chart and axis titles, SmartArt, alternative text and the text drawn on slide masters and layouts, with their formatting, links and slide numbers; layouts, placeholder prompts, images and animations |
-| Excel workbooks | `.xlsx` | Text cells (plain and rich text, each distinct text translated once), cell comments and threaded comments, sheet names, chart and axis titles and alternative text; numbers, dates, formulas (updated for renamed sheets) and charts' data |
+| Excel workbooks | `.xlsx` | Text cells (plain and rich text, each distinct text translated once), cell comments and threaded comments (including `@mention` offsets), sheet names (and `docProps/app.xml`), chart and axis titles and alternative text; numbers, dates, formulas (updated for renamed sheets) and charts' data |
 | OpenDocument text, presentations, spreadsheets | `.odt`, `.odp`, `.ods` | Headings, paragraphs, lists, tables, spans, links, notes, frames, headers and footers; spreadsheet cells with numbers, dates or formulas |
 | EPUB e-books | `.epub` | Every chapter in reading order, the table of contents and the title; inline markup, links, images, code, scripts, styles and `pre` blocks |
-| PDF documents (Android) | `.pdf` | Every page as it looks, with the translation written over the original text as real text; pages without text as they are (see [PDF documents](#pdf-documents)) |
+| PDF documents (Android & Web) | `.pdf` | Every page as it looks, with the translation written over the original text as real text; pages without text as they are (see [PDF documents](#pdf-documents)) |
 
 Documents are split into parts that are translated a couple at a time, with
 progress shown as they finish; failed parts are retried.
@@ -1216,8 +1218,9 @@ they are translated with the engine and privacy mode you choose.
   prompts) are kept, as PowerPoint only shows them in the editor while a
   placeholder is empty.
 - **Comments:** spreadsheet comments and threaded comments are
-  translated (not their authors); a threaded reply that mentions someone
-  is kept, as the mention's position in the text would no longer fit.
+  translated (not their authors), including threaded replies with
+  `@mentions` (mentions are protected during translation and their offsets
+  are updated in the rebuilt comment).
 - **Not translated:** text in images, the data behind charts (a copy of
   the cells, which Office reads again), and document properties other than
   the e-book's title. In a spreadsheet, formulas that compare cells with a
@@ -1268,8 +1271,11 @@ translation is written back where the original text was.
   pages on) so that the whole file can be written on the phone. Text in a
   photo or a drawing is read and translated like any other text; very
   unsure readings (patterns, textures) are left as they are.
-- **The web app** lists PDFs as needing the Android app: they can't be read
-  in a browser.
+- **In the web app:** digital PDFs with embedded text streams are read and
+  rebuilt directly in the browser (pure Dart), preserving original page
+  visuals underneath translated boxes and supporting CJK wrapping and
+  embedded Unicode fonts. Scanned image-only PDFs still need the Android
+  app's on-device OCR.
 
 ### Localisation files and web pages
 
@@ -1950,6 +1956,13 @@ has a text-to-speech engine (Android and most browsers). The settings are kept o
   office documents, e-books) to open it in Documents.
   Shared content never starts an AI request by itself: with an AI engine it
   waits for **Translate**.
+- **Offline notification translation** (**Settings > General > Android
+  integration**, off by default): watches incoming message notifications
+  when you grant Android's Notification Access permission and posts an
+  offline-only translation using your installed Bergamot language models
+  (never sent over the network, and automatically paused while App Lock is
+  locked). Choose a dedicated target language and mute specific apps from
+  the same settings section.
 - **Material You**: with **Dynamic color** on (Android 12 and later), the app
   takes its colours from your wallpaper.
 
@@ -2144,8 +2157,8 @@ accent, dark and light.
 | On-device AI | ✓ (64-bit phones with enough memory) | |
 | On-device text recognition | ✓ (Tesseract; ML Kit in the Play variant) | |
 | Live camera (translation over the camera picture) | ✓ (a camera; Camera2) | |
-| Office documents, e-books, localisation files and HTML | ✓ | ✓ (large files can pause the page while they are read) |
-| PDF documents (pages read on the device, translated PDF and text) | ✓ | — (listed as needing the Android app) |
+| Office documents, e-books, localisation files and HTML | ✓ | ✓ (large `.txt`, `.md`, `.srt`, `.vtt`, `.properties`, Office & EPUB files yield cooperatively) |
+| PDF documents (translated PDF and text) | ✓ (native renderer + OCR) | ✓ (digital PDFs with embedded text; scanned PDFs need Android OCR) |
 | Translate screen, floating bubble | ✓ | |
 | App lock | ✓ (with a screen lock set) | |
 | Privacy screen, sensitive clipboard, HTTP proxy | ✓ | |

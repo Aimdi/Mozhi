@@ -26,12 +26,25 @@ class ReplCommand extends MozhiCommand {
       );
     addEngineOption();
     addInstanceOption();
-    argParser.addOption(
-      'formality',
-      valueHelp: 'level',
-      allowed: [for (final value in Formality.values) kebabCase(value.name)],
-      help: 'Initial formality level (AI / DeepL).',
-    );
+    argParser
+      ..addOption(
+        'formality',
+        valueHelp: 'level',
+        allowed: [for (final value in Formality.values) kebabCase(value.name)],
+        help: 'Initial formality level (AI / DeepL).',
+      )
+      ..addOption(
+        'style',
+        allowed: [
+          for (final value in TranslationStyle.values) kebabCase(value.name),
+        ],
+        help: 'Initial translation style (natural or literal; AI only).',
+      )
+      ..addOption(
+        'context',
+        valueHelp: 'text',
+        help: 'Initial translation context (AI only).',
+      );
   }
 
   final Stream<String>? _inputLines;
@@ -62,6 +75,11 @@ class ReplCommand extends MozhiCommand {
     final formality = formalityOpt == null
         ? Formality.automatic
         : parseChoice('formality', formalityOpt, Formality.values);
+    final styleOpt = option('style');
+    final style = styleOpt == null
+        ? TranslationStyle.natural
+        : parseChoice('style', styleOpt, TranslationStyle.values);
+    final contextText = option('context') ?? '';
 
     final sink = _outputSink ?? _LoggerSink(logger);
     final lines = _inputLines ?? console.readLines();
@@ -79,6 +97,8 @@ class ReplCommand extends MozhiCommand {
         source: source,
         target: target,
         formality: formality,
+        style: style,
+        context: contextText,
         output: sink,
         bold: bold,
         showPrompt: showPrompt,
@@ -100,9 +120,12 @@ class ReplSession {
     required this.target,
     required this.output,
     this.formality = Formality.automatic,
+    this.style = TranslationStyle.natural,
+    this.context = '',
     String Function(String)? bold,
     this.showPrompt = false,
-  }) : _bold = bold ?? _identity;
+  }) : _bold = bold ?? _identity,
+       glossary = Map<String, String>.of(config.glossary);
 
   final TranslationRepository repository;
   final CliConfig config;
@@ -115,7 +138,12 @@ class ReplSession {
   Language source;
   Language target;
   Formality formality;
+  TranslationStyle style;
+  String context;
+  final Map<String, String> glossary;
   String? lastDetectedSource;
+  TranslationRequest? lastRequest;
+  String? lastTranslation;
 
   static String _identity(String s) => s;
 
@@ -169,8 +197,10 @@ class ReplSession {
             'Languages: ${source.code} (${source.name}) → '
             '${target.code} (${target.name})\n'
             'Formality: ${kebabCase(formality.name)}\n'
-            'Glossary: ${config.glossary.length} saved '
-            '${config.glossary.length == 1 ? 'term' : 'terms'}',
+            'Style: ${kebabCase(style.name)}\n'
+            'Context: ${context.isEmpty ? '(none)' : context}\n'
+            'Glossary: ${glossary.length} '
+            '${glossary.length == 1 ? 'term' : 'terms'}',
           );
           return true;
 
@@ -240,6 +270,40 @@ class ReplSession {
           output.writeln('Formality set to ${kebabCase(formality.name)}.');
           return true;
 
+        case '/style':
+          if (arg.isEmpty) {
+            final allowed = TranslationStyle.values
+                .map((v) => kebabCase(v.name))
+                .join('|');
+            output.writeln('Usage: /style <$allowed>');
+            return true;
+          }
+          style = parseChoice('style', arg, TranslationStyle.values);
+          output.writeln('Style set to ${kebabCase(style.name)}.');
+          return true;
+
+        case '/context':
+          if (arg.isEmpty) {
+            output.writeln(
+              context.isEmpty
+                  ? 'Context is empty. Usage: /context <text|clear>'
+                  : 'Context: $context',
+            );
+            return true;
+          }
+          if (arg.toLowerCase() == 'clear') {
+            context = '';
+            output.writeln('Context cleared.');
+            return true;
+          }
+          context = arg;
+          output.writeln('Context set to "$context".');
+          return true;
+
+        case '/glossary':
+          _handleGlossary(arg);
+          return true;
+
         case '/proofread' || '/proof':
           if (arg.isEmpty) {
             output.writeln('Usage: /proofread <text>');
@@ -279,6 +343,94 @@ class ReplSession {
           formatDictionaryEntry(entry, bold: _bold).forEach(output.writeln);
           return true;
 
+        case '/alt' || '/alternatives':
+          await _runOnLast('Alternatives', (ai, req, tr) async {
+            final alts = await repository.getAlternatives(ai, req, tr);
+            if (alts.description.isNotEmpty) {
+              output.writeln(alts.description);
+            }
+            if (alts.alternatives.isEmpty) {
+              output.writeln('No alternatives suggested.');
+            } else {
+              for (final alt in alts.alternatives) {
+                final reason = alt.explanation.isEmpty
+                    ? ''
+                    : ' — ${alt.explanation}';
+                output.writeln('  • ${alt.text}$reason');
+              }
+            }
+          });
+          return true;
+
+        case '/explain':
+          await _runOnLast('Explanation', (ai, req, tr) async {
+            final explanation = await repository.explain(ai, req, tr).join();
+            output.writeln(explanation.trim());
+          });
+          return true;
+
+        case '/insights':
+          await _runOnLast('Word insights', (ai, req, tr) async {
+            final insights = await repository.getInsights(ai, req, tr);
+            if (insights.isEmpty) {
+              output.writeln('No notable insights.');
+              return;
+            }
+            for (final insight in insights) {
+              final header = insight.sourceText.isEmpty
+                  ? _bold(insight.targetText)
+                  : '${insight.sourceText} → ${_bold(insight.targetText)}';
+              output.writeln('  • $header (${insight.type})');
+              if (insight.explanation.isNotEmpty) {
+                output.writeln('    ${insight.explanation}');
+              }
+            }
+          });
+          return true;
+
+        case '/romanize':
+          await _runOnLast('Romanization', (ai, req, tr) async {
+            final rom = await repository.romanize(
+              ai,
+              text: tr,
+              language: req.target,
+            );
+            output.writeln(rom.trim());
+          });
+          return true;
+
+        case '/check' || '/meaning':
+          await _runOnLast('Meaning check', (ai, req, tr) async {
+            final effectiveSource =
+                lastDetectedSource != null && req.source.isAuto
+                ? resolveLanguage(lastDetectedSource!)
+                : req.source;
+            final check = await repository.checkMeaning(
+              ai,
+              source: req.text,
+              translation: tr,
+              sourceLanguage: effectiveSource,
+              targetLanguage: req.target,
+            );
+            final verdict = switch (check.verdict) {
+              MeaningVerdict.same => 'Same meaning',
+              MeaningVerdict.minor => 'Minor differences',
+              MeaningVerdict.major => 'Meaning differs',
+            };
+            output.writeln('${_bold('Meaning check:')} $verdict');
+            if (check.backTranslation.isNotEmpty) {
+              output.writeln('  Back-translation: ${check.backTranslation}');
+            }
+            for (final issue in check.issues) {
+              final type = issue.type.name.replaceAll('_', ' ');
+              final suggestion = issue.suggestion.isEmpty
+                  ? ''
+                  : ' (suggestion: ${issue.suggestion})';
+              output.writeln('  • [$type] ${issue.problem}$suggestion');
+            }
+          });
+          return true;
+
         default:
           output.writeln('Unknown command "$cmd". Type /help for commands.');
           return true;
@@ -289,6 +441,71 @@ class ReplSession {
     }
   }
 
+  void _handleGlossary(String arg) {
+    if (arg.isEmpty || arg.toLowerCase() == 'list') {
+      if (glossary.isEmpty) {
+        output.writeln('Glossary is empty.');
+        return;
+      }
+      final keys = glossary.keys.toList()..sort();
+      for (final key in keys) {
+        output.writeln('  $key → ${glossary[key]}');
+      }
+      return;
+    }
+    final space = arg.indexOf(RegExp(r'\s'));
+    final sub = (space < 0 ? arg : arg.substring(0, space)).toLowerCase();
+    final rest = space < 0 ? '' : arg.substring(space + 1).trim();
+    switch (sub) {
+      case 'add' || 'set':
+        if (rest.isEmpty) {
+          output.writeln('Usage: /glossary add <term=translation>');
+          return;
+        }
+        final parsed = parseGlossary([rest]);
+        glossary.addAll(parsed);
+        for (final MapEntry(:key, :value) in parsed.entries) {
+          output.writeln('Glossary term set: $key → $value');
+        }
+      case 'remove' || 'rm' || 'delete':
+        if (rest.isEmpty) {
+          output.writeln('Usage: /glossary remove <term>');
+          return;
+        }
+        if (glossary.remove(rest) != null) {
+          output.writeln('Removed glossary term "$rest".');
+        } else {
+          output.writeln('Glossary term "$rest" not found.');
+        }
+      case 'clear':
+        glossary.clear();
+        output.writeln('Glossary cleared.');
+      default:
+        output.writeln(
+          'Usage: /glossary <list|add term=translation|remove term|clear>',
+        );
+    }
+  }
+
+  Future<void> _runOnLast(
+    String feature,
+    Future<void> Function(
+      TranslationEngine ai,
+      TranslationRequest req,
+      String translation,
+    )
+    action,
+  ) async {
+    final req = lastRequest;
+    final tr = lastTranslation;
+    if (req == null || tr == null) {
+      output.writeln('Translate something first before running $feature.');
+      return;
+    }
+    final ai = _aiEngineFor(feature);
+    await action(ai, req, tr);
+  }
+
   TranslationEngine _aiEngineFor(String feature) => engine.isAi
       ? engine
       : resolveAiEngine(null, config, providers, feature: feature);
@@ -296,10 +513,17 @@ class ReplSession {
   Future<void> _translateLine(String text) async {
     try {
       final options = engine.isAi || engine.isMt
-          ? TranslationOptions(formality: formality, glossary: config.glossary)
-          : config.glossary.isEmpty
+          ? TranslationOptions(
+              style: style,
+              formality: formality,
+              context: context,
+              glossary: Map<String, String>.unmodifiable(glossary),
+            )
+          : glossary.isEmpty
           ? const TranslationOptions()
-          : TranslationOptions(glossary: config.glossary);
+          : TranslationOptions(
+              glossary: Map<String, String>.unmodifiable(glossary),
+            );
       final request = TranslationRequest(
         text: text,
         source: source,
@@ -312,6 +536,8 @@ class ReplSession {
       if (result.detectedSource case final detected?) {
         lastDetectedSource = detected;
       }
+      lastRequest = request;
+      lastTranslation = result.text;
       output.writeln(result.text);
     } on Object catch (error) {
       output.writeln('Error: ${describeError(error).message}');
@@ -325,6 +551,14 @@ Commands:
   /swap                Swap source and target languages
   /engine <id>         Switch engine (google, deepl, ai, ai:<id>, mt:<id>)
   /formality <level>   Set formality (automatic, more, less, prefer-more, prefer-less)
+  /style <style>       Set translation style (natural, literal)
+  /context <text|clear> Set or clear translation context (AI)
+  /glossary <cmd>      Manage session glossary (list, add k=v, remove k, clear)
+  /alt                 Show alternative translations for the last result (AI)
+  /explain             Explain the last translation (AI)
+  /insights            Show word insights for the last translation (AI)
+  /romanize            Romanize the last translation (AI)
+  /check               Back-translate and check meaning of the last result (AI)
   /proofread <text>    Proofread text using an AI provider
   /dict <word>         Look up a word using an AI provider
   /status              Show current session settings

@@ -190,15 +190,13 @@ Carried over to later waves (mostly real-device checks and optional features):
   Chromium was tested), the offline app shell and its update notice
   included; Transcribe and the screen wake lock in a real browser; the
   nginx example for serving it is untested (Caddy is).
-- **Photos:** the overlay along tilted text lines (baselines, deskew),
-  scene text (PP-OCR), and the overlay in the Play variant's ML Kit text
-  recognition.
+- **Photos:** scene text (PP-OCR).
 - **Voice:** speaker detection in Conversation works with the offline
   voice models only; how fast the system recogniser's partial results
   arrive (the pause that ends a turn) needs a check on real phones;
   measure the CPU variants and quantized models on phones.
-- **Dictionaries:** WikDict translations and Tatoeba example sentences;
-  first release check of non-English gloss packs.
+- **Dictionaries:** first release check of non-English gloss packs and
+  WikDict/Tatoeba builds.
 - **Mirrors:** the nginx example in the docs is untested.
 - **Privacy follow-ups:** the personal data shield can't apply to speech
   (documented); the web app can't look Tailscale names up, so a `.ts.net`
@@ -226,10 +224,11 @@ Carried over to later waves (mostly real-device checks and optional features):
   `many`, Arabic `two`…) still merit human review when source has only
   two forms; a sheet named anywhere formulas can't be rewritten (pivot
   sources, `INDIRECT` text, form controls, macros) keeps its name and
-  other files linking to a renamed sheet need updating; in the web app a
-  large text file, or one large part of an office file, is still parsed
-  in one go on the UI thread (office files and e-books yield between
-  parts).
+  other files linking to a renamed sheet need updating; in the web app
+  very large single-part structured files other than plain text,
+  subtitles and `.properties` (which parse cooperatively in chunks) or
+  multi-part office/e-book packages still parse in one go on the UI
+  thread.
 - **Translate screen:** try the capture timing, the bubble's snapping and
   remove target, and the detection of apps that block screenshots on real
   phones; check the launcher shortcuts' order on Pixel and Samsung
@@ -250,9 +249,8 @@ Carried over to later waves (mostly real-device checks and optional features):
   files, fonts without a character map falling back to text recognition);
   before Android 15 PDFs with a text layer are still read with text
   recognition (`PdfRendererPreV`, from an SDK extension, might read them
-  on some Android 12 to 14 phones); the page backgrounds drop to about 40 dpi on 200-page
-  files; while text recognition waits for a hot phone to cool down, the
-  progress line shows the pages done, not the pause.
+  on some Android 12 to 14 phones); the page backgrounds drop to about
+  40 dpi on 200-page files.
 - **Live captions:** check on real phones that capture keeps going in the
   background on Android 14 and later with only the media projection
   service type, the caption bar's Open button on Android 15, the consent
@@ -265,9 +263,6 @@ Carried over to later waves (mostly real-device checks and optional features):
   has the focus (no browser spelling suggestions there); the highlight
   while Listen plays depends on the voice reporting its progress
   (browsers' word boundaries for Chinese, Japanese and Thai are rough).
-- **First run and servers:** the image screen's own offer to download a
-  text recognition language has no Cancel yet (the Text recognition page
-  has one).
 - **Not done on purpose:** measuring instance speed automatically during
   setup (it contacts every listed volunteer server, so it stays a button:
   "Find the fastest server"); on-device AI as an automatic fallback (it

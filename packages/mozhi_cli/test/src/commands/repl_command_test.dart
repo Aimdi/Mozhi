@@ -83,7 +83,14 @@ void main() {
             '/swap',
             '/engine ai',
             '/formality more',
+            '/style literal',
+            '/context Technical documentation',
+            '/glossary list',
+            '/glossary add widget=Komponente',
             'Hola mundo',
+            '/glossary remove cloud',
+            '/glossary clear',
+            '/context clear',
             '/proofread He go home.',
             '/dict maison',
             '/unknown',
@@ -98,8 +105,9 @@ void main() {
         final out = h.stdout;
         expect(out, contains('Mozhi interactive session'));
         expect(out, contains('/from <code>'));
+        expect(out, contains('/glossary <cmd>'));
         expect(out, contains('Engine: mozhi:google'));
-        expect(out, contains('Glossary: 1 saved term'));
+        expect(out, contains('Glossary: 1 term'));
         expect(out, contains('[mozhi:google auto->en] Bonjour'));
         // Swap after auto-detect uses detected 'fr' -> en->fr
         expect(out, contains('Swapped languages: en → fr.'));
@@ -108,13 +116,32 @@ void main() {
         expect(out, contains('Swapped languages: es → de.'));
         expect(out, contains('Engine set to ai:local (Local).'));
         expect(out, contains('Formality set to more.'));
+        expect(out, contains('Style set to literal.'));
+        expect(out, contains('Context set to "Technical documentation".'));
+        expect(out, contains('cloud → Wolke'));
+        expect(out, contains('Glossary term set: widget → Komponente'));
         expect(out, contains('[ai:local es->de] Hola mundo'));
+        expect(out, contains('Removed glossary term "cloud".'));
+        expect(out, contains('Glossary cleared.'));
+        expect(out, contains('Context cleared.'));
         expect(out, contains('He goes home.'));
         expect(out, contains('go → goes'));
         expect(out, contains('A building for human habitation.'));
         expect(out, contains('Unknown command "/unknown"'));
         expect(out, contains('Bye.'));
         expect(out, isNot(contains('should not run after quit')));
+
+        final captured = verify(
+          () => h.repository.translate(any(), captureAny()),
+        ).captured.cast<TranslationRequest>();
+        final aiReq = captured.last;
+        expect(aiReq.options.style, TranslationStyle.literal);
+        expect(aiReq.options.formality, Formality.more);
+        expect(aiReq.options.context, 'Technical documentation');
+        expect(aiReq.options.glossary, {
+          'cloud': 'Wolke',
+          'widget': 'Komponente',
+        });
       },
     );
 
@@ -154,6 +181,82 @@ void main() {
       );
       expect(out, contains('Error: No direct MT provider is configured.'));
       expect(out, contains('[auto→en] > '));
+    });
+
+    test('supports /alt, /explain, /insights, /romanize and /check on last '
+        'translation', () async {
+      when(() => h.repository.getAlternatives(any(), any(), any())).thenAnswer(
+        (_) async => const AlternativeTranslations(
+          description: 'Alternative phrasings',
+          alternatives: [
+            Alternative(text: 'Salut', explanation: 'more casual'),
+          ],
+        ),
+      );
+      when(() => h.repository.explain(any(), any(), any()))
+          .thenAnswer((_) => Stream.value('A polite greeting.'));
+      when(() => h.repository.getInsights(any(), any(), any())).thenAnswer(
+        (_) async => const [
+          WordInsight(
+            sourceText: 'Hello',
+            targetText: 'Bonjour',
+            explanation: 'Standard daytime greeting.',
+          ),
+        ],
+      );
+      when(
+        () => h.repository.romanize(
+          any(),
+          text: any(named: 'text'),
+          language: any(named: 'language'),
+        ),
+      ).thenAnswer((_) async => 'bon-zhoor');
+      when(
+        () => h.repository.checkMeaning(
+          any(),
+          source: any(named: 'source'),
+          translation: any(named: 'translation'),
+          sourceLanguage: any(named: 'sourceLanguage'),
+          targetLanguage: any(named: 'targetLanguage'),
+        ),
+      ).thenAnswer(
+        (_) async => const MeaningCheck(
+          verdict: MeaningVerdict.same,
+          backTranslation: 'Hello',
+        ),
+      );
+
+      final buffer = StringBuffer();
+      final session = ReplSession(
+        repository: h.repository,
+        config: const CliConfig(),
+        providers: const [ollamaProvider],
+        engine: googleEngine,
+        source: english,
+        target: french,
+        output: buffer,
+      );
+
+      await session.run(
+        Stream.fromIterable([
+          '/check',
+          'Hello',
+          '/alt',
+          '/explain',
+          '/insights',
+          '/romanize',
+          '/check',
+        ]),
+      );
+
+      final out = buffer.toString();
+      expect(out, contains('Translate something first'));
+      expect(out, contains('Salut — more casual'));
+      expect(out, contains('A polite greeting.'));
+      expect(out, contains('Hello → Bonjour'));
+      expect(out, contains('bon-zhoor'));
+      expect(out, contains('Meaning check: Same meaning'));
+      expect(out, contains('Back-translation: Hello'));
     });
   });
 }

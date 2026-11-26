@@ -150,5 +150,116 @@ void main() {
         );
       },
     );
+
+    test(
+      'translates multiple files to --output-dir and reports --json',
+      () async {
+        final xmlFile = File('${h.directory.path}/strings.xml')
+          ..writeAsStringSync(
+            '<resources><string name="hi">Hello</string></resources>\n',
+          );
+        final outDir = '${h.directory.path}/translated';
+        final code = await h.run([
+          'document',
+          '-f',
+          'en',
+          '-t',
+          'de',
+          '--output-dir',
+          outDir,
+          '--json',
+          jsonFile.path,
+          xmlFile.path,
+        ]);
+        expect(code, ExitCode.success.code);
+        final json = h.json()! as Map<String, Object?>;
+        expect(json['totalSegments'], 3);
+        expect(json['totalTranslated'], 3);
+        expect((json['files']! as List<Object?>).length, 2);
+        expect(
+          File('$outDir/en.json').readAsStringSync(),
+          contains('"hello": "[de] Hello"'),
+        );
+        expect(
+          File('$outDir/strings.xml').readAsStringSync(),
+          contains('<string name="hi">[de] Hello</string>'),
+        );
+      },
+    );
+
+    test('supports multi-file --dry-run and validates batch flags', () async {
+      final second = File('${h.directory.path}/notes.txt')
+        ..writeAsStringSync('Second file\n');
+      expect(
+        await h.run([
+          'document',
+          '--dry-run',
+          '--json',
+          '-t',
+          'fr',
+          jsonFile.path,
+          second.path,
+        ]),
+        ExitCode.success.code,
+      );
+      final json = h.json()! as Map<String, Object?>;
+      expect(json['dryRun'], isTrue);
+      expect(json['totalSegments'], 3);
+
+      expect(
+        await h.run(['document', '-t', 'fr', jsonFile.path, second.path]),
+        ExitCode.usage.code,
+      );
+      expect(
+        await h.run([
+          'document',
+          '-o',
+          'single.out',
+          jsonFile.path,
+          second.path,
+        ]),
+        ExitCode.usage.code,
+      );
+    });
+
+    test('passes AI options and supports --concurrency (-j)', () async {
+      h.writeConfig(
+        const CliConfig(providers: [ProviderEntry(ollamaProvider)]),
+      );
+      final code = await h.run([
+        'document',
+        '-e',
+        'ai',
+        '-t',
+        'de',
+        '-j',
+        '4',
+        '--formality',
+        'more',
+        '--style',
+        'literal',
+        '--reading-level',
+        'b1',
+        '--context',
+        'Release notes',
+        jsonFile.path,
+      ]);
+      expect(code, ExitCode.success.code);
+      expect(h.written.toString(), contains('"hello": "[de] Hello"'));
+      expect(h.written.toString(), contains('"bye": "[de] Goodbye"'));
+      final captured = verify(() => h.repository.translate(any(), captureAny()))
+          .captured
+          .cast<TranslationRequest>();
+      expect(captured, hasLength(2));
+      expect(captured.first.options.formality, Formality.more);
+      expect(captured.first.options.style, TranslationStyle.literal);
+      expect(captured.first.options.readingLevel, ReadingLevel.b1);
+      expect(captured.first.options.context, 'Release notes');
+
+      expect(
+        await h.run(['document', '-j', '0', '-t', 'de', jsonFile.path]),
+        ExitCode.usage.code,
+      );
+    });
   });
 }

@@ -76,15 +76,35 @@ mozhi translate -e ai -t "Pirate speak" "Where is the treasure?"   # free-form t
 | Option | Values |
 | --- | --- |
 | `--formality` | `automatic`, `more`, `less`, `prefer-more`, `prefer-less` |
+| `--formality-context` | `automatic`, `business`, `casual`, `academic`, `legal`, `technical`, `medical` |
+| `--speaker-gender` | `unknown`, `masculine`, `feminine`, `neutral` |
+| `--addressee-gender` | `unknown`, `masculine`, `feminine`, `neutral` |
 | `--style` | `natural`, `literal` |
 | `--reading-level` | `standard`, `a1`, `a2`, `b1`, `b2`, `c1`, `c2` (CEFR) |
 | `--context` | free text describing the situation or audience |
-| `-g`, `--glossary` | `term=translation`, repeatable |
+| `-g`, `--glossary` | `term=translation`, repeatable (merged with saved `config glossary`) |
 | `--glossary-file` | one `term=translation` (or tab-separated) entry per line, `#` comments |
 | `--instructions` | one-off instruction, e.g. `"Keep it under 10 words"` |
+| `--alternatives` | fetch alternative translations (AI) |
+| `--explain` | fetch a brief explanation of the translation (AI) |
+| `--insights` | fetch word-level insights and variations (AI) |
+| `--romanize` | fetch romanization / transliteration (AI) |
+| `--check-meaning` | back-translate and flag semantic differences (AI) |
 
 AI output streams to the terminal as it is generated (`--no-stream` turns
 that off); when piped, only the final, cleaned-up text is printed.
+
+### Direct MT providers (DeepL / LibreTranslate)
+
+In addition to Mozhi instances and AI providers, you can configure direct
+DeepL API or self-hosted LibreTranslate providers and select them with
+`--engine mt` or `--engine mt:<id>`:
+
+```sh
+mozhi config providers add --preset deepl --api-key-env DEEPL_API_KEY
+mozhi config providers add --preset libretranslate --base-url https://lt.example.org
+mozhi translate -e mt -t de "Good morning"
+```
 
 ### JSON
 
@@ -96,12 +116,62 @@ mozhi translate --json -t ja "Good morning"   # includes transliterations, word 
 mozhi translate --compare --json -t de "Hello" | jq '.[] | select(.ok) | .text'
 ```
 
+## Dictionary (AI)
+
+Look up definitions, pronunciations, examples, synonyms, and related words
+with an AI provider:
+
+```sh
+mozhi dictionary "serendipity" --from en --to de
+mozhi dict "Fernweh" -f de -t en --verbosity detailed
+mozhi dict "bank" --context "river bank" --json
+```
+
+## Translate documents
+
+Translate structured text, subtitle, and localization files while keeping
+keys, comments, timestamps, placeholders, and formatting intact. Supported
+formats: `.txt`, `.md`, `.html`/`.htm`, `.json`, `.arb`, `.srt`, `.vtt`,
+`.po`, `.properties`, `.yml`/`.yaml`, `.toml`, `.xml` (Android `strings.xml`),
+`.strings` (Apple), `.xcstrings` (Xcode), `.xliff`/`.xlf`, `.tmx`, `.csv`,
+`.tsv`.
+
+```sh
+mozhi document locales/en.yaml -f en -t de -o locales/de.yaml
+mozhi document subtitles.srt -t fr --in-place -j 4
+mozhi document strings.toml -t es --dry-run --json
+mozhi document Localizable.xcstrings -e ai -t de --formality less -i
+mozhi document app.xliff strings.xml index.html -t fr --output-dir out/fr
+```
+
+## Translate web pages
+
+Fetch a web page, extract its readable content (skipping navigation, scripts
+and footers, with SSRF redirect protection), and output clean Markdown or JSON:
+
+```sh
+mozhi web https://example.com/article --to de
+mozhi web https://example.com/article -t fr --bilingual -o article.fr.md
+mozhi web https://example.com/article --dry-run --json
+```
+
+## Interactive REPL
+
+Start a persistent terminal translation session with slash commands
+(`/from`, `/to`, `/swap`, `/engine`, `/formality`, `/style`, `/context`,
+`/glossary`, `/alt`, `/explain`, `/insights`, `/romanize`, `/check`,
+`/proofread`, `/dict`, `/status`, `/help`, `/quit`):
+
+```sh
+mozhi repl --to de --style natural --context "Release notes"
+```
+
 ## Proofread (AI)
 
 ```sh
 mozhi proofread "Their going to the libary tomorow."
 mozhi proofread --style email --level comprehensive < draft.txt
-mozhi proofread --tone diplomatic "Your plan won't work."
+mozhi proofread --tone diplomatic --variety en-GB --reading-level b2 "Your plan won't work."
 mozhi proofread -q < draft.txt > fixed.txt      # corrected text only
 ```
 
@@ -146,9 +216,14 @@ mozhi config set target de
 mozhi config set source auto
 mozhi config unset instance
 mozhi config path
+
+# Saved default glossary terms (merged with per-command -g / --glossary-file)
+mozhi config glossary add "cloud=Cloud"
+mozhi config glossary list
+mozhi config glossary remove "cloud"
 ```
 
-### AI providers
+### AI & MT providers
 
 ```sh
 # Local models (no key needed)

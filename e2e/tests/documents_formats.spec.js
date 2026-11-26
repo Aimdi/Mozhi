@@ -125,3 +125,91 @@ test('a pasted gettext catalogue gets its msgstr and Language', async ({
   expect(po.startsWith('# Mozhi end-to-end test\nmsgid ""\n')).toBe(true);
   expect(errors).toEqual([]);
 });
+
+test('a YAML file is translated with comments and keys preserved', async ({
+  page,
+}) => {
+  const errors = collectPageErrors(page);
+  const YAML = [
+    '# App strings',
+    'en:',
+    `  greeting: "${TEXT}"`,
+    '  count: 42',
+    '',
+  ].join('\n');
+
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Choose file' }).click();
+  await (await chooser).setFiles({
+    name: 'messages.yml',
+    mimeType: 'application/yaml',
+    buffer: Buffer.from(YAML, 'utf8'),
+  });
+  await expect(page.getByText('messages.yml', { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole('checkbox', { name: 'YAML localization (.yml)' }),
+  ).toBeVisible();
+  await expect(page.getByRole('checkbox', { name: '1 segment' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Translate', exact: true }).click();
+  await expect(page.getByText('Translation complete')).toBeVisible();
+  await expect(page.getByText('File name: messages.fr.yml')).toBeVisible();
+
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Save file' }).click();
+  const file = await download;
+  expect(file.suggestedFilename()).toBe('messages.fr.yml');
+  const path = test.info().outputPath(file.suggestedFilename());
+  await file.saveAs(path);
+
+  const yaml = fs.readFileSync(path, 'utf8');
+  expect(yaml).toBe(YAML.replace(`"${TEXT}"`, `"${TRANSLATION}"`));
+  expect(errors).toEqual([]);
+});
+
+test('a TMX translation memory inserts the target language <tuv>', async ({
+  page,
+}) => {
+  const errors = collectPageErrors(page);
+  const TMX = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<tmx version="1.4">',
+    '  <header srclang="en"/>',
+    '  <body>',
+    '    <tu tuid="1">',
+    `      <tuv xml:lang="en"><seg>${TEXT}</seg></tuv>`,
+    '    </tu>',
+    '  </body>',
+    '</tmx>',
+    '',
+  ].join('\n');
+
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Choose file' }).click();
+  await (await chooser).setFiles({
+    name: 'memory.tmx',
+    mimeType: 'application/xml',
+    buffer: Buffer.from(TMX, 'utf8'),
+  });
+  await expect(page.getByText('memory.tmx', { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole('checkbox', { name: 'TMX translation memory (.tmx)' }),
+  ).toBeVisible();
+  await expect(page.getByRole('checkbox', { name: '1 segment' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Translate', exact: true }).click();
+  await expect(page.getByText('Translation complete')).toBeVisible();
+  await expect(page.getByText('File name: memory.fr.tmx')).toBeVisible();
+
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Save file' }).click();
+  const file = await download;
+  expect(file.suggestedFilename()).toBe('memory.fr.tmx');
+  const path = test.info().outputPath(file.suggestedFilename());
+  await file.saveAs(path);
+
+  const tmx = fs.readFileSync(path, 'utf8');
+  expect(tmx).toContain(`<tuv xml:lang="en"><seg>${TEXT}</seg></tuv>`);
+  expect(tmx).toContain(`<tuv xml:lang="fr"><seg>${TRANSLATION}</seg></tuv>`);
+  expect(errors).toEqual([]);
+});

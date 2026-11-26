@@ -405,6 +405,27 @@ void main() {
             language: any(named: 'language'),
           ),
         ).thenAnswer((_) async => 'ha-lo');
+        when(
+          () => h.repository.checkMeaning(
+            any(),
+            source: any(named: 'source'),
+            translation: any(named: 'translation'),
+            sourceLanguage: any(named: 'sourceLanguage'),
+            targetLanguage: any(named: 'targetLanguage'),
+          ),
+        ).thenAnswer(
+          (_) async => const MeaningCheck(
+            verdict: MeaningVerdict.minor,
+            backTranslation: 'Hi',
+            issues: [
+              MeaningIssue(
+                type: MeaningIssueType.omission,
+                problem: 'Slightly more casual.',
+                suggestion: 'Guten Tag',
+              ),
+            ],
+          ),
+        );
 
         final code = await h.run([
           'translate',
@@ -414,10 +435,15 @@ void main() {
           '--insights',
           '--explain',
           '--romanize',
+          '--check-meaning',
           'Hello',
         ]);
         expect(code, 0);
         expect(h.stdout, contains('Hallo'));
+        expect(h.stdout, contains('Meaning check:'));
+        expect(h.stdout, contains('Minor differences'));
+        expect(h.stdout, contains('Back-translation: Hi'));
+        expect(h.stdout, contains('Slightly more casual.'));
         expect(h.stdout, contains('Romanization:'));
         expect(h.stdout, contains('ha-lo'));
         expect(h.stdout, contains('Alternatives:'));

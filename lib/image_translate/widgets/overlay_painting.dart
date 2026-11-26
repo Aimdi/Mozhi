@@ -46,8 +46,12 @@ class OverlayLabel {
   /// Paints the label on [canvas], whose units are image pixels: [fill]
   /// with soft edges, and [textArea] (which covers the original text)
   /// solid, so no edge of the original shows through the blur.
-  void paint(Canvas canvas) {
-    final rotated = angle != 0;
+  ///
+  /// Set [applyRotation] to `false` when the caller already rotated the
+  /// coordinate space around the centre of [fill] (for example with a
+  /// `Transform.rotate` widget so pointer hit-testing rotates too).
+  void paint(Canvas canvas, {bool applyRotation = true}) {
+    final rotated = applyRotation && angle != 0;
     if (rotated) {
       final center = fill.center;
       canvas

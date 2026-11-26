@@ -23,8 +23,9 @@ class ParsedDocument {
     required this.rebuild,
   });
 
-  /// Canonical format name (`txt`, `md`, `json`, `arb`, `srt`, `vtt`, `po`,
-  /// `properties`, `yaml`, `csv`, `tsv`).
+  /// Canonical format name (`txt`, `md`, `html`, `json`, `arb`, `srt`, `vtt`,
+  /// `po`, `properties`, `yaml`, `toml`, `xml`, `strings`, `xcstrings`,
+  /// `xliff`, `tmx`, `csv`, `tsv`).
   final String format;
 
   /// Translatable segments in document order.
@@ -40,6 +41,8 @@ abstract final class DocumentHandlers {
   static const supportedExtensions = [
     '.txt',
     '.md',
+    '.html',
+    '.htm',
     '.json',
     '.arb',
     '.srt',
@@ -48,16 +51,26 @@ abstract final class DocumentHandlers {
     '.properties',
     '.yml',
     '.yaml',
+    '.toml',
+    '.xml',
+    '.strings',
+    '.xcstrings',
+    '.xliff',
+    '.xlf',
+    '.tmx',
     '.csv',
     '.tsv',
   ];
 
   /// Parses [content] according to the extension of [filePath] (or explicit
-  /// [formatOverride]).
+  /// [formatOverride]). [targetLanguage] is used by bilingual or
+  /// language-tagged formats such as `.tmx`, `.xliff`, `.xcstrings`, and
+  /// `.html`.
   static ParsedDocument parse(
     String filePath,
     String content, {
     String? formatOverride,
+    String? targetLanguage,
   }) {
     final ext = (formatOverride ?? _extensionOf(filePath))
         .trim()
@@ -66,6 +79,7 @@ abstract final class DocumentHandlers {
     return switch (ext) {
       'txt' => _parsePlainText(content),
       'md' || 'markdown' => _parseMarkdown(content),
+      'html' || 'htm' => _parseHtml(content, targetLanguage: targetLanguage),
       'json' => _parseJson(content, isArb: false),
       'arb' => _parseJson(content, isArb: true),
       'srt' => _parseSrt(content),
@@ -73,6 +87,12 @@ abstract final class DocumentHandlers {
       'po' => _parsePo(content),
       'properties' => _parseProperties(content),
       'yml' || 'yaml' => _parseYaml(content),
+      'toml' => _parseToml(content),
+      'xml' => _parseAndroidXml(content),
+      'strings' => _parseAppleStrings(content),
+      'xcstrings' => _parseXcstrings(content, targetLanguage: targetLanguage),
+      'xliff' || 'xlf' => _parseXliff(content, targetLanguage: targetLanguage),
+      'tmx' => _parseTmx(content, targetLanguage: targetLanguage),
       'csv' => _parseDelimited(content, delimiter: ',', format: 'csv'),
       'tsv' => _parseDelimited(content, delimiter: '\t', format: 'tsv'),
       _ => throw CliException.usage(
@@ -1093,6 +1113,1152 @@ abstract final class DocumentHandlers {
         cell.contains('\r');
     if (!needsQuotes) return cell;
     return '"${cell.replaceAll('"', '""')}"';
+  }
+
+  // ---------------------------------------------------------------------------
+  // TOML (.toml)
+  // ---------------------------------------------------------------------------
+
+  static final _tomlTable = RegExp(
+    r'^\s*\[{1,2}\s*([^\]]+?)\s*\]{1,2}\s*(?:#.*)?$',
+  );
+  static final _tomlKeyValue = RegExp(
+    r'^(\s*(?:"[^"]+"|'
+    "'[^']+'"
+    r'|[A-Za-z0-9_.-]+)\s*=\s*)(.*)$',
+  );
+
+  static ParsedDocument _parseToml(String content) {
+    final eol = _eolOf(content);
+    final normalized = content.replaceAll('\r\n', '\n');
+    final trailingNewline = normalized.endsWith('\n');
+    final body = trailingNewline
+        ? normalized.substring(0, normalized.length - 1)
+        : normalized;
+    final lines = body.isEmpty ? const <String>[] : body.split('\n');
+
+    final parts = <_TextPart>[];
+    final segments = <DocumentSegment>[];
+    var currentTable = '';
+    var i = 0;
+
+    while (i < lines.length) {
+      final line = lines[i];
+      final trimmed = line.trim();
+      if (trimmed.isEmpty || trimmed.startsWith('#')) {
+        parts.add(_TextPart.literal(line));
+        i++;
+        continue;
+      }
+
+      final tableMatch = _tomlTable.firstMatch(line);
+      if (tableMatch != null) {
+        currentTable = tableMatch.group(1)!.trim();
+        parts.add(_TextPart.literal(line));
+        i++;
+        continue;
+      }
+
+      final kv = _tomlKeyValue.firstMatch(line);
+      if (kv == null) {
+        parts.add(_TextPart.literal(line));
+        i++;
+        continue;
+      }
+      final prefix = kv.group(1)!;
+      final rest = kv.group(2)!;
+      final rawKey = prefix.split('=').first.trim();
+      final cleanKey = rawKey.replaceAll(RegExp('^["\']|["\']\$'), '');
+      final id = currentTable.isEmpty ? cleanKey : '$currentTable.$cleanKey';
+
+      if (rest.startsWith('"""') || rest.startsWith("'''")) {
+        final delim = rest.substring(0, 3);
+        final buf = StringBuffer();
+        final afterOpen = rest.substring(3);
+        final sameLineClose = _findTomlMultilineClose(afterOpen, delim: delim);
+        if (sameLineClose != null) {
+          final inner = afterOpen.substring(0, sameLineClose);
+          final suffix = afterOpen.substring(sameLineClose + 3);
+          final decoded = delim == '"""' ? _unescapeTomlBasic(inner) : inner;
+          if (decoded.trim().isEmpty) {
+            parts.add(_TextPart.literal(line));
+          } else {
+            final idx = segments.length;
+            segments.add(DocumentSegment(id: id, text: decoded));
+            parts.add(
+              _TextPart.yamlScalar(
+                prefix: prefix,
+                segmentIndex: idx,
+                quote: delim,
+                suffix: suffix,
+              ),
+            );
+          }
+          i++;
+          continue;
+        }
+        final hasLeadingNewline = afterOpen.isEmpty;
+        if (!hasLeadingNewline) buf.write(afterOpen);
+        var j = i + 1;
+        String? closeSuffix;
+        while (j < lines.length) {
+          final nextLine = lines[j];
+          final closePos = _findTomlMultilineClose(nextLine, delim: delim);
+          if (closePos != null) {
+            if (buf.isNotEmpty || !hasLeadingNewline) buf.write('\n');
+            buf.write(nextLine.substring(0, closePos));
+            closeSuffix = nextLine.substring(closePos + 3);
+            break;
+          }
+          if (buf.isNotEmpty || !hasLeadingNewline) buf.write('\n');
+          buf.write(nextLine);
+          j++;
+        }
+        if (closeSuffix == null) {
+          for (var k = i; k < lines.length; k++) {
+            parts.add(_TextPart.literal(lines[k]));
+          }
+          break;
+        }
+        final rawBody = buf.toString();
+        final decoded = delim == '"""' ? _unescapeTomlBasic(rawBody) : rawBody;
+        if (decoded.trim().isEmpty) {
+          for (var k = i; k <= j; k++) {
+            parts.add(_TextPart.literal(lines[k]));
+          }
+        } else {
+          final idx = segments.length;
+          segments.add(DocumentSegment(id: id, text: decoded));
+          parts.add(
+            _TextPart.yamlScalar(
+              prefix: hasLeadingNewline ? '$prefix$delim$eol' : '$prefix$delim',
+              segmentIndex: idx,
+              quote: 'ml:$delim',
+              suffix: '$delim$closeSuffix',
+            ),
+          );
+        }
+        i = j + 1;
+        continue;
+      }
+
+      if (rest.startsWith('"') || rest.startsWith("'")) {
+        final quote = rest[0];
+        final parsed = _parseTomlSingleLineString(rest, quote);
+        if (parsed != null && parsed.text.trim().isNotEmpty) {
+          final idx = segments.length;
+          segments.add(DocumentSegment(id: id, text: parsed.text));
+          parts.add(
+            _TextPart.yamlScalar(
+              prefix: prefix,
+              segmentIndex: idx,
+              quote: quote,
+              suffix: parsed.suffix,
+            ),
+          );
+          i++;
+          continue;
+        }
+      }
+
+      parts.add(_TextPart.literal(line));
+      i++;
+    }
+
+    return ParsedDocument(
+      format: 'toml',
+      segments: segments,
+      rebuild: (translations) {
+        final out = <String>[];
+        for (final part in parts) {
+          if (part.segmentIndex != null) {
+            final value = translations[part.segmentIndex!];
+            final q = part.quote!;
+            if (q.startsWith('ml:')) {
+              final delim = q.substring(3);
+              final encoded = delim == '"""'
+                  ? _escapeTomlMultiline(value).replaceAll('\n', eol)
+                  : value.replaceAll('\n', eol);
+              out.add('${part.prefix!}$encoded${part.suffix ?? ''}');
+            } else if (q == '"""' || q == "'''") {
+              final encoded = q == '"""' ? _escapeTomlMultiline(value) : value;
+              out.add('${part.prefix!}$q$encoded$q${part.suffix ?? ''}');
+            } else if (q == "'" &&
+                !value.contains("'") &&
+                !value.contains('\n')) {
+              out.add("${part.prefix!}'$value'${part.suffix ?? ''}");
+            } else {
+              final escaped = _escapeTomlBasic(value);
+              out.add('${part.prefix!}"$escaped"${part.suffix ?? ''}');
+            }
+          } else {
+            out.add(part.literal!);
+          }
+        }
+        final joined = out.join(eol);
+        return trailingNewline ? '$joined$eol' : joined;
+      },
+    );
+  }
+
+  static int? _findTomlMultilineClose(String line, {required String delim}) {
+    if (delim == "'''") {
+      final idx = line.indexOf("'''");
+      return idx < 0 ? null : idx;
+    }
+    var i = 0;
+    while (i + 2 < line.length) {
+      if (line[i] == r'\') {
+        i += 2;
+        continue;
+      }
+      if (line.startsWith('"""', i)) return i;
+      i++;
+    }
+    return null;
+  }
+
+  static ({String text, String suffix})? _parseTomlSingleLineString(
+    String rest,
+    String quote,
+  ) {
+    if (quote == "'") {
+      final end = rest.indexOf("'", 1);
+      if (end < 0) return null;
+      final suffix = rest.substring(end + 1);
+      if (suffix.trim().isNotEmpty && !suffix.trimLeft().startsWith('#')) {
+        return null;
+      }
+      return (text: rest.substring(1, end), suffix: suffix);
+    }
+    var escaped = false;
+    for (var i = 1; i < rest.length; i++) {
+      final ch = rest[i];
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (ch == r'\') {
+        escaped = true;
+        continue;
+      }
+      if (ch == '"') {
+        final suffix = rest.substring(i + 1);
+        if (suffix.trim().isNotEmpty && !suffix.trimLeft().startsWith('#')) {
+          return null;
+        }
+        return (text: _unescapeTomlBasic(rest.substring(1, i)), suffix: suffix);
+      }
+    }
+    return null;
+  }
+
+  static String _unescapeTomlBasic(String raw) {
+    final out = StringBuffer();
+    for (var i = 0; i < raw.length; i++) {
+      final ch = raw[i];
+      if (ch == r'\' && i + 1 < raw.length) {
+        final next = raw[++i];
+        switch (next) {
+          case 'n':
+            out.write('\n');
+          case 'r':
+            out.write('\r');
+          case 't':
+            out.write('\t');
+          case '"':
+            out.write('"');
+          case r'\':
+            out.write(r'\');
+          case 'u' when i + 4 < raw.length:
+            final hex = raw.substring(i + 1, i + 5);
+            final cp = int.tryParse(hex, radix: 16);
+            if (cp != null) {
+              out.writeCharCode(cp);
+              i += 4;
+            } else {
+              out.write(r'\u');
+            }
+          default:
+            out
+              ..write(r'\')
+              ..write(next);
+        }
+      } else {
+        out.write(ch);
+      }
+    }
+    return out.toString();
+  }
+
+  static String _escapeTomlBasic(String value) => value
+      .replaceAll(r'\', r'\\')
+      .replaceAll('"', r'\"')
+      .replaceAll('\n', r'\n')
+      .replaceAll('\r', r'\r')
+      .replaceAll('\t', r'\t');
+
+  static String _escapeTomlMultiline(String value) =>
+      value.replaceAll(r'\', r'\\').replaceAll('"""', r'\"\"\"');
+
+  // ---------------------------------------------------------------------------
+  // TMX (.tmx — Translation Memory eXchange XML)
+  // ---------------------------------------------------------------------------
+
+  static final _tmxSrclang = RegExp(
+    r'''<header\b[^>]*\bsrclang\s*=\s*["']([^"']+)["']''',
+    caseSensitive: false,
+  );
+  static final _tmxTu = RegExp(
+    r'<tu\b[^>]*>[\s\S]*?</tu>',
+    caseSensitive: false,
+  );
+  static final _tmxTuv = RegExp(
+    r'''([ \t]*)<tuv\b([^>]*)>([\s\S]*?)</tuv>''',
+    caseSensitive: false,
+  );
+  static final _tmxLangAttr = RegExp(
+    r'''\b(?:xml:)?lang\s*=\s*["']([^"']+)["']''',
+    caseSensitive: false,
+  );
+  static final _tmxSeg = RegExp(
+    r'(<seg\b[^>]*>)([\s\S]*?)(</seg>)',
+    caseSensitive: false,
+  );
+
+  static ParsedDocument _parseTmx(String content, {String? targetLanguage}) {
+    final eol = _eolOf(content);
+    final srcLangMatch = _tmxSrclang.firstMatch(content);
+    final srcLang = srcLangMatch?.group(1)?.trim().toLowerCase();
+    final targetLang = targetLanguage?.trim();
+    final targetLower = targetLang?.toLowerCase();
+
+    final segments = <DocumentSegment>[];
+    final edits =
+        <
+          ({
+            int start,
+            int end,
+            int segmentIndex,
+            String Function(String) format,
+          })
+        >[];
+
+    var tuIndex = 0;
+    for (final tuMatch in _tmxTu.allMatches(content)) {
+      tuIndex++;
+      final tuStart = tuMatch.start;
+      final tuText = tuMatch.group(0)!;
+      final tuvMatches = _tmxTuv.allMatches(tuText).toList();
+      if (tuvMatches.isEmpty) continue;
+
+      RegExpMatch? sourceTuv;
+      RegExpMatch? targetTuv;
+      for (final m in tuvMatches) {
+        final lang = _tmxLangAttr.firstMatch(m.group(2)!)?.group(1)?.trim();
+        final lower = lang?.toLowerCase();
+        if (sourceTuv == null &&
+            (srcLang == null || srcLang == '*all*' || lower == srcLang)) {
+          sourceTuv = m;
+        }
+        if (targetLower != null &&
+            targetLower.isNotEmpty &&
+            lower == targetLower) {
+          targetTuv = m;
+        }
+      }
+      sourceTuv ??= tuvMatches.first;
+
+      final sourceSeg = _tmxSeg.firstMatch(sourceTuv.group(3)!);
+      if (sourceSeg == null) continue;
+      final decodedSource = _unescapeXml(sourceSeg.group(2)!);
+      if (decodedSource.trim().isEmpty) continue;
+
+      final segIdx = segments.length;
+      segments.add(DocumentSegment(id: 'tu-$tuIndex', text: decodedSource));
+
+      if (targetTuv != null) {
+        final targetSeg = _tmxSeg.firstMatch(targetTuv.group(3)!);
+        if (targetSeg != null) {
+          final bodyOffset =
+              tuStart +
+              targetTuv.start +
+              targetTuv.group(1)!.length +
+              '<tuv'.length +
+              targetTuv.group(2)!.length +
+              '>'.length;
+          final absStart = bodyOffset + targetSeg.start;
+          final absEnd = bodyOffset + targetSeg.end;
+          final openTag = targetSeg.group(1)!;
+          final closeTag = targetSeg.group(3)!;
+          edits.add((
+            start: absStart,
+            end: absEnd,
+            segmentIndex: segIdx,
+            format: (tr) => '$openTag${_escapeXml(tr)}$closeTag',
+          ));
+          continue;
+        }
+      }
+
+      if (targetLang != null && targetLang.isNotEmpty) {
+        final lastTuv = tuvMatches.last;
+        final indent = lastTuv.group(1)!;
+        final insertAt = tuStart + lastTuv.end;
+        edits.add((
+          start: insertAt,
+          end: insertAt,
+          segmentIndex: segIdx,
+          format: (tr) {
+            final lang = _escapeXml(targetLang);
+            final seg = _escapeXml(tr);
+            return '$eol$indent<tuv xml:lang="$lang"><seg>$seg</seg></tuv>';
+          },
+        ));
+      } else {
+        final bodyOffset =
+            tuStart +
+            sourceTuv.start +
+            sourceTuv.group(1)!.length +
+            '<tuv'.length +
+            sourceTuv.group(2)!.length +
+            '>'.length;
+        final absStart = bodyOffset + sourceSeg.start;
+        final absEnd = bodyOffset + sourceSeg.end;
+        final openTag = sourceSeg.group(1)!;
+        final closeTag = sourceSeg.group(3)!;
+        edits.add((
+          start: absStart,
+          end: absEnd,
+          segmentIndex: segIdx,
+          format: (tr) => '$openTag${_escapeXml(tr)}$closeTag',
+        ));
+      }
+    }
+
+    return ParsedDocument(
+      format: 'tmx',
+      segments: segments,
+      rebuild: (translations) {
+        final out = StringBuffer();
+        var cursor = 0;
+        for (final edit in edits) {
+          out
+            ..write(content.substring(cursor, edit.start))
+            ..write(edit.format(translations[edit.segmentIndex]));
+          cursor = edit.end;
+        }
+        out.write(content.substring(cursor));
+        return out.toString();
+      },
+    );
+  }
+
+  static String _unescapeXml(String raw) => raw
+      .replaceAll('&lt;', '<')
+      .replaceAll('&gt;', '>')
+      .replaceAll('&quot;', '"')
+      .replaceAll('&apos;', "'")
+      .replaceAll('&#39;', "'")
+      .replaceAll('&amp;', '&');
+
+  static String _escapeXml(String text) => text
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;');
+
+  // ---------------------------------------------------------------------------
+  // HTML (.html, .htm)
+  // ---------------------------------------------------------------------------
+
+  static const _htmlSkipElements = {
+    'script',
+    'style',
+    'code',
+    'pre',
+    'noscript',
+    'template',
+    'svg',
+    'textarea',
+  };
+  static final _htmlTagName = RegExp(r'^<\s*(/?)\s*([A-Za-z][A-Za-z0-9:-]*)');
+  static final _htmlLangAttr = RegExp(
+    r'''(\blang\s*=\s*)(["'])([^"']*)(["'])''',
+    caseSensitive: false,
+  );
+  static final _leadingWs = RegExp(r'^\s*');
+  static final _trailingWs = RegExp(r'\s*$');
+
+  static ParsedDocument _parseHtml(String content, {String? targetLanguage}) {
+    final segments = <DocumentSegment>[];
+    final edits =
+        <
+          ({
+            int start,
+            int end,
+            int? segmentIndex,
+            String? literal,
+            String leading,
+            String trailing,
+          })
+        >[];
+    final targetLang = targetLanguage?.trim();
+
+    final skipStack = <String>[];
+    var textIndex = 0;
+    var i = 0;
+
+    while (i < content.length) {
+      final lt = content.indexOf('<', i);
+      final textEnd = lt < 0 ? content.length : lt;
+      if (textEnd > i && skipStack.isEmpty) {
+        final rawText = content.substring(i, textEnd);
+        if (rawText.trim().isNotEmpty) {
+          final leading = _leadingWs.stringMatch(rawText) ?? '';
+          final trailing = _trailingWs.stringMatch(rawText) ?? '';
+          final core = rawText.substring(
+            leading.length,
+            rawText.length - trailing.length,
+          );
+          final decoded = _unescapeXml(core);
+          if (decoded.trim().isNotEmpty) {
+            final idx = segments.length;
+            segments.add(
+              DocumentSegment(id: 'html:${++textIndex}', text: decoded),
+            );
+            edits.add((
+              start: i,
+              end: textEnd,
+              segmentIndex: idx,
+              literal: null,
+              leading: leading,
+              trailing: trailing,
+            ));
+          }
+        }
+      }
+      if (lt < 0) break;
+
+      if (content.startsWith('<!--', lt)) {
+        final close = content.indexOf('-->', lt + 4);
+        i = close < 0 ? content.length : close + 3;
+        continue;
+      }
+      if (content.startsWith('<![CDATA[', lt)) {
+        final close = content.indexOf(']]>', lt + 9);
+        i = close < 0 ? content.length : close + 3;
+        continue;
+      }
+
+      final tagEnd = _findHtmlTagEnd(content, lt);
+      if (tagEnd < 0) {
+        break;
+      }
+      final tag = content.substring(lt, tagEnd + 1);
+      final match = _htmlTagName.firstMatch(tag);
+      if (match != null) {
+        final isClosing = match.group(1) == '/';
+        final tagName = match.group(2)!.toLowerCase();
+        final isSelfClosing = tag.endsWith('/>');
+        if (skipStack.isNotEmpty) {
+          if (isClosing && tagName == skipStack.last) {
+            skipStack.removeLast();
+          }
+        } else if (!isClosing &&
+            !isSelfClosing &&
+            _htmlSkipElements.contains(tagName)) {
+          skipStack.add(tagName);
+        } else if (!isClosing &&
+            tagName == 'html' &&
+            targetLang != null &&
+            targetLang.isNotEmpty) {
+          final langMatch = _htmlLangAttr.firstMatch(tag);
+          if (langMatch != null) {
+            final updated = tag.replaceRange(
+              langMatch.start,
+              langMatch.end,
+              '${langMatch.group(1)!}${langMatch.group(2)!}'
+              '${_escapeXml(targetLang)}${langMatch.group(4)!}',
+            );
+            edits.add((
+              start: lt,
+              end: tagEnd + 1,
+              segmentIndex: null,
+              literal: updated,
+              leading: '',
+              trailing: '',
+            ));
+          }
+        }
+      }
+      i = tagEnd + 1;
+    }
+
+    return ParsedDocument(
+      format: 'html',
+      segments: segments,
+      rebuild: (translations) {
+        final out = StringBuffer();
+        var cursor = 0;
+        for (final edit in edits) {
+          out.write(content.substring(cursor, edit.start));
+          if (edit.segmentIndex != null) {
+            final escaped = translations[edit.segmentIndex!]
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;');
+            out
+              ..write(edit.leading)
+              ..write(escaped)
+              ..write(edit.trailing);
+          } else if (edit.literal case final literal?) {
+            out.write(literal);
+          }
+          cursor = edit.end;
+        }
+        out.write(content.substring(cursor));
+        return out.toString();
+      },
+    );
+  }
+
+  static int _findHtmlTagEnd(String content, int start) {
+    String? quote;
+    for (var i = start + 1; i < content.length; i++) {
+      final ch = content[i];
+      if (quote != null) {
+        if (ch == quote) quote = null;
+      } else if (ch == '"' || ch == "'") {
+        quote = ch;
+      } else if (ch == '>') {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Android strings.xml (.xml)
+  // ---------------------------------------------------------------------------
+
+  static final _xmlToken = RegExp(
+    r'<!--[\s\S]*?-->'
+    r'|<string\b([^>]*)>([\s\S]*?)</string>'
+    r'|<string-array\b([^>]*)>([\s\S]*?)</string-array>'
+    r'|<plurals\b([^>]*)>([\s\S]*?)</plurals>',
+    caseSensitive: false,
+  );
+  static final _xmlItem = RegExp(
+    r'<item\b([^>]*)>([\s\S]*?)</item>',
+    caseSensitive: false,
+  );
+  static final _xmlNameAttr = RegExp(
+    r'''\bname\s*=\s*["']([^"']+)["']''',
+    caseSensitive: false,
+  );
+  static final _xmlQuantityAttr = RegExp(
+    r'''\bquantity\s*=\s*["']([^"']+)["']''',
+    caseSensitive: false,
+  );
+  static final _xmlTranslatableFalse = RegExp(
+    r'''\btranslatable\s*=\s*["']false["']''',
+    caseSensitive: false,
+  );
+
+  static ParsedDocument _parseAndroidXml(String content) {
+    final segments = <DocumentSegment>[];
+    final edits = <({int start, int end, int segmentIndex, bool isCdata})>[];
+
+    void addValue({
+      required String id,
+      required int bodyStart,
+      required int bodyEnd,
+      required String rawBody,
+    }) {
+      final trimmed = rawBody.trim();
+      final isCdata =
+          trimmed.startsWith('<![CDATA[') && trimmed.endsWith(']]>');
+      final decoded = isCdata
+          ? trimmed.substring(9, trimmed.length - 3)
+          : _unescapeAndroidXml(rawBody);
+      if (decoded.trim().isEmpty) return;
+      final idx = segments.length;
+      segments.add(DocumentSegment(id: id, text: decoded));
+      edits.add((
+        start: bodyStart,
+        end: bodyEnd,
+        segmentIndex: idx,
+        isCdata: isCdata,
+      ));
+    }
+
+    for (final match in _xmlToken.allMatches(content)) {
+      final full = match.group(0)!;
+      if (full.startsWith('<!--')) continue;
+
+      if (match.group(1) != null) {
+        final attrs = match.group(1)!;
+        if (_xmlTranslatableFalse.hasMatch(attrs)) continue;
+        final name = _xmlNameAttr.firstMatch(attrs)?.group(1) ?? 'string';
+        final rawBody = match.group(2)!;
+        final bodyStart = match.start + '<string'.length + attrs.length + 1;
+        addValue(
+          id: name,
+          bodyStart: bodyStart,
+          bodyEnd: bodyStart + rawBody.length,
+          rawBody: rawBody,
+        );
+      } else if (match.group(3) != null) {
+        final attrs = match.group(3)!;
+        if (_xmlTranslatableFalse.hasMatch(attrs)) continue;
+        final name = _xmlNameAttr.firstMatch(attrs)?.group(1) ?? 'array';
+        final body = match.group(4)!;
+        final bodyOffset =
+            match.start + '<string-array'.length + attrs.length + 1;
+        var itemIdx = 0;
+        for (final item in _xmlItem.allMatches(body)) {
+          final itemAttrs = item.group(1)!;
+          final rawBody = item.group(2)!;
+          final itemBodyStart =
+              bodyOffset + item.start + '<item'.length + itemAttrs.length + 1;
+          addValue(
+            id: '$name[${itemIdx++}]',
+            bodyStart: itemBodyStart,
+            bodyEnd: itemBodyStart + rawBody.length,
+            rawBody: rawBody,
+          );
+        }
+      } else if (match.group(5) != null) {
+        final attrs = match.group(5)!;
+        if (_xmlTranslatableFalse.hasMatch(attrs)) continue;
+        final name = _xmlNameAttr.firstMatch(attrs)?.group(1) ?? 'plurals';
+        final body = match.group(6)!;
+        final bodyOffset = match.start + '<plurals'.length + attrs.length + 1;
+        for (final item in _xmlItem.allMatches(body)) {
+          final itemAttrs = item.group(1)!;
+          final qty =
+              _xmlQuantityAttr.firstMatch(itemAttrs)?.group(1) ?? 'other';
+          final rawBody = item.group(2)!;
+          final itemBodyStart =
+              bodyOffset + item.start + '<item'.length + itemAttrs.length + 1;
+          addValue(
+            id: '$name:$qty',
+            bodyStart: itemBodyStart,
+            bodyEnd: itemBodyStart + rawBody.length,
+            rawBody: rawBody,
+          );
+        }
+      }
+    }
+
+    return ParsedDocument(
+      format: 'xml',
+      segments: segments,
+      rebuild: (translations) {
+        final out = StringBuffer();
+        var cursor = 0;
+        for (final edit in edits) {
+          out.write(content.substring(cursor, edit.start));
+          final tr = translations[edit.segmentIndex];
+          out.write(
+            edit.isCdata
+                ? '<![CDATA[${tr.replaceAll(']]>', ']]]]><![CDATA[>')}]]>'
+                : _escapeAndroidXml(tr),
+          );
+          cursor = edit.end;
+        }
+        out.write(content.substring(cursor));
+        return out.toString();
+      },
+    );
+  }
+
+  static String _unescapeAndroidXml(String raw) =>
+      _unescapeXml(raw)
+          .replaceAll(r"\'", "'")
+          .replaceAll(r'\"', '"')
+          .replaceAll(r'\n', '\n')
+          .replaceAll(r'\t', '\t');
+
+  static String _escapeAndroidXml(String text) => text
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll("'", r"\'")
+      .replaceAll('"', r'\"')
+      .replaceAll('\n', r'\n')
+      .replaceAll('\t', r'\t');
+
+  // ---------------------------------------------------------------------------
+  // Apple Localizable.strings (.strings)
+  // ---------------------------------------------------------------------------
+
+  static ParsedDocument _parseAppleStrings(String content) {
+    final segments = <DocumentSegment>[];
+    final edits = <({int start, int end, int segmentIndex})>[];
+
+    var i = 0;
+    while (i < content.length) {
+      final ch = content[i];
+      if (ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n') {
+        i++;
+        continue;
+      }
+      if (content.startsWith('/*', i)) {
+        final close = content.indexOf('*/', i + 2);
+        i = close < 0 ? content.length : close + 2;
+        continue;
+      }
+      if (content.startsWith('//', i)) {
+        final nl = content.indexOf('\n', i + 2);
+        i = nl < 0 ? content.length : nl + 1;
+        continue;
+      }
+      if (ch == '"') {
+        final keyEnd = _findStringsClosingQuote(content, i);
+        if (keyEnd < 0) break;
+        final key = _unquotePo(content.substring(i, keyEnd + 1));
+        var cursor = keyEnd + 1;
+        while (cursor < content.length &&
+            (content[cursor] == ' ' ||
+                content[cursor] == '\t' ||
+                content[cursor] == '\r' ||
+                content[cursor] == '\n')) {
+          cursor++;
+        }
+        if (cursor >= content.length || content[cursor] != '=') {
+          i = keyEnd + 1;
+          continue;
+        }
+        cursor++;
+        while (cursor < content.length &&
+            (content[cursor] == ' ' ||
+                content[cursor] == '\t' ||
+                content[cursor] == '\r' ||
+                content[cursor] == '\n')) {
+          cursor++;
+        }
+        if (cursor >= content.length || content[cursor] != '"') {
+          i = cursor;
+          continue;
+        }
+        final valStart = cursor;
+        final valEnd = _findStringsClosingQuote(content, valStart);
+        if (valEnd < 0) break;
+        final value = _unquotePo(content.substring(valStart, valEnd + 1));
+        if (value.trim().isNotEmpty) {
+          final idx = segments.length;
+          segments.add(DocumentSegment(id: key, text: value));
+          edits.add((start: valStart, end: valEnd + 1, segmentIndex: idx));
+        }
+        i = valEnd + 1;
+        continue;
+      }
+      i++;
+    }
+
+    return ParsedDocument(
+      format: 'strings',
+      segments: segments,
+      rebuild: (translations) {
+        final out = StringBuffer();
+        var cursor = 0;
+        for (final edit in edits) {
+          out
+            ..write(content.substring(cursor, edit.start))
+            ..write(_quotePo(translations[edit.segmentIndex]));
+          cursor = edit.end;
+        }
+        out.write(content.substring(cursor));
+        return out.toString();
+      },
+    );
+  }
+
+  static int _findStringsClosingQuote(String content, int openQuote) {
+    for (var i = openQuote + 1; i < content.length; i++) {
+      if (content[i] == r'\') {
+        i++;
+      } else if (content[i] == '"') {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  // ---------------------------------------------------------------------------
+  // XLIFF 1.2 / 2.0 (.xliff, .xlf)
+  // ---------------------------------------------------------------------------
+
+  static final _xliffUnit = RegExp(
+    r'<(trans-unit|unit)\b([^>]*)>([\s\S]*?)</\1>',
+    caseSensitive: false,
+  );
+  static final _xliffSource = RegExp(
+    r'([ \t]*)<source\b[^>]*>([\s\S]*?)</source>',
+    caseSensitive: false,
+  );
+  static final _xliffTarget = RegExp(
+    r'(<target\b[^>]*>)([\s\S]*?)(</target>)',
+    caseSensitive: false,
+  );
+  static final _xliffIdAttr = RegExp(
+    r'''\bid\s*=\s*["']([^"']+)["']''',
+    caseSensitive: false,
+  );
+  static final _xliffTranslateNo = RegExp(
+    r'''\btranslate\s*=\s*["']no["']''',
+    caseSensitive: false,
+  );
+  static final _xliffTargetLangAttr = RegExp(
+    r'''(\b(?:target-language|trgLang)\s*=\s*)(["'])([^"']*)(["'])''',
+    caseSensitive: false,
+  );
+
+  static ParsedDocument _parseXliff(String content, {String? targetLanguage}) {
+    final eol = _eolOf(content);
+    final targetLang = targetLanguage?.trim();
+    final segments = <DocumentSegment>[];
+    final edits =
+        <
+          ({
+            int start,
+            int end,
+            int? segmentIndex,
+            String Function(String?) format,
+          })
+        >[];
+
+    if (targetLang != null && targetLang.isNotEmpty) {
+      for (final m in _xliffTargetLangAttr.allMatches(content)) {
+        final replacement =
+            '${m.group(1)!}${m.group(2)!}${_escapeXml(targetLang)}'
+            '${m.group(4)!}';
+        edits.add((
+          start: m.start,
+          end: m.end,
+          segmentIndex: null,
+          format: (_) => replacement,
+        ));
+      }
+    }
+
+    var unitIndex = 0;
+    for (final unit in _xliffUnit.allMatches(content)) {
+      unitIndex++;
+      final tagName = unit.group(1)!;
+      final attrs = unit.group(2)!;
+      if (_xliffTranslateNo.hasMatch(attrs)) continue;
+      final body = unit.group(3)!;
+      final unitId =
+          _xliffIdAttr.firstMatch(attrs)?.group(1) ?? 'xliff:$unitIndex';
+      final bodyOffset = unit.start + 1 + tagName.length + attrs.length + 1;
+
+      final sourceMatch = _xliffSource.firstMatch(body);
+      if (sourceMatch == null) continue;
+      final decodedSource = _unescapeXml(sourceMatch.group(2)!);
+      if (decodedSource.trim().isEmpty) continue;
+
+      final segIdx = segments.length;
+      segments.add(DocumentSegment(id: unitId, text: decodedSource));
+
+      final targetMatch = _xliffTarget.firstMatch(body);
+      if (targetMatch != null) {
+        final absStart = bodyOffset + targetMatch.start;
+        final absEnd = bodyOffset + targetMatch.end;
+        final openTag = targetMatch.group(1)!;
+        final closeTag = targetMatch.group(3)!;
+        edits.add((
+          start: absStart,
+          end: absEnd,
+          segmentIndex: segIdx,
+          format: (tr) => '$openTag${_escapeXml(tr!)}$closeTag',
+        ));
+      } else {
+        final indent = sourceMatch.group(1)!;
+        final insertAt = bodyOffset + sourceMatch.end;
+        edits.add((
+          start: insertAt,
+          end: insertAt,
+          segmentIndex: segIdx,
+          format: (tr) => '$eol$indent<target>${_escapeXml(tr!)}</target>',
+        ));
+      }
+    }
+
+    edits.sort((a, b) => a.start.compareTo(b.start));
+
+    return ParsedDocument(
+      format: 'xliff',
+      segments: segments,
+      rebuild: (translations) {
+        final out = StringBuffer();
+        var cursor = 0;
+        for (final edit in edits) {
+          out
+            ..write(content.substring(cursor, edit.start))
+            ..write(
+              edit.format(
+                edit.segmentIndex == null
+                    ? null
+                    : translations[edit.segmentIndex!],
+              ),
+            );
+          cursor = edit.end;
+        }
+        out.write(content.substring(cursor));
+        return out.toString();
+      },
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Xcode String Catalog (.xcstrings)
+  // ---------------------------------------------------------------------------
+
+  static ParsedDocument _parseXcstrings(
+    String content, {
+    String? targetLanguage,
+  }) {
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(content);
+    } on FormatException catch (error) {
+      throw CliException.usage(
+        'Invalid Xcode string catalog (.xcstrings): ${error.message}',
+      );
+    }
+    if (decoded is! Map<String, dynamic> ||
+        decoded['strings'] is! Map<String, dynamic>) {
+      throw const CliException.usage(
+        'Invalid Xcode string catalog: missing top-level "strings" object.',
+      );
+    }
+
+    final indent = _detectJsonIndent(content);
+    final trailingNewline = content.endsWith('\n');
+    final eol = _eolOf(content);
+    final sourceLang = (decoded['sourceLanguage'] as String?)?.trim() ?? 'en';
+    final targetLang = targetLanguage?.trim();
+    final hasTarget =
+        targetLang != null &&
+        targetLang.isNotEmpty &&
+        targetLang.toLowerCase() != sourceLang.toLowerCase();
+
+    final strings = decoded['strings'] as Map<String, dynamic>;
+    final segments = <DocumentSegment>[];
+    final targets = <({String key, String? pluralCase, int segmentIndex})>[];
+
+    if (hasTarget) {
+      for (final MapEntry(:key, :value) in strings.entries) {
+        if (value is! Map<String, dynamic>) continue;
+        if (value['shouldTranslate'] == false) continue;
+
+        final localizations = value['localizations'];
+        final locMap = localizations is Map<String, dynamic>
+            ? localizations
+            : null;
+        final existingTarget = locMap?[targetLang];
+        if (existingTarget is Map<String, dynamic>) {
+          final unit = existingTarget['stringUnit'];
+          if (unit is Map<String, dynamic>) {
+            final state = unit['state'] as String?;
+            final val = unit['value'] as String?;
+            if (state != 'new' && val != null && val.trim().isNotEmpty) {
+              continue;
+            }
+          } else if (existingTarget['variations'] is Map<String, dynamic>) {
+            continue;
+          }
+        }
+
+        final sourceLoc = locMap?[sourceLang];
+        if (sourceLoc is Map<String, dynamic>) {
+          final variations = sourceLoc['variations'];
+          if (variations is Map<String, dynamic> &&
+              variations['plural'] is Map<String, dynamic>) {
+            final plural = variations['plural'] as Map<String, dynamic>;
+            for (final MapEntry(key: pluralCase, value: caseVal)
+                in plural.entries) {
+              if (caseVal is! Map<String, dynamic>) continue;
+              final unit = caseVal['stringUnit'];
+              final text = unit is Map<String, dynamic>
+                  ? unit['value'] as String?
+                  : null;
+              if (text == null || text.trim().isEmpty) continue;
+              final idx = segments.length;
+              segments.add(DocumentSegment(id: '$key:$pluralCase', text: text));
+              targets.add((
+                key: key,
+                pluralCase: pluralCase,
+                segmentIndex: idx,
+              ));
+            }
+            continue;
+          }
+          final unit = sourceLoc['stringUnit'];
+          final text = unit is Map<String, dynamic>
+              ? unit['value'] as String?
+              : null;
+          if (text != null && text.trim().isNotEmpty) {
+            final idx = segments.length;
+            segments.add(DocumentSegment(id: key, text: text));
+            targets.add((key: key, pluralCase: null, segmentIndex: idx));
+            continue;
+          }
+        }
+
+        if (key.trim().isNotEmpty) {
+          final idx = segments.length;
+          segments.add(DocumentSegment(id: key, text: key));
+          targets.add((key: key, pluralCase: null, segmentIndex: idx));
+        }
+      }
+    }
+
+    return ParsedDocument(
+      format: 'xcstrings',
+      segments: segments,
+      rebuild: (translations) {
+        final copy = jsonDecode(jsonEncode(decoded)) as Map<String, dynamic>;
+        final copyStrings = copy['strings'] as Map<String, dynamic>;
+        if (hasTarget) {
+          for (final target in targets) {
+            final entry = copyStrings[target.key] as Map<String, dynamic>;
+            final locs =
+                (entry['localizations'] as Map<String, dynamic>?) ??
+                <String, dynamic>{};
+            entry['localizations'] = locs;
+            final tr = translations[target.segmentIndex];
+            if (target.pluralCase case final pluralCase?) {
+              final langObj =
+                  (locs[targetLang] as Map<String, dynamic>?) ??
+                  <String, dynamic>{};
+              locs[targetLang] = langObj;
+              final vars =
+                  (langObj['variations'] as Map<String, dynamic>?) ??
+                  <String, dynamic>{};
+              langObj['variations'] = vars;
+              final plural =
+                  (vars['plural'] as Map<String, dynamic>?) ??
+                  <String, dynamic>{};
+              vars['plural'] = plural;
+              plural[pluralCase] = {
+                'stringUnit': {'state': 'needs_review', 'value': tr},
+              };
+            } else {
+              locs[targetLang] = {
+                'stringUnit': {'state': 'needs_review', 'value': tr},
+              };
+            }
+          }
+        }
+        var encoded = JsonEncoder.withIndent(indent).convert(copy);
+        if (eol == '\r\n') encoded = encoded.replaceAll('\n', '\r\n');
+        return trailingNewline ? '$encoded$eol' : encoded;
+      },
+    );
   }
 }
 

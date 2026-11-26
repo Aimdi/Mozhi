@@ -11,3 +11,4 @@ export 'proofread_command.dart';
 export 'providers_command.dart';
 export 'repl_command.dart';
 export 'translate_command.dart';
+export 'web_command.dart';

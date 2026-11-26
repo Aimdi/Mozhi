@@ -1,5 +1,6 @@
 import 'package:mason_logger/mason_logger.dart';
 import 'package:mozhi_cli/src/commands/mozhi_command.dart';
+import 'package:mozhi_cli/src/errors.dart';
 import 'package:mozhi_cli/src/output/json_output.dart';
 import 'package:mozhi_cli/src/resolvers.dart';
 import 'package:translation_repository/translation_repository.dart';
@@ -51,6 +52,19 @@ class ProofreadCommand extends MozhiCommand {
         help: 'Tone to rewrite toward.',
       )
       ..addOption(
+        'reading-level',
+        valueHelp: 'level',
+        allowed: [for (final value in ReadingLevel.values) value.name],
+        help: 'Target CEFR reading level (a1 = simplest).',
+      )
+      ..addOption(
+        'variety',
+        valueHelp: 'tag',
+        help:
+            'Regional variety to keep or convert to '
+            '(${ProofreadVariety.values.map((v) => v.code).join(', ')}).',
+      )
+      ..addOption(
         'context',
         valueHelp: 'text',
         help: 'What the text is for, e.g. "cover letter".',
@@ -82,6 +96,25 @@ class ProofreadCommand extends MozhiCommand {
     final text = await readText();
     final engine = _engine();
     final formality = option('formality');
+    final readingLevelOpt = option('reading-level');
+    final readingLevel = readingLevelOpt == null
+        ? ReadingLevel.standard
+        : parseChoice('reading-level', readingLevelOpt, ReadingLevel.values);
+    final varietyOpt = option('variety');
+    final ProofreadVariety? variety;
+    if (varietyOpt == null) {
+      variety = null;
+    } else {
+      variety = ProofreadVariety.fromCode(varietyOpt);
+      if (variety == null) {
+        throw CliException.usage(
+          'Unknown regional variety "$varietyOpt".',
+          hint:
+              'Supported varieties: '
+              '${ProofreadVariety.values.map((v) => v.code).join(', ')}.',
+        );
+      }
+    }
     final result = await withRepository(
       (repository) => repository.proofread(
         engine,
@@ -91,6 +124,8 @@ class ProofreadCommand extends MozhiCommand {
         formality: formality == null
             ? Formality.automatic
             : parseChoice('formality', formality, Formality.values),
+        readingLevel: readingLevel,
+        variety: variety,
         context: option('context') ?? '',
         tone: parseChoice('tone', option('tone')!, WritingTone.values),
       ),
