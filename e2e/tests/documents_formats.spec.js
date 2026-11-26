@@ -342,21 +342,33 @@ test('a PDF document is translated in the browser and saved as PDF', async ({
     page.getByRole('checkbox', { name: 'PDF document' }),
   ).toBeVisible();
   await expect(page.getByRole('checkbox', { name: '1 page' })).toBeVisible();
-  await expect(page.getByText(pdfSentence)).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Page 1', exact: true }),
+  ).toBeVisible();
 
   await page.getByRole('button', { name: 'Translate', exact: true }).click();
   await expect(page.getByText('Translation complete')).toBeVisible();
   await expect(page.getByText('File name: note.fr.pdf')).toBeVisible();
 
-  const download = page.waitForEvent('download');
+  const pdfDownload = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Save file' }).click();
-  const file = await download;
-  expect(file.suggestedFilename()).toBe('note.fr.pdf');
-  const path = test.info().outputPath(file.suggestedFilename());
-  await file.saveAs(path);
+  const pdfFile = await pdfDownload;
+  expect(pdfFile.suggestedFilename()).toBe('note.fr.pdf');
+  const pdfPath = test.info().outputPath(pdfFile.suggestedFilename());
+  await pdfFile.saveAs(pdfPath);
 
-  const bytes = fs.readFileSync(path);
+  const bytes = fs.readFileSync(pdfPath);
   expect(bytes.subarray(0, 5).toString('latin1')).toBe('%PDF-');
   expect(bytes.length).toBeGreaterThan(200);
+
+  const txtDownload = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Save the text' }).click();
+  const txtFile = await txtDownload;
+  expect(txtFile.suggestedFilename()).toBe('note.fr.txt');
+  const txtPath = test.info().outputPath(txtFile.suggestedFilename());
+  await txtFile.saveAs(txtPath);
+  expect(fs.readFileSync(txtPath, 'utf8')).toContain(
+    `[AI→French (Français)] ${pdfSentence}`,
+  );
   expect(errors).toEqual([]);
 });
